@@ -3,6 +3,12 @@ title: Proxy Peering Migration
 description: How to upgrade an existing Teleport cluster to Proxy Peering mode.
 ---
 
+This guide shows you how to migrate your Teleport
+cluster to use Proxy Peering, which enables you to scale
+your Proxy Service instances horizontally by reducing the
+number of connections created between Teleport Proxy instances
+and Teleport services like the Database Service and Application Service.
+
 ## Prerequisites
 
 An existing Teleport Enterprise cluster. See our [getting started guide](../../deploy-a-cluster/teleport-enterprise/getting-started.mdx) for help
@@ -29,11 +35,14 @@ auth_service:
 This setting will indicate to agents that they are only required to connect to 1
 Teleport Proxy instance as specified by the `agent_connection_count` field.
 
+For high availability, an `agent_connection_count` greater than 1 can be configured.
+This ensures an agent is still reachable if one of the proxies it is connected to is not available.
+
 ## Step 2/3. Restart the Auth Services
-Restart all Teleport Auth Services running in the cluster to apply the new auth service
+Restart all Teleport Auth Services running in the cluster to apply the new Auth Service
 configuration.
 
 ## Step 3/3. Restart the Proxy Services
-Restart all Teleport Proxy instances running in the cluster in order for Proxy Peering
-specific services to start up.
+Restart all Teleport Proxy Service instances running in the cluster in order to
+start the services required for Proxy Peering.
 

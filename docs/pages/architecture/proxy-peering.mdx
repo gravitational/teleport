@@ -13,16 +13,16 @@ description: How Teleport implements more efficient networking with Proxy Peerin
   Proxy Peering is available starting from Teleport `10.0`.
 </Details>
 
-Proxy Peering enables an agent to be reachable without it connecting to every
-Teleport Proxy instance. This allows Teleport Proxy instances to scale horizontally
-without increasing the number of connections created by agents.
+Proxy Peering enables Teleport agents to be reachable without connecting to
+every Teleport Proxy Service. This allows Teleport Proxy instances to scale
+horizontally without increasing the number of connections created by agents.
 
-Proxy Peering is a type of tunnel strategy configurable in Teleport. A tunnel
-strategy defines the behavior for agent reverse tunnel connections as well as
-how client are connected to those reverse tunnels. A Teleport cluster's tunnel
-strategy is configurable in the Teleport Auth service.
+<Admonition title="Note" type="tip">
+  A Teleport agent is a service that provides access to a Teleport service such as SSH,
+  Kubernetes, Database, Application, and Desktop services.
+</Admonition>
 
-Normally Teleport agents need to create a reverse tunnel to every Teleport Proxy
+By default, Teleport agents need to create a reverse tunnel to every Teleport Proxy
 to ensure a client is able to reach the agent. With Proxy Peering this is no
 longer a requirement. When Proxy Peering is enabled agents will automatically
 change their behavior to connect to the configured number of Teleport Proxy
@@ -32,21 +32,22 @@ instances.
 
 ### Proxy Service
 
-A GRPC service on each Teleport Proxy instance provides an API for establishing a
+A gRPC service on each Teleport Proxy instance provides an API for establishing a
 bi-directional connection to the agents connected to that Teleport Proxy. Teleport
-Proxy instances manage a GRPC client to all other Teleport Proxy instances in the
+Proxy instances manage a gRPC client to all other Teleport Proxy instances in the
 cluster.
 
 Routing information on which Teleport Proxy instances each agent is connected to
 is stored in Teleport's backend and propagated to each Teleport Proxy instance.
 
-The routing information and GRPC service allow a Teleport Proxy to identify where
-an agent is connected and create an end-to-end connection from a client to that
-agent.
+The routing information and gRPC service allow a Teleport Proxy to identify which
+Proxy Service instance an agent is connected to and create an end-to-end connection
+from a client to that agent. This allows for access to the agent without connecting
+to the same Teleport Proxy instance initially.
 
 ### Reverse tunnel agents
 
-Agents will check the Teleport cluster's configured tunnel strategy before
+Agents will check whether you have enabled Proxy Peering before
 attempting to create a reverse tunnel to a Teleport Proxy instance. This
 allows an agent to dynamically adjust its behavior accordingly.
 

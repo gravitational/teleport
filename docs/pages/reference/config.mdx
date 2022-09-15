@@ -485,7 +485,7 @@ auth_service:
     proxy_listener_mode: multiplex
 
     # Determines the strategy that the cluster uses for connecting clients to
-    # agents in IoT mode.
+    # agents through the Teleport Proxy Service.
     tunnel_strategy:
       # Possible tunnel strategy types are:
       #
@@ -623,6 +623,10 @@ proxy_service:
     # "v2": listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
     # "v1": defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
+
+    # Proxy Peering listening address. Teleport Proxy Services will advertise this address
+    # for dialing agents in Proxy Peering mode.
+    peer_listen_addr: 0.0.0.0:3021
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the
     # command line (CLI) users via password+HOTP
