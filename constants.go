@@ -289,13 +289,17 @@ const (
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
 
-	// SSH request type to keep the connection alive. A client and a server keep
-	// pining each other with it:
+	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// RecordingProxyReqType is the name of a global request which returns if
 	// the proxy is recording sessions or not.
 	RecordingProxyReqType = "recording-proxy@teleport.com"
+
+	// ClusterDetailsReqType is the name of a global request which returns cluster details like
+	// if the proxy is recording sessions or not and if FIPS is enabled.
+	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
 	// JSON means JSON serialization format
 	JSON = "json"
