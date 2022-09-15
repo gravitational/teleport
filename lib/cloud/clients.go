@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
@@ -98,7 +97,9 @@ type AzureClients interface {
 	// GetAzureSubscriptionClient returns an Azure Subscriptions client
 	GetAzureSubscriptionClient() (*azure.SubscriptionClient, error)
 	// GetAzureRedisClient returns an Azure Redis client for the given subscription.
-	GetAzureRedisClient(subscription string) (azure.ServerTokenClient, error)
+	GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error)
+	// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+	GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -106,9 +107,10 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:    make(map[string]azure.DBServersClient),
-			azurePostgresClients: make(map[string]azure.DBServersClient),
-			azureRedisClients:    make(map[string]azure.ServerTokenClient),
+			azureMySQLClients:           make(map[string]azure.DBServersClient),
+			azurePostgresClients:        make(map[string]azure.DBServersClient),
+			azureRedisClients:           azure.NewRedisClientMap(),
+			azureRedisEnterpriseClients: azure.NewRedisEnterpriseClientMap(),
 		},
 	}
 }
@@ -140,7 +142,9 @@ type azureClients struct {
 	// azureSubscriptionsClient is the cached Azure Subscriptions client.
 	azureSubscriptionsClient *azure.SubscriptionClient
 	// TODO
-	azureRedisClients map[string]azure.ServerTokenClient
+	azureRedisClients azure.ClientMap[azure.CacheForRedisClient]
+	// TODO
+	azureRedisEnterpriseClients azure.ClientMap[azure.CacheForRedisClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -293,14 +297,13 @@ func (c *cloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, 
 }
 
 // GetAzureRedisClient returns an Azure Redis client for the given subscription.
-func (c *cloudClients) GetAzureRedisClient(subscription string) (azure.ServerTokenClient, error) {
-	c.mtx.RLock()
-	if client, ok := c.azureRedisClients[subscription]; ok {
-		c.mtx.RUnlock()
-		return client, nil
-	}
-	c.mtx.RUnlock()
-	return c.initAzureRedisClient(subscription)
+func (c *cloudClients) GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.azureRedisClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+func (c *cloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.azureRedisEnterpriseClients.Get(subscription, c.GetAzureCredential)
 }
 
 // Close closes all initialized clients.
@@ -364,11 +367,6 @@ func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminCl
 	return gcpSQLAdmin, nil
 }
 
-func (c *cloudClients) getAzureClientOptions() *arm.ClientOptions {
-	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-	return &arm.ClientOptions{}
-}
-
 func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -399,7 +397,9 @@ func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.DBServer
 	}
 
 	logrus.Debug("Initializing Azure MySQL servers client.")
-	api, err := armmysql.NewServersClient(subscription, cred, c.getAzureClientOptions())
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+	options := &arm.ClientOptions{}
+	api, err := armmysql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -420,7 +420,9 @@ func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.DBSer
 		return client, nil
 	}
 	logrus.Debug("Initializing Azure Postgres servers client.")
-	api, err := armpostgresql.NewServersClient(subscription, cred, c.getAzureClientOptions())
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+	options := &arm.ClientOptions{}
+	api, err := armpostgresql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -441,33 +443,15 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 		return c.azureSubscriptionsClient, nil
 	}
 	logrus.Debug("Initializing Azure subscriptions client.")
-	armClient, err := armsubscription.NewSubscriptionsClient(cred, c.getAzureClientOptions())
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment,
+	// we will need to specify the cloud in these options
+	opts := &arm.ClientOptions{}
+	armClient, err := armsubscription.NewSubscriptionsClient(cred, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	client := azure.NewSubscriptionClient(armClient)
 	c.azureSubscriptionsClient = client
-	return client, nil
-}
-
-func (c *cloudClients) initAzureRedisClient(subscription string) (azure.ServerTokenClient, error) {
-	cred, err := c.GetAzureCredential()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if client, ok := c.azureRedisClients[subscription]; ok { // If some other thread already got here first.
-		return client, nil
-	}
-	logrus.Debug("Initializing Azure Redis client.")
-	api, err := armredis.NewClient(subscription, cred, c.getAzureClientOptions())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	client := azure.NewRedisClient(api)
-	c.azureRedisClients[subscription] = client
 	return client, nil
 }
 
@@ -491,7 +475,8 @@ type TestCloudClients struct {
 	AzurePostgres           azure.DBServersClient
 	AzurePostgresPerSub     map[string]azure.DBServersClient
 	AzureSubscriptionClient *azure.SubscriptionClient
-	AzureRedis              azure.ServerTokenClient
+	AzureRedis              azure.CacheForRedisClient
+	AzureRedisEnterprise    azure.CacheForRedisClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -581,8 +566,13 @@ func (c *TestCloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClie
 }
 
 // GetAzureRedisClient returns an Azure Redis client for the given subscription.
-func (c *TestCloudClients) GetAzureRedisClient(subscription string) (azure.ServerTokenClient, error) {
+func (c *TestCloudClients) GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error) {
 	return c.AzureRedis, nil
+}
+
+// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.AzureRedisEnterprise, nil
 }
 
 // Close closes all initialized clients.

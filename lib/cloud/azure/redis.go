@@ -23,20 +23,23 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// TODO
-// TODO(greedy52) implements DBServersClient for auto discovery.
-type RedisClient struct {
-	api ARMRedis
+type armRedisClient interface {
+	ListKeys(ctx context.Context, resourceGroupName string, name string, options *armredis.ClientListKeysOptions) (armredis.ClientListKeysResponse, error)
 }
 
-// NewRedisClient creates a new Azure Redis client
-func NewRedisClient(api ARMRedis) *RedisClient {
+// TODO
+type RedisClient struct {
+	api armRedisClient
+}
+
+// NewRedisClient creates a new Azure Redis client.
+func NewRedisClient(api armRedisClient) *RedisClient {
 	return &RedisClient{
 		api: api,
 	}
 }
 
-// TODO
+// GetToken implements CacheForRedisClient.
 func (c *RedisClient) GetToken(ctx context.Context, group, name string) (string, error) {
 	resp, err := c.api.ListKeys(ctx, group, name, &armredis.ClientListKeysOptions{})
 	if err != nil {

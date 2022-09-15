@@ -113,6 +113,10 @@ type Database interface {
 	IsAWSHosted() bool
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
 	IsCloudHosted() bool
+	// IsAzureRedis returns true if database Azure Redis (non-Enterprise).
+	IsAzureRedis() bool
+	// IsAzureRedisEnterprise returns true if database Azure Redis Enterprise.
+	IsAzureRedisEnterprise() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -382,6 +386,16 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
+// IsAzureRedis returns true if database Azure Redis (non-Enterprise).
+func (d *DatabaseV3) IsAzureRedis() bool {
+	return d.IsAzure() && azureutils.IsRedisEndpoint(d.GetURI())
+}
+
+// IsAzureRedisEnterprise returns true if database Azure Redis Enterprise.
+func (d *DatabaseV3) IsAzureRedisEnterprise() bool {
+	return d.IsAzure() && azureutils.IsRedisEnterpriseEndpoint(d.GetURI())
+}
+
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
@@ -535,6 +549,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
+	}
 	return nil
 }
 

@@ -22,7 +22,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 )
 
 // DBServersClient provides an interface for fetching Azure DB Servers.
@@ -33,12 +32,6 @@ type DBServersClient interface {
 	ListWithinGroup(ctx context.Context, group string) ([]*DBServer, error)
 	// Get returns a DBServer within an Azure subscription, queried by group and name
 	Get(ctx context.Context, group, name string) (*DBServer, error)
-}
-
-// TODO
-type ServerTokenClient interface {
-	// TODO
-	GetToken(ctx context.Context, group, name string) (string, error)
 }
 
 // ARMMySQL is an interface for armmysql.ServersClient.
@@ -67,7 +60,8 @@ type ARMPostgres interface {
 
 var _ ARMPostgres = (*armpostgresql.ServersClient)(nil)
 
-// TODO
-type ARMRedis interface {
-	ListKeys(ctx context.Context, resourceGroupName string, name string, options *armredis.ClientListKeysOptions) (armredis.ClientListKeysResponse, error)
+// CacheForRedisClient provides an interface for a client for Azure Redis For Cache.
+type CacheForRedisClient interface {
+	// TODO
+	GetToken(ctx context.Context, group, name string) (string, error)
 }

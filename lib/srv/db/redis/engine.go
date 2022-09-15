@@ -157,7 +157,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	user, password, err := e.getInitialUserAndPassword(ctx, sessionCtx)
+	username, password, err := e.getInitialUserAndPassword(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,15 +183,29 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return nil
 }
 
+// TODO
 func (e *Engine) getInitialUserAndPassword(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
 	switch {
-	case sessionCtx.Database.IsAzure():
-		// TODO handle Azure Redis Enterprise
+	case sessionCtx.Database.IsAzureRedis():
 		resourceID, err := arm.ParseResourceID(sessionCtx.Database.GetAzure().ResourceID)
 		if err != nil {
 			return "", "", trace.Wrap(err)
 		}
 		client, err := e.CloudClients.GetAzureRedisClient(resourceID.SubscriptionID)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		token, err := client.GetToken(ctx, resourceID.ResourceGroupName, resourceID.Name)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		return "", token, nil
+	case sessionCtx.Database.IsAzureRedisEnterprise():
+		resourceID, err := arm.ParseResourceID(sessionCtx.Database.GetAzure().ResourceID)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		client, err := e.CloudClients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
 		if err != nil {
 			return "", "", trace.Wrap(err)
 		}
@@ -225,8 +239,6 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
 			defaultMode = Cluster
 		}
-
-		// TODO handle Azure Redis Enterprise
 	}
 
 	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
