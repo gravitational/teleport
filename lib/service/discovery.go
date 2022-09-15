@@ -17,6 +17,8 @@ limitations under the License.
 package service
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -58,6 +60,14 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// wait for nodeWatcher to complete initialization so the
+	// discovery server doesnt get an empty list of nodes and attempt
+	// to perform an installation on all the nodes that do actually
+	// exist.
+	for !nodeWatcher.IsInitialized() {
+		time.Sleep(1 * time.Second)
 	}
 
 	// asyncEmitter makes sure that sessions do not block
