@@ -91,10 +91,12 @@ func (tt *githubContext) Close() error {
 
 func TestPopulateClaims(t *testing.T) {
 	client := &testGithubAPIClient{}
+	user, err := client.getUser()
+	require.NoError(t, err)
 	teams, err := client.getTeams()
 	require.NoError(t, err)
 
-	claims, err := populateGithubClaims(client, teams)
+	claims, err := populateGithubClaims(user, teams)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(claims, &types.GithubClaims{
 		Username: "octocat",
