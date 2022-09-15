@@ -177,14 +177,22 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instance
 		Filters: f.Filters,
 	},
 		func(dio *ec2.DescribeInstancesOutput, b bool) bool {
+			const chunkSize = 50 // max number of instances SSM will send commands to at a time
 			for _, res := range dio.Reservations {
-				instances = append(instances, EC2Instances{
-					AccountID:    aws.StringValue(res.OwnerId),
-					Region:       f.Region,
-					DocumentName: f.DocumentName,
-					Instances:    res.Instances,
-					Parameters:   f.Parameters,
-				})
+				for i := 0; i < len(res.Instances); i += chunkSize {
+					end := i + chunkSize
+					if end > len(res.Instances) {
+						end = len(res.Instances)
+					}
+					inst := EC2Instances{
+						AccountID:    aws.StringValue(res.OwnerId),
+						Region:       f.Region,
+						DocumentName: f.DocumentName,
+						Instances:    res.Instances[i:end],
+						Parameters:   f.Parameters,
+					}
+					instances = append(instances, inst)
+				}
 			}
 			return true
 		})
