@@ -1976,6 +1976,9 @@ func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) 
 }
 
 // UpsertToken creates or updates a provision token.
+// In cases where a consumer of the library wants to ensure backwards compat,
+// they will need to ensure that they handle the situation where submitting a
+// v3 resource to an older server results in an unimplemented error.
 func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	var err error
 	switch v := token.(type) {
@@ -1990,6 +1993,9 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 }
 
 // CreateToken creates a provision token.
+// In cases where a consumer of the library wants to ensure backwards compat,
+// they will need to ensure that they handle the situation where submitting a
+// v3 resource to an older server results in an unimplemented error.
 func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) error {
 	var err error
 	switch v := token.(type) {

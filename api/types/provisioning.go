@@ -282,15 +282,6 @@ func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 	return p.Spec.SuggestedLabels
 }
 
-// V1 returns V1 version of the resource
-func (p *ProvisionTokenV2) V1() *ProvisionTokenV1 {
-	return &ProvisionTokenV1{
-		Roles:   p.Spec.Roles,
-		Expires: p.Metadata.Expiry(),
-		Token:   p.Metadata.Name,
-	}
-}
-
 // V2 returns V2 version of the resource
 func (p *ProvisionTokenV2) V2() *ProvisionTokenV2 {
 	return p
@@ -359,6 +350,8 @@ func ProvisionTokensFromV1(in []ProvisionTokenV1) []ProvisionToken {
 }
 
 // V3 returns V3 version of the ProvisionTokenV1 resource.
+// This is handy for converting a ProvisionTokenV1 embedded within a
+// StaticToken to a ProvisionToken interface implementing type.
 func (p *ProvisionTokenV1) V3() *ProvisionTokenV3 {
 	t := &ProvisionTokenV3{
 		Kind:    KindToken,
@@ -425,7 +418,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 				JoinMethodIAM,
 			)
 		}
-		if err := providerCfg.CheckAndSetDefaults(); err != nil {
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	case JoinMethodEC2:
@@ -436,15 +429,17 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 				JoinMethodIAM,
 			)
 		}
-		if err := providerCfg.CheckAndSetDefaults(); err != nil {
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	case JoinMethodToken:
-	default:
+	case "":
 		return trace.BadParameter(`"join_method" must be specified`)
+	default:
+		return trace.BadParameter(`"join_method" specified not recognized`)
 
 	}
-	return fmt.Errorf("unimplemented")
+	return nil
 }
 
 // GetAllowRules returns the list of allow rules
@@ -588,7 +583,7 @@ func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 
 // Validation for provider specific config
 
-func (a *ProvisionTokenSpecV3AWSEC2) CheckAndSetDefaults() error {
+func (a *ProvisionTokenSpecV3AWSEC2) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
 	}
@@ -607,7 +602,7 @@ func (a *ProvisionTokenSpecV3AWSEC2) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (a *ProvisionTokenSpecV3AWSIAM) CheckAndSetDefaults() error {
+func (a *ProvisionTokenSpecV3AWSIAM) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodIAM)
 	}

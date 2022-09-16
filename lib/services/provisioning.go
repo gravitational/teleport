@@ -143,9 +143,6 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 			copy.SetResourceID(0)
 			provisionToken = &copy
 		}
-		if cfg.GetVersion() == types.V1 {
-			return utils.FastMarshal(provisionToken.V1())
-		}
 		return utils.FastMarshal(provisionToken)
 	case *types.ProvisionTokenV3:
 		if !cfg.PreserveResourceID {
