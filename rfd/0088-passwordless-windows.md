@@ -174,13 +174,46 @@ solution.
 ### UX
 
 UX from `tsh` command perspective does not change at all in comparison to
-[Passwordless RFD][passwordless rfd] and [TouchID RFD][touchid rfd].
+[Passwordless FIDO](https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md#ux)
+and [TouchID](https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md#ux).
 
 The only changes that will be visible to user is that now all interactions
 (message to touch device, pin input etc) are provided by Windows modals.
-<!--
-TODO(codingllama): Should we add here screenshot how it looks like?
--->
+
+Windows Webauthn API prefers Windows Hello over FIDO devices. If user want to use
+only FIDO devices, it must use `--mfa-mode=cross-platform`. `Tsh` must remember
+`--mfa-mode` from previous usage.
+
+Example `tsh mfa add` with passwordless / resident key creation, including
+initial PIN setup:
+
+```shell
+$ tsh mfa add
+> Choose device type [TOTP, WEBAUTHN]: webauthn
+> Enter device name: pwdless-key
+> Allow passwordless logins [YES, NO]: yes
+> Follow instructions from system dialogs
+> MFA device "pwdless-key" added.
+```
+
+Example of a login with multiple hardware keys, PIN, and multiple credentials:
+
+```shell
+$ tsh login --proxy=example.com --auth=passwordless
+> Follow instructions from system dialogs
+> > Profile URL:        https://example.com
+>   Logged in as:       llama
+>   Cluster:            example.com
+>   Roles:              access, editor
+>   Logins:             llama
+>   Kubernetes:         enabled
+>   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
+>   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+Dialog will look similar to following:
+
+![Login](assets/0088-login-choice-multi.png)
 
 The following hidden maintenance commands are added:
 
