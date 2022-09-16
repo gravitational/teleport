@@ -21,6 +21,7 @@ use super::{
     *,
 };
 use crate::{
+    rdpdr::scard::ContextInternal,
     vchan::{ChannelPDUFlags, ChannelPDUHeader},
     Encode, Messages,
 };
@@ -44,8 +45,8 @@ fn test_to_windows_time() {
     assert_eq!(to_windows_time(1000), 116444736010000000);
 }
 
-fn client() -> Client {
-    Client::new(Config {
+fn client(with_scard_id: bool, established_contexts: u32) -> Client {
+    let mut c = Client::new(Config {
         cert_der: vec![],
         key_der: vec![],
         pin: "".to_string(),
@@ -74,7 +75,17 @@ fn client() -> Client {
         tdp_sd_move_request: Box::new(move |_req: SharedDirectoryMoveRequest| -> RdpResult<()> {
             Ok(())
         }),
-    })
+    });
+
+    if with_scard_id {
+        c.push_active_device_id(SCARD_DEVICE_ID).unwrap();
+    }
+
+    for _ in 0..established_contexts {
+        c.scard.contexts.establish();
+    }
+
+    c
 }
 
 struct PayloadIn {
@@ -123,9 +134,11 @@ fn test_payload_in_to_response_out(
     )
 }
 
-fn test_handle_server_announce(c: &mut Client) {
+#[test]
+fn test_handle_server_announce() {
+    let mut c = client(false, 0);
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 12,
@@ -164,9 +177,11 @@ fn test_handle_server_announce(c: &mut Client) {
     );
 }
 
-fn test_handle_server_capability(c: &mut Client) {
+#[test]
+fn test_handle_server_capability() {
+    let mut c = client(false, 0);
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 84,
@@ -285,9 +300,11 @@ fn test_handle_server_capability(c: &mut Client) {
     );
 }
 
-fn test_handle_client_id_confirm(c: &mut Client) {
+#[test]
+fn test_handle_client_id_confirm() {
+    let mut c = client(false, 0);
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 12,
@@ -320,11 +337,16 @@ fn test_handle_client_id_confirm(c: &mut Client) {
             }),
         )],
     );
+
+    // Check that we added SCARD_DEVICE_ID to the device id cache
+    assert_eq!(c.get_scard_device_id().unwrap(), SCARD_DEVICE_ID);
 }
 
-fn test_handle_device_reply(c: &mut Client) {
+#[test]
+fn test_handle_device_reply() {
+    let mut c = client(true, 0);
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 12,
@@ -346,9 +368,11 @@ fn test_handle_device_reply(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_accessstartedevent(c: &mut Client) {
+#[test]
+fn test_scard_ioctl_accessstartedevent() {
+    let mut c = client(true, 0);
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 60,
@@ -393,9 +417,12 @@ fn test_scard_ioctl_accessstartedevent(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_establishcontext(c: &mut Client, completion_id: u32, context_value: u8) {
+#[test]
+fn test_scard_ioctl_establishcontext() {
+    let mut c = client(true, 0);
+
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 80,
@@ -411,7 +438,7 @@ fn test_scard_ioctl_establishcontext(c: &mut Client, completion_id: u32, context
                 header: DeviceIoRequest {
                     device_id: 1,
                     file_id: 1,
-                    completion_id,
+                    completion_id: 0,
                     major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
                     minor_function: MinorFunction::IRP_MN_NONE,
                 },
@@ -428,60 +455,26 @@ fn test_scard_ioctl_establishcontext(c: &mut Client, completion_id: u32, context
             Box::new(DeviceControlResponse {
                 header: DeviceIoResponse {
                     device_id: 1,
-                    completion_id,
+                    completion_id: 0,
                     io_status: 0,
                 },
                 output_buffer_length: 40,
                 output_buffer: vec![
-                    1,
-                    16,
-                    8,
-                    0,
-                    204,
-                    204,
-                    204,
-                    204,
-                    24,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    4,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    2,
-                    0,
-                    4,
-                    0,
-                    0,
-                    0,
-                    context_value,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
+                    1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0,
+                    0, 0, 0, 2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
                 ],
             }),
         )],
     );
+
+    assert_eq!(c.scard.contexts.get(1), Some(&mut ContextInternal::new()));
 }
 
-fn test_scard_ioctl_listreadersw(c: &mut Client) {
+#[test]
+fn test_scard_ioctl_listreadersw() {
+    let mut c = client(true, 1);
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 144,
@@ -534,9 +527,13 @@ fn test_scard_ioctl_listreadersw(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_getdevicetypeid(c: &mut Client, context_value: u32) {
+#[test]
+fn test_scard_ioctl_getdevicetypeid() {
+    let context_value = 2;
+    let mut c = client(true, context_value);
+
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 128,
@@ -587,9 +584,13 @@ fn test_scard_ioctl_getdevicetypeid(c: &mut Client, context_value: u32) {
     );
 }
 
-fn test_scard_ioctl_releasecontext(c: &mut Client, context_value: u32) {
+#[test]
+fn test_scard_ioctl_releasecontext() {
+    let context_value = 2;
+    let mut c = client(true, context_value);
+
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 88,
@@ -635,16 +636,18 @@ fn test_scard_ioctl_releasecontext(c: &mut Client, context_value: u32) {
             }),
         )],
     );
+
+    assert_eq!(c.scard.contexts.get(1), Some(&mut ContextInternal::new()));
+    assert_eq!(c.scard.contexts.get(2), None);
 }
 
-fn test_scard_ioctl_getstatuschangew(
-    c: &mut Client,
-    context_value: u32,
-    states: Vec<ReaderState>,
-    responses_out: ResponseOut,
-) {
+#[test]
+fn test_scard_ioctl_getstatuschangew() {
+    let context_value = 1;
+    let mut c = client(true, 1);
+
     test_payload_in_to_response_out(
-        c,
+        &mut c,
         PayloadIn {
             channel_pdu_header: ChannelPDUHeader {
                 length: 296,
@@ -676,60 +679,29 @@ fn test_scard_ioctl_getstatuschangew(
                 timeout: 4294967295,
                 states_ptr_length: 2,
                 states_ptr: 131076,
-                states_length: states.len() as u32,
-                states,
+                states_length: 2,
+                states: vec![
+                    ReaderState {
+                        reader: "\\\\?PnP?\\Notification".to_string(),
+                        common: ReaderState_Common_Call {
+                            current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            atr_length: 0,
+                            atr: [0; 36],
+                        },
+                    },
+                    ReaderState {
+                        reader: "Teleport".to_string(),
+                        common: ReaderState_Common_Call {
+                            current_state: CardStateFlags::SCARD_STATE_EMPTY,
+                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            atr_length: 0,
+                            atr: [0; 36],
+                        },
+                    },
+                ],
             })),
         },
-        responses_out,
-    );
-}
-
-#[test]
-fn test_smartcard_initialization() {
-    let mut c = client();
-    test_handle_server_announce(&mut c);
-    test_handle_server_capability(&mut c);
-    test_handle_client_id_confirm(&mut c);
-    test_handle_device_reply(&mut c);
-
-    // scard.log 25-32
-    test_scard_ioctl_accessstartedevent(&mut c);
-    // scard.log 36-42
-    test_scard_ioctl_establishcontext(&mut c, 0, 1);
-    // scard.log 43-49
-    test_scard_ioctl_listreadersw(&mut c);
-    // scard.log 50-56
-    test_scard_ioctl_getdevicetypeid(&mut c, 1);
-    // scard.log 57-63
-    test_scard_ioctl_establishcontext(&mut c, 0, 2);
-    // scard.log 64-70
-    test_scard_ioctl_getdevicetypeid(&mut c, 2);
-    // scard.log 71-77
-    test_scard_ioctl_releasecontext(&mut c, 2);
-    // scard.log 78-84
-    test_scard_ioctl_getstatuschangew(
-        &mut c,
-        1,
-        vec![
-            ReaderState {
-                reader: "\\\\?PnP?\\Notification".to_string(),
-                common: ReaderState_Common_Call {
-                    current_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                    atr_length: 0,
-                    atr: [0; 36],
-                },
-            },
-            ReaderState {
-                reader: "Teleport".to_string(),
-                common: ReaderState_Common_Call {
-                    current_state: CardStateFlags::SCARD_STATE_EMPTY,
-                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                    atr_length: 0,
-                    atr: [0; 36],
-                },
-            },
-        ],
         vec![(
             PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
             Box::new(DeviceControlResponse {
@@ -750,39 +722,4 @@ fn test_smartcard_initialization() {
             }),
         )],
     );
-    // scard.log 85-90
-    test_scard_ioctl_getstatuschangew(
-        &mut c,
-        1,
-        vec![
-            ReaderState {
-                reader: "\\\\?PnP?\\Notification".to_string(),
-                common: ReaderState_Common_Call {
-                    current_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                    atr_length: 0,
-                    atr: [
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    ],
-                },
-            },
-            ReaderState {
-                reader: "Teleport".to_string(),
-                common: ReaderState_Common_Call {
-                    current_state: CardStateFlags::SCARD_STATE_CHANGED
-                        | CardStateFlags::SCARD_STATE_PRESENT,
-                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                    atr_length: 11,
-                    atr: [
-                        59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    ],
-                },
-            },
-        ],
-        vec![],
-    );
-    // scard.log 91-97
-    test_scard_ioctl_establishcontext(&mut c, 1, 3);
 }

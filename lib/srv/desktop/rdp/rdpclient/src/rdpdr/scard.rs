@@ -36,7 +36,7 @@ pub struct Client {
     // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
     //
     // contexts also holds a cache and connected smartcard handles for each context.
-    contexts: Contexts,
+    pub(crate) contexts: Contexts,
     uuid: Uuid,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
@@ -1898,8 +1898,8 @@ impl GetReaderIcon_Return {
 }
 
 #[derive(Debug)]
-struct Contexts {
-    contexts: HashMap<u32, ContextInternal>,
+pub(crate) struct Contexts {
+    pub(crate) contexts: HashMap<u32, ContextInternal>,
     next_id: u32,
 }
 
@@ -1911,7 +1911,7 @@ impl Contexts {
         }
     }
 
-    fn establish(&mut self) -> Context {
+    pub(crate) fn establish(&mut self) -> Context {
         let ctx_internal = ContextInternal::new();
         let id = self.next_id;
         self.next_id += 1;
@@ -1920,7 +1920,7 @@ impl Contexts {
         ctx
     }
 
-    fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
+    pub(crate) fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
         self.contexts.get_mut(&id)
     }
 
@@ -1929,15 +1929,15 @@ impl Contexts {
     }
 }
 
-#[derive(Debug)]
-struct ContextInternal {
+#[derive(Debug, PartialEq)]
+pub(crate) struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
     cache: HashMap<String, Vec<u8>>,
 }
 
 impl ContextInternal {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             next_id: 1,
             handles: HashMap::new(),
