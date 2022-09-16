@@ -6,6 +6,11 @@ package proto
 import (
 	context "context"
 	fmt "fmt"
+	io "io"
+	math "math"
+	math_bits "math/bits"
+	time "time"
+
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
@@ -20,10 +25,6 @@ import (
 	status "google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-	time "time"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -9316,8 +9317,8 @@ func (m *RecoveryCodes) GetCreated() time.Time {
 // CreateAccountRecoveryCodesRequest is a request to create new set of recovery codes for a user,
 // replacing and invalidating any previously existing codes. Recovery codes can only be given to
 // users who meet the following requirements:
-//  - cloud feature is enabled
-//  - username is in valid email format
+//   - cloud feature is enabled
+//   - username is in valid email format
 type CreateAccountRecoveryCodesRequest struct {
 	// TokenID is the ID of a user token that will be used to verify this request.
 	// Token types accepted are:
@@ -10005,11 +10006,11 @@ func (*PaginatedResource) XXX_OneofWrappers() []interface{} {
 //
 // NOTE: There are two paths this request can take:
 //  1. ListResources: the more efficient path that retrieves resources by subset
-//  at a time defined by field 'Limit'. Does NOT de-duplicate matches.
+//     at a time defined by field 'Limit'. Does NOT de-duplicate matches.
 //  2. listResourcesWithSort: the less efficient path that retrieves all resources
-//  upfront by falling back to the traditional GetXXX calls. Used when sorting (SortBy),
-//  total count of resources (NeedTotalCount), or ResourceType `KindKubernetesCluster`
-//  is requested. Matches are de-duplicated.
+//     upfront by falling back to the traditional GetXXX calls. Used when sorting (SortBy),
+//     total count of resources (NeedTotalCount), or ResourceType `KindKubernetesCluster`
+//     is requested. Matches are de-duplicated.
 type ListResourcesRequest struct {
 	// ResourceType is the resource that is going to be retrieved.
 	// This only needs to be set explicitly for the `ListResources` rpc.

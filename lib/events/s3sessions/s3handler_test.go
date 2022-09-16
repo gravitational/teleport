@@ -22,6 +22,7 @@ package s3sessions
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"testing"
 
