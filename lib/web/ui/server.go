@@ -253,6 +253,8 @@ type Desktop struct {
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
 	Labels []Label `json:"labels"`
+	// HostID is the ID of the Windows Desktop Service reporting the desktop.
+	HostID string `json:"host_id"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
@@ -281,6 +283,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		Name:   windowsDesktop.GetName(),
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
 		Labels: uiLabels,
+		HostID: windowsDesktop.GetHostID(),
 	}
 }
 
