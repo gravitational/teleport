@@ -460,6 +460,35 @@ INFO[0046] Event sent id=0b5f2a3e-faa5-4d77-ab6e-362bca0994fc ts="2021-06-08 11:
 ...
 ```
 
+## Setup with systemd
+
+The above steps are an example Fluentd configuration. In production, we 
+recommend starting the Teleport plugin daemon via an init
+system like systemd. First copy `teleport-event-handler` to `/usr/local/bin`. Second
+update the `teleport-event-handler.toml` file to use fully qualified paths and copy into `/etc/`.
+
+
+Here's the recommended Teleport plugin service unit file
+for systemd:
+
+```ini
+(!examples/systemd/plugins/teleport-event-handler.service!)
+```
+
+Save this as `teleport-event-handler.service` in either `/usr/lib/systemd/system/` or
+another [unit file load
+path](https://www.freedesktop.org/software/systemd/man/systemd.unit.html#Unit%20File%20Load%20Path)
+supported by systemd.
+
+Enable and start the plugin:
+
+```code
+$ sudo systemctl enable teleport-event-handler
+$ sudo systemctl start teleport-event-handler
+```
+
+
+
 ## Next Steps
 
 - Read more about [impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/) here.
