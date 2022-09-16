@@ -113,7 +113,7 @@ func (c *Config) SetFromURL(u *url.URL) error {
 
 	params, err := url.ParseQuery(c.ServiceURL.EscapedFragment())
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	c.ServiceURL.Fragment = ""
 	c.ServiceURL.RawFragment = ""

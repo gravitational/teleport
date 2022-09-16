@@ -79,7 +79,7 @@ func (c *cachedTokenCredential) GetToken(ctx context.Context, options policy.Tok
 
 	token, err := c.TokenCredential.GetToken(ctx, options)
 	if err != nil {
-		return azcore.AccessToken{}, err
+		return azcore.AccessToken{}, trace.Wrap(err)
 	}
 
 	c.mu.Lock()
