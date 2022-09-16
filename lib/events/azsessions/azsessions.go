@@ -45,17 +45,36 @@ const (
 	sessionContainerName    = "session"
 	inprogressContainerName = "inprogress"
 
-	// uploadMarkerPrefix is the prefix for upload markers, stored at `upload/<session ID>/<upload ID>`.
-	uploadMarkerPrefix = "upload/"
-	// uploadMarkerFmt is the format string for upload markers, stored at `upload/<session ID>/<upload ID>`.
-	uploadMarkerFmt = "upload/%v/%v"
-
-	// partFmt is the format string for upload parts, stored at `part/<session ID>/<upload ID>/<part number>`.
-	partFmt = "part/%v/%v/%v"
-
 	// clientIDFragParam is the parameter in the fragment that specifies the optional client ID.
 	clientIDFragParam = "azure_client_id"
 )
+
+// sessionName returns the name of the blob that contains the recording for a
+// given session.
+func sessionName(sid session.ID) string {
+	return sid.String()
+}
+
+// uploadMarkerPrefix is the prefix of the names of the upload marker blobs.
+// Listing blobs with this prefix will return an empty blob for each upload.
+const uploadMarkerPrefix = "upload/"
+
+// uploadMarkerName returns the blob name for the marker for a given upload.
+func uploadMarkerName(upload events.StreamUpload) string {
+	return fmt.Sprintf("upload/%v/%v", upload.SessionID, upload.ID)
+}
+
+// partPrefix returns the prefix for the upload part blobs for a given upload.
+// Listing blobs with this prefix will return all the parts that currently make
+// up the upload.
+func partPrefix(upload events.StreamUpload) string {
+	return fmt.Sprintf("part/%v/%v/", upload.SessionID, upload.ID)
+}
+
+// partName returns the name of the blob for a specific part in an upload.
+func partName(upload events.StreamUpload, partNumber int64) string {
+	return fmt.Sprintf("part/%v/%v/%v", upload.SessionID, upload.ID, partNumber)
+}
 
 // field names used for logging
 const (
@@ -202,8 +221,7 @@ var _ events.MultipartHandler = (*Handler)(nil)
 // sessionBlob returns a BlockBlobClient for the blob of the recording of the
 // session. Not expected to ever fail.
 func (h *Handler) sessionBlob(sessionID session.ID) (*azblob.BlockBlobClient, error) {
-	blobName := sessionID.String()
-	client, err := h.session.NewBlockBlobClient(blobName)
+	client, err := h.session.NewBlockBlobClient(sessionName(sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -214,8 +232,7 @@ func (h *Handler) sessionBlob(sessionID session.ID) (*azblob.BlockBlobClient, er
 // uploadMarkerBlob returns a BlockBlobClient for the marker blob of the stream
 // upload. Not expected to ever fail.
 func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) (*azblob.BlockBlobClient, error) {
-	blobName := fmt.Sprintf(uploadMarkerFmt, upload.SessionID, upload.ID)
-	client, err := h.inprogress.NewBlockBlobClient(blobName)
+	client, err := h.inprogress.NewBlockBlobClient(uploadMarkerName(upload))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -226,8 +243,7 @@ func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) (*azblob.BlockBlo
 // partBlob returns a BlockBlobClient for the blob of the part of the specified
 // upload, with the given part number. Not expected to ever fail.
 func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) (*azblob.BlockBlobClient, error) {
-	blobName := fmt.Sprintf(partFmt, upload.SessionID, upload.ID, partNumber)
-	client, err := h.inprogress.NewBlockBlobClient(blobName)
+	client, err := h.inprogress.NewBlockBlobClient(partName(upload, partNumber))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -420,7 +436,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 }
 
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	prefix := fmt.Sprintf(partFmt, upload.SessionID, upload.ID, "")
+	prefix := partPrefix(upload)
 
 	var parts []events.StreamPart
 	pager := h.inprogress.ListBlobsFlat(&azblob.ContainerListBlobsFlatOptions{
