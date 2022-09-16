@@ -60,12 +60,6 @@ flowchart TB
 integration with it results moslty in passing parameters from and back to
 server.
 
-<!--
-TODO(tobiaszheller): Check if RS256 requires any code changes on server side.
--->
-Windows Hello works only with RS256 algorithm, while both FIDO2 and TouchID uses
-ES256.
-
 **Important:** Windows system without `webauthn.dll` (older than Windows 10 19H1)
 won't be supported.
 
