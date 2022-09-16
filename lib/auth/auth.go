@@ -435,6 +435,8 @@ func (a *Server) runPeriodicOperations() {
 				}
 			}
 		case <-heartbeatCheckTicker.Next():
+			a.GetActiveSessionTrackers()
+
 			nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
 			if err != nil {
 				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
