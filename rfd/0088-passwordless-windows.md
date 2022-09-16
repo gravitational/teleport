@@ -86,7 +86,7 @@ The proposed UX is similar to the current experience:
 $ tsh mfa add
 > Choose device type [TOTP, WEBAUTHN]: webauthn
 > Enter device name: win-hello
-> Tap any *registered* security key or enter a code from a *registered* OTP device: <taps>
+> Follow system dialogs or enter a code from a *registered* OTP device:
 <system shows webauthn prompt>
 > MFA device "win-hello" added.
 ```
@@ -157,6 +157,11 @@ signing the executable.
 Security considerations are largely unchanged in relation to the
 [Passwordless RFD][passwordless rfd].
 
+Windows Hello keys are protected by TPM 2.0 hardware if available. Windows also
+supports Windows Hello when TPM is missing via software. Windows Hello keys are
+scope by rpid, it means that windows hello keys created via broweser on webUI
+will be available in `tsh`.
+
 [Microsoft webauthnAPI documentation][webauthn API windows docs] provides more
 information about device requirements etc.
 
@@ -180,9 +185,9 @@ and [TouchID](https://github.com/gravitational/teleport/blob/master/rfd/0054-pas
 The only changes that will be visible to user is that now all interactions
 (message to touch device, pin input etc) are provided by Windows modals.
 
-Windows Webauthn API prefers Windows Hello over FIDO devices. If user want to use
-only FIDO devices, it must use `--mfa-mode=cross-platform`. `Tsh` must remember
-`--mfa-mode` from previous usage.
+Windows Webauthn API prefers Windows Hello over FIDO devices. If user want to
+use only FIDO devices, it must use `--mfa-mode=cross-platform`. `Tsh` must
+remember `--mfa-mode` from previous usage.
 
 Example `tsh mfa add` with passwordless / resident key creation, including
 initial PIN setup:
@@ -241,5 +246,4 @@ specify if you want to use platform or cross-platform attachment.
 <!-- Links -->
 
 [passwordless rfd]: https://github.com/gravitational/teleport/blob/master/rfd/0052-passwordless.md
-[touchid rfd]: https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md
 [webauthn API windows docs]: https://docs.microsoft.com/en-us/windows/security/identity-protection/hello-for-business/webauthn-apis
