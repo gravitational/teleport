@@ -20,8 +20,10 @@
 package protocol
 
 import (
+	"bufio"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/trace"
@@ -129,7 +131,19 @@ func writeError(wr *redis.Writer, prefix string, val error) error {
 		return trace.Wrap(err)
 	}
 
-	if _, err := wr.WriteString(val.Error()); err != nil {
+	errString := val.Error()
+	if strings.ContainsAny(errString, "\r\n") {
+		scanner := bufio.NewScanner(strings.NewReader(errString))
+		errString = ""
+
+		for scanner.Scan() {
+			if errString != "" {
+				errString += " "
+			}
+			errString += strings.TrimSpace(scanner.Text())
+		}
+	}
+	if _, err := wr.WriteString(errString); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 type armRedisClient interface {
@@ -41,10 +42,12 @@ func NewRedisClient(api armRedisClient) *RedisClient {
 
 // GetToken implements CacheForRedisClient.
 func (c *RedisClient) GetToken(ctx context.Context, group, name string) (string, error) {
+	logrus.Debugf("-->> azure.NewRedisClient GetToken")
 	resp, err := c.api.ListKeys(ctx, group, name, &armredis.ClientListKeysOptions{})
 	if err != nil {
 		return "", trace.Wrap(ConvertResponseError(err))
 	}
+	logrus.Debugf("-->> azure.NewRedisClient GetToken resp %v", resp)
 
 	// There are two keys. Pick first one available.
 	if resp.PrimaryKey != nil {
