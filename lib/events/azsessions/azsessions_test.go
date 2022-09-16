@@ -43,7 +43,11 @@ func TestStreams(t *testing.T) {
 	u, err := url.Parse(envURL)
 	require.NoError(t, err)
 
-	handler, err := NewHandlerFromURL(ctx, u)
+	var config Config
+	err = config.SetFromURL(u)
+	require.NoError(t, err)
+
+	handler, err := NewHandler(ctx, config)
 	require.Nil(t, err)
 
 	t.Run("StreamSinglePart", func(t *testing.T) {

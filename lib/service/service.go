@@ -1322,7 +1322,11 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		}
 		return handler, nil
 	case teleport.SchemeAZBlob, teleport.SchemeAZBlobHTTP:
-		handler, err := azsessions.NewHandlerFromURL(ctx, uri)
+		var config azsessions.Config
+		if err := config.SetFromURL(uri); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		handler, err := azsessions.NewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

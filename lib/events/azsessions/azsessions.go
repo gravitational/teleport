@@ -127,14 +127,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-func NewHandlerFromURL(ctx context.Context, u *url.URL) (*Handler, error) {
-	var cfg Config
-	if err := cfg.SetFromURL(u); err != nil {
-		return nil, err
-	}
-	return NewHandler(ctx, cfg)
-}
-
 func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, err
