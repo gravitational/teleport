@@ -302,6 +302,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return err
 	}
 
+	markerBlob, err := h.uploadMarkerBlob(upload)
+	if err != nil {
+		return nil
+	}
+
 	// TODO(espadolini): explore the possibility of using leases to get
 	// exclusive access while writing, and to guarantee that leftover parts are
 	// cleaned up before a new attempt
@@ -378,13 +383,8 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	// TODO(espadolini): should the cleanup run in its own goroutine? What
 	// should the cancellation context for the cleanup be in that case?
-	markerBlob, err := h.uploadMarkerBlob(upload)
-	if err != nil {
-		log.Warn("Failed to clean up upload marker.")
-		return nil
-	}
 	if _, err := cErr2(markerBlob.Delete(ctx, nil)); err != nil && !trace.IsNotFound(err) {
-		log.WithError(err).Warn("Failed to clean up upload marker.")
+		log.WithError(err).WithField(fieldPartCount, len(parts)).Warn("Failed to clean up upload marker.")
 		return nil
 	}
 
@@ -394,6 +394,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		b, err := h.partBlob(upload, part.Number)
 		if err != nil {
 			log.WithField(fieldPartNumber, part.Number).Warn("Failed to clean up part.")
+			continue
 		}
 		if _, err := cErr2(b.Delete(ctx, nil)); err != nil {
 			log.WithField(fieldPartNumber, part.Number).WithError(err).Warn("Failed to clean up part.")
