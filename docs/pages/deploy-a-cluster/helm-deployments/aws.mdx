@@ -147,6 +147,10 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
+Note that Teleport will only use S3 buckets with versioning enabled. This
+ensures that a session log cannot be permanently altered or deleted, as
+Teleport will always look at the oldest version of a recording.
+
 ## Step 4/7. Configure TLS certificates for Teleport
 
 The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport Proxy Service.

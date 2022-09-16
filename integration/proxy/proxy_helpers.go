@@ -14,16 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package proxy
 
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os/user"
 	"path/filepath"
 	"testing"
 	"time"
@@ -33,11 +34,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -48,14 +52,14 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-type ProxySuite struct {
+type Suite struct {
 	root *helpers.TeleInstance
 	leaf *helpers.TeleInstance
 }
 
-type proxySuiteOptions struct {
-	rootConfigFunc func(suite *ProxySuite) *service.Config
-	leafConfigFunc func(suite *ProxySuite) *service.Config
+type suiteOptions struct {
+	rootConfigFunc func(suite *Suite) *service.Config
+	leafConfigFunc func(suite *Suite) *service.Config
 
 	rootConfigModFunc []func(config *service.Config)
 	leafConfigModFunc []func(config *service.Config)
@@ -66,22 +70,22 @@ type proxySuiteOptions struct {
 	rootClusterListeners helpers.InstanceListenerSetupFunc
 	leafClusterListeners helpers.InstanceListenerSetupFunc
 
-	rootTrustedSecretFunc func(suite *ProxySuite) []*helpers.InstanceSecrets
-	leafTrustedFunc       func(suite *ProxySuite) []*helpers.InstanceSecrets
+	rootTrustedSecretFunc func(suite *Suite) []*helpers.InstanceSecrets
+	leafTrustedFunc       func(suite *Suite) []*helpers.InstanceSecrets
 
 	rootClusterRoles      []types.Role
 	leafClusterRoles      []types.Role
-	updateRoleMappingFunc func(t *testing.T, suite *ProxySuite)
+	updateRoleMappingFunc func(t *testing.T, suite *Suite)
 
 	trustedCluster types.TrustedCluster
 }
 
-func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
-	options := proxySuiteOptions{
-		rootClusterNodeName:  Host,
-		leafClusterNodeName:  Host,
-		rootClusterListeners: helpers.SingleProxyPortSetupOn(Host),
-		leafClusterListeners: helpers.SingleProxyPortSetupOn(Host),
+func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
+	options := suiteOptions{
+		rootClusterNodeName:  helpers.Host,
+		leafClusterNodeName:  helpers.Host,
+		rootClusterListeners: helpers.SingleProxyPortSetupOn(helpers.Host),
+		leafClusterListeners: helpers.SingleProxyPortSetupOn(helpers.Host),
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -107,12 +111,12 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
-	suite := &ProxySuite{
+	suite := &Suite{
 		root: rc,
 		leaf: lc,
 	}
 
-	user := mustGetCurrentUser(t)
+	user := helpers.MustGetCurrentUser(t)
 	for _, role := range options.rootClusterRoles {
 		rc.AddUserWithRole(user.Username, role)
 	}
@@ -158,14 +162,14 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	}
 
 	if options.trustedCluster != nil {
-		tryCreateTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster)
-		waitForTunnelConnections(t, suite.root.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
+		helpers.TryCreateTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster)
+		helpers.WaitForTunnelConnections(t, suite.root.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
 	}
 
 	return suite
 }
 
-func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
+func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 	nodeConfig := func() *service.Config {
 		tconf := service.MakeDefaultConfig()
 		tconf.Console = nil
@@ -188,17 +192,17 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
+	err = helpers.WaitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
 	require.NoError(t, err)
 }
 
-func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
+func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
 	const (
 		deadline         = time.Second * 5
 		nextIterWaitTime = time.Millisecond * 100
@@ -221,73 +225,72 @@ func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config h
 	require.Equal(t, "hello world\n", output.String())
 }
 
-type proxySuiteOptionsFunc func(*proxySuiteOptions)
+type proxySuiteOptionsFunc func(*suiteOptions)
 
 func withRootClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.rootClusterRoles = roles
 	}
 }
 
 func withLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.leafClusterRoles = roles
 	}
 }
 
 func withRootAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		withRootClusterRoles(roles...)(options)
 		withLeafClusterRoles(roles...)(options)
-
 	}
 }
 
-func withLeafClusterConfig(fn func(suite *ProxySuite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+func withLeafClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
+	return func(options *suiteOptions) {
 		options.leafConfigFunc = fn
 		options.leafConfigModFunc = append(options.leafConfigModFunc, configModFunctions...)
 	}
 }
 
-func withRootClusterConfig(fn func(suite *ProxySuite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+func withRootClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
+	return func(options *suiteOptions) {
 		options.rootConfigFunc = fn
 		options.rootConfigModFunc = append(options.rootConfigModFunc, configModFunctions...)
 	}
 }
 
 func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
-		options.rootTrustedSecretFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
+	return func(options *suiteOptions) {
+		options.rootTrustedSecretFunc = func(suite *Suite) []*helpers.InstanceSecrets {
 			return nil
 		}
-		options.leafTrustedFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
+		options.leafTrustedFunc = func(suite *Suite) []*helpers.InstanceSecrets {
 			return nil
 		}
 	}
 }
 
 func withRootClusterNodeName(nodeName string) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.rootClusterNodeName = nodeName
 	}
 }
 
 func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.leafClusterNodeName = nodeName
 	}
 }
 
 func withRootClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.rootClusterListeners = fn
 	}
 }
 
 func withLeafClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.leafClusterListeners = fn
 	}
 }
@@ -302,8 +305,8 @@ func newRole(t *testing.T, roleName string, username string) types.Role {
 	return role
 }
 
-func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Config {
-	return func(suite *ProxySuite) *service.Config {
+func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
+	return func(suite *Suite) *service.Config {
 		rc := suite.root
 		config := service.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
@@ -322,8 +325,8 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 	}
 }
 
-func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Config {
-	return func(suite *ProxySuite) *service.Config {
+func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
+	return func(suite *Suite) *service.Config {
 		lc := suite.leaf
 		config := service.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
@@ -351,11 +354,11 @@ func createTestRole(username string) types.Role {
 }
 
 func withStandardRoleMapping() proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
-		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
+	return func(options *suiteOptions) {
+		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
 			rc := suite.root
 			lc := suite.leaf
-			role := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
+			role := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
 			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
@@ -371,11 +374,11 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 }
 
 func withTrustedCluster() proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
-		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
+	return func(options *suiteOptions) {
+		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
 			root := suite.root
-			rootRole := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
-			secondRole := suite.leaf.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
+			rootRole := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
+			secondRole := suite.leaf.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
 
 			trustedClusterToken := "trustedclustertoken"
 			err := root.Process.GetAuthServer().UpsertToken(context.Background(),
@@ -391,12 +394,6 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 
 		}
 	}
-}
-
-func mustGetCurrentUser(t *testing.T) *user.User {
-	user, err := user.Current()
-	require.NoError(t, err)
-	return user
 }
 
 func mustRunPostgresQuery(t *testing.T, client *pgconn.PgConn) {
@@ -470,20 +467,38 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
-func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+func mustCreateListener(t *testing.T) net.Listener {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
-	address, err := utils.ParseAddr(addr)
-	require.NoError(t, err)
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
+func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocols:          []alpncommon.Protocol{protocol},
 		InsecureSkipVerify: true,
-		Listener:           listener,
-		ParentContext:      context.Background(),
-		SNI:                address.Host(),
 	})
+}
+
+func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
+	if config.Listener == nil {
+		config.Listener = mustCreateListener(t)
+	}
+	if config.SNI == "" {
+		address, err := utils.ParseAddr(config.RemoteProxyAddr)
+		require.NoError(t, err)
+		config.SNI = address.Host()
+	}
+	if config.ParentContext == nil {
+		config.ParentContext = context.TODO()
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(config)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		lp.Close()
@@ -511,4 +526,83 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.SSH.Enabled = true
 	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
+}
+
+func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+	return cert
+}
+
+// mockAWSALBProxy is a mock proxy server that simulates an AWS application
+// load balancer where ALPN is not supported. Note that this mock does not
+// actually balance traffic.
+type mockAWSALBProxy struct {
+	net.Listener
+	proxyAddr string
+	cert      tls.Certificate
+}
+
+func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		conn, err := m.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				return
+			}
+			require.NoError(t, err)
+			return
+		}
+
+		go func() {
+			// Handshake with incoming client and drops ALPN.
+			downstreamConn := tls.Server(conn, &tls.Config{
+				Certificates: []tls.Certificate{m.cert},
+			})
+			require.NoError(t, downstreamConn.HandshakeContext(ctx))
+
+			// Make a connection to the proxy server with ALPN protos.
+			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
+				InsecureSkipVerify: true,
+			})
+			require.NoError(t, err)
+
+			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
+		}()
+	}
+}
+
+func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	m := &mockAWSALBProxy{
+		proxyAddr: proxyAddr,
+		Listener:  mustCreateListener(t),
+		cert:      mustCreateSelfSignedCert(t),
+	}
+	go m.serve(ctx, t)
+	return m
+}
+
+// waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+	require.Eventually(t, func() bool {
+		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
+	},
+		30*time.Second,
+		time.Second,
+		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
+	)
 }
