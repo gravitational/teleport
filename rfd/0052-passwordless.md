@@ -23,6 +23,7 @@ documents for client-side aspects of the design:
 
 * [Passwordless for FIDO2 clients][passwordless fido2]
 * [Passwordless for macOS CLI][passwordless macos] (aka Touch ID)
+* [Passwordless for Windows CLI][passwordless windows]
 
 Passwordless is available as a preview in Teleport 10.
 
@@ -582,6 +583,7 @@ implementation uniform and without hidden behaviors.
 
 [passwordless fido2]: https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md
 [passwordless macos]: https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md
+[passwordless windows]: https://github.com/gravitational/teleport/blob/master/rfd/0088-passwordless-windows.md
 
 <!-- Plant UML diagrams -->
 <!--
