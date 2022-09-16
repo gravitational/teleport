@@ -17,8 +17,8 @@ compromising productivity.
 - Azure console access in the organization/directory paying the Office 365 Licenses (MsTeams licences)
 - An Azure resource group in the same directory. This will  host resources for the the Microsoft Teams Access Request plugin.
   You should have enough permissions to create and edit Azure Bot Services in this resource group.
-- Someone with Global Admin rights on the Azure Active Directory that will approve
-  the bot application permissions
+- Someone with Global Admin rights on the Azure Active Directory that will
+  grant permissions to the plugin
 - Someone with the `Teams administrator` role that will approve the MsTeams
   application installation request
 
@@ -150,10 +150,10 @@ go to the "API permissions" tab.
 
 Add the following Microsoft Graph Application permissions:
 
-- `AppCatalog.Read.All` (used to list Teams app and check the app is installed)
+- `AppCatalog.Read.All` (used to list Teams Apps and check the app is installed)
 - `User.Read.All` (used to get notification recipients)
 - `TeamsAppInstallation.ReadWriteSelfForUser.All` (used to initiate communication with
-   a user that never interacted with the Teams app before)
+   a user that never interacted with the Teams App before)
 - `TeamsAppInstallation.ReadWriteSelfForTeam.All` (used to discover if the app is installed
    in the Team)
 
@@ -174,19 +174,16 @@ The result should be as follows:
 At this point, the Teleport MsTeams plugin has the credentials it needs to
 communicate with your Teleport cluster and Azure APIs, but the app has not been
 installed to MsTeams yet. In this step, you will configure the MsTeams plugin
-to use the Azure credentials and generate the MsTeams app package. You will
+to use the Azure credentials and generate the Teams App package. You will
 also configure the plugin to notify the right MsTeams users when it receives an
 Access Request update.
 
 ### Generate a config file and assets
 
-The Teleport MsTeams plugin uses a config file in TOML format.
-The `configure` subcommand generates a directory containing the TOML
-configuration file and an `app.zip` file that will be used later to
-add the MsTeams application into the organization catalog.
-
-The command will create the directory `/var/lib/teleport/plugins/msteams/assets`
-(might require root/sudo):
+The Teleport MsTeams plugin uses a config file in TOML format.  The `configure`
+subcommand generates the directory `/var/lib/teleport/plugins/msteams/assets`
+containing the TOML configuration file and an `app.zip` file that will be used
+later to add the Teams App into the organization catalog.
 
 ```code
 $ teleport-msteams configure /var/lib/teleport/plugins/msteams/assets --appID <Microsoft App ID value> --tenantID <App Tenant ID value> --appSecret <password value saved on step #4>
@@ -324,7 +321,7 @@ role earlier, and ):
 "editor" = "TELEPORT_USERNAME"
 ```
 
-## Step 7/9. Add and configure the Teams app
+## Step 7/9. Add and configure the Teams App
 
 ### Upload the Teams App
 
@@ -335,7 +332,7 @@ choices menu choose "Upload an App".
 
 If you're a Teams admin, choose "Upload an app to your org's app catalog".
 This will allow you to skip the approval step.
-If you're not a teams admin, choose "Submit an app to your org".
+If you're not a Microsoft Teams admin, choose "Submit an app to your org".
 
 Upload the `app.zip` file you generated earlier.
 
@@ -350,7 +347,7 @@ searching "TeleBot", selecting it and choosing "Allow".
 
 ![Upload Teams App](../../../img/enterprise/plugins/msteams/allowed-teams-app.png)
 
-### Add the Teams app to a Team
+### Add the Teams App to a Team
 
 Once the app is approved it should appear in the "Apps built for your org" section.
 Add the newly uploaded app to a team. Open the app, click "Add to a team",
@@ -360,9 +357,9 @@ choose the "General" channel of your team and click "Set up a bot".
 
 Note: Once an app is added to a team, it can post on all channels.
 
-## Step 8/9. Test the MsTeams app
+## Step 8/9. Test the Teams App
 
-Once Teleport is running, you've created the MsTeams app, and the plugin is
+Once Teleport is running, you've created the Teams App, and the plugin is
 configured, you can now run the plugin and test the workflow.
 
 ### Test MsTeams connectivity
