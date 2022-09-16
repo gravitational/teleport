@@ -146,12 +146,6 @@ $ tsh winhello diag  # diag output subject to change
 > Supports platform user-verification: yes
 ```
 
-### webauthn.dll and Teleport
-
-At the time of writing this rfd, Go wrapper around `webauthn.dll` does not
-exists. New open source repository will be created where teleport will maintain
-unofficial Go client for `webauthn.dll`.
-
 ### Executable sign
 
 Although Windows allow usage of not-signed executables, it results in poor UX.
