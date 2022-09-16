@@ -42,7 +42,7 @@ type Table struct {
 	columns   []Column
 	rows      [][]string
 	footnotes map[string]string
-	mu        sync.Mutex
+	sync.Mutex
 }
 
 // MakeHeadlessTable creates a new instance of the table without any column names.
@@ -158,8 +158,8 @@ func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
 
 // AsBuffer returns a *bytes.Buffer with the printed output of the table.
 func (t *Table) AsBuffer() *bytes.Buffer {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Lock()
+	defer t.Unlock()
 
 	var buffer bytes.Buffer
 
@@ -215,8 +215,8 @@ func (t *Table) IsHeadless() bool {
 
 // Discard columns where all rows are empty
 func (t *Table) DiscardEmpty() (discarded []int) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Lock()
+	defer t.Unlock()
 
 	isEmpty := func(i int) bool {
 		for _, r := range t.rows {
