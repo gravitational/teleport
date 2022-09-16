@@ -156,6 +156,20 @@
             "type": "boolean",
             "default": false
         },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
         "existingDataVolume": {
             "$id": "#/properties/existingDataVolume",
             "type": "string",

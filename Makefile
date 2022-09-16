@@ -11,12 +11,13 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.1.2
+VERSION=10.2.1
 
-DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
 DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
+DOCKER_IMAGE_OPERATOR_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator
+
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -30,7 +31,7 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-TELEPORT_DEBUG ?= no
+TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
@@ -236,6 +237,8 @@ $(BUILDDIR)/tctl:
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
+# NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
+# 		we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
@@ -638,7 +641,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-bot lint-ci-scripts lint-backport
@@ -751,15 +754,15 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.yml' \
 		-ignore '**/Dockerfile' \
 		-ignore 'api/version.go' \
+		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
-		-ignore 'lib/web/build/**' \
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/teleterm/api/protogen/**' \
+		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
-		-ignore 'ignoreme' \
-		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
-		-ignore 'docs/pages/includes/**/*.go'
+		-ignore 'ignoreme'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -771,6 +774,14 @@ fix-license: $(ADDLICENSE)
 
 $(ADDLICENSE):
 	cd && go install github.com/google/addlicense@v1.0.0
+
+# This rule updates version files and Helm snapshots based on the Makefile
+# VERSION variable.
+#
+# Used prior to a release by bumping VERSION in this Makefile and then
+# running "make update-version".
+.PHONY: update-version
+update-version: version test-helm-update-snapshots
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
@@ -875,69 +886,60 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+# Interactively enters a Docker container (which you can build and run Teleport Connect inside of).
+# Similar to `enter`, but uses the teleterm container.
+.PHONY:enter/teleterm
+enter/teleterm:
+	make -C build.assets enter/teleterm
+
+
+BUF := buf
+
+# protos/all runs build, lint and format on all protos.
+# Use `make grpc` to regenerate protos inside buildbox.
+.PHONY: protos/all
+protos/all: protos/build protos/lint protos/format
+
+.PHONY: protos/build
+protos/build: buf/installed
+	$(BUF) build
+	cd lib/teleterm && $(BUF) build
+
+.PHONY: protos/format
+protos/format: buf/installed
+	$(BUF) format -w
+	cd lib/teleterm && $(BUF) format -w
+
+.PHONY: protos/lint
+protos/lint: buf/installed
+	$(BUF) lint
+	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
+	cd lib/teleterm && $(BUF) lint
+
+.PHONY: lint-protos
+lint-protos: protos/lint
+
+.PHONY: buf/installed
+buf/installed:
+	@if ! type -p $(BUF) >/dev/null; then \
+		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
+		exit 1; \
+	fi
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
 	$(MAKE) -C build.assets grpc
 
+# grpc/host generates GRPC stubs.
+# Unlike grpc, this target runs locally.
+.PHONY: grpc/host
+grpc/host: protos/all
+	@build.assets/genproto.sh
+
 print/env:
 	env
-
-# buildbox-grpc generates GRPC stubs
-.PHONY: buildbox-grpc
-buildbox-grpc: API_IMPORT_PATH := $(shell head -1 api/go.mod | awk '{print $$2}')
-# Proto file dependencies within the api module must be passed with the 'M'
-# flag. This way protoc generated files will use the correct api module import
-# path in the case where the import path has a version suffix, e.g.
-# "github.com/gravitational/teleport/api/v8".
-buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
-	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
-	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
-	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn,$\
-	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
-	Mignoreme=ignoreme
-buildbox-grpc:
-	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
-	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
-		api/client/proto/authservice.proto \
-		api/client/proto/certs.proto \
-		api/client/proto/joinservice.proto \
-		api/client/proto/proxyservice.proto \
-		api/types/events/events.proto \
-		api/types/types.proto \
-		api/types/webauthn/webauthn.proto \
-		api/types/wrappers/wrappers.proto \
-		lib/multiplexer/test/ping.proto \
-		lib/web/envelope.proto
-
-	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		authservice.proto certs.proto joinservice.proto proxyservice.proto
-
-	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		events.proto
-
-	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		types.proto
-
-	cd api/types/webauthn && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		webauthn.proto
-
-	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		wrappers.proto
-
-	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		ping.proto
-
-	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		envelope.proto
 
 # grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
 # Terminal. This target runs in the buildbox-teleterm container.
@@ -952,13 +954,11 @@ buildbox-grpc:
 grpc-teleterm:
 	$(MAKE) -C build.assets grpc-teleterm
 
-# buildbox-grpc generates GRPC stubs
-.PHONY: buildbox-grpc-teleterm
-buildbox-grpc-teleterm:
-	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
-		lib/teleterm/api/proto/**/*.proto
-
-	cd lib/teleterm && buf generate
+# grpc-teleterm/host generates GRPC stubs.
+# Unlike grpc-teleterm, this target runs locally.
+.PHONY: grpc-teleterm/host
+grpc-teleterm/host: protos/all
+	cd lib/teleterm && $(BUF) generate
 
 .PHONY: goinstall
 goinstall:
@@ -1007,23 +1007,38 @@ image-ci: clean docker-binaries
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
+
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
+# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-ci
 publish-ci: image-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" >/dev/null 2>&1; then\
 		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
 	else                                                                \
-		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
+		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)";                 \
 	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 # Docker image build for Teleport Operator
 .PHONY: image-operator-ci
 image-operator-ci:
-	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	make -C operator docker-build IMG="$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)"
 
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
+# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
-	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)" >/dev/null 2>&1; then \
+		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";                                                         \
+	else                                                                                                                             \
+		docker push "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)";                                                                   \
+	fi
 
 .PHONY: print-version
 print-version:
@@ -1086,6 +1101,11 @@ deb:
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
+# check binary compatibility with different OSes
+.PHONY: test-compat
+test-compat:
+	./build.assets/build-test-compat.sh
+
 .PHONY: ensure-webassets
 ensure-webassets:
 	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
@@ -1122,6 +1142,13 @@ update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
+#
+#    Usage:
+#    - install github.com/gravitational/tdr
+#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
+#    - tsh login --proxy=platform.teleport.sh
+#    - tsh app login drone
+#    - make dronegen
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen

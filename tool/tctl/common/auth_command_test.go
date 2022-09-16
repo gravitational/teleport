@@ -274,11 +274,20 @@ type mockClient struct {
 	appServices    []types.AppServer
 	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
+	networkConfig  types.ClusterNetworkingConfig
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
+
+func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	if c.networkConfig == nil {
+		return &types.ClusterNetworkingConfigV2{}, nil
+	}
+	return c.networkConfig, nil
+}
+
 func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.UserCertsRequest) (*proto.Certs, error) {
 	c.userCertsReq = &userCertsReq
 	return c.userCerts, nil
@@ -427,7 +436,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		},
 	}
 
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -457,7 +466,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -472,7 +481,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -486,7 +495,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outServerNames: []string{"mongo.example.com"},
 			outCertFile:    "mongo.crt",
 			outCAFile:      "mongo.cas",
-			outCert:        append(certBytes, key.Priv...),
+			outCert:        append(certBytes, key.PrivateKeyPEM()...),
 			outCA:          caBytes,
 		},
 		{
@@ -499,7 +508,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "node.key",
 			outCertFile:    "node.crt",
 			outCAFile:      "ca.crt",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -514,7 +523,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.Priv,
+			outKey:         key.PrivateKeyPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},

@@ -82,10 +82,14 @@ type userACL struct {
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
 	Billing access `json:"billing"`
+	// ConnectionDiagnostic defines access to connection diagnostics.
+	ConnectionDiagnostic access `json:"connectionDiagnostic"`
 	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
 	Clipboard bool `json:"clipboard"`
 	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
 	DesktopSessionRecording bool `json:"desktopSessionRecording"`
+	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
+	DirectorySharing bool `json:"directorySharing"`
 }
 
 type authType string
@@ -109,6 +113,9 @@ type UserContext struct {
 	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// AccessCapabilities defines allowable access request rules defined in a user's roles.
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
+	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
+	// obtained
+	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 }
 
 func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
@@ -193,6 +200,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
+	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
 	var billingAccess access
 	if features.Cloud {
@@ -203,6 +211,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
+	directorySharing := userRoles.DesktopDirectorySharing()
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -221,8 +230,10 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Tokens:                  tokenAccess,
 		Nodes:                   nodeAccess,
 		Billing:                 billingAccess,
+		ConnectionDiagnostic:    cnDiagnosticAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
+		DirectorySharing:        directorySharing,
 	}
 
 	// local user

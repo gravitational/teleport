@@ -630,69 +630,82 @@ func TestAWSPoliciesTarget(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := map[string]struct {
-		flags           BootstrapFlags
-		identity        awslib.Identity
-		accountID       string
-		targetType      awslib.Identity
-		targetName      string
-		targetAccountID string
+		flags             BootstrapFlags
+		identity          awslib.Identity
+		accountID         string
+		partitionID       string
+		targetType        awslib.Identity
+		targetName        string
+		targetAccountID   string
+		targetPartitionID string
 	}{
 		"UserNameFromFlags": {
-			flags:           BootstrapFlags{AttachToUser: "example-user"},
-			accountID:       "123456",
-			targetType:      awslib.User{},
-			targetName:      "example-user",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToUser: "example-user"},
+			accountID:         "123456",
+			partitionID:       "aws",
+			targetType:        awslib.User{},
+			targetName:        "example-user",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"UserARNFromFlags": {
-			flags:           BootstrapFlags{AttachToUser: "arn:aws:iam::123456:user/example-user"},
-			targetType:      awslib.User{},
-			targetName:      "example-user",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToUser: "arn:aws:iam::123456:user/example-user"},
+			targetType:        awslib.User{},
+			targetName:        "example-user",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"RoleNameFromFlags": {
-			flags:           BootstrapFlags{AttachToRole: "example-role"},
-			accountID:       "123456",
-			targetType:      awslib.Role{},
-			targetName:      "example-role",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToRole: "example-role"},
+			accountID:         "123456",
+			partitionID:       "aws",
+			targetType:        awslib.Role{},
+			targetName:        "example-role",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"RoleARNFromFlags": {
-			flags:           BootstrapFlags{AttachToRole: "arn:aws:iam::123456:role/example-role"},
-			targetType:      awslib.Role{},
-			targetName:      "example-role",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToRole: "arn:aws:iam::123456:role/example-role"},
+			targetType:        awslib.Role{},
+			targetName:        "example-role",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"UserFromIdentity": {
-			flags:           BootstrapFlags{},
-			identity:        userIdentity,
-			targetType:      awslib.User{},
-			targetName:      userIdentity.GetName(),
-			targetAccountID: userIdentity.GetAccountID(),
+			flags:             BootstrapFlags{},
+			identity:          userIdentity,
+			targetType:        awslib.User{},
+			targetName:        userIdentity.GetName(),
+			targetAccountID:   userIdentity.GetAccountID(),
+			targetPartitionID: userIdentity.GetPartition(),
 		},
 		"RoleFromIdentity": {
-			flags:           BootstrapFlags{},
-			identity:        roleIdentity,
-			targetType:      awslib.Role{},
-			targetName:      roleIdentity.GetName(),
-			targetAccountID: roleIdentity.GetAccountID(),
+			flags:             BootstrapFlags{},
+			identity:          roleIdentity,
+			targetType:        awslib.Role{},
+			targetName:        roleIdentity.GetName(),
+			targetAccountID:   roleIdentity.GetAccountID(),
+			targetPartitionID: roleIdentity.GetPartition(),
 		},
 		"DefaultTarget": {
-			flags:           BootstrapFlags{},
-			accountID:       "*",
-			targetType:      awslib.User{},
-			targetName:      defaultAttachUser,
-			targetAccountID: "*",
+			flags:             BootstrapFlags{},
+			accountID:         "*",
+			partitionID:       "*",
+			targetType:        awslib.User{},
+			targetName:        defaultAttachUser,
+			targetAccountID:   "*",
+			targetPartitionID: "*",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			target, err := policiesTarget(test.flags, test.accountID, test.identity)
+			target, err := policiesTarget(test.flags, test.accountID, test.partitionID, test.identity)
 			require.NoError(t, err)
 			require.IsType(t, test.targetType, target)
 			require.Equal(t, test.targetName, target.GetName())
 			require.Equal(t, test.targetAccountID, target.GetAccountID())
+			require.Equal(t, test.targetPartitionID, target.GetPartition())
 		})
 	}
 }

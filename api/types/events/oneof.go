@@ -403,6 +403,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SFTP{
 			SFTP: e,
 		}
+	case *UpgradeWindowStartUpdate:
+		out.Event = &OneOf_UpgradeWindowStartUpdate{
+			UpgradeWindowStartUpdate: e,
+		}
+	case *SessionRecordingAccess:
+		out.Event = &OneOf_SessionRecordingAccess{
+			SessionRecordingAccess: e,
+		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
 			Unknown: e,

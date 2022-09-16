@@ -56,7 +56,7 @@ func newSilentLogger() utils.Logger {
 
 func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
 	config.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
@@ -72,7 +72,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV2
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
@@ -452,19 +452,5 @@ func TestEC2Hostname(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })
-
-	ctx := context.Background()
-	authServer := proc.GetAuthServer()
-	var node types.Server
-	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		if len(nodes) == 1 {
-			node = nodes[0]
-			return true
-		}
-		return false
-	}, 10*time.Second, time.Second)
-
-	require.Equal(t, teleportHostname, node.GetHostname())
+	require.Equal(t, teleportHostname, proc.Config.Hostname)
 }

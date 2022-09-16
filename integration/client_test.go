@@ -37,7 +37,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
 

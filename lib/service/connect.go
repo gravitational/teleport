@@ -88,6 +88,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 				// Set cluster features and return successfully with a working connector.
 				process.setClusterFeatures(pingResponse.GetServerFeatures())
 				process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
+				process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 				return connector, nil
 			}
 
@@ -101,7 +102,8 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		// clear assertion ID
 		assertionID = ""
 
-		if role == types.RoleInstance && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound) {
+		switch {
+		case role == types.RoleInstance && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 			process.log.Infof("Token too old for direct instance cert request, will attempt to use system role assertions.")
 			id, assertionErr := process.assertSystemRoles()
 			if assertionErr == nil {
@@ -109,7 +111,9 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			} else {
 				process.log.Errorf("Failed to perform system role assertions: %v", assertionErr)
 			}
-		} else if connectErr != nil {
+		case role == types.RoleNode && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
+			process.log.Error("Can not join the cluster as node, the token expired or not found. Regenerate the token and try again.")
+		case connectErr != nil:
 			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
 		}
 
@@ -569,7 +573,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 	} else {
 		// Auth server is remote, so we need a provisioning token.
-		if process.Config.Token == "" {
+		if !process.Config.HasToken() {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
@@ -580,8 +584,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
+		token, err := process.Config.Token()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		certs, err := auth.Register(auth.RegisterParams{
-			Token:                process.Config.Token,
+			Token:                token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
@@ -595,6 +604,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+			FIPS:                 process.Config.FIPS,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

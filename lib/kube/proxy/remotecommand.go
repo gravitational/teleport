@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
+	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
 )
@@ -93,6 +94,26 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 }
 
 func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, error) {
+	var (
+		proxy *remoteCommandProxy
+		err   error
+	)
+	if wsstream.IsWebSocketRequest(req.httpRequest) {
+		proxy, err = createWebSocketStreams(req)
+	} else {
+		proxy, err = createSPDYStreams(req)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if proxy.resizeStream != nil {
+		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
+		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
+	}
+	return proxy, nil
+}
+
+func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	protocol, err := httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{StreamProtocolV4Name})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -156,11 +177,6 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 
 	proxy.conn = conn
 	proxy.tty = req.tty
-
-	if proxy.resizeStream != nil {
-		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
-		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
-	}
 	return proxy, nil
 }
 
@@ -386,6 +402,16 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 			return err
 		}
 		_, err = stream.Write(bs)
+		return err
+	}
+}
+
+func v1WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
+	return func(status *apierrors.StatusError) error {
+		if status.Status().Status == metav1.StatusSuccess {
+			return nil // send error messages
+		}
+		_, err := stream.Write([]byte(status.Error()))
 		return err
 	}
 }

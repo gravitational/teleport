@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/.github/workflows/robot
 
-go 1.17
+go 1.18
 
 require (
 	github.com/google/go-github/v37 v37.0.0

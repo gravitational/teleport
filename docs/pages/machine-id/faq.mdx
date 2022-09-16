@@ -1,0 +1,67 @@
+---
+title: Machine ID FAQ
+description: Frequently asked questions about Teleport Machine ID
+---
+
+## Can Machine ID be used within CI/CD jobs?
+
+Yes, however it depends on your CI/CD provider. It's currently a good fit in the
+following situations:
+
+ - Either short-lived or long-lived tasks run on AWS instances using AWS IAM
+   joining.
+ - Long-lived worker nodes, like self-hosted Jenkins workers, using token-based
+   joining.
+
+We are working to support SaaS-based CI/CD providers like GitHub Actions in the
+the near future, but cannot currently recommend using Machine ID on these
+providers.
+
+## Can Machine ID be used with Trusted Clusters ?
+
+Partially. We currently support SSH access to leaf clusters when using `tsh` to
+make the connection. To do this, you will need to provide `tsh` with the generated identity file
+output in the destination directory to `tsh`, for example:
+
+```code
+$ tsh -i /opt/machine-id/identity --proxy root-cluster.example.com ssh --cluster leaf-cluster.example.com root@node.leaf-cluster.example.com
+```
+
+We hope to introduce support for generating a `ssh_config` that is compatible
+with leaf clusters for use with OpenSSH. You can track support for this on the 
+[GitHub Machine ID Trusted Cluster Support issue](https://github.com/gravitational/teleport/issues/13792).
+
+We currently do not support Application Access, Database Access or Kubernetes
+Access to resources in leaf clusters.
+
+## Should I define allowed logins as user traits or within roles?
+
+When defining the logins that your bot will be allowed to use, there are two
+options:
+
+- Directly adding the login to the `logins` section of the role that your bot
+  will impersonate.
+- Adding the login to the logins trait of the bot user, and impersonating a role
+  that includes the `{{ internal.logins }}` role variable. This is usually done
+  by providing the `--logins` parameter when creating the bot.
+
+For simpler scenarios, where you only expect to configure your bot with a single 
+destination or role, it is permissible to add the login to the logins trait of 
+the bot user. This will allow you to leverage existing roles like `access`.
+
+For situations where your bot is producing certificates for different roles in
+different destinations it is important to consider if using login traits will 
+grant access to resources that you were not intending to grant. For this reason,
+we recommend that in this situation you create bespoke roles that directly
+include the logins that you wish to grant to the certificates output in that
+destination.
+
+## Can Machine ID be used with per-session MFA?
+
+We do not currently support Machine ID and per-session MFA. Enabling per-session
+MFA globally, or for roles impersonated by Machine ID, will prevent credentials
+produced by Machine ID from being used to connect to resources.
+
+As a work-around, ensure that per-session MFA is enforced on individual roles
+rather than enforced globally, and that it is not enforced for roles that you
+will impersonate using Machine ID.

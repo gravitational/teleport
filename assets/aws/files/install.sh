@@ -1,5 +1,7 @@
 #!/bin/bash
-set -x
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
 
 # Update packages
 yum -y update

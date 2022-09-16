@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -92,9 +94,17 @@ type ExecCommand struct {
 	ClusterName string `json:"cluster_name"`
 
 	// Terminal indicates if a TTY has been allocated for the session. This is
-	// typically set if either an shell was requested or a TTY was explicitly
-	// allocated for a exec request.
+	// typically set if either a shell was requested or a TTY was explicitly
+	// allocated for an exec request.
 	Terminal bool `json:"term"`
+
+	// TerminalName is the name of TTY terminal, ex: /dev/tty1.
+	// Currently, this field is used by auditd.
+	TerminalName string `json:"terminal_name"`
+
+	// ClientAddress contains IP address of the connected client.
+	// Currently, this field is used by auditd.
+	ClientAddress string `json:"client_address"`
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
@@ -166,7 +176,7 @@ type UaccMetadata struct {
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client. By
-	// default it writes to stdout, but if a TTY is allocated, it will write
+	// default, it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
 	errorWriter := os.Stdout
 
@@ -192,6 +202,32 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	auditdMsg := auditd.Message{
+		SystemUser:   c.Login,
+		TeleportUser: c.Username,
+		ConnAddress:  c.ClientAddress,
+		TTYName:      c.TerminalName,
+	}
+
+	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
+		log.WithError(err).Errorf("failed to send user start event to auditd: %v", err)
+	}
+
+	defer func() {
+		if err != nil {
+			if errors.Is(err, user.UnknownUserError(c.Login)) {
+				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
+					log.WithError(err).Errorf("failed to send UserErr event to auditd: %v", err)
+				}
+				return
+			}
+		}
+
+		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
+			log.WithError(err).Errorf("failed to send UserEnd event to auditd: %v", err)
+		}
+	}()
+
 	var tty *os.File
 	var pty *os.File
 	uaccEnabled := false
@@ -208,7 +244,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		errorWriter = tty
 		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
 		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently there is no way to log this error out-of-band with the
+		// Currently, there is no way to log this error out-of-band with the
 		// command output, so for now we essentially ignore it.
 		if err == nil {
 			uaccEnabled = true

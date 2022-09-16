@@ -126,6 +126,10 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
+		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
 		return "", trace.AccessDenied(`Could not generate RDS IAM auth token:
 
   %v
@@ -134,7 +138,7 @@ Make sure that Teleport database agent's IAM policy is attached and has "rds-con
 permissions (note that IAM changes may take a few minutes to propagate):
 
 %v
-`, err, sessionCtx.Database.GetIAMPolicy())
+`, err, policy)
 	}
 	return token, nil
 }
@@ -159,6 +163,10 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
+		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
 		return "", "", trace.AccessDenied(`Could not generate Redshift IAM auth token:
 
   %v
@@ -168,7 +176,7 @@ to generate Redshift credentials (note that IAM changes may take a few minutes t
 propagate):
 
 %v
-`, err, sessionCtx.Database.GetIAMPolicy())
+`, err, policy)
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
 }
@@ -471,14 +479,14 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
 func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *tls.Certificate, cas [][]byte, err error) {
-	privateBytes, _, err := native.GenerateKeyPair()
+	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	// Postgres requires the database username to be encoded as a common
 	// name in the client certificate.
 	subject := pkix.Name{CommonName: sessionCtx.DatabaseUser}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateBytes)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKey)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -492,7 +500,7 @@ func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clientCert, err := tls.X509KeyPair(resp.Cert, privateBytes)
+	clientCert, err := privateKey.TLSCertificate(resp.Cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

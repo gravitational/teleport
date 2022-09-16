@@ -305,7 +305,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -2778,4 +2778,64 @@ func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
+}
+
+// GetConnectionDiagnostic reads a connection diagnostic
+func (c *Client) GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error) {
+	req := &proto.GetConnectionDiagnosticRequest{
+		Name: name,
+	}
+	res, err := c.grpc.GetConnectionDiagnostic(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// CreateConnectionDiagnostic creates a new connection diagnostic.
+func (c *Client) CreateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connectionDiagnostic)
+	}
+	_, err := c.grpc.CreateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateConnectionDiagnostic updates a connection diagnostic.
+func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connectionDiagnostic)
+	}
+	_, err := c.grpc.UpdateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// AppendDiagnosticTrace adds a new trace for the given ConnectionDiagnostic.
+func (c *Client) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	req := &proto.AppendDiagnosticTraceRequest{
+		Name:  name,
+		Trace: t,
+	}
+	connectionDiagnostic, err := c.grpc.AppendDiagnosticTrace(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
+}
+
+// GetClusterAlerts loads matching cluster alerts.
+func (c *Client) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	rsp, err := c.grpc.GetClusterAlerts(ctx, &query, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp.Alerts, nil
+}
+
+// UpsertClusterAlert creates a cluster alert.
+func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
+	_, err := c.grpc.UpsertClusterAlert(ctx, &proto.UpsertClusterAlertRequest{
+		Alert: alert,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
 }

@@ -296,7 +296,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		NodeName:    Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	auth.AddUser(p.username, []string{p.username})
@@ -322,14 +322,14 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	authAddr := utils.MustParseAddr(net.JoinHostPort(p.auth.Hostname, p.auth.GetPortAuth()))
 
 	conf := service.MakeDefaultConfig()
 	conf.AuthServers = append(conf.AuthServers, *authAddr)
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
 	conf.Auth.Enabled = false
@@ -365,12 +365,12 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	conf := service.MakeDefaultConfig()
 	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
 	conf.Auth.Enabled = false
@@ -401,12 +401,12 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	conf := service.MakeDefaultConfig()
 	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
 	conf.Auth.Enabled = false
@@ -421,7 +421,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		},
 	}
 
-	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, nil)
+	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username})
 	require.NoError(t, err)
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})

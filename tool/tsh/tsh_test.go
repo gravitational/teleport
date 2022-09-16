@@ -24,30 +24,37 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
+	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -61,6 +68,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -77,6 +86,9 @@ func init() {
 	// tsh proxy ssh command is used as ProxyCommand.
 	if os.Getenv(tshBinMainTestEnv) != "" {
 		main()
+		// main will only exit if there is an error.
+		// since we are here, there was no error, so we must do so ourselves.
+		os.Exit(0)
 		return
 	}
 
@@ -128,6 +140,130 @@ func (p *cliModules) Features() modules.Features {
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *cliModules) IsBoringBinary() bool {
 	return false
+}
+
+func TestAlias(t *testing.T) {
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		aliases        map[string]string
+		args           []string
+		wantErr        bool
+		validateOutput func(t *testing.T, output string)
+	}{
+		{
+			name: "loop",
+			aliases: map[string]string{
+				"loop": fmt.Sprintf("%v loop", testExecutable),
+			},
+			args:    []string{"loop"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"loop\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "loop via other",
+			aliases: map[string]string{
+				"loop":      fmt.Sprintf("%v loop", testExecutable),
+				"loop-call": fmt.Sprintf("%v loop", testExecutable),
+			},
+			args:    []string{"loop-call"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"loop\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "r1 -> r2 -> r1",
+			aliases: map[string]string{
+				"r1": fmt.Sprintf("%v r2", testExecutable),
+				"r2": fmt.Sprintf("%v r1", testExecutable),
+			},
+			args:    []string{"r2"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"r2\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "set default flag to command",
+			aliases: map[string]string{
+				"version": fmt.Sprintf("%v version --format=json", testExecutable),
+			},
+			args:    []string{"version"},
+			wantErr: false,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, `"version"`)
+				require.Contains(t, output, `"gitref"`)
+				require.Contains(t, output, `"runtime"`)
+			},
+		},
+		{
+			name: "default flag and alias",
+			aliases: map[string]string{
+				"version": fmt.Sprintf("%v version --format=json", testExecutable),
+				"v":       fmt.Sprintf("%v version", testExecutable),
+			},
+			args:    []string{"v"},
+			wantErr: false,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, `"version"`)
+				require.Contains(t, output, `"gitref"`)
+				require.Contains(t, output, `"runtime"`)
+			},
+		},
+		{
+			name: "call external program, pass non-zero exit code",
+			aliases: map[string]string{
+				"ss": fmt.Sprintf("%v status", testExecutable),
+				"bb": fmt.Sprintf("bash -c '%v ss'", testExecutable),
+			},
+			args:    []string{"bb"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, fmt.Sprintf("%vnot logged in", utils.Color(utils.Red, "ERROR: ")))
+				require.Contains(t, output, fmt.Sprintf("%vexit status 1", utils.Color(utils.Red, "ERROR: ")))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// make sure we have fresh configs for the tests:
+			// - new home
+			// - new global config
+			tmpHomePath := t.TempDir()
+			t.Setenv(types.HomeEnvVar, tmpHomePath)
+			t.Setenv(globalTshConfigEnvVar, filepath.Join(tmpHomePath, "tsh_global.yaml"))
+
+			// make the re-exec behave as `tsh` instead of test binary.
+			t.Setenv(tshBinMainTestEnv, "1")
+
+			// write config to use
+			config := &TshConfig{Aliases: tt.aliases}
+			configBytes, err := yamlv2.Marshal(config)
+			require.NoError(t, err)
+			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0777)
+			require.NoError(t, err)
+
+			// run command
+			cmd := exec.Command(testExecutable, tt.args...)
+			t.Logf("running command %v", cmd)
+			output, err := cmd.CombinedOutput()
+			t.Logf("executable output: %v", string(output))
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			tt.validateOutput(t, string(output))
+		})
+	}
 }
 
 func TestFailedLogin(t *testing.T) {
@@ -529,6 +665,345 @@ func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess
 	}
 }
 
+// TestSSHOnMultipleNodes tests running ssh commands on multiple nodes
+// with and without mfa_per_session.
+func TestSSHOnMultipleNodes(t *testing.T) {
+	// Setup cluster with 3 ssh nodes and user with access to them.
+	// Running ssh 'echo test' command should work when referencing
+	// multiple nodes by labels, without and with mfa_per_session.
+	t.Parallel()
+	tmpHomePath := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const origin = "https://127.0.0.1"
+	connector := mockConnector(t)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{user.Username},
+		},
+	})
+	require.NoError(t, err)
+	alice, err := types.NewUser("alice")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access", "ssh-login"})
+	const password = "supersecretpassword"
+
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	rootAuth, rootProxy := makeTestServers(t,
+		withBootstrap(connector, alice, sshLoginRole),
+	)
+
+	authAddr, err := rootAuth.AuthSSHAddr()
+	require.NoError(t, err)
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	stage1Hostname := "test-stage-1"
+	node := makeTestSSHNode(t, authAddr, withHostname(stage1Hostname), withSSHLabel("env", "stage"))
+	sshHostID := node.Config.HostUUID
+
+	stage2Hostname := "test-stage-2"
+	node2 := makeTestSSHNode(t, authAddr, withHostname(stage2Hostname), withSSHLabel("env", "stage"))
+	sshHostID2 := node2.Config.HostUUID
+
+	prodHostname := "test-prod-1"
+	nodeProd := makeTestSSHNode(t, authAddr, withHostname(prodHostname), withSSHLabel("env", "prod"))
+	sshHostID3 := nodeProd.Config.HostUUID
+
+	hasNodes := func(hostIDs ...string) func() bool {
+		return func() bool {
+			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			foundCount := 0
+			for _, node := range nodes {
+				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+					foundCount++
+				}
+			}
+			return foundCount == len(hostIDs)
+		}
+	}
+
+	// wait for auth to see nodes
+	require.Eventually(t, hasNodes(sshHostID, sshHostID2, sshHostID3),
+		10*time.Second, 100*time.Millisecond, "nodes never showed up")
+
+	defaultPreference, err := rootAuth.GetAuthServer().GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	registerPasswordlessDeviceWithWebauthnSolver := func(t *testing.T) {
+		token, err := rootAuth.GetAuthServer().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+			Name: "alice",
+		})
+		require.NoError(t, err)
+		tokenID := token.GetName()
+		res, err := rootAuth.GetAuthServer().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			TokenID:     tokenID,
+			DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		})
+		require.NoError(t, err)
+		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+		ccr, err := device.SignCredentialCreation(origin, cc)
+		require.NoError(t, err)
+		_, err = rootAuth.GetAuthServer().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:     tokenID,
+			NewPassword: []byte(password),
+			NewMFARegisterResponse: &proto.MFARegisterResponse{
+				Response: &proto.MFARegisterResponse_Webauthn{
+					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		inputReader := prompt.NewFakeReader().
+			AddString(password).
+			AddReply(func(ctx context.Context) (string, error) {
+				panic("this should not be called")
+			})
+
+		solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			car, err := device.SignAssertion(origin, assertion)
+			if err != nil {
+				return nil, err
+			}
+			return &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				},
+			}, nil
+		}
+
+		oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+		t.Cleanup(func() {
+			prompt.SetStdin(oldStdin)
+			*client.PromptWebauthn = oldWebauthn
+		})
+
+		prompt.SetStdin(inputReader)
+		*client.PromptWebauthn = func(
+			ctx context.Context,
+			origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
+		) (*proto.MFAAuthenticateResponse, string, error) {
+			resp, err := solveWebauthn(ctx, origin, assertion, prompt)
+			return resp, "", err
+		}
+	}
+
+	cases := []struct {
+		name            string
+		hostLabels      string
+		authPreference  types.AuthPreference
+		setup           func(t *testing.T)
+		errAssertion    require.ErrorAssertionFunc
+		stdoutAssertion require.ValueAssertionFunc
+		// deviceSignCount is used to check how many times
+		// webatuhn device sign was called.
+		deviceSignCount int
+	}{
+		{
+			name:           "default auth preference - just check stage nodes",
+			authPreference: defaultPreference,
+			hostLabels:     "env=stage",
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\ntest\n", i, i2...)
+			},
+			deviceSignCount: 0,
+			errAssertion:    require.NoError,
+		},
+		{
+			name: "without per session mfa - 2 stage nodes",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+				},
+			},
+			hostLabels: "env=stage",
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\ntest\n", i, i2...)
+			},
+			deviceSignCount: 0,
+			errAssertion:    require.NoError,
+		},
+		{
+			name: "without per session mfa - 1 prod node",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+				},
+			},
+			hostLabels: "env=prod",
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\n", i, i2...)
+			},
+			deviceSignCount: 0,
+			errAssertion:    require.NoError,
+		},
+		{
+			name: "without per session mfa - 0 dev nodes",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+				},
+			},
+			hostLabels:      "env=dev",
+			errAssertion:    require.Error,
+			stdoutAssertion: require.Empty,
+			deviceSignCount: 0,
+		},
+		{
+			name: "with per session mfa - 2 stage nodes",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					RequireSessionMFA: true,
+				},
+			},
+			setup:      registerPasswordlessDeviceWithWebauthnSolver,
+			hostLabels: "env=stage",
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\ntest\n", i, i2...)
+			},
+			deviceSignCount: 2,
+			errAssertion:    require.NoError,
+		},
+		{
+			name: "with per session mfa - 1 prod node",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					RequireSessionMFA: true,
+				},
+			},
+			setup:      registerPasswordlessDeviceWithWebauthnSolver,
+			hostLabels: "env=prod",
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\n", i, i2...)
+			},
+			deviceSignCount: 1,
+			errAssertion:    require.NoError,
+		},
+		{
+			name: "with per session mfa - 0 dev nodes",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					RequireSessionMFA: true,
+				},
+			},
+			setup:           registerPasswordlessDeviceWithWebauthnSolver,
+			hostLabels:      "env=dev",
+			errAssertion:    require.Error,
+			deviceSignCount: 0,
+			stdoutAssertion: require.Empty,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, tt.authPreference))
+			t.Cleanup(func() {
+				require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, defaultPreference))
+			})
+
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
+			err = Run(ctx, []string{
+				"login",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--user", "alice",
+			}, setHomePath(tmpHomePath),
+				func(cf *CLIConf) error {
+					cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
+					return nil
+				},
+			)
+			require.NoError(t, err)
+
+			stdout := &output{buf: bytes.Buffer{}}
+			// Clear counter before each ssh command,
+			// so we can assert how many times sign was called.
+			device.SetCounter(0)
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				tt.hostLabels,
+				"echo", "test",
+			},
+				setHomePath(tmpHomePath),
+				func(conf *CLIConf) error {
+					conf.overrideStdin = &bytes.Buffer{}
+					conf.overrideStdout = stdout
+					return nil
+				},
+			)
+
+			tt.errAssertion(t, err)
+			tt.stdoutAssertion(t, stdout.String())
+			require.Equal(t, tt.deviceSignCount, int(device.Counter()), "device sign count mismatch")
+		})
+
+	}
+}
+
+type output struct {
+	lock sync.Mutex
+	buf  bytes.Buffer
+}
+
+func (o *output) Write(p []byte) (int, error) {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+
+	return o.buf.Write(p)
+}
+
+func (o *output) String() string {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+
+	return o.buf.String()
+}
+
 // TestSSHAccessRequest tests that a user can automatically request access to a
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
@@ -927,7 +1402,7 @@ func TestIdentityRead(t *testing.T) {
 		require.Nil(t, cb)
 
 		// test creating an auth method from the key:
-		am, err := authFromIdentity(k)
+		am, err := k.AsAuthMethod()
 		require.NoError(t, err)
 		require.NotNil(t, am)
 	}
@@ -1023,7 +1498,7 @@ func TestFormatConnectCommand(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.comment, func(t *testing.T) {
-			require.Equal(t, test.command, formatConnectCommand(test.clusterFlag, test.db))
+			require.Equal(t, test.command, formatDatabaseConnectCommand(test.clusterFlag, test.db))
 		})
 	}
 }
@@ -1667,7 +2142,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.DataDir = t.TempDir()
 
 	cfg.AuthServers = []utils.NetAddr{*authAddr}
-	cfg.Token = staticToken
+	cfg.SetToken(staticToken)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
@@ -1717,7 +2192,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -1758,7 +2233,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.DataDir = t.TempDir()
 
 	cfg.AuthServers = []utils.NetAddr{*authAddr}
-	cfg.Token = staticToken
+	cfg.SetToken(staticToken)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
@@ -1840,6 +2315,13 @@ func setHomePath(path string) cliOption {
 func setIdentity(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.IdentityFileIn = path
+		return nil
+	}
+}
+
+func setCmdRunner(cmdRunner func(*exec.Cmd) error) cliOption {
+	return func(cf *CLIConf) error {
+		cf.cmdRunner = cmdRunner
 		return nil
 	}
 }
@@ -1994,7 +2476,8 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {}
-      }
+      },
+      "azure": {}
     }
   }]
 	`
@@ -2736,4 +3219,88 @@ func TestExportingTraces(t *testing.T) {
 			tt.spanAssertion(t, collector.Spans())
 		})
 	}
+}
+
+func TestShowSessions(t *testing.T) {
+	expected := `[
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID1",
+        "time": "0001-01-01T00:00:00Z",
+        "sid": "",
+        "server_id": "",
+        "enhanced_recording": false,
+        "interactive": false,
+        "participants": [
+            "someParticipant"
+        ],
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z"
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID2",
+        "time": "0001-01-01T00:00:00Z",
+        "sid": "",
+        "server_id": "",
+        "enhanced_recording": false,
+        "interactive": false,
+        "participants": [
+            "someParticipant"
+        ],
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z"
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID3",
+        "time": "0001-01-01T00:00:00Z",
+        "sid": "",
+        "windows_desktop_service": "",
+        "desktop_addr": "",
+        "windows_domain": "",
+        "windows_user": "",
+        "desktop_labels": null,
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z",
+        "desktop_name": "",
+        "recorded": false,
+        "participants": [
+            "someParticipant"
+        ]
+    }
+]`
+	sessions := []events.AuditEvent{
+		&events.SessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID1",
+			},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
+		},
+		&events.SessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID2",
+			},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
+		},
+		&events.WindowsDesktopSessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID3",
+			},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
+		},
+	}
+	var buf bytes.Buffer
+	err := common.ShowSessions(sessions, teleport.JSON, &buf)
+	require.NoError(t, err)
+	require.Equal(t, expected, buf.String())
 }

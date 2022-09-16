@@ -27,18 +27,21 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/utils"
+
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration"
@@ -80,6 +83,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*integration.TeleInstance, stri
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    integration.Loopback,
+		Log:         logrus.StandardLogger(),
 	})
 
 	rcConf := service.MakeDefaultConfig()
@@ -111,7 +115,103 @@ func defaultTeleportServiceConfig(t *testing.T) (*integration.TeleInstance, stri
 	return teleportServer, operatorName
 }
 
-func startKubernetesOperator(t *testing.T, teleportClient auth.ClientI) kclient.Client {
+// startKubernetesOperator creates and start a new operator
+func (s *testSetup) startKubernetesOperator(t *testing.T) {
+	// If there was an operator running previously we make sure it is stopped
+	if s.operatorCancel != nil {
+		s.stopKubernetesOperator()
+	}
+
+	// We have to create a new Manager on each start because the Manager does not support to be restarted
+	clientAccessor := func(ctx context.Context) (auth.ClientI, error) {
+		return s.tClient, nil
+	}
+
+	k8sManager, err := ctrl.NewManager(s.k8sRestConfig, ctrl.Options{
+		Scheme:             scheme.Scheme,
+		MetricsBindAddress: "0",
+	})
+	require.NoError(t, err)
+
+	err = (&RoleReconciler{
+		Client:                 s.k8sClient,
+		Scheme:                 k8sManager.GetScheme(),
+		TeleportClientAccessor: clientAccessor,
+	}).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	err = (&UserReconciler{
+		Client:                 s.k8sClient,
+		Scheme:                 k8sManager.GetScheme(),
+		TeleportClientAccessor: clientAccessor,
+	}).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	ctx, ctxCancel := context.WithCancel(context.Background())
+
+	s.operator = k8sManager
+	s.operatorCancel = ctxCancel
+
+	go func() {
+		err := s.operator.Start(ctx)
+		require.NoError(t, err)
+	}()
+}
+
+func (s *testSetup) stopKubernetesOperator() {
+	s.operatorCancel()
+}
+
+func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
+	ns := &core.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: validRandomResourceName("ns-")},
+	}
+
+	err := kc.Create(context.Background(), ns)
+	require.NoError(t, err)
+
+	return ns
+}
+
+func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace) {
+	err := kc.Delete(context.Background(), ns)
+	require.NoError(t, err)
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+
+func validRandomResourceName(prefix string) string {
+	b := make([]rune, 5)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return prefix + string(b)
+}
+
+type testSetup struct {
+	tClient        auth.ClientI
+	k8sClient      kclient.Client
+	k8sRestConfig  *rest.Config
+	namespace      *core.Namespace
+	operator       manager.Manager
+	operatorCancel context.CancelFunc
+}
+
+// setupTestEnv creates a Kubernetes server, a teleport server and starts the operator
+func setupTestEnv(t *testing.T) *testSetup {
+	// Create a Teleport server and its client
+	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+	require.NoError(t, teleportServer.Start())
+	tClient := clientForTeleport(t, teleportServer, operatorName)
+
+	t.Cleanup(func() {
+		err := tClient.Close()
+		require.NoError(t, err)
+		err = teleportServer.StopAll()
+		require.NoError(t, err)
+	})
+
+	// Create a Kubernetes server, its client and the namespace we are testing in
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
@@ -131,71 +231,38 @@ func startKubernetesOperator(t *testing.T, teleportClient auth.ClientI) kclient.
 	require.NoError(t, err)
 	require.NotNil(t, k8sClient)
 
-	clientAccessor := func(ctx context.Context) (auth.ClientI, error) {
-		return teleportClient, nil
-	}
-
-	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             scheme.Scheme,
-		MetricsBindAddress: "0",
-	})
-	require.NoError(t, err)
-
-	err = (&RoleReconciler{
-		Client:                 k8sClient,
-		Scheme:                 k8sManager.GetScheme(),
-		TeleportClientAccessor: clientAccessor,
-	}).SetupWithManager(k8sManager)
-	require.NoError(t, err)
-
-	err = (&UserReconciler{
-		Client:                 k8sClient,
-		Scheme:                 k8sManager.GetScheme(),
-		TeleportClientAccessor: clientAccessor,
-	}).SetupWithManager(k8sManager)
-	require.NoError(t, err)
-
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	go func() {
-		err = k8sManager.Start(ctx)
-		require.NoError(t, err)
-	}()
+	ns := createNamespaceForTest(t, k8sClient)
 
 	t.Cleanup(func() {
-		ctxCancel()
+		deleteNamespaceForTest(t, k8sClient, ns)
 		err = testEnv.Stop()
 		require.NoError(t, err)
 	})
 
-	return k8sClient
-}
+	setup := &testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns, k8sRestConfig: cfg}
 
-func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
-	ns := &core.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: validRandomResourceName("ns-")},
-	}
-
-	err := kc.Create(context.Background(), ns)
-	require.NoError(t, err)
+	// Create and start the Kubernetes operator
+	setup.startKubernetesOperator(t)
 
 	t.Cleanup(func() {
-		deleteNamespaceForTest(t, kc, ns)
+		setup.stopKubernetesOperator()
 	})
 
-	return ns
+	return setup
 }
 
-func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace) {
-	err := kc.Delete(context.Background(), ns)
+func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) {
+	// The role is created in Teleport
+	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"a", "b"},
+		},
+	})
 	require.NoError(t, err)
-}
+	metadata := tRole.GetMetadata()
+	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
+	tRole.SetMetadata(metadata)
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-
-func validRandomResourceName(prefix string) string {
-	b := make([]rune, 5)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return prefix + string(b)
+	err = tClient.UpsertRole(ctx, tRole)
+	require.NoError(t, err)
 }

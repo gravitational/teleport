@@ -495,35 +495,47 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"h2",
 				"http/1.1",
 				"acme-tls/1",
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
-				"teleport-tcp",
 			},
 		},
 		{
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
 				// Ensure h2 has precedence over http/1.1.
 				"h2",
 				"http/1.1",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
-				"teleport-tcp",
 			},
 		},
 	}
@@ -627,7 +639,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	nodeCfg := MakeDefaultConfig()
 	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.Token = token
+	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
 	nodeCfg.SSH.Enabled = true

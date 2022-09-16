@@ -268,6 +268,8 @@ type UserCertParams struct {
 	PermitAgentForwarding bool
 	// PermitPortForwarding permits port forwarding.
 	PermitPortForwarding bool
+	// PermitFileCopying permits the use of SCP/SFTP.
+	PermitFileCopying bool
 	// Roles is a list of roles assigned to this user
 	Roles []string
 	// CertificateFormat is the format of the SSH certificate.
@@ -299,6 +301,8 @@ type UserCertParams struct {
 	Generation uint64
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
+	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
+	ConnectionDiagnosticID string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters
