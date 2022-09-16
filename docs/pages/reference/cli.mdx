@@ -6,10 +6,10 @@ h1: Command Line (CLI) Reference
 
 Teleport is made up of four CLI tools.
 
-- [teleport](#teleport): A process and CLI tool that supports the Teleport access plane.
-- [tsh](#tsh): A CLI tool that allows end users to interact with Teleport sessions and list cluster information.
+- [teleport](#teleport): A CLI tool that supports the Teleport access plane by starting and configuring various Teleport services.
+- [tsh](#tsh): A client CLI tool that allows end users to authenicate to Teleport and access resources in a cluster.
 - [tctl](#tctl): An administrative CLI tool that can configure the Teleport Auth Service.
-- [tbot](#tbot): A CLI tool that supports Machine ID on Teleport, used to apply short lived certificates to service accounts (e.g, a CI/CD server).
+- [tbot](#tbot): A CLI tool that supports Machine ID on Teleport, used to apply short-lived certificates to service accounts (e.g, a CI/CD server).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -17,29 +17,44 @@ Teleport is made up of four CLI tools.
 
 ## teleport
 
-The CLI tool that supports the Teleport access plane is called `teleport`, and allows Teleport services to be created, configured, and otherwise interacted with over the command line.
-The `teleport` process' CLI capability is generally the first step in setting up the Teleport binary following package manager or source installation on Linux.
+The `teleport` CLI tool can be used to start all services defined in Teleport's required [configuration YAML file](config.mdx).
+Services that can be started by the `teleport` CLI include the following:
 
-The primary commands for the teleport CLI are as follows:
+- [Auth](../architecture/overview/#teleport-auth-service)
+- [Node/SSH](../architecture/nodes/)
+- [Proxy](../architecture/overview/#teleport-proxy-service)
+- [App](../application-access/introduction/)
+- [Database](../database-access/introduction/)
+- [Windows Desktop](../desktop-access/introduction/)
+- [Kubernetes](../kubernetes-access/introduction/)
+
+The `teleport` CLI can additionally be used to take the following actions directly:
+
+- [Start and configure the Application Proxy Service for web applications on Teleport](../application-access/guides/connecting-apps/#start-application-service-with-cli-flags).
+- [Start and configure the Database Service for Database Access on Teleport](../database-access/introduction/)
+- [Generate a systemd unit file for a systemd managed service daemon](../management/admin/daemon/)
+- [Generate a sample configuration YAML file for an SSH Node](../architecture/nodes.mdx)
+
+The primary commands for the `teleport` CLI are as follows:
 
 | Command | Description |
 | - | - |
 | `teleport help` | Outputs guidance for using commands on Teleport. |
-| `teleport start` | Starts the `teleport` service using the current shell session. This command will not start the `teleport` service as a daemon. |
+| `teleport start` | Starts the `teleport` service in the foregound using the current shell session, as well as any services configured by the [configuration YAML file](config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport configure` | Generates and writes a [configuration YAML file](config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
 | `teleport app start` | Starts the application proxy service. |
-| `teleport db start` | Starts the database proxy service. |
-| `teleport db configure create` | Generates a database service configuration. |
-| `teleport db configure bootstrap` | Used to bootstrap a configuration to the Teleport database agent by reading a provided configuration. |
-| `teleport db configure aws print-iam` | Generates and outputs current IAM policies for a teleport managed database. |
-| `teleport db configure aws create-iam` | Generates, creates, and attaches desired IAM policies to a teleport managed database. |
+| `teleport db start` | Starts the Teleport Database Service. |
+| `teleport db configure create` | Generates a configuration YAML file for the Database service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
+| `teleport db configure bootstrap` | Used to bootstrap a configuration to the Teleport Database Service by reading a provided configuration. |
+| `teleport db configure aws print-iam` | Generates and outputs current IAM policies for a Teleport-managed database. |
+| `teleport db configure aws create-iam` | Generates, creates, and attaches desired IAM policies to a Teleport-managed database. |
 | `teleport install systemd` | Creates a systemd unit file, used to configure and install a `teleport` service daemon. |
-| `teleport node configure` | Generates a configuration file for a Teleport node accessed via SSH. |
+| `teleport node configure` | Generates a configuration YAML file for a Teleport Node accessed via SSH. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 
 <Notice type="tip">
-For more information on subcommands when working with the `teleport` cli, use the `--help` option, or `teleport <subcommand> --help`.
+For more information on subcommands when working with the `teleport` cli, use the `--help` option or `teleport <subcommand> --help`.
 </Notice>
 
 ### teleport start
@@ -2169,7 +2184,7 @@ $ tbot init \
 
 ### tbot db
 
-Allows connections to databases using native clients and queries database information. This is best used for testing and validation purposes;
+Connects to databases using native clients and queries database information. This is best used for testing and validation purposes;
 most users will likely prefer to connect their own databases to a local proxy using `tbot proxy db`.
 
 Note that tsh must be installed to make use of this command.
