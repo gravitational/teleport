@@ -27,13 +27,16 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiazureutils "github.com/gravitational/teleport/api/utils/azure"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
+	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -60,6 +63,8 @@ type Auth interface {
 	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
 	GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetAzureRedisToken retrieves auth token for Azure Cache for Redis.
+	GetAzureRedisToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
@@ -293,6 +298,33 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 	return token.Token, nil
 }
 
+// GetAzureRedisToken retrieves auth token for Azure Cache for Redis.
+func (a *dbAuth) GetAzureRedisToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	resourceID, err := arm.ParseResourceID(sessionCtx.Database.GetAzure().ResourceID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var client libcloudazure.CacheForRedisClient
+	switch resourceID.ResourceType.String() {
+	case "Microsoft.Cache/Redis":
+		client, err = a.cfg.Clients.GetAzureRedisClient(resourceID.SubscriptionID)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	case "Microsoft.Cache/redisEnterprise":
+		client, err = a.cfg.Clients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	default:
+		return "", trace.BadParameter("unknown Azure Cache for Redis resource type: %v", resourceID.ResourceType)
+	}
+
+	token, err := client.GetToken(ctx, resourceID.ResourceGroupName, resourceID.Name)
+	return token, trace.Wrap(err)
+}
+
 // GetTLSConfig builds the client TLS configuration for the session.
 //
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
@@ -315,39 +347,13 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 // getTLSConfigVerifyFull returns tls.Config with full verification enabled ('verify-full' mode).
 // Config also includes database specific adjustment.
 func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
-	tlsConfig := &tls.Config{
-		RootCAs: x509.NewCertPool(),
-	}
-
-	// TODO move to a function
-	if defaults.ProtocolRedis == sessionCtx.Database.GetProtocol() &&
-		sessionCtx.Database.IsAzure() {
-		systemPool, err := x509.SystemCertPool()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig.RootCAs = systemPool
-	}
-
-	switch sessionCtx.Database.GetProtocol() {
-	case defaults.ProtocolMongoDB, defaults.ProtocolRedis:
-		// Mongo and Redis are using custom URI schema.
-	default:
-		// Don't set the ServerName when connecting to a MongoDB cluster - in case
-		// of replica set the driver may dial multiple servers and will set
-		// ServerName itself. For Postgres/MySQL we're always connecting to the
-		// server specified in URI so set ServerName ourselves.
-		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig.ServerName = addr.Host()
-	}
+	tlsConfig := &tls.Config{}
 
 	// Add CA certificate to the trusted pool if it's present, e.g. when
 	// connecting to RDS/Aurora which require AWS CA or when was provided in config file.
-	tlsConfig, err := appendCAToRoot(tlsConfig, sessionCtx)
-	if err != nil {
+	//
+	// Some databases may also require the system cert pool, e.g Azure Redis.
+	if err := setupTLSConfigRootCAs(tlsConfig, sessionCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -380,10 +386,9 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		tlsConfig.VerifyConnection = getVerifyCloudSQLCertificate(tlsConfig.RootCAs)
 	}
 
-	dbTLSConfig := sessionCtx.Database.GetTLS()
-	// Use user provided server name if set. Override the current value if needed.
-	if dbTLSConfig.ServerName != "" {
-		tlsConfig.ServerName = dbTLSConfig.ServerName
+	// Setup server name for verification.
+	if err := setupTLSConfigServerName(tlsConfig, sessionCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// RDS/Aurora/Redshift/ElastiCache and Cloud SQL auth is done with an auth
@@ -450,15 +455,93 @@ func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsC
 	return tlsConfig, nil
 }
 
-// appendCAToRoot appends CA certificate from session context to provided tlsConfig.
-func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, error) {
+// setupTLSConfigRootCAs initializes the root CA cert pool for the provided
+// tlsConfig based on session context.
+func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
+	// Start with an empty pool.
+	tlsConfig.RootCAs = x509.NewCertPool()
+
+	// If CA is provided by the database object, always use it.
 	if len(sessionCtx.Database.GetCA()) != 0 {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
-			return nil, trace.BadParameter("invalid server CA certificate")
+			return trace.BadParameter("invalid server CA certificate")
 		}
+		return nil
 	}
 
-	return tlsConfig, nil
+	// Overwrite with the system cert pool, if required.
+	if shouldUseSystemCertPool(sessionCtx) {
+		systemCertPool, err := x509.SystemCertPool()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = systemCertPool
+		return nil
+	}
+
+	// Use the empty pool. Client cert will be added later.
+	return nil
+}
+
+// shouldUseSystemCertPool returns true for database servers presenting
+// certificates signed by publicly trusted CAs so a system cert pool can be
+// used.
+func shouldUseSystemCertPool(sessionCtx *Session) bool {
+	// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
+	if sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
+		return true
+	}
+	return false
+}
+
+// setupTLSConfigServerName initializes the server name for the provided
+// tlsConfig based on session context.
+func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error {
+	// Use user provided server name if set. Override the current value if needed.
+	dbTLSConfig := sessionCtx.Database.GetTLS()
+	if dbTLSConfig.ServerName != "" {
+		tlsConfig.ServerName = dbTLSConfig.ServerName
+		return nil
+	}
+
+	// If server name is set prior to this function, use that.
+	if tlsConfig.ServerName != "" {
+		return nil
+	}
+
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolMongoDB:
+		// Don't set the ServerName when connecting to a MongoDB cluster - in case
+		// of replica set the driver may dial multiple servers and will set
+		// ServerName itself.
+		return nil
+
+	case defaults.ProtocolRedis:
+		// Azure Redis servers always serve the certificates with the proper
+		// hostname. However, OSS cluster mode may redirect to an IP address,
+		// and without ServerName the handshake will fail as the IPs are not
+		// in SANs.
+		if sessionCtx.Database.IsAzure() {
+			serverName, err := apiazureutils.GetHostFromRedisURI(sessionCtx.Database.GetURI())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			dbTLSConfig.ServerName = serverName
+		}
+
+		// Redis is using custom URI schema.
+		return nil
+
+	default:
+		// For other databases we're always connecting to the server specified
+		// in URI so set ServerName ourselves.
+		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.ServerName = addr.Host()
+		return nil
+	}
 }
 
 // verifyConnectionFunc returns a certificate validation function. serverName if empty will skip the hostname validation.

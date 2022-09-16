@@ -67,7 +67,7 @@ func ParseDatabaseEndpoint(endpoint string) (name string, err error) {
 // for Redis endpoint.
 func ParseCacheForRedisEndpoint(endpoint string) (name string, err error) {
 	// Note that the Redis URI may contain schema and parameters.
-	host, err := getHostFromURI(endpoint)
+	host, err := GetHostFromRedisURI(endpoint)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -92,8 +92,11 @@ func ParseCacheForRedisEndpoint(endpoint string) (name string, err error) {
 	}
 }
 
-func getHostFromURI(uri string) (string, error) {
-	// Add a temporary schema to make a valid URL for url.Parse.
+// GetHostFromRedisURI extracts host name from a Redis URI.
+func GetHostFromRedisURI(uri string) (string, error) {
+	// The uri may start with "redis://", "rediss://", or without. Add a
+	// temporary schema to make a valid URL for url.Parse if schema is not
+	// found.
 	if !strings.Contains(uri, "://") {
 		uri = "schema://" + uri
 	}
