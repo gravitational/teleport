@@ -1241,9 +1241,9 @@ impl GetStatusChange_Return {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct Connect_Call {
-    reader: String,
-    common: Connect_Common,
+pub(crate) struct Connect_Call {
+    pub reader: String,
+    pub common: Connect_Common,
 }
 
 impl Connect_Call {
@@ -1256,12 +1256,30 @@ impl Connect_Call {
         let mut common = Connect_Common::decode_ptr(payload, &mut index)?;
         let reader = decode_string_unicode(payload)?;
         common.decode_value(payload)?;
+
         Ok(Self { reader, common })
     }
 }
 
+impl Encode for Connect_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?;
+        self.common.encode_ptr(&mut index, &mut w)?;
+        w.extend(encode_str_unicode(&self.reader)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 bitflags! {
-    struct CardProtocol: u32 {
+    pub(crate) struct CardProtocol: u32 {
         const SCARD_PROTOCOL_UNDEFINED = 0x00000000;
         const SCARD_PROTOCOL_T0 = 0x00000001;
         const SCARD_PROTOCOL_T1 = 0x00000002;
@@ -1274,10 +1292,10 @@ bitflags! {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct Connect_Common {
-    context: Context,
-    share_mode: u32,
-    preferred_protocols: CardProtocol,
+pub(crate) struct Connect_Common {
+    pub context: Context,
+    pub share_mode: u32,
+    pub preferred_protocols: CardProtocol,
 }
 
 impl Connect_Common {
@@ -1295,8 +1313,16 @@ impl Connect_Common {
         })
     }
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
-        self.context.decode_value(payload)?;
+        self.context.decode_value(payload)
+    }
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        w.write_u32::<LittleEndian>(self.share_mode)?;
+        w.write_u32::<LittleEndian>(self.preferred_protocols.bits())?;
         Ok(())
+    }
+    fn encode_value(&self, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_value(w)
     }
 }
 
@@ -1658,7 +1684,6 @@ impl Encode for GetDeviceTypeId_Call {
         self.context.encode_value(&mut w)?;
 
         let reader_name = encode_str_unicode(&self.reader_name)?;
-        debug!("reader_name = {:?}", reader_name);
         w.extend(reader_name);
         Ok(w)
     }
