@@ -1,9 +1,10 @@
 # Example Microsoft Teams plugin configuration TOML file
 
-# If true, the recipient's existence is checked on plugin start.
-# When a recipient is checked, the app is installed for the user if it was not already.
-# This takes some time and does not fit well with HTTP timeouts, hence preload is necessary when a new
-# recipient is added.
+# If true, channels and users existence is checked on plugin start. When a
+# user is checked, the app is installed for the user if it was not
+# already. Installation can take up to 10 seconds per user. It is
+# advised to enable preloading unless you are sure all users already got
+# the app installed to avoid possible timeouts when treating an access request.
 preload = true
 
 [teleport]
@@ -36,7 +37,7 @@ teams_app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 [role_to_recipients]
 # Map roles to recipients.
 #
-# Provide msteams user email/id recipients for access requests for specific roles.
+# Provide msteams user email/id or channel URL recipients for access requests for specific roles.
 # role.suggested_reviewers will automatically be treated as additional email recipients.
 # "*" must be provided to match non-specified roles.
 #
