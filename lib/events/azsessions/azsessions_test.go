@@ -32,6 +32,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// TestStreams runs the standard events test suite over azsessions, if a
+// configuration URL is specified in the appropriate envvar.
 func TestStreams(t *testing.T) {
 	ctx := context.Background()
 

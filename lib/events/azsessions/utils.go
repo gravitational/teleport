@@ -69,6 +69,7 @@ type cachedTokenCredential struct {
 
 var _ azcore.TokenCredential = (*cachedTokenCredential)(nil)
 
+// GetToken implements azcore.TokenCredential
 func (c *cachedTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	c.mu.Lock()
 	if reflect.DeepEqual(options, c.options) && c.token.ExpiresOn.After(time.Now().Add(10*time.Minute)) {

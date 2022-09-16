@@ -61,7 +61,7 @@ const uploadMarkerPrefix = "upload/"
 
 // uploadMarkerName returns the blob name for the marker for a given upload.
 func uploadMarkerName(upload events.StreamUpload) string {
-	return fmt.Sprintf("upload/%v/%v", upload.SessionID, upload.ID)
+	return fmt.Sprintf("%v%v/%v", uploadMarkerPrefix, upload.SessionID, upload.ID)
 }
 
 // partPrefix returns the prefix for the upload part blobs for a given upload.
@@ -73,7 +73,7 @@ func partPrefix(upload events.StreamUpload) string {
 
 // partName returns the name of the blob for a specific part in an upload.
 func partName(upload events.StreamUpload, partNumber int64) string {
-	return fmt.Sprintf("part/%v/%v/%v", upload.SessionID, upload.ID, partNumber)
+	return fmt.Sprintf("%v%v", partPrefix(upload), partNumber)
 }
 
 // field names used for logging
@@ -84,6 +84,7 @@ const (
 	fieldPartCount  = "parts"
 )
 
+// Config is a struct of parameters to define the behavior of Handler.
 type Config struct {
 	// ServiceURL is the URL for the storage account to use.
 	ServiceURL url.URL
@@ -97,6 +98,10 @@ type Config struct {
 	Log logrus.FieldLogger
 }
 
+// SetFromURL sets values in Config based on the passed in URL: the fragment of
+// the URL is parsed as if it was made out of query parameters, which define
+// options for ourselves, and then the remainder of the URL is set as the
+// service URL.
 func (c *Config) SetFromURL(u *url.URL) error {
 	if u == nil {
 		return nil
@@ -205,6 +210,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	return &Handler{c: cfg, cred: cred, session: session, inprogress: inprogress}, nil
 }
 
+// Handler is a MultipartHandler that stores data in Azure Blob Storage.
 type Handler struct {
 	c          Config
 	cred       azcore.TokenCredential
@@ -247,6 +253,7 @@ func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) (*azblo
 	return client, nil
 }
 
+// Upload implements events.UploadHandler
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	blob, err := h.sessionBlob(sessionID)
 	if err != nil {
@@ -263,6 +270,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	return blob.URL(), nil
 }
 
+// Download implements events.UploadHandler
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	blob, err := h.sessionBlob(sessionID)
 	if err != nil {
@@ -278,6 +286,7 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 	return nil
 }
 
+// CreateUpload implements events.MultipartUploader
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
 	upload := events.StreamUpload{
 		ID:        uuid.NewString(),
@@ -300,6 +309,10 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	return &upload, nil
 }
 
+// CompleteUpload implements events.MultipartUploader by composing the final
+// session recording blob in the session container from the parts in the
+// inprogress container, using the Put Block From URL API. Might take a little
+// time, but doesn't require any data transfer.
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
 	blob, err := h.sessionBlob(upload.SessionID)
 	if err != nil {
@@ -408,10 +421,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	return nil
 }
 
+// ReserveUploadPart implements events.MultipartUploader by doing nothing.
 func (*Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
 	return nil
 }
 
+// UploadPart implements events.MultipartUploader
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	blob, err := h.partBlob(upload, partNumber)
 	if err != nil {
@@ -432,6 +447,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	return &events.StreamPart{Number: partNumber}, nil
 }
 
+// ListParts implements events.MultipartUploader
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
 	prefix := partPrefix(upload)
 
@@ -470,6 +486,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	return parts, nil
 }
 
+// ListUploads implements events.MultipartUploader
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	prefix := uploadMarkerPrefix
 	var uploads []events.StreamUpload
@@ -520,6 +537,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 	return uploads, nil
 }
 
+// GetUploadMetadata implements events.MultipartUploader
 func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
 	url := h.c.ServiceURL
 	url.Path = path.Join(url.Path, sessionContainerName, sessionID.String())
