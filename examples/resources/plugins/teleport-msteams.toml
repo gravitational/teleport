@@ -1,8 +1,8 @@
-# Example ms teams plugin configuration TOML file
+# Example Microsoft Teams plugin configuration TOML file
 
-# If true, recipients existence got checked on plugin start
+# If true, the recipient's existence is checked on plugin start.
 # When a recipient is checked, the app is installed for the user if it was not already.
-# This takes some time and does not fits well with HTTP timeouts, hence preload is necessary when a new
+# This takes some time and does not fit well with HTTP timeouts, hence preload is necessary when a new
 # recipient is added.
 preload = true
 
