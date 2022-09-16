@@ -170,15 +170,15 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		if !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 			return nil, err
 		}
-		cfg.Log.WithError(err).Debugf("Failed to confirm that the %v container exists, attempting creation.", sessionContainerName)
+		cfg.Log.WithError(err).Debug("Failed to confirm that the " + sessionContainerName + " container exists, attempting creation.")
 		// someone else might've created the container between GetProperties and
 		// Create, so we ignore AlreadyExists
 		if _, err := cErr2(session.Create(ctx, nil)); err != nil && !trace.IsAlreadyExists(err) {
 			if !trace.IsAccessDenied(err) {
 				return nil, err
 			}
-			cfg.Log.WithError(err).Warnf(
-				"Could not create the %v container, please ensure it exists or session recordings will not be stored correctly.", sessionContainerName)
+			cfg.Log.WithError(err).Warn(
+				"Could not create the " + sessionContainerName + " container, please ensure it exists or session recordings will not be stored correctly.")
 		}
 	}
 
@@ -186,15 +186,15 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		if !trace.IsNotFound(err) {
 			return nil, err
 		}
-		cfg.Log.WithError(err).Debugf("Failed to confirm that the %v container exists, attempting creation.", inprogressContainerName)
+		cfg.Log.WithError(err).Debug("Failed to confirm that the " + inprogressContainerName + " container exists, attempting creation.")
 		// someone else might've created the container between GetProperties and
 		// Create, so we ignore AlreadyExists
 		if _, err := cErr2(inprogress.Create(ctx, nil)); err != nil && !trace.IsAlreadyExists(err) {
 			if !trace.IsAccessDenied(err) {
 				return nil, err
 			}
-			cfg.Log.WithError(err).Warnf(
-				"Could not create the %v container, please ensure it exists or session recordings will not be stored correctly.", inprogressContainerName)
+			cfg.Log.WithError(err).Warn(
+				"Could not create the " + inprogressContainerName + " container, please ensure it exists or session recordings will not be stored correctly.")
 		}
 	}
 
