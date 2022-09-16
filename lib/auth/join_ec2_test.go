@@ -592,9 +592,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleKube,
 				types.RoleDatabase,
 				types.RoleApp,
+				types.RoleWindowsDesktop,
 			},
 			Allow: []*types.TokenRule{
-				&types.TokenRule{
+				{
 					AWSAccount: instance1.account,
 					AWSRegions: []string{instance1.region},
 				},
@@ -700,6 +701,20 @@ func TestHostUniqueCheck(t *testing.T) {
 					})
 				require.NoError(t, err)
 				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				require.NoError(t, err)
+			},
+		},
+		{
+			role: types.RoleWindowsDesktop,
+			upserter: func(name string) {
+				wds, err := types.NewWindowsDesktopServiceV3(instance1.account+"-"+instance1.instanceID,
+					types.WindowsDesktopServiceSpecV3{
+						Addr:            "localhost:3028",
+						TeleportVersion: "10.2.2",
+					})
+				require.NoError(t, err)
+
+				_, err = a.UpsertWindowsDesktopService(context.Background(), wds)
 				require.NoError(t, err)
 			},
 		},

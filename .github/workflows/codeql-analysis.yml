@@ -5,10 +5,18 @@ on:
     branches:
       - master
       - branch/*
+    paths-ignore:
+      - 'docs/**'
+      - 'rfd/**'
+      - '**.md'
   pull_request:
     branches:
       - master
       - branch/*
+    paths-ignore:
+      - 'docs/**'
+      - 'rfd/**'
+      - '**.md'
 
 jobs:
   analyze:

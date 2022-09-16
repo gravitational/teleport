@@ -233,7 +233,8 @@ func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	if err := utils.FSTryWriteLock(lockFile); err != nil {
+	unlock, err := utils.FSTryWriteLock(lockFilePath)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	reader, err := NewSessionArchive(u.DataDir, u.ServerID, u.Namespace, sessionID)
@@ -247,7 +248,7 @@ func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
 		defer u.releaseSemaphore()
 		defer reader.Close()
 		defer lockFile.Close()
-		defer utils.FSUnlock(lockFile)
+		defer unlock()
 
 		start := time.Now()
 		err := u.AuditLog.UploadSessionRecording(SessionRecording{
