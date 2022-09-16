@@ -44,7 +44,7 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
 
 RUN chmod a-w /
 
-# Install cargo as ci user
+# Cargo should be installed as a ci user, otherwise it will cause build failures
 USER ci
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
