@@ -83,8 +83,6 @@ type AuthCommand struct {
 	authSign     *kingpin.CmdClause
 	authRotate   *kingpin.CmdClause
 	authLS       *kingpin.CmdClause
-
-	stdout io.Writer
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
@@ -141,9 +139,6 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authLS = auth.Command("ls", "List connected auth servers")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
-	if a.stdout == nil {
-		a.stdout = os.Stdout
-	}
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -425,11 +420,11 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI auth.Clien
 
 	switch a.format {
 	case teleport.Text:
-		return sc.writeText(a.stdout)
+		return sc.writeText(os.Stdout)
 	case teleport.YAML:
-		return writeYAML(sc, a.stdout)
+		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:
-		return writeJSON(sc, a.stdout)
+		return writeJSON(sc, os.Stdout)
 	}
 
 	return nil

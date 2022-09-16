@@ -16,7 +16,6 @@ package common
 
 import (
 	"context"
-	"io"
 	"os"
 
 	"github.com/gravitational/teleport"
@@ -33,8 +32,6 @@ type ProxyCommand struct {
 	lsCmd  *kingpin.CmdClause
 
 	format string
-
-	stdout io.Writer
 }
 
 // Initialize creates the proxy command and subcommands
@@ -45,9 +42,6 @@ func (p *ProxyCommand) Initialize(app *kingpin.Application, config *service.Conf
 	p.lsCmd = authCommand.Command("ls", "List connected auth servers")
 	p.lsCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&p.format)
 
-	if p.stdout == nil {
-		p.stdout = os.Stdout
-	}
 }
 
 // ListProxies prints currently connected proxies
@@ -61,11 +55,11 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI auth.ClientI)
 
 	switch p.format {
 	case teleport.Text:
-		return sc.writeText(p.stdout)
+		return sc.writeText(os.Stdout)
 	case teleport.YAML:
-		return writeYAML(sc, p.stdout)
+		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:
-		return writeJSON(sc, p.stdout)
+		return writeJSON(sc, os.Stdout)
 	}
 
 	return nil
