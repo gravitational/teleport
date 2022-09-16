@@ -622,12 +622,10 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectedDiscoverySection: Discovery{
 				AWSMatchers: []AWSMatcher{
 					{
-						Matcher: AWSMatcher{
-							Types:   []string{"ec2"},
-							Regions: []string{"eu-central-1"},
-							Tags: map[string]apiutils.Strings{
-								"discover_teleport": []string{"yes"},
-							},
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
 						},
 						InstallParams: &InstallParams{
 							JoinParams: JoinParams{
@@ -668,12 +666,10 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectedDiscoverySection: Discovery{
 				AWSMatchers: []AWSMatcher{
 					{
-						Matcher: AWSMatcher{
-							Types:   []string{"ec2"},
-							Regions: []string{"eu-central-1"},
-							Tags: map[string]apiutils.Strings{
-								"discover_teleport": []string{"yes"},
-							},
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
 						},
 						InstallParams: &InstallParams{
 							JoinParams: JoinParams{

@@ -299,7 +299,7 @@ func TestDiscoveryServer(t *testing.T) {
 						return
 					}
 					if strings.Contains(scanner.Text(), findAll[index]) {
-						index += 1
+						index++
 					}
 				}
 			},

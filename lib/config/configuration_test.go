@@ -347,12 +347,10 @@ func TestConfigReading(t *testing.T) {
 			},
 			AWSMatchers: []AWSMatcher{
 				{
-					Matcher: AWSMatcher{
-						Types:   []string{"ec2"},
-						Regions: []string{"us-west-1", "us-east-1"},
-						Tags: map[string]apiutils.Strings{
-							"a": {"b"},
-						},
+					Types:   []string{"ec2"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
 					},
 					InstallParams: &InstallParams{
 						JoinParams: JoinParams{
@@ -1352,10 +1350,9 @@ func makeConfigFixture() string {
 	conf.Discovery.EnabledFlag = "true"
 	conf.Discovery.AWSMatchers = []AWSMatcher{
 		{
-			Matcher: AWSMatcher{Types: []string{"ec2"},
-				Regions: []string{"us-west-1", "us-east-1"},
-				Tags:    map[string]apiutils.Strings{"a": {"b"}},
-			},
+			Types:   []string{"ec2"},
+			Regions: []string{"us-west-1", "us-east-1"},
+			Tags:    map[string]apiutils.Strings{"a": {"b"}},
 		},
 	}
 
