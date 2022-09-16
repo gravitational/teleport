@@ -105,7 +105,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 	}, nil
 }
 
-// clusterDesktopServicesGet returns a list of desktops in a form the UI can present.
+// clusterDesktopServicesGet returns a list of desktop services in a form the UI can present.
 func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.

@@ -298,7 +298,7 @@ func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	return uiDesktops
 }
 
-// DesktopService describes a desktop to pass to the ui.
+// DesktopService describes a desktop service to pass to the ui.
 type DesktopService struct {
 	// Name is hostname of the Windows Desktop Service.
 	Name string `json:"name"`
@@ -312,14 +312,6 @@ type DesktopService struct {
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
-	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
-	stripRdpPort := func(addr string) string {
-		splitAddr := strings.Split(addr, ":")
-		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
-			return splitAddr[0]
-		}
-		return addr
-	}
 	uiLabels := []Label{}
 
 	for name, value := range desktopService.GetAllLabels() {
@@ -334,7 +326,7 @@ func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopServi
 	return DesktopService{
 		Name:     desktopService.GetName(),
 		Hostname: desktopService.GetHostname(),
-		Addr:     stripRdpPort(desktopService.GetAddr()),
+		Addr:     desktopService.GetAddr(),
 		Labels:   uiLabels,
 	}
 }
