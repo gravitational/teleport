@@ -4422,7 +4422,8 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *empty.Empty) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var kubeClusters []*types.KubernetesClusterV3
+
+	kubeClusters := make([]*types.KubernetesClusterV3, 0, len(clusters))
 	for _, cluster := range clusters {
 		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
 		if !ok {
