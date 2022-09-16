@@ -300,6 +300,8 @@ func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 
 // DesktopService describes a desktop to pass to the ui.
 type DesktopService struct {
+	// Name is hostname of the Windows Desktop Service.
+	Name string `json:"name"`
 	// Hostname is hostname of the Windows Desktop Service.
 	Hostname string `json:"hostname"`
 	// Addr is the network address the Windows Desktop Service can be reached at.
@@ -330,6 +332,7 @@ func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopServi
 	sort.Sort(sortedLabels(uiLabels))
 
 	return DesktopService{
+		Name:     desktopService.GetName(),
 		Hostname: desktopService.GetHostname(),
 		Addr:     stripRdpPort(desktopService.GetAddr()),
 		Labels:   uiLabels,
