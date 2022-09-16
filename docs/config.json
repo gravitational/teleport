@@ -974,6 +974,10 @@
 	    {
 	    	"title": "teleport-plugin-jira",
 	    	"slug": "/reference/helm-reference/teleport-plugin-jira/"
+            }, 
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
 	    }
           ]
         }
@@ -1445,7 +1449,7 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/workflow/ssh-approval-mattermost/",
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
       "destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
       "permanent": true
     },
