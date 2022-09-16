@@ -22,8 +22,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	utils "github.com/gravitational/teleport/api/utils"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
@@ -71,6 +73,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
+					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -114,6 +117,7 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.VerbRead, types.VerbList},
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
+					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -151,10 +155,57 @@ func NewPresetAuditorRole() types.Role {
 				Rules: []types.Rule{
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
+					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
 	}
 	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
+}
+
+// defaultAllowRules has the Allow rules that should be set as default when they were not explicitly defined.
+// This is used to update the current cluster roles when deploying a new resource.
+func defaultAllowRules() map[string][]types.Rule {
+	return map[string][]types.Rule{
+		teleport.PresetEditorRoleName: {
+			types.NewRule(types.KindConnectionDiagnostic, RW()),
+		},
+	}
+}
+
+// AddDefaultAllowRules adds default rules to a preset role.
+// Only rules whose resources are not already defined (either allowing or denying) are added.
+func AddDefaultAllowRules(role types.Role) types.Role {
+	defaultRules, ok := defaultAllowRules()[role.GetName()]
+	if !ok || len(defaultRules) == 0 {
+		return role
+	}
+
+	combined := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
+
+	for _, defaultRule := range defaultRules {
+		if resourceBelongsToRules(combined, defaultRule.Resources) {
+			continue
+		}
+
+		log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
+		rules := role.GetRules(types.Allow)
+		rules = append(rules, defaultRule)
+		role.SetRules(types.Allow, rules)
+	}
+
+	return role
+}
+
+func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
+	for _, rule := range rules {
+		for _, ruleResource := range rule.Resources {
+			if utils.SliceContainsStr(resources, ruleResource) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
