@@ -571,7 +571,6 @@ type Global struct {
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
-	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.

@@ -415,6 +415,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_Unknown{
 			Unknown: e,
 		}
+	case *KubernetesClusterCreate:
+		out.Event = &OneOf_KubernetesClusterCreate{
+			KubernetesClusterCreate: e,
+		}
+	case *KubernetesClusterUpdate:
+		out.Event = &OneOf_KubernetesClusterUpdate{
+			KubernetesClusterUpdate: e,
+		}
+	case *KubernetesClusterDelete:
+		out.Event = &OneOf_KubernetesClusterDelete{
+			KubernetesClusterDelete: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}

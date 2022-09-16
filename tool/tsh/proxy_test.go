@@ -76,7 +76,6 @@ func TestSSH(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			tc.fn(t, s)
 		})
 	}
@@ -108,9 +107,11 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.Eventually(t, func() bool {
 		err := Run(context.Background(), []string{
 			"ssh",
+			"--proxy", s.root.Config.Proxy.WebAddr.String(),
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		}, setHomePath(tshHome))
+		t.Logf("ssh to leaf failed %v", err)
 		return err == nil
 	}, 5*time.Second, time.Second)
 

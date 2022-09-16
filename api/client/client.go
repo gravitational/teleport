@@ -2476,6 +2476,63 @@ func (c *Client) DeleteAllApps(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (c *Client) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	kubeClusterV3, ok := cluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported kubernetes cluster type %T", cluster)
+	}
+	_, err := c.grpc.CreateKubernetesCluster(ctx, kubeClusterV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	kubeClusterV3, ok := cluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported kubernetes cluster type %T", cluster)
+	}
+	_, err := c.grpc.UpdateKubernetesCluster(ctx, kubeClusterV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetKubernetesCluster returns the specified kubernetes resource.
+func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing kubernetes cluster name")
+	}
+	cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return cluster, nil
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	items, err := c.grpc.GetKubernetesClusters(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	clusters := make([]types.KubeCluster, len(items.KubernetesClusters))
+	for i := range items.KubernetesClusters {
+		clusters[i] = items.KubernetesClusters[i]
+	}
+	return clusters, nil
+}
+
+// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllKubernetesClusters deletes all kubernetes cluster resources.
+func (c *Client) DeleteAllKubernetesClusters(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllKubernetesClusters(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // CreateDatabase creates a new database resource.
 func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
 	databaseV3, ok := database.(*types.DatabaseV3)
