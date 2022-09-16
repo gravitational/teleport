@@ -1449,7 +1449,7 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/workflow/ssh-approval-mattermost/",
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
       "destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
       "permanent": true
     },
