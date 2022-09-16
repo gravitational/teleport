@@ -225,6 +225,13 @@ const (
 	// ExecCode).
 	KubeRequestCode = "T3009I"
 
+	// KubernetesClusterCreateCode is the kube.create event code.
+	KubernetesClusterCreateCode = "T3010I"
+	// KubernetesClusterUpdateCode is the kube.update event code.
+	KubernetesClusterUpdateCode = "T3011I"
+	// KubernetesClusterDeleteCode is the kube.delete event code.
+	KubernetesClusterDeleteCode = "T3012I"
+
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode            = "TS001I"
 	SFTPOpenFailureCode     = "TS001E"
