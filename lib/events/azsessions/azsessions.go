@@ -98,6 +98,10 @@ type Config struct {
 }
 
 func (c *Config) SetFromURL(u *url.URL) error {
+	if u == nil {
+		return nil
+	}
+
 	c.ServiceURL = *u
 
 	switch c.ServiceURL.Scheme {
