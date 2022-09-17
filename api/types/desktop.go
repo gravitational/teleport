@@ -138,7 +138,7 @@ func (s *WindowsDesktopServiceV3) GetHostname() string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *WindowsDesktopServiceV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetAddr(), s.GetHostname())
+	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname())
 	return MatchSearch(fieldVals, values, nil)
 }
 
