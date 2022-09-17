@@ -94,6 +94,9 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 	p.a, err = NewServer(authConfig)
 	if err != nil {
@@ -866,6 +869,9 @@ func TestUpdateConfig(t *testing.T) {
 		Backend:                s.bk,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 	authServer, err := NewServer(authConfig)
 	require.NoError(t, err)
