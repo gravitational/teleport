@@ -2041,7 +2041,7 @@ func TestCAGeneration(t *testing.T) {
 	)
 	native.PrecomputeKeys()
 	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := native.GenerateKeyPair()
+	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{
