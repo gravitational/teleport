@@ -91,7 +91,7 @@ We need to add validation to all actions that can cause lock (in `WebUI` and `tc
 
 No changes are required in the `tsh` code.
 
-### Alternatives
+### Alternatives Considered
 
 #### immutable roles
 
