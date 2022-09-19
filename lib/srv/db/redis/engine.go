@@ -150,13 +150,15 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	// Initialize newClient factory function with current connection state.
-	e.newClient, err = e.getNewClientFn(ctx, sessionCtx)
+	// If fail to get the initial username or password, return an error right
+	// away without making a connection to the Redis server.
+	username, password, err := e.getInitialUsernameAndPassowrd(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	username, password, err := e.getInitialUsernameAndPassowrd(ctx, sessionCtx)
+	// Initialize newClient factory function with current connection state.
+	e.newClient, err = e.getNewClientFn(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -193,7 +195,8 @@ func (e *Engine) getInitialUsernameAndPassowrd(ctx context.Context, sessionCtx *
 
 	default:
 		// Create new client without username or password. Those will be added
-		// when we receive AUTH command.
+		// when we receive AUTH command (e.g. self-hosted), or they can be
+		// fetched by the OnConnect callback (e.g. ElastiCache managed users).
 		return "", "", nil
 	}
 }

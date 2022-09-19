@@ -34,7 +34,7 @@ func TestClientMap(t *testing.T) {
 		}
 		return nil, trace.BadParameter("failed to create")
 	}
-	clientMap := newClientMap(mockNewClientFunc)
+	clientMap := NewClientMap(mockNewClientFunc)
 
 	t.Run("get credentials failed", func(t *testing.T) {
 		client, err := clientMap.Get("some-sub", func() (azcore.TokenCredential, error) {

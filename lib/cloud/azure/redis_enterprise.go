@@ -39,25 +39,25 @@ type redisEnterpriseClient struct {
 	databaseAPI armRedisEnterpriseDatabaseClient
 }
 
-// NewRedisClient creates a new Azure Redis Enterprise client.
-func NewRedisEnterpriseClient(databaseAPI armRedisEnterpriseDatabaseClient) CacheForRedisClient {
+// NewRedisEnterpriseClient creates a new Azure Redis Enterprise client by
+// subscription and credentials.
+func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
+	logrus.Debug("Initializing Azure Redis Enterprise client.")
+	databaseAPI, err := armredisenterprise.NewDatabasesClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(greedy52) Redis Enterprise requires a different API client
+	// (armredisenterprise.Client) for auto-discovery.
+	return NewRedisEnterpriseClientByAPI(databaseAPI), nil
+}
+
+// NewRedisEnterpriseClientByAPI creates a new Azure Redis Enterprise client by
+// arm API client(s).
+func NewRedisEnterpriseClientByAPI(databaseAPI armRedisEnterpriseDatabaseClient) CacheForRedisClient {
 	return &redisEnterpriseClient{
 		databaseAPI: databaseAPI,
 	}
-}
-
-// NewRedisClientMap creates a new map of Redis Enterprise clients.
-func NewRedisEnterpriseClientMap() ClientMap[CacheForRedisClient] {
-	return newClientMap(func(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
-		logrus.Debug("Initializing Azure Redis Enterprise client.")
-		databaseAPI, err := armredisenterprise.NewDatabasesClient(subscription, cred, options)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// TODO(greedy52) Redis Enterprise requires a different API client
-		// (armredisenterprise.Client) for auto-discovery.
-		return NewRedisEnterpriseClient(databaseAPI), nil
-	})
 }
 
 // GetToken implements CacheForRedisClient.

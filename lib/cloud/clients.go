@@ -109,8 +109,8 @@ func NewClients() Clients {
 		azureClients: azureClients{
 			azureMySQLClients:           make(map[string]azure.DBServersClient),
 			azurePostgresClients:        make(map[string]azure.DBServersClient),
-			azureRedisClients:           azure.NewRedisClientMap(),
-			azureRedisEnterpriseClients: azure.NewRedisEnterpriseClientMap(),
+			azureRedisClients:           azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients: azure.NewClientMap(azure.NewRedisEnterpriseClient),
 		},
 	}
 }
@@ -141,9 +141,9 @@ type azureClients struct {
 	azurePostgresClients map[string]azure.DBServersClient
 	// azureSubscriptionsClient is the cached Azure Subscriptions client.
 	azureSubscriptionsClient *azure.SubscriptionClient
-	// TODO
+	// azureRedisClients contains the cached Azure Redis clients.
 	azureRedisClients azure.ClientMap[azure.CacheForRedisClient]
-	// TODO
+	// azureRedisEnterpriseClients contains the cached Azure Redis Enterprise clients.
 	azureRedisEnterpriseClients azure.ClientMap[azure.CacheForRedisClient]
 }
 

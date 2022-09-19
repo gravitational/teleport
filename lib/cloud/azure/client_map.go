@@ -32,8 +32,8 @@ type ClientMap[ClientType any] struct {
 	newClient func(string, azcore.TokenCredential, *arm.ClientOptions) (ClientType, error)
 }
 
-// newClientMap creates a new ClientMap.
-func newClientMap[ClientType any](newClient func(string, azcore.TokenCredential, *arm.ClientOptions) (ClientType, error)) ClientMap[ClientType] {
+// NewClientMap creates a new ClientMap.
+func NewClientMap[ClientType any](newClient func(string, azcore.TokenCredential, *arm.ClientOptions) (ClientType, error)) ClientMap[ClientType] {
 	return ClientMap[ClientType]{
 		clients:   make(map[string]ClientType),
 		newClient: newClient,
@@ -72,9 +72,4 @@ func (m *ClientMap[ClientType]) Get(subscription string, getCredentials func() (
 
 	m.clients[subscription] = client
 	return client, nil
-}
-
-// NewRedisClientMap creates a new map of Redis clients.
-func NewRedisClientMap() ClientMap[CacheForRedisClient] {
-	return newClientMap(NewRedisClient)
 }
