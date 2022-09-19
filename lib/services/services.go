@@ -31,6 +31,7 @@ type Services interface {
 	Restrictions
 	Apps
 	Databases
+	Kubernetes
 	AppSession
 	SnowflakeSession
 	types.WebSessionsGetter

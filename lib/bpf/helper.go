@@ -218,7 +218,7 @@ func (c *Counter) Close() {
 }
 
 func (c *Counter) loop() {
-	for _ = range c.doorbellCh {
+	for range c.doorbellCh {
 		var key int32 = 0
 		cntBytes, err := c.arr.GetValue(unsafe.Pointer(&key))
 		if err != nil {

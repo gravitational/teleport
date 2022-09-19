@@ -185,7 +185,7 @@ to keep using it.
 
 In previous versions of Teleport users needed full access to a Node/Kubernetes
 pod in order to join a session. Teleport 10 relaxes this requirement. Joining
-sessions remains deny-by-default but now only `join_policy` statements are
+sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the Moderated Sessions guide for more details:

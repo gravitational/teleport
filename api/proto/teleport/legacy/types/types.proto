@@ -2907,6 +2907,12 @@ message KubernetesClusterSpecV3 {
   ];
 }
 
+// KubernetesClusterV3List represents a list of kubernetes clusters.
+message KubernetesClusterV3List {
+  // KubernetesClusters is a list of kubernetes clusters resources.
+  repeated KubernetesClusterV3 KubernetesClusters = 1;
+}
+
 // KubernetesServerV3 represents a Kubernetes server.
 message KubernetesServerV3 {
   option (gogoproto.goproto_stringer) = false;
