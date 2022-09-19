@@ -18,13 +18,13 @@ package common
 
 import (
 	"context"
-	"crypto/tls"
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Proxy defines an interface a database proxy should implement.
@@ -47,7 +47,7 @@ type ConnectParams struct {
 // Service defines an interface for connecting to a remote database service.
 type Service interface {
 	// Authorize authorizes the provided client TLS connection.
-	Authorize(ctx context.Context, tlsConn *tls.Conn, params ConnectParams) (*ProxyContext, error)
+	Authorize(ctx context.Context, tlsConn utils.TLSConn, params ConnectParams) (*ProxyContext, error)
 	// Connect is used to connect to remote database server over reverse tunnel.
 	Connect(ctx context.Context, proxyCtx *ProxyContext) (net.Conn, error)
 	// Proxy starts proxying between client and service connections.

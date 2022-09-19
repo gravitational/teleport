@@ -298,6 +298,11 @@ const (
 	// upload is considered abandoned and will be completed by the reconciler
 	// DELETE IN 11.0.0
 	UploadGracePeriod = 24 * time.Hour
+
+	// ProxyPingInterval is the interval ping messages are going to be sent.
+	// This is only applicable for TLS routing protocols that support ping
+	// wrapping.
+	ProxyPingInterval = 30 * time.Second
 )
 
 var (
@@ -477,6 +482,8 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolElasticsearch is the Elasticsearch database protocol.
+	ProtocolElasticsearch = "elasticsearch"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -488,6 +495,7 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolElasticsearch,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
@@ -762,6 +770,17 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
 	}
 	return limiter
+}
+
+// Transport returns a new http.Client with sensible defaults.
+func HTTPClient() (*http.Client, error) {
+	transport, err := Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // Transport returns a new http.RoundTripper with sensible defaults.

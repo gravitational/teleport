@@ -1072,6 +1072,16 @@ func TestFIDO2Login_bioErrorHandling(t *testing.T) {
 			},
 			wantMsg: "libfido2 error 63",
 		},
+		{
+			name: "retry on operation denied",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					// Note: this happens only for UV=false assertions. UV=true failures
+					// return error 63.
+					libfido2.ErrOperationDenied,
+				}
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1967,6 +1977,11 @@ func (f *fakeFIDO2Device) Assertion(
 
 	// "base" credential. Only add an assertion if explicitly requested.
 	if _, ok := credIDs[string(f.key.KeyHandle)]; ok {
+		// Simulate Yubikey4 and require UP, even if UP==false is set.
+		if f.u2fOnly && opts.UP == libfido2.False {
+			return nil, libfido2.ErrUserPresenceRequired
+		}
+
 		assertions = append(assertions, &libfido2.Assertion{
 			AuthDataCBOR: assertionAuthDataCBOR,
 			Sig:          assertionSig,

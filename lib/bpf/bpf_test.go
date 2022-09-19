@@ -34,16 +34,26 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 
 	"github.com/aquasecurity/libbpfgo"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
+
+type terminal struct {
+	srv.Terminal
+	pid int
+}
+
+func (t terminal) PID() int {
+	return t.pid
+}
 
 func TestRootWatch(t *testing.T) {
 	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
@@ -79,22 +89,22 @@ func TestRootWatch(t *testing.T) {
 	err = cmd.Start()
 	require.NoError(t, err)
 
-	// Create a monitoring session for init. The events we execute should not
-	// have PID 1, so nothing should be captured in the Audit Log.
-	cgroupID, err := service.OpenSession(&SessionContext{
-		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New().String(),
-		ServerID:  uuid.New().String(),
-		Login:     "foo",
-		User:      "foo@example.com",
-		PID:       cmd.Process.Pid,
-		Emitter:   emitter,
-		Events: map[string]bool{
-			constants.EnhancedRecordingCommand: true,
-			constants.EnhancedRecordingDisk:    true,
-			constants.EnhancedRecordingNetwork: true,
+	server := srv.NewMockServer(t)
+	server.MockEmitter = emitter
+
+	role, err := types.NewRole("bpf", types.RoleSpecV5{
+		Options: types.RoleOptions{
+			BPF: []string{constants.EnhancedRecordingCommand, constants.EnhancedRecordingDisk, constants.EnhancedRecordingNetwork},
 		},
 	})
+	require.NoError(t, err)
+
+	srvctx := srv.NewTestServerContext(t, server, services.NewRoleSet(role))
+	srvctx.SetTerm(terminal{pid: os.Getpid()})
+
+	// Create a monitoring session for init. The events we execute should not
+	// have PID 1, so nothing should be captured in the Audit Log.
+	cgroupID, err := service.OpenSession(srvctx)
 	require.NoError(t, err)
 	require.Greater(t, cgroupID, 0)
 

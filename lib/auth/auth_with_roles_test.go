@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -368,7 +369,7 @@ func TestInstaller(t *testing.T) {
 	user, err := CreateUser(srv.Auth(), "testuser")
 	require.NoError(t, err)
 
-	inst, err := types.NewInstallerV1("contents")
+	inst, err := types.NewInstallerV1(installers.InstallerScriptName, "contents")
 	require.NoError(t, err)
 	err = srv.Auth().SetInstaller(ctx, inst)
 	require.NoError(t, err)
@@ -381,21 +382,21 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-empty"},
 		assert: require.Error,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-read"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-update"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			inst, err := types.NewInstallerV1("new-contents")
+			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
 			require.NoError(t, err)
 			return c.SetInstaller(ctx, inst)
 		},
@@ -403,7 +404,7 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-delete"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			err := c.DeleteInstaller(ctx)
+			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}} {
@@ -3641,6 +3642,148 @@ func TestListResources_WithRoles(t *testing.T) {
 					require.Len(t, nodes, tt.expected)
 				})
 			}
+		})
+	}
+}
+
+// TestGenerateHostCert attempts to generate host certificates using various
+// RBAC rules
+func TestGenerateHostCert(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clusterName := srv.ClusterName()
+
+	_, pub, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	noError := func(err error) bool {
+		return err == nil
+	}
+
+	for _, test := range []struct {
+		desc       string
+		principals []string
+		skipRule   bool
+		where      string
+		deny       bool
+		denyWhere  string
+		expect     func(error) bool
+	}{
+		{
+			desc:       "disallowed",
+			skipRule:   true,
+			principals: []string{"foo.example.com"},
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "denied",
+			deny:       true,
+			principals: []string{"foo.example.com"},
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed",
+			principals: []string{"foo.example.com"},
+			expect:     noError,
+		},
+		{
+			desc:       "allowed-subset",
+			principals: []string{"foo.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-subset",
+			principals: []string{"baz.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-all-equal",
+			principals: []string{"foo.example.com"},
+			where:      `all_equal(host_cert.principals, "foo.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-all-equal",
+			principals: []string{"bar.example.com"},
+			where:      `all_equal(host_cert.principals, "foo.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-all-end-with",
+			principals: []string{"node.foo.example.com"},
+			where:      `all_end_with(host_cert.principals, ".foo.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-all-end-with",
+			principals: []string{"node.bar.example.com"},
+			where:      `all_end_with(host_cert.principals, ".foo.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-complex",
+			principals: []string{"foo.example.com"},
+			where:      `all_end_with(host_cert.principals, ".example.com")`,
+			denyWhere:  `is_subset(host_cert.principals, "bar.example.com", "baz.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-complex",
+			principals: []string{"bar.example.com"},
+			where:      `all_end_with(host_cert.principals, ".example.com")`,
+			denyWhere:  `is_subset(host_cert.principals, "bar.example.com", "baz.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-multiple",
+			principals: []string{"bar.example.com", "foo.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-multiple",
+			principals: []string{"foo.example.com", "bar.example.com", "baz.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			rules := []types.Rule{}
+			if !test.skipRule {
+				rules = append(rules, types.Rule{
+					Resources: []string{types.KindHostCert},
+					Verbs:     []string{types.VerbCreate},
+					Where:     test.where,
+				})
+			}
+
+			denyRules := []types.Rule{}
+			if test.deny || test.denyWhere != "" {
+				denyRules = append(denyRules, types.Rule{
+					Resources: []string{types.KindHostCert},
+					Verbs:     []string{types.VerbCreate},
+					Where:     test.denyWhere,
+				})
+			}
+
+			role, err := CreateRole(ctx, srv.Auth(), test.desc, types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: rules},
+				Deny:  types.RoleConditions{Rules: denyRules},
+			})
+			require.NoError(t, err)
+
+			user, err := CreateUser(srv.Auth(), test.desc, role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			require.True(t, test.expect(err))
 		})
 	}
 }

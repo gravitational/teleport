@@ -178,3 +178,11 @@ func (client *InstanceMetadataClient) GetTagValue(ctx context.Context, key strin
 	}
 	return body, nil
 }
+
+func (client *InstanceMetadataClient) GetRegion(ctx context.Context) (string, error) {
+	getRegionOutput, err := client.c.GetRegion(ctx, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return getRegionOutput.Region, nil
+}
