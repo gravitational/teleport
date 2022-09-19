@@ -95,24 +95,23 @@ No changes are required in the `tsh` code.
 
 #### immutable roles
 
-We would automaticly add one or more immutable roles. They cannot be added, edited or deleted by cluster users. There should be at least one immutable role with user/role editing capabilities. This role should be assigned to at least one user.
+We would automatically add one or more immutable roles. They cannot be added, edited, or deleted by cluster users. There should be at least one immutable role with user/role editing capabilities. This role should be assigned to at least one user.
 
-The error message saying: "You can't delete the last user with `editor-like` role." will be easier to understand than "You can't delete the last user with: `list of role management capabilities`".
+The error message saying: "You can't delete the last user with the `editor-like` role." will be easier to understand than "You can't delete the last user with: `list of role management capabilities`".
 
 The other benefit is that we wouldn't need to define validation for editing roles (since the `editor-like` role would be immutable).
 
 The drawbacks here are:
 
 - we force users to have the `editor-like` role
-- complicated migration in case of updating cluster. It is still possible to delete/edit default roles so not all existing clusters will have default roles in the initial form. Maybe the `editor-like` role is used as a role with a different meaning than the initial one? We can't override existing roles. So the solution would be to add 3 new roles (instead of editing/re-adding: editor, auditor, access). This will ensure we don't break anything. The problem will be users would have to assign manually a new _admin_ role to some users.
+- complicated migration in case of updating cluster. It is still possible to delete/edit default roles so not all existing clusters will have default roles in the initial form. Maybe the `editor-like` role is used as a role with a different meaning than the initial one. We can't override existing roles. So the solution would be to add 3 new roles (instead of editing/re-adding: editor, auditor, access). This will ensure we don't break anything. The problem will be users would have to assign manually a new _admin_ role to some users.
 
 #### root-like user
 
-Automaticly add a immutable user with user/role editing capabilities. This user would be created during the cluster creation/upgrade. This user would be assigned to the `root` immutable role (full access).
+Automatically add an immutable user with full access. This user would be created during the cluster creation/upgrade. This user would be assigned to the `root` immutable role (full access).
 
-We could add a root user automatically using a username and random password generation. This could be done by running some procedure when a cluster is updated or initially bootstrapped.
-The authorized user can then reset authentication and set a known password or another form of auth. This is optional for cluster to function but required to prevent the lock problem. We could add the warning that it is recommended action.
+We could add a `root` user automatically using a username and random password generation. This could be done by running some procedure when a cluster is updated or initially bootstrapped. The authorized user can then reset authentication and set a known password or another form of auth. This is optional for a cluster to function but is required to prevent the lock problem. We could add the warning that it is recommended action.
 
-Customers will mostly use passwords as auth since the root user will be not a personal account. Shared passwords are much more likely to be misused, their passwords tend to remain unchanged for extended periods, and often leak when employees change jobs. Also, since they are nobody's personal responsibility and sort fo common knowledge among peers, they tend to not get the same amount of diligence as personal accounts and are often emailed or written down in notes, files, and password managers. Hackers could take advantage of that to stole it and gain access to the cluster.
+Customers will mostly use passwords as auth since the `root` user will be not a personal account. Shared passwords are much more likely to be misused, their passwords tend to remain unchanged for extended periods, and often leak when employees change jobs. Also, since they are nobody's personal responsibility and sort of common knowledge among peers, they tend to not get the same amount of diligence as personal accounts and are often emailed or written down in notes, files, and password managers. Hackers could take advantage of that to stole it and gain access to the cluster.
 
-Also, some customers may don't want a such user.
+Also, some customers may don't want extra user.
