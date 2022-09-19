@@ -1,5 +1,19 @@
 # Changelog
 
+## 10.2.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh` on Windows failing to lock `known_hosts` file. [#16441](https://github.com/gravitational/teleport/pull/16441)
+* Fixed issue with `tsh` producing auditd errors on certain kernels. [#16448](https://github.com/gravitational/teleport/pull/16448)
+* Fixed issue with upgraded clusters not being able to test connection in the new node joining wizard. [#16399](https://github.com/gravitational/teleport/pull/16399)
+* Fixed issue with some Kubernetes clients failing when trying to use exec API through Kubernetes Access. [#16282](https://github.com/gravitational/teleport/pull/16282)
+* Fixed issue with `tsh ssh` returning "access denied" when connecting to nodes by labels in some cases. [#16324](https://github.com/gravitational/teleport/pull/16324)
+* Updated Helm charts to support Kubernetes v1.25. [#16343](https://github.com/gravitational/teleport/pull/16343)
+* Updated IAM joining to use FIPS STS endpoints when running in FIPS mode. [#16374](https://github.com/gravitational/teleport/pull/16374)
+* Added `tctl alerts create` command to allow administrators to set custom alerts. [#16290](https://github.com/gravitational/teleport/pull/16290)
+* Added EC2 joining support for Windows Desktop Service. [#16438](https://github.com/gravitational/teleport/pull/16438)
+
 ## 10.2.1
 
 This release of Teleport contains a security fix as well as multiple bug fixes.
