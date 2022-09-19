@@ -29,7 +29,69 @@ Additionally, self-signed certificates can cause problems when interacting with 
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+- A running Teleport cluster. For details on how to set this up, see one of our
+  [Getting Started](/docs/getting-started) guides (skip TLS certificate setup).
+
+- A Teleport Proxy Service which does not have certificates or ACME automatic certificates configured.
+For example, this Teleport Proxy Service configuration would use self-signed certs:
+
+  ```yaml
+  proxy_service:
+    enabled: "yes"
+    # TLS certificate for the HTTPS connection.
+    https_keypairs: []
+    # Get an automatic certificate from Letsencrypt.org using ACME
+    acme: {}
+  ```
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  See [Installation](/docs/installation.mdx) for details.
+
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A running Teleport cluster. For details on how to set this up, see our Enterprise
+  [Getting Started](/docs/enterprise/getting-started) guide.
+
+- A Teleport Proxy Service which does not have certificates or ACME automatic certificates configured.
+For example, this Teleport Proxy Service configuration would use self-signed certs:
+
+  ```yaml
+  proxy_service:
+    enabled: "yes"
+    # TLS certificate for the HTTPS connection.
+    https_keypairs: []
+    # Get an automatic certificate from Letsencrypt.org using ACME
+    acme: {}
+  ```
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
+  which you can download by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+</Tabs>
 
 ## How to use self-signed certs with Teleport binaries
 
