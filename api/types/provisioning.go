@@ -411,7 +411,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 
 	switch p.Spec.JoinMethod {
 	case JoinMethodIAM:
-		providerCfg := p.Spec.GetIAM()
+		providerCfg := p.Spec.IAM
 		if providerCfg == nil {
 			return trace.BadParameter(
 				`"aws_iam" configuration must be provided for join method %q`,
@@ -422,7 +422,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	case JoinMethodEC2:
-		providerCfg := p.Spec.GetEC2()
+		providerCfg := p.Spec.EC2
 		if providerCfg == nil {
 			return trace.BadParameter(
 				`"aws_ec2" configuration must be provided for join method %q`,
@@ -449,29 +449,34 @@ func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
 	// GCP OIDC PR will swap the auth server to use the V3 rules and this
 	// method will be gotten ridden of.
 	rules := []*TokenRule{}
-	switch v := p.Spec.ProviderConfiguration.(type) {
-	case *ProvisionTokenSpecV3_EC2:
-		for _, rule := range v.EC2.Allow {
+	switch p.Spec.JoinMethod {
+	case JoinMethodIAM:
+		for _, rule := range p.Spec.IAM.Allow {
+			rules = append(rules, &TokenRule{
+				AWSAccount: rule.Account,
+				AWSARN:     rule.ARN,
+			})
+		}
+	case JoinMethodEC2:
+		for _, rule := range p.Spec.EC2.Allow {
 			rules = append(rules, &TokenRule{
 				AWSAccount: rule.Account,
 				AWSRegions: rule.Regions,
 				AWSRole:    rule.Role,
 			})
 		}
-	case *ProvisionTokenSpecV3_IAM:
-		for _, rule := range v.IAM.Allow {
-			rules = append(rules, &TokenRule{
-				AWSAccount: rule.Account,
-				AWSARN:     rule.ARN,
-			})
-		}
+	default:
+		// TODO: Decide if this is staying as a panic.
+		// Assuming CheckAndSetDefaults has always been called - we can sort
+		// of rely on this never happening...
+		panic("unrecognised join type")
 	}
 	return rules
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV3) GetAWSIIDTTL() Duration {
-	ec2 := p.Spec.GetEC2()
+	ec2 := p.Spec.EC2
 	if ec2 == nil {
 		// TODO: This should be safe, but double check.
 		// It may even be reasonable to panic here. `GetAWSIIDTTL()` should

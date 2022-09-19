@@ -1975,21 +1975,29 @@ func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) 
 	return tokens, nil
 }
 
+const tokenV3Unsupported = "ProvisionTokenV3 is not supported by the auth server. Submit a V2 resource or upgrade."
+
 // UpsertToken creates or updates a provision token.
 // In cases where a consumer of the library wants to ensure backwards compat,
 // they will need to ensure that they handle the situation where submitting a
 // v3 resource to an older server results in an unimplemented error.
 func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	var err error
+	var isV3 bool
 	switch v := token.(type) {
 	case *types.ProvisionTokenV2:
 		_, err = c.grpc.UpsertToken(ctx, v, c.callOpts...)
 	case *types.ProvisionTokenV3:
+		isV3 = true
 		_, err = c.grpc.UpsertTokenV3(ctx, v, c.callOpts...)
 	default:
 		return trace.BadParameter("invalid type %T", token)
 	}
-	return trail.FromGRPC(err)
+	err = trail.FromGRPC(err)
+	if isV3 && trace.IsNotImplemented(err) {
+		return trace.WrapWithMessage(err, tokenV3Unsupported)
+	}
+	return err
 }
 
 // CreateToken creates a provision token.
@@ -1998,15 +2006,21 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 // v3 resource to an older server results in an unimplemented error.
 func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) error {
 	var err error
+	var isV3 bool
 	switch v := token.(type) {
 	case *types.ProvisionTokenV2:
 		_, err = c.grpc.CreateToken(ctx, v, c.callOpts...)
 	case *types.ProvisionTokenV3:
+		isV3 = true
 		_, err = c.grpc.CreateTokenV3(ctx, v, c.callOpts...)
 	default:
 		return trace.BadParameter("invalid type %T", token)
 	}
-	return trail.FromGRPC(err)
+	err = trail.FromGRPC(err)
+	if isV3 && trace.IsNotImplemented(err) {
+		return trace.WrapWithMessage(err, tokenV3Unsupported)
+	}
+	return err
 }
 
 // GenerateToken generates a new auth token for the given service roles.

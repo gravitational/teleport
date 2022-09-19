@@ -1045,10 +1045,8 @@ message ProvisionTokenSpecV3 {
     (gogoproto.jsontag) = "suggested_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
-  oneof ProviderConfiguration {
-    ProvisionTokenSpecV3AWSIAM IAM = 5 [(gogoproto.jsontag) = "aws_iam,omitempty"];
-    ProvisionTokenSpecV3AWSEC2 EC2 = 6 [(gogoproto.jsontag) = "aws_ec2,omitempty"];
-  }
+  ProvisionTokenSpecV3AWSIAM IAM = 5 [(gogoproto.jsontag) = "aws_iam,omitempty"];
+  ProvisionTokenSpecV3AWSEC2 EC2 = 6 [(gogoproto.jsontag) = "aws_ec2,omitempty"];
 }
 
 message ProvisionTokenSpecV3AWSEC2 {
