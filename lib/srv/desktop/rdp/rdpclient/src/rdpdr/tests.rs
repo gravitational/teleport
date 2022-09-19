@@ -15,9 +15,9 @@
 use super::{
     scard::{
         CardProtocol, CardStateFlags, Connect_Call, Connect_Common, Context, Context_Call,
-        EstablishContext_Call, GetDeviceTypeId_Call, GetStatusChange_Call, IoctlCode,
-        ListReaders_Call, ReaderState, ReaderState_Common_Call, ScardAccessStartedEvent_Call,
-        Scope,
+        EstablishContext_Call, GetDeviceTypeId_Call, GetStatusChange_Call,
+        HCardAndDisposition_Call, Handle, IoctlCode, ListReaders_Call, ReaderState,
+        ReaderState_Common_Call, ScardAccessStartedEvent_Call, Scope,
     },
     *,
 };
@@ -852,7 +852,6 @@ fn test_scard_ioctl_getstatuschangew() {
 
 #[test]
 fn test_scard_ioctl_connectw() {
-    init_logger();
     let context_value = 5;
     let mut c = client(true, context_value);
 
@@ -908,6 +907,65 @@ fn test_scard_ioctl_connectw() {
                     1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0,
                     0, 0, 0, 2, 0, 4, 0, 0, 0, 4, 0, 2, 0, 2, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 4,
                     0, 0, 0, 1, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+}
+
+#[test]
+fn test_scard_ioctl_begintransaction() {
+    let context_value = 5;
+    let mut c = client(true, context_value);
+
+    test_payload_in_to_response_out(
+        &mut c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 112,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 2,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 2048,
+                input_buffer_length: 56,
+                io_control_code: IoctlCode::SCARD_IOCTL_BEGINTRANSACTION,
+            }),
+            scard_ctl: Some(Box::new(HCardAndDisposition_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                disposition: 0,
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 2,
+                    io_status: 0,
+                },
+                output_buffer_length: 24,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 ],
             }),
         )],

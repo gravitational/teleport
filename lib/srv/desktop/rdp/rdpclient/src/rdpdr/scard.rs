@@ -1354,12 +1354,12 @@ impl Connect_Return {
 }
 
 #[derive(Debug)]
-struct Handle {
-    context: Context,
-    length: u32,
+pub(crate) struct Handle {
+    pub context: Context,
+    pub length: u32,
     // Shortcut: we always create 4-byte handle values.
     // The spec allows this field to have variable length.
-    value: u32,
+    pub value: u32,
 }
 
 impl Handle {
@@ -1408,9 +1408,9 @@ impl Handle {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct HCardAndDisposition_Call {
-    handle: Handle,
-    disposition: u32,
+pub(crate) struct HCardAndDisposition_Call {
+    pub handle: Handle,
+    pub disposition: u32,
 }
 
 impl HCardAndDisposition_Call {
@@ -1426,6 +1426,22 @@ impl HCardAndDisposition_Call {
             handle,
             disposition,
         })
+    }
+}
+
+impl Encode for HCardAndDisposition_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(self.disposition)?;
+        self.handle.encode_value(&mut w)?;
+
+        Ok(w)
     }
 }
 
