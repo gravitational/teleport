@@ -172,7 +172,7 @@ func runRootIntegrationTests(workspace string, env map[string]string) error {
 func runNonrootIntegrationTests(workspace string, uid, gid int, env map[string]string) error {
 	cmd := exec.Command("make", "integration")
 	cmd.Dir = workspace
-	cmd.Env = append(append(os.Environ(), "TELEPORT_ETCD_TEST=yes"))
+	cmd.Env = append(os.Environ(), "TELEPORT_ETCD_TEST=yes")
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%v=%v", k, v))
 	}
