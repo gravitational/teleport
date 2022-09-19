@@ -1688,7 +1688,7 @@ impl SCardIO_Request {
     }
 
     fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
-        w.extend(self.extra_bytes.clone());
+        w.extend_from_slice(&self.extra_bytes);
         Ok(())
     }
 }
@@ -1802,9 +1802,9 @@ impl GetDeviceTypeId_Return {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-struct ReadCache_Call {
-    lookup_name: String,
-    common: ReadCache_Common,
+pub(crate) struct ReadCache_Call {
+    pub lookup_name: String,
+    pub common: ReadCache_Common,
 }
 
 impl ReadCache_Call {
@@ -1818,6 +1818,7 @@ impl ReadCache_Call {
 
         let lookup_name = decode_string_unicode(payload)?;
         common.decode_value(payload)?;
+
         Ok(Self {
             lookup_name,
             common,
@@ -1825,14 +1826,32 @@ impl ReadCache_Call {
     }
 }
 
+impl Encode for ReadCache_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?; // _send_buffer_ptr
+        self.common.encode_ptr(&mut index, &mut w)?;
+
+        w.extend(encode_str_unicode(&self.lookup_name)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct ReadCache_Common {
-    context: Context,
-    card_uuid: Vec<u8>,
-    freshness_counter: u32,
-    data_is_null: bool,
-    data_len: u32,
+pub(crate) struct ReadCache_Common {
+    pub context: Context,
+    pub card_uuid: Vec<u8>,
+    pub freshness_counter: u32,
+    pub data_is_null: bool,
+    pub data_len: u32,
 }
 
 impl ReadCache_Common {
@@ -1857,6 +1876,24 @@ impl ReadCache_Common {
         self.context.decode_value(payload)?;
         self.card_uuid.resize(16, 0); // 16 bytes for UUID.
         payload.read_exact(&mut self.card_uuid)?;
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        encode_ptr(None, index, w)?; // _card_uuid_ptr
+
+        w.write_u32::<LittleEndian>(self.freshness_counter)?;
+        let data_is_null = if self.data_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(data_is_null)?;
+        w.write_u32::<LittleEndian>(self.data_len)?;
+
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        self.context.encode_value(w)?;
+        w.extend_from_slice(&self.card_uuid);
         Ok(())
     }
 }

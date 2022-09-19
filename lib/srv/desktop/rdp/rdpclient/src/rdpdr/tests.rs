@@ -16,9 +16,9 @@ use super::{
     scard::{
         CardProtocol, CardStateFlags, Connect_Call, Connect_Common, Context, Context_Call,
         EstablishContext_Call, GetDeviceTypeId_Call, GetStatusChange_Call,
-        HCardAndDisposition_Call, Handle, IoctlCode, ListReaders_Call, ReaderState,
-        ReaderState_Common_Call, SCardIO_Request, ScardAccessStartedEvent_Call, Scope, Status_Call,
-        Transmit_Call,
+        HCardAndDisposition_Call, Handle, IoctlCode, ListReaders_Call, ReadCache_Call,
+        ReadCache_Common, ReaderState, ReaderState_Common_Call, SCardIO_Request,
+        ScardAccessStartedEvent_Call, Scope, Status_Call, Transmit_Call,
     },
     *,
 };
@@ -1128,6 +1128,70 @@ fn test_scard_ioctl_transmit() {
                     1, 16, 8, 0, 204, 204, 204, 204, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 21, 0, 0, 0, 0, 0, 2, 0, 21, 0, 0, 0, 97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121,
                     7, 79, 5, 160, 0, 0, 3, 8, 144, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+}
+
+#[test]
+fn test_scard_ioctl_readcachew() {
+    let context_value = 5;
+    let mut c = client(true, context_value, Some(context_value - 1));
+
+    test_payload_in_to_response_out(
+        &mut c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 216,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 2,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 2048,
+                input_buffer_length: 160,
+                io_control_code: IoctlCode::SCARD_IOCTL_READCACHEW,
+            }),
+            scard_ctl: Some(Box::new(ReadCache_Call {
+                lookup_name: "Cached_CardmodFile\\Cached_Pin_Freshness".to_string(),
+                common: ReadCache_Common {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    card_uuid: vec![
+                        138, 113, 14, 35, 145, 213, 78, 249, 174, 208, 142, 171, 174, 121, 3, 76,
+                    ],
+                    freshness_counter: 0,
+                    data_is_null: false,
+                    data_len: 4294967295,
+                },
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 2,
+                    io_status: 0,
+                },
+                output_buffer_length: 32,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 112, 0, 16, 128, 0,
+                    0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0,
                 ],
             }),
         )],
