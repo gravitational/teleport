@@ -4,8 +4,8 @@ Terraform specifies example provisioning script for Teleport auth, proxy and nod
 
 Use these examples as possible deployment patterns suggested by Teleport developers.
 
-The scripts set up LetsEncrypt certificates using DNS-01 challenge. This means that users have to control the DNS zone
-via Route 53. ACM can optionally be used too, but Route 53 integration is still required.
+The scripts set up Let's Encrypt certificates using DNS-01 challenge. This means that users have to control the DNS
+zone via Route 53. ACM can optionally be used too, but Route 53 integration is still required.
 
 Teleport join tokens are distributed using SSM parameter store, and certificates are distributed using encrypted S3
 bucket.
@@ -21,12 +21,12 @@ the ports to the other parts.
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
 - [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
-- [Admin Guide](https://gravitational.com/teleport/docs/admin-guide/)
+- [Admin Guide](https://goteleport.com/docs/management/admin/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
 
-- terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
-- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+- terraform v1.0+ [install docs](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
 ```bash
 # Set variables for Terraform
@@ -50,13 +50,13 @@ export TF_VAR_ami_name="gravitational-teleport-ami-ent-10.2.6"
 # AWS SSH key name to provision in installed instances, should be available in the region
 export TF_VAR_key_name="example"
 
-# (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than LetsEncrypt
+# (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Let's Encrypt
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
 # Terraform import aws_acm_certificate.cert <certificate_arn>
 # export TF_VAR_use_acm="false"
 
-# Full absolute path to the license file for Teleport Enterprise or Pro.
-# This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise/Pro functionality
+# Full absolute path to the license file for Teleport Enterprise.
+# This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise functionality
 export TF_VAR_license_path="/path/to/license"
 
 # Route 53 zone to use, should be the zone registered in AWS, e.g. example.com
@@ -70,13 +70,13 @@ export TF_VAR_route53_domain="cluster.example.com"
 # This is used to enable Teleport Application Access
 export TF_VAR_add_wildcard_route53_record="true"
 
-# Enable adding MongoDB listeners in Teleport proxy, load balancer ports and security groups
+# Enable adding MongoDB listeners in Teleport proxy, load balancer ports, and security groups
 export TF_VAR_enable_mongodb_listener="true"
 
-# Enable adding MySQL listeners in Teleport proxy, load balancer ports and security groups
+# Enable adding MySQL listeners in Teleport proxy, load balancer ports, and security groups
 export TF_VAR_enable_mysql_listener="true"
 
-# Enable adding Postgres listeners in Teleport proxy, load balancer ports and security groups
+# Enable adding Postgres listeners in Teleport proxy, load balancer ports, and security groups
 export TF_VAR_enable_postgres_listener="true"
 
 # (optional) If using ACM, set an additional DNS alias which will be added pointing to the NLB. This can
@@ -86,10 +86,10 @@ export TF_VAR_enable_postgres_listener="true"
 # This setting only takes effect when using ACM, it will be ignored otherwise.
 #export TF_VAR_route53_domain_acm_nlb_alias="cluster-nlb.example.com"
 
-# Bucket name to store encrypted letsencrypt certificates.
+# Bucket name to store encrypted Let's Encrypt certificates.
 export TF_VAR_s3_bucket_name="teleport.example.com"
 
-# Email of your support org, used for Letsencrypt cert registration process.
+# Email of your support org, used for Let's Encrypt cert registration process.
 export TF_VAR_email="support@example.com"
 
 # Setup grafana password for "admin" user. Grafana will be served on https://cluster.example.com:8443 after install
