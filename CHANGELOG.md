@@ -1,5 +1,33 @@
 # Changelog
 
+## 9.3.20
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with long redirect URLs causing SAML logins to fail. [#15868](https://github.com/gravitational/teleport/pull/15868)
+* Fixed issue with unsupported AWS tags breaking EC2 tag import functionality. [#16016](https://github.com/gravitational/teleport/pull/16016)
+* Fixed issue with `known_hosts` file becoming corrupted under concurrent `tsh` usage. [#16212](https://github.com/gravitational/teleport/pull/16212), [#16444](https://github.com/gravitational/teleport/pull/16444)
+* Fixed potential panic in `tctl` commands. [#16260](https://github.com/gravitational/teleport/pull/16260)
+* Fixed issue with LetsEncrypt certificates sometimes not renewing properly in Terraform deployments. [#16245](https://github.com/gravitational/teleport/pull/16245)
+* Fixed issue with a dot being appended to the token generated with `tctl tokens add`. [#16239](https://github.com/gravitational/teleport/pull/16239)
+* Fixed issue with `tsh aws s3` failing on paths with special characters. [#15821](https://github.com/gravitational/teleport/pull/15821)
+* Fixed issue with inability to register webauthn devices when local auth is disabled. [#15775](https://github.com/gravitational/teleport/pull/15775)
+* Fixed issue with session state not being updated correctly in some cases. [#16097](https://github.com/gravitational/teleport/pull/16097)
+* Fixed issue with missing nodes in clusters with a lot of node churn. [#16104](https://github.com/gravitational/teleport/pull/16104)
+* Fixed issue with `tsh ssh` returning "access denied" when dialing nodes by labels in some cases. [#16344](https://github.com/gravitational/teleport/pull/16344)
+* Fixed issue with incorrect Firestore backend pagination handling. [#13757](https://github.com/gravitational/teleport/pull/13757)
+* Updated IAM joining to use FIPS STS endpoints when running in FIPS mode. [#16377](https://github.com/gravitational/teleport/pull/16377)
+* Added `SessionRecordingAccess` audit event emitted every time session events are queried or streamed. [#15758](https://github.com/gravitational/teleport/pull/15758)
+* Added support for AWS Console Access in US GovCloud regions. [#16069](https://github.com/gravitational/teleport/pull/16069)
+* Added lock target to `lock.create` audit events. [#15982](https://github.com/gravitational/teleport/pull/15982)
+* Added support for RDP licensing negotiation in Desktop Access. [gravitational/rdp-rs#17](https://github.com/gravitational/rdp-rs/pull/17)
+* Added SFTP audit events and updated audit log descriptions to use node names instead of IPs for some events. [#16329](https://github.com/gravitational/teleport/pull/16329)
+* Added support for IAM joining in AWS China regions. [#15916](https://github.com/gravitational/teleport/pull/15916)
+* Added support for EC2 joining for Windows Desktop Service. [#16439](https://github.com/gravitational/teleport/pull/16439)
+* Improved handling of unsupported Google application credentials to avoid potential panics. [#16041](https://github.com/gravitational/teleport/pull/16041)
+* Improved cluster network utilization. [#15839](https://github.com/gravitational/teleport/pull/15839)
+* Improved reliability in clusters with many missing reverse tunnels. [#15803](https://github.com/gravitational/teleport/pull/15803)
+
 ## 9.3.18
 
 This release of Teleport contains multiple improvements and bug fixes.
