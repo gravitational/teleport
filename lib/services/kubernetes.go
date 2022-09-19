@@ -17,11 +17,35 @@ limitations under the License.
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
+
+// KubernetesGetter defines interface for fetching kubernetes cluster resources.
+type KubernetesGetter interface {
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+}
+
+// Kubernetes defines an interface for managing kubernetes clusters resources.
+type Kubernetes interface {
+	// KubernetesGetter provides methods for fetching kubernetes resources.
+	KubernetesGetter
+	// CreateKubernetesCluster creates a new kubernetes cluster resource.
+	CreateKubernetesCluster(context.Context, types.KubeCluster) error
+	// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
+	UpdateKubernetesCluster(context.Context, types.KubeCluster) error
+	// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
+	DeleteKubernetesCluster(ctx context.Context, name string) error
+	// DeleteAllKubernetesClusters removes all kubernetes resources.
+	DeleteAllKubernetesClusters(context.Context) error
+}
 
 // MarshalKubeServer marshals the KubeServer resource to JSON.
 func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]byte, error) {
@@ -78,4 +102,61 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported kube server resource version %q", h.Version)
+}
+
+// MarshalKubeCluster marshals the KubeCluster resource to JSON.
+func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([]byte, error) {
+	if err := kubeCluster.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch cluster := kubeCluster.(type) {
+	case *types.KubernetesClusterV3:
+		if !cfg.PreserveResourceID {
+			copy := *cluster
+			copy.SetResourceID(0)
+			cluster = &copy
+		}
+		return utils.FastMarshal(cluster)
+	default:
+		return nil, trace.BadParameter("unsupported kube cluster resource %T", cluster)
+	}
+}
+
+// UnmarshalKubeCluster unmarshals KubeCluster resource from JSON.
+func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing kube cluster data")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var h types.ResourceHeader
+	if err := utils.FastUnmarshal(data, &h); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case types.V3:
+		var s types.KubernetesClusterV3
+		if err := utils.FastUnmarshal(data, &s); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			s.SetResourceID(cfg.ID)
+		}
+		if !cfg.Expires.IsZero() {
+			s.SetExpiry(cfg.Expires)
+		}
+		return &s, nil
+	}
+	return nil, trace.BadParameter("unsupported kube cluster resource version %q", h.Version)
 }

@@ -130,22 +130,22 @@ func (k *KubernetesClusterV3) SetOrigin(origin string) {
 	k.Metadata.SetOrigin(origin)
 }
 
-// GetNamespace returns the app resource namespace.
+// GetNamespace returns the kube resource namespace.
 func (k *KubernetesClusterV3) GetNamespace() string {
 	return k.Metadata.Namespace
 }
 
-// SetExpiry sets the app resource expiration time.
+// SetExpiry sets the kube resource expiration time.
 func (k *KubernetesClusterV3) SetExpiry(expiry time.Time) {
 	k.Metadata.SetExpiry(expiry)
 }
 
-// Expiry returns the app resource expiration time.
+// Expiry returns the kube resource expiration time.
 func (k *KubernetesClusterV3) Expiry() time.Time {
 	return k.Metadata.Expiry()
 }
 
-// GetName returns the app resource name.
+// GetName returns the kube resource name.
 func (k *KubernetesClusterV3) GetName() string {
 	return k.Metadata.Name
 }
@@ -235,6 +235,25 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 // KubeClusters represents a list of kube clusters.
 type KubeClusters []KubeCluster
 
+// Find returns kube cluster with the specified name or nil.
+func (s KubeClusters) Find(name string) KubeCluster {
+	for _, cluster := range s {
+		if cluster.GetName() == name {
+			return cluster
+		}
+	}
+	return nil
+}
+
+// ToMap returns these kubernetes clusters as a map keyed by cluster name.
+func (s KubeClusters) ToMap() map[string]KubeCluster {
+	m := make(map[string]KubeCluster)
+	for _, kubeCluster := range s {
+		m[kubeCluster.GetName()] = kubeCluster
+	}
+	return m
+}
+
 // Len returns the slice length.
 func (s KubeClusters) Len() int { return len(s) }
 
@@ -266,8 +285,8 @@ func (s KubeClusters) SortByCustom(sortBy SortBy) error {
 }
 
 // AsResources returns as type resources with labels.
-func (s KubeClusters) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, 0, len(s))
+func (s KubeClusters) AsResources() ResourcesWithLabels {
+	resources := make(ResourcesWithLabels, 0, len(s))
 	for _, cluster := range s {
 		resources = append(resources, ResourceWithLabels(cluster))
 	}
