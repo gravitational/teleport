@@ -334,7 +334,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
 			TLSServerName:       cfg.KubeTLSServerName,
-		}); err != nil {
+		}, false); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

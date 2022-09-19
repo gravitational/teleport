@@ -213,6 +213,7 @@ func (k *Key) RootClusterCAs() ([][]byte, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			fmt.Printf("cert subject common name: %v\n", cert.Subject.CommonName)
 			if cert.Subject.CommonName == rootClusterName {
 				out = append(out, v)
 			}
