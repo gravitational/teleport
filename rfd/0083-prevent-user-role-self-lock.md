@@ -85,24 +85,34 @@ This will ensure that:
 - Users won't be able to unassign the user/role editing capabilities from _admin_ user if there are only is only one _admin_. They would have to add a second one and then they can unassign.
 - Locking will be impossible on the SSO side since there will be always _admin_ on our side.
 
-Now we need to define what _admin_ means in our system. W can take 2 approaches:
-
-1. User with an immutable `editor` role is _admin_.
-2. User with a role that grants user/role editing capabilities is _admin_.
-
-From the user's perspective, the first approach is simpler. The error message saying: "You can't delete the last user with `editor` role." will be easier to understand than "You can't delete the last user with: list of role management capabilities".
-
-The other benefit is that we wouldn't need to define validation for editing roles (since the `editor` role would be immutable).
-
-The drawbacks here are:
-
-- we force users to have the `editor` role
-- complicated migration in case of updating cluster. It is still possible to delete/edit default roles so not all existing clusters will have default roles in the initial form. Maybe the `editor` role is used as a role with a different meaning than the initial one? We can't override existing roles. So the solution would be to add 3 new roles (instead of editing/re-adding: editor, auditor, access). This will ensure we don't break anything. But the problem will be users would have to assign manually a new _admin_ role to some users.
-
-I think `2.` approach is better since migration cost outweighs the benefits of the pros.
-
 ### UI and behavior changes
 
 We need to add validation to all actions that can cause lock (in `WebUI` and `tctl`). The error messages should inform the user why this action is not allowed.
 
 No changes are required in the `tsh` code.
+
+### Alternatives
+
+#### immutable roles
+
+We would automaticly add one or more immutable roles. They cannot be added, edited or deleted by cluster users. There should be at least one immutable role with user/role editing capabilities. This role should be assigned to at least one user.
+
+The error message saying: "You can't delete the last user with `editor-like` role." will be easier to understand than "You can't delete the last user with: `list of role management capabilities`".
+
+The other benefit is that we wouldn't need to define validation for editing roles (since the `editor-like` role would be immutable).
+
+The drawbacks here are:
+
+- we force users to have the `editor-like` role
+- complicated migration in case of updating cluster. It is still possible to delete/edit default roles so not all existing clusters will have default roles in the initial form. Maybe the `editor-like` role is used as a role with a different meaning than the initial one? We can't override existing roles. So the solution would be to add 3 new roles (instead of editing/re-adding: editor, auditor, access). This will ensure we don't break anything. The problem will be users would have to assign manually a new _admin_ role to some users.
+
+#### root-like user
+
+Automaticly add a immutable user with user/role editing capabilities. This user would be created during the cluster creation/upgrade. This user would be assigned to the `root` immutable role (full access).
+
+We could add a root user automatically using a username and random password generation. This could be done by running some procedure when a cluster is updated or initially bootstrapped.
+The authorized user can then reset authentication and set a known password or another form of auth. This is optional for cluster to function but required to prevent the lock problem. We could add the warning that it is recommended action.
+
+Customers will mostly use passwords as auth since the root user will be not a personal account. Shared passwords are much more likely to be misused, their passwords tend to remain unchanged for extended periods, and often leak when employees change jobs. Also, since they are nobody's personal responsibility and sort fo common knowledge among peers, they tend to not get the same amount of diligence as personal accounts and are often emailed or written down in notes, files, and password managers. Hackers could take advantage of that to stole it and gain access to the cluster.
+
+Also, some customers may don't want a such user.
