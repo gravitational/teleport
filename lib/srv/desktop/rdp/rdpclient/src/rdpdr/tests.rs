@@ -17,7 +17,7 @@ use super::{
         CardProtocol, CardStateFlags, Connect_Call, Connect_Common, Context, Context_Call,
         EstablishContext_Call, GetDeviceTypeId_Call, GetStatusChange_Call,
         HCardAndDisposition_Call, Handle, IoctlCode, ListReaders_Call, ReaderState,
-        ReaderState_Common_Call, ScardAccessStartedEvent_Call, Scope,
+        ReaderState_Common_Call, ScardAccessStartedEvent_Call, Scope, Status_Call,
     },
     *,
 };
@@ -966,6 +966,71 @@ fn test_scard_ioctl_begintransaction() {
                 output_buffer_length: 24,
                 output_buffer: vec![
                     1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+}
+
+#[test]
+fn test_scard_ioctl_statusw() {
+    let context_value = 5;
+    let mut c = client(true, context_value);
+
+    test_payload_in_to_response_out(
+        &mut c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 120,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 1,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 2048,
+                input_buffer_length: 64,
+                io_control_code: IoctlCode::SCARD_IOCTL_STATUSW,
+            }),
+            scard_ctl: Some(Box::new(Status_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                reader_names_is_null: false,
+                reader_length: 4294967295,
+                atr_length: 32,
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 1,
+                    io_status: 0,
+                },
+                output_buffer_length: 96,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0,
+                    0, 0, 0, 2, 0, 6, 0, 0, 0, 2, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1,
+                    0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0,
+                    0, 20, 0, 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0, 116, 0,
+                    0, 0, 0, 0,
                 ],
             }),
         )],

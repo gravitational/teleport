@@ -1447,11 +1447,11 @@ impl Encode for HCardAndDisposition_Call {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct Status_Call {
-    handle: Handle,
-    reader_names_is_null: bool,
-    reader_length: u32,
-    atr_length: u32,
+pub(crate) struct Status_Call {
+    pub handle: Handle,
+    pub reader_names_is_null: bool,
+    pub reader_length: u32,
+    pub atr_length: u32,
 }
 
 impl Status_Call {
@@ -1471,6 +1471,25 @@ impl Status_Call {
             reader_length,
             atr_length,
         })
+    }
+}
+
+impl Encode for Status_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        let reader_names_is_null = if self.reader_names_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(reader_names_is_null)?;
+        w.write_u32::<LittleEndian>(self.reader_length)?;
+        w.write_u32::<LittleEndian>(self.atr_length)?;
+        self.handle.encode_value(&mut w)?;
+
+        Ok(w)
     }
 }
 
