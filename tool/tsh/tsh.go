@@ -1520,6 +1520,12 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
+	pingResp, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.LoadAllHostCAs = pingResp.Auth.LoadAllHostCAs
+
 	// Regular login without -i flag.
 	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 		return trace.Wrap(err)
@@ -1587,12 +1593,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Display any license compliance warnings
-	resp, err := tc.Ping(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, warning := range resp.LicenseWarnings {
+	for _, warning := range pingResp.LicenseWarnings {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 

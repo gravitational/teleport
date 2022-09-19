@@ -397,6 +397,10 @@ type Config struct {
 
 	// Tracer is the tracer to create spans with
 	Tracer oteltrace.Tracer
+
+	// LoadAllHostCAs indicates that tsh should load the host CAs of all clusters
+	// instead of just the current cluster.
+	LoadAllHostCAs bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1116,6 +1120,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
+	c.LoadAllHostCAs = cp.LoadAllHostCAs
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1151,6 +1156,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
+	cp.LoadAllHostCAs = c.LoadAllHostCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -1901,21 +1907,16 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 
-	pr, err := tc.Ping(ctx)
-	if err == nil {
-		if pr.Auth.LoadAllHostCAs {
-			sites, err := proxyClient.GetSites(ctx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			var clusters []string
-			for _, site := range sites {
-				clusters = append(clusters, site.Name)
-			}
-			tc.LocalAgent().UpdateClusters(clusters...)
+	if tc.LoadAllHostCAs {
+		sites, err := proxyClient.GetSites(ctx)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-	} else {
-		log.Debugf("Couldn't ping proxy: %v", err)
+		var clusters []string
+		for _, site := range sites {
+			clusters = append(clusters, site.Name)
+		}
+		tc.LocalAgent().UpdateClusters(clusters...)
 	}
 
 	// which nodes are we executing this commands on?

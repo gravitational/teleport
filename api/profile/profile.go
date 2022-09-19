@@ -92,6 +92,10 @@ type Profile struct {
 	// AuthConnector (like "google", "passwordless").
 	// Equivalent to the --auth tsh flag.
 	AuthConnector string `yaml:"auth_connector,omitempty"`
+
+	// LoadAllHostCAs indicates that tsh should load the host CAs of all clusters
+	// instead of just the current cluster.
+	LoadAllHostCAs bool `yaml:"load_all_host_cas,omitempty"`
 }
 
 // Name returns the name of the profile.
