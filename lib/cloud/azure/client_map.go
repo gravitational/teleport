@@ -21,18 +21,18 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
+// ClientMap is a generic map that caches a collection of Azure clients by
+// subscriptions.
 type ClientMap[ClientType any] struct {
 	mu        sync.RWMutex
 	clients   map[string]ClientType
 	newClient func(string, azcore.TokenCredential, *arm.ClientOptions) (ClientType, error)
 }
 
+// newClientMap creates a new ClientMap.
 func newClientMap[ClientType any](newClient func(string, azcore.TokenCredential, *arm.ClientOptions) (ClientType, error)) ClientMap[ClientType] {
 	return ClientMap[ClientType]{
 		clients:   make(map[string]ClientType),
@@ -40,7 +40,9 @@ func newClientMap[ClientType any](newClient func(string, azcore.TokenCredential,
 	}
 }
 
-func (m *ClientMap[ClientType]) Get(subscription string, getCredential func() (azcore.TokenCredential, error)) (client ClientType, err error) {
+// Get fetches an Azure client by subscription. A new client is created if the
+// subscription is not found in the map.
+func (m *ClientMap[ClientType]) Get(subscription string, getCredentials func() (azcore.TokenCredential, error)) (client ClientType, err error) {
 	m.mu.RLock()
 	if client, ok := m.clients[subscription]; ok {
 		m.mu.RUnlock()
@@ -56,7 +58,7 @@ func (m *ClientMap[ClientType]) Get(subscription string, getCredential func() (a
 		return client, nil
 	}
 
-	cred, err := getCredential()
+	cred, err := getCredentials()
 	if err != nil {
 		return client, trace.Wrap(err)
 	}
@@ -72,25 +74,7 @@ func (m *ClientMap[ClientType]) Get(subscription string, getCredential func() (a
 	return client, nil
 }
 
+// NewRedisClientMap creates a new map of Redis clients.
 func NewRedisClientMap() ClientMap[CacheForRedisClient] {
-	return newClientMap(func(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
-		logrus.Debug("Initializing Azure Redis client.")
-		api, err := armredis.NewClient(subscription, cred, options)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return NewRedisClient(api), nil
-	})
-}
-
-func NewRedisEnterpriseClientMap() ClientMap[CacheForRedisClient] {
-	return newClientMap(func(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
-		logrus.Debug("Initializing Azure Redis Enterprise client.")
-		databaseAPI, err := armredisenterprise.NewDatabasesClient(subscription, cred, options)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// TODO(greedy52) Redis Enterprise requires a 2nd client (armredisenterprise.Client) for auto-discovery.
-		return NewRedisEnterpriseClient(databaseAPI), nil
-	})
+	return newClientMap(NewRedisClient)
 }

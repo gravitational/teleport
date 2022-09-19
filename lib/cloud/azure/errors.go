@@ -34,7 +34,7 @@ func ConvertResponseError(err error) error {
 	}
 
 	switch responseErr.StatusCode {
-	case http.StatusForbidden:
+	case http.StatusForbidden, http.StatusUnauthorized:
 		return trace.AccessDenied(responseErr.Error())
 	case http.StatusConflict:
 		return trace.AlreadyExists(responseErr.Error())

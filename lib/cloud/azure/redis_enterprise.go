@@ -20,28 +20,48 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/trace"
 )
 
+// armRedisEnterpriseDatabaseClient is an interface defines a subset of
+// functions of armredisenterprise.DatabaseClient
 type armRedisEnterpriseDatabaseClient interface {
 	ListKeys(ctx context.Context, resourceGroupName string, clusterName string, databaseName string, options *armredisenterprise.DatabasesClientListKeysOptions) (armredisenterprise.DatabasesClientListKeysResponse, error)
 }
 
-// TODO
-type RedisEnterpriseClient struct {
+// redisEnterpriseClient is an Azure Redis Enterprise client.
+type redisEnterpriseClient struct {
 	databaseAPI armRedisEnterpriseDatabaseClient
 }
 
 // NewRedisClient creates a new Azure Redis Enterprise client.
-func NewRedisEnterpriseClient(databaseAPI armRedisEnterpriseDatabaseClient) *RedisEnterpriseClient {
-	return &RedisEnterpriseClient{
+func NewRedisEnterpriseClient(databaseAPI armRedisEnterpriseDatabaseClient) CacheForRedisClient {
+	return &redisEnterpriseClient{
 		databaseAPI: databaseAPI,
 	}
 }
 
+// NewRedisClientMap creates a new map of Redis Enterprise clients.
+func NewRedisEnterpriseClientMap() ClientMap[CacheForRedisClient] {
+	return newClientMap(func(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
+		logrus.Debug("Initializing Azure Redis Enterprise client.")
+		databaseAPI, err := armredisenterprise.NewDatabasesClient(subscription, cred, options)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// TODO(greedy52) Redis Enterprise requires a different API client
+		// (armredisenterprise.Client) for auto-discovery.
+		return NewRedisEnterpriseClient(databaseAPI), nil
+	})
+}
+
 // GetToken implements CacheForRedisClient.
-func (c *RedisEnterpriseClient) GetToken(ctx context.Context, group, name string) (string, error) {
+func (c *redisEnterpriseClient) GetToken(ctx context.Context, group, name string) (string, error) {
 	clusterName, databaseName := c.getClusterAndDatabaseName(name)
 	resp, err := c.databaseAPI.ListKeys(ctx, group, clusterName, databaseName, &armredisenterprise.DatabasesClientListKeysOptions{})
 	if err != nil {
@@ -58,13 +78,13 @@ func (c *RedisEnterpriseClient) GetToken(ctx context.Context, group, name string
 	return "", trace.NotFound("missing keys")
 }
 
-func (c *RedisEnterpriseClient) getClusterAndDatabaseName(resourceName string) (string, string) {
+func (c *redisEnterpriseClient) getClusterAndDatabaseName(resourceName string) (string, string) {
 	// The resource name can be either:
 	//   - cluster resource name: <clusterName>
 	//   - database resource name: <clusterName>/databases/<databaseName>
 	//
-	// Though it seems an Enterprise cluster only has one database, the
-	// database name is always "default".
+	// Though it appears an Enterprise cluster always has only one "database",
+	// and the database name is always "default".
 	clusterName, databaseName, ok := strings.Cut(resourceName, "/databases/")
 	if ok {
 		return clusterName, databaseName

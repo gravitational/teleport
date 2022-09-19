@@ -19,35 +19,49 @@ package azure
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
+// armRedisClient is an interface defines a subset of functions of armredis.Client.
 type armRedisClient interface {
 	ListKeys(ctx context.Context, resourceGroupName string, name string, options *armredis.ClientListKeysOptions) (armredis.ClientListKeysResponse, error)
 }
 
-// TODO
-type RedisClient struct {
+// redisClient is an Azure Redis client.
+type redisClient struct {
 	api armRedisClient
 }
 
-// NewRedisClient creates a new Azure Redis client.
-func NewRedisClient(api armRedisClient) *RedisClient {
-	return &RedisClient{
+// NewRedisClient creates a new Azure Redis client by subscription and credentials.
+func NewRedisClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
+	logrus.Debug("Initializing Azure Redis client.")
+	api, err := armredis.NewClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return NewRedisClientByAPI(api), nil
+}
+
+// NewRedisClientByAPI creates a new Azure Redis client by arm API client.
+func NewRedisClientByAPI(api armRedisClient) CacheForRedisClient {
+	return &redisClient{
 		api: api,
 	}
 }
 
-// GetToken implements CacheForRedisClient.
-func (c *RedisClient) GetToken(ctx context.Context, group, name string) (string, error) {
-	logrus.Debugf("-->> azure.NewRedisClient GetToken")
+// GetToken retrieves the auth token for provided resource group and resource
+// name.
+func (c *redisClient) GetToken(ctx context.Context, group, name string) (string, error) {
 	resp, err := c.api.ListKeys(ctx, group, name, &armredis.ClientListKeysOptions{})
 	if err != nil {
 		return "", trace.Wrap(ConvertResponseError(err))
 	}
-	logrus.Debugf("-->> azure.NewRedisClient GetToken resp %v", resp)
 
 	// There are two keys. Pick first one available.
 	if resp.PrimaryKey != nil {
