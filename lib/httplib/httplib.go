@@ -61,8 +61,8 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 
 // MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
 // with one that will add a tracing span for each request.
-func MakeTracingHandler(h http.Handler, component string) http.Handler {
-	return otelhttp.NewHandler(h, component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
+func MakeTracingHandler(h http.Handler, component string, opts ...otelhttp.Option) http.Handler {
+	return otelhttp.NewHandler(h, component, append(opts, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))...)
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
