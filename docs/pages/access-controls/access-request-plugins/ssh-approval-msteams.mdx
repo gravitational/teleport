@@ -19,9 +19,8 @@ compromising productivity.
   You should have enough permissions to create and edit Azure Bot Services in this resource group.
 - Someone with Global Admin rights on the Azure Active Directory that will
   grant permissions to the plugin
-- Someone with the `Teams administrator` role that will approve the MsTeams
-  application installation request
-
+- Someone with the `Teams administrator` role that can approve installation
+  requests for Microsoft Teams applications
 (!/docs/pages/includes/tctl.mdx!)
 
 ## Step 1/9. Define RBAC resources
@@ -102,7 +101,9 @@ $ sudo mv auth.* /var/lib/teleport/plugins/msteams
 The Access Request plugin for MsTeams receives Access Request events from the
 Teleport Auth Service, formats them into MsTeams messages, and sends them to the
 MsTeams API to post them in your workspace. For this to work, you must register a
-new Azure Bot.
+new Azure Bot. Azure Bot is a managed service by Microsoft that allows to
+develop bots that interact with users through different channels, including
+Microsoft Teams.
 
 ### Register a new Azure bot
 
@@ -118,30 +119,30 @@ Microsoft App ID".
 
 ### Connect the bot to MsTeams
 
-Once the bot is created, open the resource and navigate to the "Channels" tab. Click
-"Microsoft Teams" and add the MsTeams channel.
+Once the bot is created, open its resource page on the azure console and
+navigate to the "Channels" tab. Click "Microsoft Teams" and add the MsTeams
+channel.
 
 The result should be as follows:
 
 ![Add Bot Channel](../../../img/enterprise/plugins/msteams/add-bot-channel.png)
 
-### Recover the bot app ID and the directory tenant ID
+### Recover the bot app ID, tenant ID and create a client secret
 
-On the bot's "Configuration" tab, recover the values of "Microsoft App ID" and "App Tenant ID".
-Those two UUIDs will be used in the plugin configuration.
+On the bot's "Configuration" tab, copy and keep in a safe place the values of
+"Microsoft App ID" and "App Tenant ID".  Those two UUIDs will be used in the
+plugin configuration.
 
-### Create a client secret
-
-The client secret will be used by the Teleport plugin to authenticate as the bot's app when
-searching users and posting messages.
-
-On the bot's "Configuration" tab, find "Microsoft App ID", click "Manage" link next to it.
+Click the "Manage" link next to "Microsoft App ID", this will open the app management view.
 
 ![Manage Bot App](../../../img/enterprise/plugins/msteams/manage-bot-app.png)
 
 Then, go to the "Certificates & Secrets" section and choose to create a "New client secret".
-Use the "Copy" icon to recover the newly created secret and keep it with the
+Use the "Copy" icon to copy the newly created secret and keep it with the
 previously recovered App ID and Tenant ID.
+
+The client secret will be used by the Teleport plugin to authenticate as the bot's app when
+searching users and posting messages.
 
 ### Specify the permissions used by the app
 
@@ -157,12 +158,12 @@ Add the following Microsoft Graph Application permissions:
 - `TeamsAppInstallation.ReadWriteSelfForTeam.All` (used to discover if the app is installed
    in the Team)
 
-![Specify App Permissions](../../../img/enterprise/plugins/msteams/specify-app-permissions.png)
-
 At this point the app declares the required permissions but those have not been granted.
 
 If you are an admin, click "Grant admin consent for \<directory name\>". If you are not an admin,
 contact an admin user to grant the permissions.
+
+![Specify App Permissions](../../../img/enterprise/plugins/msteams/specify-app-permissions.png)
 
 Once permissions have been approved, refresh the page and check the approval status.
 The result should be as follows:
@@ -173,10 +174,12 @@ The result should be as follows:
 
 At this point, the Teleport MsTeams plugin has the credentials it needs to
 communicate with your Teleport cluster and Azure APIs, but the app has not been
-installed to MsTeams yet. In this step, you will configure the MsTeams plugin
-to use the Azure credentials and generate the Teams App package. You will
-also configure the plugin to notify the right MsTeams users when it receives an
-Access Request update.
+installed to MsTeams yet.
+
+In this step, you will configure the MsTeams plugin to use the Azure
+credentials and generate the Teams App package that will be used to install the
+Teams App to your teams instance. You will also configure the plugin to notify
+the right MsTeams users when it receives an Access Request update.
 
 ### Generate a config file and assets
 
@@ -195,8 +198,8 @@ This should result in a config file like the one below:
 (!examples/resources/plugins/teleport-msteams.toml!)
 ```
 
-Recover the `/var/lib/teleport/plugins/msteams/assets/app.zip` file,
-you will have to upload it to MsTeams later.
+Copy the `/var/lib/teleport/plugins/msteams/assets/app.zip` file to your local
+computer, you will have to upload it to MsTeams later.
 
 <Admonition type="warning" title="Configure command">
 The `configure` command is not idempotent. It generates a new Microsoft Teams
@@ -313,11 +316,11 @@ address and post a message in that channel.
 Configure the MsTeams plugin to notify you when a user requests the `editor` role
 by adding the following to your `role_to_recipients` config (replace
 `TELEPORT_USERNAME` with the email of the user you assigned the `editor-reviewer`
-role earlier, and ):
+role earlier):
 
 ```toml
 [role_to_recipients]
-"*" = "your-email@example.com"
+"*" = "TELEPORT_USERNAME"
 "editor" = "TELEPORT_USERNAME"
 ```
 
