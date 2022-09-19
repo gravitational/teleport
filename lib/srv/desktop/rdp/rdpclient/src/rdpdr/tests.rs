@@ -17,7 +17,8 @@ use super::{
         CardProtocol, CardStateFlags, Connect_Call, Connect_Common, Context, Context_Call,
         EstablishContext_Call, GetDeviceTypeId_Call, GetStatusChange_Call,
         HCardAndDisposition_Call, Handle, IoctlCode, ListReaders_Call, ReaderState,
-        ReaderState_Common_Call, ScardAccessStartedEvent_Call, Scope, Status_Call,
+        ReaderState_Common_Call, SCardIO_Request, ScardAccessStartedEvent_Call, Scope, Status_Call,
+        Transmit_Call,
     },
     *,
 };
@@ -46,7 +47,11 @@ fn test_to_windows_time() {
     assert_eq!(to_windows_time(1000), 116444736010000000);
 }
 
-fn client(with_scard_id: bool, established_contexts: u32) -> Client {
+fn client(
+    with_scard_id: bool,
+    established_contexts: u32,
+    connect_scard_to_ctx: Option<u32>,
+) -> Client {
     let mut c = Client::new(Config {
         cert_der: vec![
             48, 130, 4, 145, 48, 130, 3, 121, 160, 3, 2, 1, 2, 2, 16, 101, 91, 145, 220, 167, 255,
@@ -211,7 +216,30 @@ fn client(with_scard_id: bool, established_contexts: u32) -> Client {
         c.scard.contexts.establish();
     }
 
+    if let Some(connect_scard_to_ctx) = connect_scard_to_ctx {
+        connect_scard(&mut c, connect_scard_to_ctx);
+    }
+
     c
+}
+
+/// Connects a piv::Card to the client's internal context cache
+/// (on the context corresponding to context_value). This is a shortcut
+/// for doing what test_scard_ioctl_connectw does to the Client's
+/// internal state.
+fn connect_scard(c: &mut Client, context_value: u32) {
+    let ctx = c.scard.contexts.get(context_value).unwrap();
+    ctx.connect(
+        Context {
+            length: 4,
+            value: context_value,
+        },
+        c.scard.uuid,
+        &c.scard.cert_der,
+        &c.scard.key_der,
+        c.scard.pin.clone(),
+    )
+    .unwrap();
 }
 
 struct PayloadIn {
@@ -262,7 +290,7 @@ fn test_payload_in_to_response_out(
 
 #[test]
 fn test_handle_server_announce() {
-    let mut c = client(false, 0);
+    let mut c = client(false, 0, None);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -305,7 +333,7 @@ fn test_handle_server_announce() {
 
 #[test]
 fn test_handle_server_capability() {
-    let mut c = client(false, 0);
+    let mut c = client(false, 0, None);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -428,7 +456,7 @@ fn test_handle_server_capability() {
 
 #[test]
 fn test_handle_client_id_confirm() {
-    let mut c = client(false, 0);
+    let mut c = client(false, 0, None);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -470,7 +498,7 @@ fn test_handle_client_id_confirm() {
 
 #[test]
 fn test_handle_device_reply() {
-    let mut c = client(true, 0);
+    let mut c = client(true, 0, None);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -496,7 +524,7 @@ fn test_handle_device_reply() {
 
 #[test]
 fn test_scard_ioctl_accessstartedevent() {
-    let mut c = client(true, 0);
+    let mut c = client(true, 0, None);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -545,7 +573,7 @@ fn test_scard_ioctl_accessstartedevent() {
 
 #[test]
 fn test_scard_ioctl_establishcontext() {
-    let mut c = client(true, 0);
+    let mut c = client(true, 0, None);
 
     test_payload_in_to_response_out(
         &mut c,
@@ -598,7 +626,7 @@ fn test_scard_ioctl_establishcontext() {
 
 #[test]
 fn test_scard_ioctl_listreadersw() {
-    let mut c = client(true, 1);
+    let mut c = client(true, 1, None);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -656,7 +684,7 @@ fn test_scard_ioctl_listreadersw() {
 #[test]
 fn test_scard_ioctl_getdevicetypeid() {
     let context_value = 2;
-    let mut c = client(true, context_value);
+    let mut c = client(true, context_value, None);
 
     test_payload_in_to_response_out(
         &mut c,
@@ -713,7 +741,7 @@ fn test_scard_ioctl_getdevicetypeid() {
 #[test]
 fn test_scard_ioctl_releasecontext() {
     let context_value = 2;
-    let mut c = client(true, context_value);
+    let mut c = client(true, context_value, None);
 
     test_payload_in_to_response_out(
         &mut c,
@@ -770,7 +798,7 @@ fn test_scard_ioctl_releasecontext() {
 #[test]
 fn test_scard_ioctl_getstatuschangew() {
     let context_value = 1;
-    let mut c = client(true, context_value);
+    let mut c = client(true, context_value, None);
 
     test_payload_in_to_response_out(
         &mut c,
@@ -853,8 +881,7 @@ fn test_scard_ioctl_getstatuschangew() {
 #[test]
 fn test_scard_ioctl_connectw() {
     let context_value = 5;
-    let mut c = client(true, context_value);
-
+    let mut c = client(true, context_value, None);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -916,7 +943,7 @@ fn test_scard_ioctl_connectw() {
 #[test]
 fn test_scard_ioctl_begintransaction() {
     let context_value = 5;
-    let mut c = client(true, context_value);
+    let mut c = client(true, context_value, None);
 
     test_payload_in_to_response_out(
         &mut c,
@@ -975,7 +1002,7 @@ fn test_scard_ioctl_begintransaction() {
 #[test]
 fn test_scard_ioctl_statusw() {
     let context_value = 5;
-    let mut c = client(true, context_value);
+    let mut c = client(true, context_value, None);
 
     test_payload_in_to_response_out(
         &mut c,
@@ -1031,6 +1058,76 @@ fn test_scard_ioctl_statusw() {
                     0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0,
                     0, 20, 0, 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0, 116, 0,
                     0, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+}
+
+#[test]
+fn test_scard_ioctl_transmit() {
+    let context_value = 5;
+    let mut c = client(true, context_value, Some(context_value));
+
+    test_payload_in_to_response_out(
+        &mut c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 160,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 2,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 2048,
+                input_buffer_length: 104,
+                io_control_code: IoctlCode::SCARD_IOCTL_TRANSMIT,
+            }),
+            scard_ctl: Some(Box::new(Transmit_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                send_pci: SCardIO_Request {
+                    protocol: CardProtocol::SCARD_PROTOCOL_T1,
+                    extra_bytes_length: 0,
+                    extra_bytes: vec![],
+                },
+                send_length: 14,
+                send_buffer: vec![0, 164, 4, 0, 9, 160, 0, 0, 3, 8, 0, 0, 16, 0],
+                recv_pci: None,
+                recv_buffer_is_null: false,
+                recv_length: 258,
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 2,
+                    io_status: 0,
+                },
+                output_buffer_length: 64,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 21, 0, 0, 0, 0, 0, 2, 0, 21, 0, 0, 0, 97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121,
+                    7, 79, 5, 160, 0, 0, 3, 8, 144, 0, 0, 0, 0, 0, 0, 0, 0,
                 ],
             }),
         )],

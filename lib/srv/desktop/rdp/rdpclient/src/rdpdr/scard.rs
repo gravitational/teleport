@@ -37,10 +37,10 @@ pub struct Client {
     //
     // contexts also holds a cache and connected smartcard handles for each context.
     pub(crate) contexts: Contexts,
-    uuid: Uuid,
-    cert_der: Vec<u8>,
-    key_der: Vec<u8>,
-    pin: String,
+    pub uuid: Uuid,
+    pub cert_der: Vec<u8>,
+    pub key_der: Vec<u8>,
+    pub pin: String,
 }
 
 impl Client {
@@ -1565,14 +1565,14 @@ impl Status_Return {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct Transmit_Call {
-    handle: Handle,
-    send_pci: SCardIO_Request,
-    send_length: u32,
-    send_buffer: Vec<u8>,
-    recv_pci: Option<SCardIO_Request>,
-    recv_buffer_is_null: bool,
-    recv_length: u32,
+pub(crate) struct Transmit_Call {
+    pub handle: Handle,
+    pub send_pci: SCardIO_Request,
+    pub send_length: u32,
+    pub send_buffer: Vec<u8>,
+    pub recv_pci: Option<SCardIO_Request>,
+    pub recv_buffer_is_null: bool,
+    pub recv_length: u32,
 }
 
 impl Transmit_Call {
@@ -1617,12 +1617,49 @@ impl Transmit_Call {
     }
 }
 
-#[derive(Debug)]
+impl Encode for Transmit_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        self.send_pci.encode_ptr(&mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(0)?; // _send_length
+        encode_ptr(None, &mut index, &mut w)?; // _send_buffer_ptr
+                                               // recv_pci_ptr
+        if let Some(_recv_pci) = self.recv_pci.clone() {
+            encode_ptr(None, &mut index, &mut w)?;
+        } else {
+            w.write_u32::<LittleEndian>(0)?;
+        }
+        let recv_buffer_is_null = if self.recv_buffer_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(recv_buffer_is_null)?;
+        w.write_u32::<LittleEndian>(self.recv_length)?;
+
+        self.handle.encode_value(&mut w)?;
+        self.send_pci.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.send_length)?;
+        w.extend(self.send_buffer.clone());
+
+        if let Some(recv_pci) = self.recv_pci.clone() {
+            recv_pci.encode_ptr(&mut index, &mut w)?;
+            recv_pci.encode_value(&mut w)?;
+        }
+
+        Ok(w)
+    }
+}
+
+#[derive(Debug, Clone)]
 #[allow(dead_code, non_camel_case_types)]
-struct SCardIO_Request {
-    protocol: CardProtocol,
-    extra_bytes_length: u32,
-    extra_bytes: Vec<u8>,
+pub(crate) struct SCardIO_Request {
+    pub protocol: CardProtocol,
+    pub extra_bytes_length: u32,
+    pub extra_bytes: Vec<u8>,
 }
 
 impl SCardIO_Request {
@@ -1639,8 +1676,19 @@ impl SCardIO_Request {
             extra_bytes,
         })
     }
+
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
         payload.read_exact(&mut self.extra_bytes)?;
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        w.write_u32::<LittleEndian>(self.protocol.bits())?;
+        encode_ptr(Some(self.extra_bytes_length), index, w)
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        w.extend(self.extra_bytes.clone());
         Ok(())
     }
 }
@@ -2005,7 +2053,7 @@ impl ContextInternal {
         }
     }
 
-    fn connect(
+    pub(super) fn connect(
         &mut self,
         ctx: Context,
         uuid: Uuid,
