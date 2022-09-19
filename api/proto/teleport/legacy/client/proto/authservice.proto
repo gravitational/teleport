@@ -2425,18 +2425,22 @@ service AuthService {
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 
   // GetToken retrieves a v2 token described by the given request.
+  // DEPRECATED. Use GetTokenV3.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetTokenV3 retrieves a token described by the given request.
   rpc GetTokenV3(types.ResourceRequest) returns (types.ProvisionTokenV3);
   // GetTokens retrieves all v2 tokens.
+  // DEPRECATED. Use GetTokensV3.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
   // GetTokensV3 retrieves all tokens.
   rpc GetTokensV3(google.protobuf.Empty) returns (types.ProvisionTokenV3List);
   // UpsertToken upserts a v2 token in a backend.
+  // DEPRECATED. Use UpsertTokenV3.
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // UpsertTokenV3 upserts a v3 token in a backend.
   rpc UpsertTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);
   // CreateToken creates a v2 token in a backend.
+  // DEPRECATED. Use CreateTokenV3.
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateTokenV3 creates a v3 token in a backend.
   rpc CreateTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);

@@ -2928,15 +2928,12 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	switch v := t.(type) {
-	case *types.ProvisionTokenV2:
-		return v, nil
-	case *types.ProvisionTokenV3:
-		// An old client should not be able to see V3 tokens
-		return nil, trace.NotFound("provisioning token not found")
-	default:
-		return nil, trace.Errorf("encountered unexpected token type: %T", t)
+	v2, ok := t.V2()
+	if !ok {
+		return nil, trace.Errorf("the requested token cannot be converted to v2 and must be fetched using GetTokenV3")
 	}
+
+	return v2, nil
 }
 
 // GetTokenV3 retrieves a token by name.
@@ -2955,7 +2952,6 @@ func (g *GRPCServer) GetTokenV3(ctx context.Context, req *types.ResourceRequest)
 }
 
 // GetTokens retrieves all tokens.
-// V3 tokens will be emitted.
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2966,11 +2962,14 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.Prov
 		return nil, trace.Wrap(err)
 	}
 	provisionTokensV2 := make([]*types.ProvisionTokenV2, 0, len(ts))
-	for i, t := range ts {
-		var ok bool
-		// TODO: Ignore V3 tokens - this will sinkhole other kinds :( !
-		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
-			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+	for _, t := range ts {
+		v2Token, ok := t.V2()
+		if ok {
+			provisionTokensV2 = append(provisionTokensV2, v2Token)
+		} else {
+			g.Logger.
+				WithField("token_id", t.GetResourceID()).
+				Debug("GetTokens (V2) encountered ProvisionTokenV3 that could not convert to V2. Omitting.")
 		}
 	}
 	return &types.ProvisionTokenV2List{

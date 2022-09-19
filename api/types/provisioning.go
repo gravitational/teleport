@@ -72,6 +72,16 @@ type ProvisionToken interface {
 	// This can be removed once we begin converting V2 tokens to V3 within the
 	// services.UnmarshalProvisionToken method.
 	V3() *ProvisionTokenV3
+
+	// V2 returns the V2 representation of a ProvisionToken
+	// This exists for the transition period where the V2 Token RPCs still exist
+	// and we may need to be able to convert tokens to a V2 representation
+	// for serialisation.
+	//
+	// The second return value is a boolean indicating if this token can be
+	// represented as v2, for cases where a new provider type is used, this
+	// value will be false and the token should not be presented to a consumer.
+	V2() (*ProvisionTokenV2, bool)
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -282,11 +292,6 @@ func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 	return p.Spec.SuggestedLabels
 }
 
-// V2 returns V2 version of the resource
-func (p *ProvisionTokenV2) V2() *ProvisionTokenV2 {
-	return p
-}
-
 // SetExpiry sets expiry time for the object
 func (p *ProvisionTokenV2) SetExpiry(expires time.Time) {
 	p.Metadata.SetExpiry(expires)
@@ -331,6 +336,10 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 	}
 	// TODO: Add Provider specific configs.
 	return t
+}
+
+func (p *ProvisionTokenV2) V2() (*ProvisionTokenV2, bool) {
+	return p, true
 }
 
 // ProvisionTokensFromV1 converts V1 provision tokens to resource list
@@ -584,6 +593,10 @@ func (p ProvisionTokenV3) String() string {
 
 func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 	return p
+}
+
+func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, bool) {
+	panic("implement")
 }
 
 // Validation for provider specific config
