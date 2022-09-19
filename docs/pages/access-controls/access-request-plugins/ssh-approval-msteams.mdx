@@ -151,12 +151,12 @@ go to the "API permissions" tab.
 
 Add the following Microsoft Graph Application permissions:
 
-- `AppCatalog.Read.All` (used to list Teams Apps and check the app is installed)
-- `User.Read.All` (used to get notification recipients)
-- `TeamsAppInstallation.ReadWriteSelfForUser.All` (used to initiate communication with
-   a user that never interacted with the Teams App before)
-- `TeamsAppInstallation.ReadWriteSelfForTeam.All` (used to discover if the app is installed
-   in the Team)
+| Permission name | Reason |
+|---|---|
+| `AppCatalog.Read.All` | Used to list Teams Apps and check the app is installed. |
+| `User.Read.All` | Used to get notification recipients. |
+| `TeamsAppInstallation.ReadWriteSelfForUser.All` | Used to initiate communication with a user that never interacted with the Teams App before. |
+| `TeamsAppInstallation.ReadWriteSelfForTeam.All` | Used to discover if the app is installed in the Team. |
 
 At this point the app declares the required permissions but those have not been granted.
 
@@ -189,7 +189,10 @@ containing the TOML configuration file and an `app.zip` file that will be used
 later to add the Teams App into the organization catalog.
 
 ```code
-$ teleport-msteams configure /var/lib/teleport/plugins/msteams/assets --appID <Microsoft App ID value> --tenantID <App Tenant ID value> --appSecret <password value saved on step #4>
+$ export AZURE_APPID="your-appid"
+$ export AZURE_TENANTID="your-tenantid"
+$ export AZURE_APPSECRET="your-appsecret"
+$ teleport-msteams configure /var/lib/teleport/plugins/msteams/assets --appID "$AZURE_APPID" --tenantID "$AZURE_TENANTID" --appSecret "$AZURE_APPSECRET"
 ```
 
 This should result in a config file like the one below:
