@@ -2447,7 +2447,7 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 // (data/log/upload/streaming/default/)
 func (process *TeleportProcess) initUploaderService() error {
 	log := process.log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
+		trace.Component: teleport.Component(teleport.ComponentUpload, process.id),
 	})
 
 	if _, err := process.WaitForEvent(process.ExitContext(), TeleportReadyEvent); err != nil {
@@ -2461,12 +2461,23 @@ func (process *TeleportProcess) initUploaderService() error {
 	for _, c := range connectors {
 		if c.Client != nil {
 			conn = c
+			log.Debugf("upload completer will use role %v", c.ServerIdentity.ID.Role)
 			break
 		}
 	}
-	// TODO(zmb3): this is allowed if auth is the only service running in process
+
+	// The auth service's upload completer is initialized separately.
+	// The only circumstance in which we would expect not to have found
+	// a connector is if the auth service is the only service running in
+	// this process. In that case, there's nothing to do here and we can
+	// safely return.
 	if conn == nil {
-		return trace.BadParameter("no connectors found")
+		for _, localService := range types.LocalServiceMappings() {
+			if localService != types.RoleAuth && process.instanceRoleExpected(localService) {
+				return trace.BadParameter("no connectors found")
+			}
+		}
+		return nil
 	}
 
 	// create folder for uploads
