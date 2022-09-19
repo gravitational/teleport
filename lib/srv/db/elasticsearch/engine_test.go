@@ -126,20 +126,7 @@ func TestEngine_getQueryFromRequestBody(t *testing.T) {
   }
 }`
 
-	const jsonSearchAPIJustQuery = `{
-   "bool": {
-      "filter": {
-         "term": {
-            "tags": "production"
-         }
-      },
-      "must": {
-         "term": {
-            "user.id": "pam"
-         }
-      }
-   }
-}`
+	const jsonSearchAPIJustQuery = `{"bool":{"filter":{"term":{"tags":"production"}},"must":{"term":{"user.id":"pam"}}}}`
 
 	const jsonKNNSearchAPIQuery = `{
   "knn": {
@@ -151,16 +138,7 @@ func TestEngine_getQueryFromRequestBody(t *testing.T) {
   "_source": ["name", "file_type"]
 }`
 
-	const jsonKNNSearchAPIJustQuery = `{
-   "field": "image_vector",
-   "k": 10,
-   "num_candidates": 100,
-   "query_vector": [
-      0.3,
-      0.1,
-      1.2
-   ]
-}`
+	const jsonKNNSearchAPIJustQuery = `{"field":"image_vector","k":10,"num_candidates":100,"query_vector":[0.3,0.1,1.2]}`
 
 	const jsonSQLSearchAPIQuery = `{
   "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
@@ -244,6 +222,7 @@ func TestEngine_getQueryFromRequestBody(t *testing.T) {
 			e.Log = logrus.StandardLogger()
 
 			result := e.getQueryFromRequestBody(tt.contentType, []byte(tt.body))
+			t.Log(result)
 			require.Equal(t, tt.want, result)
 		})
 	}

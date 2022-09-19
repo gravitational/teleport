@@ -304,7 +304,7 @@ func (e *Engine) getQueryFromRequestBody(contentType string, body []byte) string
 	case string:
 		return qt
 	default:
-		marshal, err := json.MarshalIndent(result, "", "   ")
+		marshal, err := json.Marshal(result)
 		if err != nil {
 			e.Log.WithError(err).Warnf("Error encoding query %v to json.", result)
 			return ""
