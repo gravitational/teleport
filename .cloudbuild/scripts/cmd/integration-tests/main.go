@@ -38,6 +38,7 @@ import (
 
 const (
 	gomodcacheDir = ".gomodcache-ci"
+	gocache       = "/builder/home/.cache/go-build"
 	nonrootUID    = 1000
 	nonrootGID    = 1000
 )
@@ -124,6 +125,12 @@ func innerMain() error {
 		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring module cache")
+		}
+
+		log.Printf("Reconfiguring cache for nonroot user")
+		err = chownR(gocache, nonrootUID, nonrootGID)
+		if err != nil {
+			return trace.Wrap(err, "failed reconfiguring Go cache")
 		}
 	}
 
