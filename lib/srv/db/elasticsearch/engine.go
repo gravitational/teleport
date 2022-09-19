@@ -172,8 +172,8 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer req.Body.Close()
 
-	// audit log
 	e.emitAuditEvent(reqCopy, body)
 
 	// force HTTPS, set host URL.
@@ -186,7 +186,6 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	defer req.Body.Close()
 
 	return trace.Wrap(e.sendResponse(resp))
 }
@@ -248,6 +247,10 @@ func parsePath(path string) (string, apievents.ElasticsearchCategory) {
 
 // getQueryFromRequestBody attempts to find the actual query from the request body, to be shown to the interested user.
 func (e *Engine) getQueryFromRequestBody(contentType string, body []byte) string {
+	// Elasticsearch APIs have no shared schema, but the ones we support have the query either
+	// as 'query' or as 'knn'.
+	// We will attempt to deserialize the query as 'q' to discover these fields.
+	// The type for those is 'any': both strings and objects can be found.
 	var q struct {
 		Query any `json:"query" yaml:"query"`
 		Knn   any `json:"knn" yaml:"knn"`
@@ -322,10 +325,13 @@ func (e *Engine) emitAuditEvent(req *http.Request, body []byte) {
 
 	target, category := parsePath(req.URL.Path)
 
-	// 1. URL param 'q'
+	// Heuristic to calculate the query field.
+	// The priority is given to 'q' URL param. If not found, we look at the request body.
+	// This is not guaranteed to give us actual query, for example:
+	// - we may not support given API
+	// - we may not support given content encoding
 	query := req.URL.Query().Get("q")
 	if query == "" {
-		// 2. Request body: 'query' and 'knn'
 		query = e.getQueryFromRequestBody(contentType, body)
 	}
 

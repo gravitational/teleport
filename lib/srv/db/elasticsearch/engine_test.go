@@ -113,12 +113,6 @@ func Test_parsePath(t *testing.T) {
 }
 
 func TestEngine_getQueryFromRequestBody(t *testing.T) {
-	mkEngine := func() *Engine {
-		e := &Engine{}
-		e.Log = logrus.StandardLogger()
-		return e
-	}
-
 	const jsonSearchAPIQuery = `{
   "query": {
     "bool" : {
@@ -246,7 +240,9 @@ func TestEngine_getQueryFromRequestBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := mkEngine()
+			e := &Engine{}
+			e.Log = logrus.StandardLogger()
+
 			result := e.getQueryFromRequestBody(tt.contentType, []byte(tt.body))
 			require.Equal(t, tt.want, result)
 		})

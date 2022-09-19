@@ -3674,8 +3674,13 @@ message ElasticsearchRequest {
     (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
 
+  // Category represents the category if API being accessed in a given request.
   ElasticsearchCategory Category = 10;
+
+  // Target is an optional field indicating the target index or set of indices used as a subject of request.
   string Target = 11;
+
+  // Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
   string Query = 12;
 }
 

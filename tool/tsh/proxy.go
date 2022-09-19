@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -334,9 +333,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	requiresLocalProxy := []string{defaults.ProtocolSnowflake, defaults.ProtocolElasticsearch}
-	if !cf.LocalProxyTunnel && apiutils.SliceContainsStr(requiresLocalProxy, routeToDatabase.Protocol) {
-		return trace.BadParameter("%v proxy works only in the tunnel mode. Please add --tunnel flag to enable it", defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol))
+	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
+		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
 	}
 
 	rootCluster, err := client.RootClusterName(cf.Context)
