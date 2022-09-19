@@ -482,7 +482,10 @@ func (a *Server) runPeriodicOperations() {
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
-	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
+	promTicker := interval.New(interval.Config{
+		Duration: defaults.PrometheusScrapeInterval,
+		Jitter:   utils.NewSeventhJitter(),
+	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
@@ -530,7 +533,7 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.C:
+		case <-promTicker.Next():
 			a.updateVersionMetrics()
 		case <-releaseCheck.Next():
 			a.checkForReleases(ctx)
@@ -622,101 +625,20 @@ func makeUpgradeSuggestionMsg(current, latest, oldestInstance string) string {
 	return ""
 }
 
-// updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
-// cluster via prometheus metrics
+// updateVersionMetrics leverages the inventory control stream to report the versions of
+// all instances that are connected to a single auth server via prometheus metrics. To
+// get an accurate representation of versions in an entire cluster the metric must be aggregated
+// with all auth instances.
 func (a *Server) updateVersionMetrics() {
-	hostID := make(map[string]struct{})
 	versionCount := make(map[string]int)
 
-	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
-	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
-	// and then store hostID and version count information.
-	serverCheck := func(server interface{}) {
-		type serverKubeWindows interface {
-			Expiry() time.Time
-			GetName() string
-			GetTeleportVersion() string
-		}
-		type appDB interface {
-			serverKubeWindows
-			GetHostID() string
-		}
+	// record versions for all connected resources
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		versionCount[handle.Hello().Version]++
+	})
 
-		// appDB needs to be first as it also matches the serverKubeWindows interface
-		if a, ok := server.(appDB); ok {
-			if a.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[a.GetHostID()]; !present {
-				hostID[a.GetHostID()] = struct{}{}
-				versionCount[a.GetTeleportVersion()]++
-			}
-		} else if s, ok := server.(serverKubeWindows); ok {
-			if s.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[s.GetName()]; !present {
-				hostID[s.GetName()] = struct{}{}
-				versionCount[s.GetTeleportVersion()]++
-			}
-		}
-	}
-
-	proxyServers, err := a.GetProxies()
-	if err != nil {
-		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
-	}
-	for _, proxyServer := range proxyServers {
-		serverCheck(proxyServer)
-	}
-
-	authServers, err := a.GetAuthServers()
-	if err != nil {
-		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, authServer := range authServers {
-		serverCheck(authServer)
-	}
-
-	servers, err := a.GetNodes(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
-	}
-	for _, server := range servers {
-		serverCheck(server)
-	}
-
-	dbs, err := a.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, db := range dbs {
-		serverCheck(db)
-	}
-
-	apps, err := a.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, app := range apps {
-		serverCheck(app)
-	}
-
-	kubeServers, err := a.GetKubernetesServers(a.closeCtx)
-	if err != nil {
-		log.Debugf("Failed to get Kube servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, kubeService := range kubeServers {
-		serverCheck(kubeService)
-	}
-
-	windowsServices, err := a.GetWindowsDesktopServices(a.closeCtx)
-	if err != nil {
-		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
-	}
-	for _, windowsService := range windowsServices {
-		serverCheck(windowsService)
-	}
+	// record version for **THIS** auth server
+	versionCount[teleport.Version]++
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
