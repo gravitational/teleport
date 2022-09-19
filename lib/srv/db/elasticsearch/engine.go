@@ -306,7 +306,7 @@ func (e *Engine) getQueryFromRequestBody(contentType string, body []byte) string
 	default:
 		marshal, err := json.Marshal(result)
 		if err != nil {
-			e.Log.WithError(err).Warnf("Error encoding query %v to json.", result)
+			e.Log.WithError(err).Warnf("Error encoding query to json; body: %x, content type: %v.", body, contentType)
 			return ""
 		}
 		return string(marshal)
