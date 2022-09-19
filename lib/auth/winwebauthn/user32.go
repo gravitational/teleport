@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package webauthncli
+//go:build windows
+// +build windows
 
-// HasPlatformSupport returns true if the platform supports client-side
-// WebAuthn-compatible logins.
-func HasPlatformSupport() bool {
-	// TODO(tobiaszheller): probaqbly can remove whole chgeck.
-	return true
+package winwebauthn
+
+import (
+	"syscall"
+)
+
+var (
+	moduser32 = syscall.NewLazyDLL("user32.dll")
+
+	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
+)
+
+func getForegroundWindow() (hwnd syscall.Handle, err error) {
+	r0, _, e1 := syscall.Syscall(procGetForegroundWindow.Addr(), 0, 0, 0, 0)
+	if e1 != 0 {
+		err = error(e1)
+		return
+	}
+	hwnd = syscall.Handle(r0)
+	return
 }

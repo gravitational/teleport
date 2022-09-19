@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
+	"github.com/gravitational/teleport/lib/auth/winwebauthn"
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -110,6 +111,7 @@ func Login(
 		user = opts.User
 	}
 
+	// TODO(tobiaszheller): better support here.
 	switch attachment {
 	case AttachmentCrossPlatform:
 		log.Debug("Cross-platform login")
@@ -136,6 +138,11 @@ func crossPlatformLogin(
 	if IsFIDO2Available() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
+	}
+
+	if winwebauthn.IsAvailable() {
+		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential creation")
+		return winwebauthn.Login(ctx, origin, assertion)
 	}
 
 	if err := prompt.PromptTouch(); err != nil {
@@ -182,6 +189,11 @@ func Register(
 	if IsFIDO2Available() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)
+	}
+
+	if winwebauthn.IsAvailable() {
+		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential creation")
+		return winwebauthn.Register(ctx, origin, cc)
 	}
 
 	if err := prompt.PromptTouch(); err != nil {
