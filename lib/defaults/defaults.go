@@ -772,6 +772,17 @@ func CheckPasswordLimiter() *limiter.Limiter {
 	return limiter
 }
 
+// Transport returns a new http.Client with sensible defaults.
+func HTTPClient() (*http.Client, error) {
+	transport, err := Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &http.Client{
+		Transport: transport,
+	}, nil
+}
+
 // Transport returns a new http.RoundTripper with sensible defaults.
 func Transport() (*http.Transport, error) {
 	// Clone the default transport to pick up sensible defaults.

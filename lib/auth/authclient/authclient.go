@@ -22,15 +22,15 @@ import (
 	"context"
 	"crypto/tls"
 
-	"github.com/gravitational/teleport/api/breaker"
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/breaker"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config holds configuration parameters for connecting to the auth service.
@@ -58,7 +58,8 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
-		CircuitBreakerConfig: cfg.CircuitBreakerConfig,
+		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
+		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
@@ -81,7 +82,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		// TODO(nic): this logic should be implemented once and reused in IoT
 		// nodes.
 
-		resolver := reversetunnel.WebClientResolver(cfg.AuthServers, lib.IsInsecureDevMode())
+		resolver := reversetunnel.WebClientResolver(cfg.AuthServers, cfg.TLS.InsecureSkipVerify)
 		resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
 		if err != nil {
 			return nil, trace.Wrap(err)

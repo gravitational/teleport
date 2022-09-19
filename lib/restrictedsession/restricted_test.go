@@ -30,17 +30,16 @@ import (
 	"testing"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	api "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
 	go_cmp "github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,7 +63,7 @@ const (
 
 var (
 	testRanges = []blockedRange{
-		blockedRange{
+		{
 			ver:   4,
 			allow: "39.156.69.70/28",
 			deny:  "39.156.69.71",
@@ -77,7 +76,7 @@ var (
 				"72.156.69.80": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   4,
 			allow: "77.88.55.88",
 			probe: map[string]blockAction{
@@ -87,7 +86,7 @@ var (
 				"67.88.55.86": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "39.156.68.48/28",
 			deny:  "39.156.68.48/31",
@@ -101,7 +100,7 @@ var (
 				"::ffff:72.156.68.80": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "fc80::/64",
 			deny:  "fc80::10/124",
@@ -114,7 +113,7 @@ var (
 				"fc60:0:0:1::": denied,
 			},
 		},
-		blockedRange{
+		{
 			ver:   6,
 			allow: "2607:f8b0:4005:80a::200e",
 			probe: map[string]blockAction{
@@ -130,7 +129,7 @@ var (
 type bpfContext struct {
 	cgroupDir        string
 	cgroupID         uint64
-	ctx              *bpf.SessionContext
+	ctx              *srv.ServerContext
 	enhancedRecorder bpf.BPF
 	restrictedMgr    Manager
 	srcAddrs         map[int]string
@@ -138,6 +137,15 @@ type bpfContext struct {
 	// Audit events emitted by us
 	emitter             eventstest.MockEmitter
 	expectedAuditEvents []apievents.AuditEvent
+}
+
+type terminal struct {
+	srv.Terminal
+	pid int
+}
+
+func (t terminal) PID() int {
+	return t.pid
 }
 
 func setupBPFContext(t *testing.T) *bpfContext {
@@ -168,25 +176,24 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	})
 	require.NoError(t, err)
 
-	// Create the SessionContext used by both enhanced recording and us (restricted session)
-	tt.ctx = &bpf.SessionContext{
-		Namespace: apidefaults.Namespace,
-		SessionID: uuid.New().String(),
-		ServerID:  uuid.New().String(),
-		Login:     "foo",
-		User:      "foo@example.com",
-		PID:       os.Getpid(),
-		Emitter:   &tt.emitter,
-		Events:    map[string]bool{},
-	}
+	server := srv.NewMockServer(t)
+	server.MockEmitter = &tt.emitter
+
+	role, err := api.NewRole("restricted", api.RoleSpecV5{})
+	require.NoError(t, err)
+
+	srvctx := srv.NewTestServerContext(t, server, services.NewRoleSet(role))
+	srvctx.SetTerm(terminal{pid: os.Getpid()})
+
+	tt.ctx = srvctx
 
 	// Create enhanced recording session to piggy-back on.
 	tt.cgroupID, err = tt.enhancedRecorder.OpenSession(tt.ctx)
 	require.NoError(t, err)
 	require.Equal(t, tt.cgroupID > 0, true)
 
-	deny := []api.AddressCondition{}
-	allow := []api.AddressCondition{}
+	var deny []api.AddressCondition
+	var allow []api.AddressCondition
 	for _, r := range testRanges {
 		if len(r.deny) > 0 {
 			deny = append(deny, api.AddressCondition{CIDR: r.deny})
@@ -294,26 +301,27 @@ func (tt *bpfContext) sendExpectDeny(t *testing.T, ver int, ip string) {
 }
 
 func (tt *bpfContext) expectedAuditEvent(ver int, ip string, op apievents.SessionNetwork_NetworkOperation) apievents.AuditEvent {
+	sessionID := tt.ctx.SessionID()
 	return &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        tt.ctx.ServerID,
-			ServerNamespace: tt.ctx.Namespace,
+			ServerID:        tt.ctx.GetServer().HostUUID(),
+			ServerNamespace: tt.ctx.GetServer().GetNamespace(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: tt.ctx.SessionID,
+			SessionID: sessionID.String(),
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  tt.ctx.User,
-			Login: tt.ctx.Login,
+			User:  tt.ctx.Identity.TeleportUser,
+			Login: tt.ctx.Identity.Login,
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: tt.cgroupID,
 			Program:  "restrictedsessi",
-			PID:      uint64(tt.ctx.PID),
+			PID:      uint64(tt.ctx.GetPID()),
 		},
 		DstPort:    testPort,
 		DstAddr:    ip,
@@ -337,7 +345,7 @@ func TestRootNetwork(t *testing.T) {
 		expected blockAction
 	}
 
-	tests := []testCase{}
+	var tests []testCase
 	for _, r := range testRanges {
 		for ip, expected := range r.probe {
 			tests = append(tests, testCase{

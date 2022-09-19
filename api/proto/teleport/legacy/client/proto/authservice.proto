@@ -2513,6 +2513,19 @@ service AuthService {
   // DeleteAllDatabases removes all database resources.
   rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 
+  // GetKubernetesClusters returns all registered kubernetes clusters.
+  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List);
+  // GetKubernetesCluster returns a kubernetes cluster by name.
+  rpc GetKubernetesCluster(types.ResourceRequest) returns (types.KubernetesClusterV3);
+  // CreateKubernetesCluster creates a new kubernetes cluster resource.
+  rpc CreateKubernetesCluster(types.KubernetesClusterV3) returns (google.protobuf.Empty);
+  // UpdateKubernetesCluster updates existing kubernetes cluster resource.
+  rpc UpdateKubernetesCluster(types.KubernetesClusterV3) returns (google.protobuf.Empty);
+  // DeleteKubernetesCluster removes specified kubernetes cluster resource.
+  rpc DeleteKubernetesCluster(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+  rpc DeleteAllKubernetesClusters(google.protobuf.Empty) returns (google.protobuf.Empty);
+
   // GetWindowsDesktopServices returns all registered Windows desktop services.
   rpc GetWindowsDesktopServices(google.protobuf.Empty) returns (GetWindowsDesktopServicesResponse);
   // TODO(zmb3): Document me.

@@ -195,8 +195,14 @@ teleport:
 </Admonition>
 
 S3 buckets can only be used as storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state. Below is an example of how to
-configure a Teleport auth server to store the recorded sessions in an S3 bucket.
+store the audit log or the cluster state.
+
+S3 buckets must have versioning enabled, which ensures that a session log cannot
+be permanently altered or deleted. Teleport will always look at the oldest
+version of a recording.
+
+Below is an example of how to configure the Teleport Auth Service to store the
+recorded sessions in an S3 bucket.
 
 ```yaml
 teleport:
@@ -227,6 +233,10 @@ Service reads these parameters to configure its interactions with S3:
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
 - `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
+
+### S3 IAM policy
+
+(!docs/pages/includes/s3-iam-policy.mdx!)
 
 ### S3 Server Side Encryption
 
