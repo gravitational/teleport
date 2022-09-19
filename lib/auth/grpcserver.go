@@ -4369,6 +4369,97 @@ func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *proto.Append
 	return connectionDiagnosticV1, nil
 }
 
+// GetKubernetesCluster returns the specified kubernetes cluster resource.
+func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeCluster, err := auth.GetKubernetesCluster(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeClusterV3, ok := kubeCluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return nil, trace.BadParameter("unsupported kubernetes cluster type %T", kubeCluster)
+	}
+	return kubeClusterV3, nil
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster.SetOrigin(types.OriginDynamic)
+	if err := auth.CreateKubernetesCluster(ctx, cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster.SetOrigin(types.OriginDynamic)
+	if err := auth.UpdateKubernetesCluster(ctx, cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *empty.Empty) (*types.KubernetesClusterV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters, err := auth.GetKubernetesClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kubeClusters := make([]*types.KubernetesClusterV3, 0, len(clusters))
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kube cluster type %T", cluster)
+		}
+		kubeClusters = append(kubeClusters, clusterV3)
+	}
+	return &types.KubernetesClusterV3List{
+		KubernetesClusters: kubeClusters,
+	}, nil
+}
+
+// DeleteKubernetesCluster removes the specified kubernetes cluster.
+func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteKubernetesCluster(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllKubernetesClusters removes all kubernetes cluster.
+func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteAllKubernetesClusters(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

@@ -194,11 +194,11 @@ spec:
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
-        {{- if .Values.tls.existingCASecretName }}
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
           readOnly: true
-        {{- end }}
 {{- end }}
         - mountPath: /etc/teleport
           name: "config"
@@ -263,11 +263,11 @@ spec:
       - name: teleport-tls
         secret:
           secretName: {{ .Values.tls.existingSecretName }}
-      {{- if .Values.tls.existingCASecretName }}
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
       - name: teleport-tls-ca
         secret:
           secretName: {{ .Values.tls.existingCASecretName }}
-      {{- end }}
 {{- end }}
       - name: "config"
         configMap:
