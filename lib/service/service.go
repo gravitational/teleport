@@ -1563,6 +1563,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
+		FIPS:                    cfg.FIPS,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1913,6 +1914,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Presence:         cfg.services,
 		Restrictions:     cfg.services,
 		Apps:             cfg.services,
+		Kubernetes:       cfg.services,
 		Databases:        cfg.services,
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,

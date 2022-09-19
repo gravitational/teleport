@@ -1679,7 +1679,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
-		return nil, trace.AccessDenied("bad auth credentials")
+		return nil, trace.AccessDenied("invalid credentials")
 	}
 
 	// Block and wait a few seconds for the session that was created to show up
@@ -1957,7 +1957,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 
 	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), mfaReq)
 	if err != nil {
-		return nil, trace.AccessDenied("bad auth credentials")
+		return nil, trace.AccessDenied("invalid credentials")
 	}
 	return client.MakeAuthenticateChallenge(mfaChallenge), nil
 }
@@ -2006,7 +2006,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	clientMeta := clientMetaFromReq(r)
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	if err != nil {
-		return nil, trace.AccessDenied("bad auth credentials")
+		return nil, trace.AccessDenied("invalid credentials")
 	}
 
 	// Fetch user from session, user is empty for passwordless requests.

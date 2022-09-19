@@ -186,8 +186,14 @@ type InitConfig struct {
 	// TraceClient is used to forward spans to the upstream telemetry collector
 	TraceClient otlptrace.Client
 
+	// Kubernetes is a service that manages kubernetes cluster resources.
+	Kubernetes services.Kubernetes
+
 	// AssertionReplayService is a service that mitigatates SSO assertion replay.
 	*local.AssertionReplayService
+
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
 }
 
 // Init instantiates and configures an instance of AuthServer

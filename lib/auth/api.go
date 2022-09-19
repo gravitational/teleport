@@ -280,6 +280,11 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -453,6 +458,11 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 // KubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -848,6 +858,11 @@ type Cache interface {
 
 	// GetInstallers gets all the installer resources.
 	GetInstallers(ctx context.Context) ([]types.Installer, error)
+
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 type NodeWrapper struct {
