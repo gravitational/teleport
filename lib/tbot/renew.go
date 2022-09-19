@@ -64,11 +64,11 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 	return privateKey, publicKey, tlsPublicKey, nil
 }
 
-// authenticatedUserClientFromIdentity creates a new auth client from the given
+// AuthenticatedUserClientFromIdentity creates a new auth client from the given
 // identity. Note that depending on the connection address given, this may
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
-func (b *Bot) authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity, authServer string) (auth.ClientI, error) {
+func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
 	if id.SSHCert == nil || id.X509Cert == nil {
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
@@ -83,7 +83,7 @@ func (b *Bot) authenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.Wrap(err)
 	}
 
-	authAddr, err := utils.ParseAddr(authServer)
+	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -371,7 +371,7 @@ func (b *Bot) generateImpersonatedIdentity(
 	// Now that we have an initial impersonated identity, we can use it to
 	// request any app/db/etc certs
 	if destCfg.Database != nil {
-		impClient, err := b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -406,7 +406,7 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		return newIdent, trace.Wrap(err)
 	} else if destCfg.App != nil {
-		impClient, err := b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -563,9 +563,7 @@ func (b *Bot) renew(
 
 	// Immediately attempt to reconnect using the new identity (still
 	// haven't persisted the known-good certs).
-	newClient, err := b.authenticatedUserClientFromIdentity(
-		ctx, newIdentity, b.cfg.AuthServer,
-	)
+	newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}

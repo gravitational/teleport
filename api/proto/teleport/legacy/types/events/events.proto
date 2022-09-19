@@ -2952,6 +2952,9 @@ message OneOf {
     events.UpgradeWindowStartUpdate UpgradeWindowStartUpdate = 92;
     events.AppSessionEnd AppSessionEnd = 93;
     events.SessionRecordingAccess SessionRecordingAccess = 94;
+    events.KubernetesClusterCreate KubernetesClusterCreate = 96;
+    events.KubernetesClusterUpdate KubernetesClusterUpdate = 97;
+    events.KubernetesClusterDelete KubernetesClusterDelete = 98;
   }
 }
 
@@ -3665,6 +3668,93 @@ message SessionRecordingAccess {
   string SessionID = 2 [(gogoproto.jsontag) = "sid"];
   // UserMetadata is a common user event metadata.
   UserMetadata UserMetadata = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// KubeClusterMetadata contains common kubernetes cluster information.
+message KubeClusterMetadata {
+  // KubeLabels are the configured cluster labels.
+  map<string, string> KubeLabels = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kube_labels,omitempty"
+  ];
+}
+
+// KubernetesClusterCreate is emitted when a new kubernetes cluster resource is created.
+message KubernetesClusterCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // KubeClusterMetadata is a common kubernetes resource metadata.
+  KubeClusterMetadata KubeClusterMetadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// KubernetesClusterUpdate is emitted when an existing kubernetes cluster resource is updated.
+message KubernetesClusterUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // KubeClusterMetadata is a common kubernetes resource metadata.
+  KubeClusterMetadata KubeClusterMetadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// KubernetesClusterDelete is emitted when a kubernetes cluster resource is deleted.
+message KubernetesClusterDelete {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

@@ -499,6 +499,13 @@ const (
 	// request.
 	KubeRequestEvent = "kube.request"
 
+	// KubernetesClusterCreateEvent is emitted when a kubernetes cluster resource is created.
+	KubernetesClusterCreateEvent = "kube.create"
+	// KubernetesClusterUpdateEvent is emitted when a kubernetes cluster resource is updated.
+	KubernetesClusterUpdateEvent = "kube.update"
+	// KubernetesClusterDeleteEvent is emitted when a kubernetes cluster resource is deleted.
+	KubernetesClusterDeleteEvent = "kube.delete"
+
 	// MFADeviceAddEvent is an event type for users adding MFA devices.
 	MFADeviceAddEvent = "mfa.add"
 	// MFADeviceDeleteEvent is an event type for users deleting MFA devices.

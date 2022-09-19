@@ -142,6 +142,7 @@ operator:
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
+# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
 podSecurityPolicy:
   enabled: true
 
@@ -335,6 +336,16 @@ annotations:
   # highAvailability.certManager.enabled is true
   certSecret: {}
 
+# Kubernetes service account to create/use.
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true 
+  # The name of the ServiceAccount to use.
+  # If not set and serviceAccount.create is true, the name is generated using the release name.
+  # If create is false, the name will be used to reference an existing service account.
+  name: ""
+  # To set annotations on the service account, use the annotations.serviceAccount value.
+
 # Options for the Teleport service
 service:
   type: LoadBalancer
@@ -351,14 +362,14 @@ extraEnv: []
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []
-#- name: myvolume
-#  secret:
-#    secretName: testSecret
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
 
 # Extra volume mounts corresponding to the volumes mounted above
 extraVolumeMounts: []
-#- name: myvolume
-#  mountPath: /path/on/host
+# - name: myvolume
+#   mountPath: /path/on/host
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -366,9 +377,9 @@ imagePullPolicy: IfNotPresent
 # A list of initContainers to run before each Teleport pod starts
 # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 initContainers: []
-#- name: "teleport-init"
-#  image: "alpine"
-#  args: ["echo test"]
+# - name: "teleport-init"
+#   image: "alpine"
+#   args: ["echo test"]
 
 # If set, will run the command as a postStart handler
 # https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/

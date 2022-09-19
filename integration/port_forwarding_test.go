@@ -121,7 +121,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			// ... and a client connection that was launched with port
 			// forwarding enabled to that dummy server
-			localPort := helpers.NewPortValue()
+			localPort := newPortValue()
 			remotePort, err := extractPort(remoteSvr)
 			require.NoError(t, err)
 

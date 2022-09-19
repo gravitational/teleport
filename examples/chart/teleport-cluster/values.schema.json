@@ -679,6 +679,23 @@
                 }
             }
         },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/service/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/service/create",
+                    "type": "boolean",
+                    "default": true 
+                }
+            }
+        },
         "extraArgs": {
             "$id": "#/properties/extraArgs",
             "type": "array",

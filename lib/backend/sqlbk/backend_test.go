@@ -21,10 +21,118 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
+
+func TestConfigCheck(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		cfg  *Config
+		f    require.ErrorAssertionFunc
+	}{
+		{
+			name: "TLS ok",
+			cfg: &Config{
+				Addr: "-",
+				TLS: TLSAuthConfig{
+					ClientKeyFile:  "-",
+					ClientCertFile: "-",
+					CAFile:         "-",
+				},
+			},
+
+			f: require.NoError,
+		},
+		{
+			name: "TLS missing parameter",
+			cfg: &Config{
+				Addr: "-",
+				TLS: TLSAuthConfig{
+					ClientKeyFile:  "-",
+					ClientCertFile: "",
+					CAFile:         "-",
+				},
+			},
+			f: require.Error,
+		},
+		{
+			name: "Azure ok",
+			cfg: &Config{
+				Addr: "-",
+				TLS: TLSAuthConfig{
+					ClientKeyFile:  "",
+					ClientCertFile: "",
+					CAFile:         "-",
+				},
+				Azure: AzureAuthConfig{
+					Username: "-",
+				},
+			},
+			f: require.NoError,
+		},
+		{
+			name: "TLS Azure conflict",
+			cfg: &Config{
+				Addr: "-",
+				TLS: TLSAuthConfig{
+					ClientKeyFile:  "-",
+					ClientCertFile: "-",
+					CAFile:         "-",
+				},
+				Azure: AzureAuthConfig{
+					Username: "-",
+				},
+			},
+			f: require.Error,
+		},
+		{
+			name: "Double username",
+			cfg: &Config{
+				Addr: "-",
+				TLS: TLSAuthConfig{
+					CAFile:   "-",
+					Username: "-",
+				},
+				Azure: AzureAuthConfig{
+					Username: "-",
+				},
+			},
+			f: require.Error,
+		},
+		{
+			name: "TLS with Azure client ID",
+			cfg: &Config{
+				Addr: "-",
+				TLS: TLSAuthConfig{
+					ClientKeyFile:  "-",
+					ClientCertFile: "-",
+					CAFile:         "-",
+					Username:       "-",
+				},
+				Azure: AzureAuthConfig{
+					Username: "",
+					ClientID: "-",
+				},
+			},
+			f: require.Error,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.Log = &logrus.Entry{}
+			tt.cfg.Clock = clockwork.NewRealClock()
+			tt.f(t, tt.cfg.CheckAndSetDefaults())
+		})
+	}
+}
 
 func TestRetryTx(t *testing.T) {
 	ctx := context.Background()
