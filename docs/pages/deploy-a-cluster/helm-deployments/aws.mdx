@@ -106,46 +106,11 @@ You'll need to replace these values in the policy example below:
 
 ### S3 IAM policy
 
-You'll need to replace these values in the policy example below:
+(!docs/pages/includes/s3-iam-policy.mdx!)
 
-| Placeholder value | Replace with |
-| - | - |
-| `teleport-helm-sessions` | Name to use for the Teleport S3 session recording bucket |
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "BucketActions",
-            "Effect": "Allow",
-            "Action": [
-                "s3:PutEncryptionConfiguration",
-                "s3:PutBucketVersioning",
-                "s3:ListBucketVersions",
-                "s3:ListBucketMultipartUploads",
-                "s3:ListBucket",
-                "s3:GetEncryptionConfiguration",
-                "s3:GetBucketVersioning",
-                "s3:CreateBucket"
-            ],
-            "Resource": "arn:aws:s3:::teleport-helm-sessions"
-        },
-        {
-            "Sid": "ObjectActions",
-            "Effect": "Allow",
-            "Action": [
-                "s3:GetObjectVersion",
-                "s3:GetObjectRetention",
-                "s3:*Object",
-                "s3:ListMultipartUploadParts",
-                "s3:AbortMultipartUpload"
-            ],
-            "Resource": "arn:aws:s3:::teleport-helm-sessions/*"
-        }
-    ]
-}
-```
+Note that Teleport will only use S3 buckets with versioning enabled. This
+ensures that a session log cannot be permanently altered or deleted, as
+Teleport will always look at the oldest version of a recording.
 
 ## Step 4/7. Configure TLS certificates for Teleport
 

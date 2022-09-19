@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"testing"
 	"time"
 
@@ -520,7 +519,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Keygen = testauthority.New()
 	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.FileDescriptors = i.Fds
+	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
 
 	i.Config = tconf
 	return tconf, nil
@@ -963,28 +962,31 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 }
 
 // ProxyConfig is a set of configuration parameters for Proxy
+// TODO(tcsc): Add file descriptor slice to inject FDs into proxy process
 type ProxyConfig struct {
 	// Name is a proxy name
 	Name string
-	// SSHPort is SSH proxy port
-	SSHPort int
-	// WebPort is web proxy port
-	WebPort int
-	// ReverseTunnelPort is a port for reverse tunnel addresses
-	ReverseTunnelPort int
+	// SSHAddr the address the node ssh service should listen on
+	SSHAddr string
+	// WebAddr the address the web service should listen on
+	WebAddr string
+	// ReverseTunnelAddr the address the reverse proxy service should listen on
+	ReverseTunnelAddr string
 	// Disable the web service
 	DisableWebService bool
 	// Disable the web ui
 	DisableWebInterface bool
 	// Disable ALPN routing
 	DisableALPNSNIListener bool
+	// FileDescriptors holds FDs to be injected into the Teleport process
+	FileDescriptors []service.FileDescriptor
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error) {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	i.tempDirs = append(i.tempDirs, dataDir)
 
@@ -1005,7 +1007,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.SSH.Enabled = false
 
 	tconf.Proxy.Enabled = true
-	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.SSHPort))
+	tconf.Proxy.SSHAddr.Addr = cfg.SSHAddr
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1016,19 +1018,20 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 			Addr:        Host,
 		},
 	}
-	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.ReverseTunnelPort))
-	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
+	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunnelAddr
+	tconf.Proxy.WebAddr.Addr = cfg.WebAddr
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.FileDescriptors = cfg.FileDescriptors
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	i.Nodes = append(i.Nodes, process)
 
@@ -1042,7 +1045,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(process, expectedEvents)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
@@ -1055,12 +1058,16 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 		case service.ProxyReverseTunnelReady:
 			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
-				return ts, nil
+				return ts, process, nil
 			}
 		}
 	}
 
-	return nil, nil
+	// If we get to here then something has gone seriously wrong as we can't find
+	// the event in `receivedEvents` that we explicitly asserted was there
+	// in `StartAndWait()`.
+	return nil, nil, trace.Errorf("Missing expected %v event in %v",
+		service.ProxyReverseTunnelReady, receivedEvents)
 }
 
 // Reset re-creates the teleport instance based on the same configuration
@@ -1213,15 +1220,6 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		return nil, err
 	}
 
-	proxyConf := &i.Config.Proxy
-	var proxyHost string
-	if !proxyConf.SSHAddr.IsEmpty() {
-		proxyHost, _, err = net.SplitHostPort(proxyConf.SSHAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	var webProxyAddr string
 	var sshProxyAddr string
 
@@ -1229,8 +1227,8 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
 	} else {
-		webProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.WebPort))
-		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
+		webProxyAddr = cfg.Proxy.WebAddr
+		sshProxyAddr = cfg.Proxy.SSHAddr
 	}
 
 	fwdAgentMode := client.ForwardAgentNo
