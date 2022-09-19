@@ -34,7 +34,7 @@ like to set up Teleport for production usage, please see:
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Open Source or Enterprise.
-- Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later.
+- Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later (or the Compose plugin for Docker).
 
 ```code
 $ docker-compose version
@@ -153,7 +153,7 @@ Port `443` on the Teleport container is published to the local host, so you can 
 Let's unpack some of the setup that made the demo possible.
 Teleport's authentication is based on client certificates and certificate authorities.
 
-Here is `ssh.cfg` that instructs `ssh` client to use Teleport
+Here is `~/.ssh/config`, which instructs the `ssh` client to use Teleport
 as a bastion server:
 
 ```
@@ -188,7 +188,7 @@ HostKey /mnt/shared/certs/mars.openssh.teleport
 HostCertificate /mnt/shared/certs/mars.openssh.teleport-cert.pub
 ```
 
-Teleport's user and role for used for bot access:
+Teleport's user and role used for bot access:
 
 ```yaml
 kind: role

@@ -210,13 +210,13 @@ type accessChecker struct {
 // NewAccessChecker returns a new AccessChecker which can be used to check
 // access to resources.
 // Args:
-// - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
-//   for the identity.
-// - `localCluster string` should be the name of the local cluster in which
-//   access will be checked. You cannot check for access to resources in remote
-//   clusters.
-// - `access RoleGetter` should be a RoleGetter which will be used to fetch the
-//   full RoleSet
+//   - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
+//     for the identity.
+//   - `localCluster string` should be the name of the local cluster in which
+//     access will be checked. You cannot check for access to resources in remote
+//     clusters.
+//   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
+//     full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {

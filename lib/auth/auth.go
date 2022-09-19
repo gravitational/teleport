@@ -95,6 +95,11 @@ const (
 	MaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
 )
 
+const (
+	// githubCacheTimeout is how long Github org entries are cached.
+	githubCacheTimeout = time.Hour
+)
+
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
 
@@ -240,6 +245,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence),
 		traceClient:     cfg.TraceClient,
+		fips:            cfg.FIPS,
 		loadAllHostCAs:  cfg.LoadAllHostCAs,
 	}
 	for _, o := range opts {
@@ -249,6 +255,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
+	}
+	as.githubOrgSSOCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: githubCacheTimeout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &as, nil
@@ -420,9 +432,16 @@ type Server struct {
 
 	inventory *inventory.Controller
 
+	// githubOrgSSOCache is used to cache whether Github organizations use
+	// external SSO or not.
+	githubOrgSSOCache *utils.FnCache
+
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
+
+	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	fips bool
 
 	// loadAllHostCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllHostCAs bool
