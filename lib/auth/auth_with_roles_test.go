@@ -3786,19 +3786,19 @@ func TestGenerateHostCert(t *testing.T) {
 
 			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
-// TestBuiltinRolesHavePermissionsForUploaderService verifies that all of Teleport's
+		})
+	}
+}
+
+// TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
 // builtin roles have permissions to execute the calls required by the uploader service.
 // This is because only one uploader service runs per Teleport process, and it will use
 // the first available identity.
-func TestBuiltinRolesHavePermissionsForUploaderService(t *testing.T) {
+func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	for _, role := range []types.SystemRole{
-		types.RoleProxy, types.RoleNode,
-		types.RoleDatabase, types.RoleKube,
-		types.RoleApp, types.RoleWindowsDesktop,
-	} {
+	for _, role := range types.LocalServiceMappings() {
 		t.Run(role.String(), func(t *testing.T) {
 			ctx := context.Background()
 
@@ -3808,7 +3808,6 @@ func TestBuiltinRolesHavePermissionsForUploaderService(t *testing.T) {
 
 			s := &ServerWithRoles{
 				authServer: srv.AuthServer,
-				sessions:   srv.SessionServer,
 				alog:       srv.AuditLog,
 				context:    *authContext,
 			}
