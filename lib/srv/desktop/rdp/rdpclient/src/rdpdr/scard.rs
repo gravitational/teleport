@@ -1932,9 +1932,9 @@ impl ReadCache_Return {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-struct WriteCache_Call {
-    lookup_name: String,
-    common: WriteCache_Common,
+pub(crate) struct WriteCache_Call {
+    pub lookup_name: String,
+    pub common: WriteCache_Common,
 }
 
 impl WriteCache_Call {
@@ -1955,13 +1955,31 @@ impl WriteCache_Call {
     }
 }
 
+impl Encode for WriteCache_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?; // _lookup_name_ptr
+        self.common.encode_ptr(&mut index, &mut w)?;
+
+        w.extend(encode_str_unicode(&self.lookup_name)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
-struct WriteCache_Common {
-    context: Context,
-    card_uuid: Vec<u8>,
-    freshness_counter: u32,
-    data: Vec<u8>,
+pub(crate) struct WriteCache_Common {
+    pub context: Context,
+    pub card_uuid: Vec<u8>,
+    pub freshness_counter: u32,
+    pub data: Vec<u8>,
 }
 
 impl WriteCache_Common {
@@ -1989,6 +2007,24 @@ impl WriteCache_Common {
         self.data.resize(data_len as usize, 0);
         payload.read_exact(&mut self.data)?;
 
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        encode_ptr(None, index, w)?; // _card_uuid_ptr
+        w.write_u32::<LittleEndian>(self.freshness_counter)?;
+        encode_ptr(Some(0), index, w)?; // _data_len and _data_ptr
+
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        self.context.encode_value(w)?;
+        w.extend_from_slice(&self.card_uuid);
+
+        w.write_u32::<LittleEndian>(self.data.len() as u32)?;
+        w.extend_from_slice(&self.data);
         Ok(())
     }
 }
