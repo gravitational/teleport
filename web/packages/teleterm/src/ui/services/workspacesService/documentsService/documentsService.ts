@@ -22,6 +22,7 @@ import {
   CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
   CreateNewTerminalOpts,
+  CreateTshKubeDocumentOptions,
   Document,
   DocumentCluster,
   DocumentGateway,
@@ -60,8 +61,10 @@ export class DocumentsService {
     };
   }
 
-  createTshKubeDocument(kubeUri: string): DocumentTshKube {
-    const { params } = routing.parseKubeUri(kubeUri);
+  createTshKubeDocument(
+    options: CreateTshKubeDocumentOptions
+  ): DocumentTshKube {
+    const { params } = routing.parseKubeUri(options.kubeUri);
     const uri = routing.getDocUri({ docId: unique() });
     return {
       uri,
@@ -70,7 +73,8 @@ export class DocumentsService {
       rootClusterId: params.rootClusterId,
       leafClusterId: params.leafClusterId,
       kubeId: params.kubeId,
-      kubeUri,
+      kubeUri: options.kubeUri,
+      kubeConfigName: options.kubeConfigName || `${params.kubeId}-${unique(5)}`,
       title: params.kubeId,
     };
   }

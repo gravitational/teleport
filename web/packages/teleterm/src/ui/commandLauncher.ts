@@ -17,6 +17,7 @@ limitations under the License.
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
 import { tsh } from 'teleterm/ui/services/clusters/types';
+import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
@@ -91,8 +92,16 @@ const commands = {
     run(ctx: IAppContext, args: { kubeUri: string }) {
       const documentsService =
         ctx.workspacesService.getActiveWorkspaceDocumentService();
-      const kubeDoc = documentsService.createTshKubeDocument(args.kubeUri);
-      documentsService.add(kubeDoc);
+      const kubeDoc = documentsService.createTshKubeDocument({
+        kubeUri: args.kubeUri,
+      });
+      const connection = ctx.connectionTracker.findConnectionByDocument(
+        kubeDoc
+      ) as TrackedKubeConnection;
+      documentsService.add({
+        ...kubeDoc,
+        kubeConfigName: connection?.kubeConfigName || kubeDoc.kubeConfigName,
+      });
       documentsService.open(kubeDoc.uri);
     },
   },

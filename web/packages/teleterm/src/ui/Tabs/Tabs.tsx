@@ -59,6 +59,7 @@ export function Tabs(props: Props) {
               onClose={() => onClose(item)}
               onContextMenu={() => onContextMenu(item)}
               onMoved={onMoved}
+              isLoading={getIsLoading(item)}
               closeTabTooltip={closeTabTooltip}
             />
             <Separator />
@@ -83,6 +84,16 @@ export function Tabs(props: Props) {
       </ButtonIcon>
     </StyledTabs>
   );
+}
+
+function getIsLoading(doc: Document): boolean {
+  switch (doc.kind) {
+    case 'doc.terminal_tsh_kube':
+    case 'doc.terminal_tsh_node':
+      return doc.status === 'connecting';
+    default:
+      return false;
+  }
 }
 
 type Props = {

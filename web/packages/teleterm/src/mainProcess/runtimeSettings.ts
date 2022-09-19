@@ -64,6 +64,7 @@ function getRuntimeSettings(): RuntimeSettings {
     binDir,
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
+    kubeConfigsDir: getKubeConfigsDir(),
     platform: process.platform,
   };
 }
@@ -78,6 +79,14 @@ function getCertsDir() {
     fs.mkdirSync(certsPath);
   }
   return certsPath;
+}
+
+function getKubeConfigsDir(): string {
+  const kubeConfigsPath = path.resolve(app.getPath('userData'), 'kube');
+  if (!fs.existsSync(kubeConfigsPath)) {
+    fs.mkdirSync(kubeConfigsPath);
+  }
+  return kubeConfigsPath;
 }
 
 function getTshHomeDir() {

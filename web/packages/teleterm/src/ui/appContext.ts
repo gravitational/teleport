@@ -52,6 +52,7 @@ export default class AppContext implements IAppContext {
     this.notificationsService = new NotificationsService();
     this.clustersService = new ClustersService(
       tshClient,
+      this.mainProcessClient,
       this.notificationsService
     );
     this.workspacesService = new WorkspacesService(

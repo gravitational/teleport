@@ -1,9 +1,13 @@
-import { delimiter } from 'path';
+import path, { delimiter } from 'path';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
 
-import { PtyCommand, PtyProcessCreationStatus } from '../types';
+import {
+  PtyCommand,
+  PtyProcessCreationStatus,
+  TshKubeLoginCommand,
+} from '../types';
 
 import {
   resolveShellEnvCached,
@@ -75,20 +79,23 @@ function getPtyProcessOptions(
         initCommand: cmd.initCommand,
       };
 
-    case 'pty.tsh-kube-login':
+    case 'pty.tsh-kube-login': {
+      const isWindows = settings.platform === 'win32';
+
+      // backtick (PowerShell) and backslash (Bash) are used to escape a whitespace
+      const escapedBinaryPath = settings.tshd.binaryPath.replaceAll(
+        ' ',
+        isWindows ? '` ' : '\\ '
+      );
+      const kubeLoginCommand = `${escapedBinaryPath} --proxy=${cmd.rootClusterId} kube login ${cmd.kubeId} --cluster=${cmd.clusterName}`;
+      const bashCommandArgs = ['-c', `${kubeLoginCommand};$SHELL`];
+      const powershellCommandArgs = ['-NoExit', '-c', kubeLoginCommand];
       return {
-        //path: settings.tshd.binaryPath,
         path: settings.defaultShell,
-        args: [
-          `-c`,
-          `${settings.tshd.binaryPath}`,
-          `--proxy=${cmd.rootClusterId}`,
-          `kube`,
-          `login`,
-          `${cmd.kubeId}`,
-        ],
-        env,
+        args: isWindows ? powershellCommandArgs : bashCommandArgs,
+        env: { ...env, KUBECONFIG: getKubeConfigFilePath(cmd, settings) },
       };
+    }
 
     case 'pty.tsh-login':
       const loginHost = cmd.login
@@ -114,4 +121,11 @@ function prependBinDirToPath(
     .map(path => path?.trim())
     .filter(Boolean)
     .join(delimiter);
+}
+
+function getKubeConfigFilePath(
+  command: TshKubeLoginCommand,
+  settings: RuntimeSettings
+): string {
+  return path.join(settings.kubeConfigsDir, command.kubeConfigName);
 }

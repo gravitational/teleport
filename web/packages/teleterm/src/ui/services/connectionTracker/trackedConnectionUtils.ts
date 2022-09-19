@@ -1,10 +1,15 @@
 import {
   DocumentGateway,
+  DocumentTshKube,
   DocumentTshNode,
 } from 'teleterm/ui/services/workspacesService';
 import { unique } from 'teleterm/ui/utils/uid';
 
-import { TrackedGatewayConnection, TrackedServerConnection } from './types';
+import {
+  TrackedGatewayConnection,
+  TrackedKubeConnection,
+  TrackedServerConnection,
+} from './types';
 
 export function getGatewayConnectionByDocument(document: DocumentGateway) {
   return (i: TrackedGatewayConnection) =>
@@ -20,6 +25,11 @@ export function getServerConnectionByDocument(document: DocumentTshNode) {
     i.login === document.login;
 }
 
+export function getKubeConnectionByDocument(document: DocumentTshKube) {
+  return (i: TrackedKubeConnection) =>
+    i.kind === 'connection.kube' && i.kubeUri === document.kubeUri;
+}
+
 export function getGatewayDocumentByConnection(
   connection: TrackedGatewayConnection
 ) {
@@ -27,6 +37,11 @@ export function getGatewayDocumentByConnection(
     i.kind === 'doc.gateway' &&
     i.targetUri === connection.targetUri &&
     i.targetUser === connection.targetUser;
+}
+
+export function getKubeDocumentByConnection(connection: TrackedKubeConnection) {
+  return (i: DocumentTshKube) =>
+    i.kind === 'doc.terminal_tsh_kube' && i.kubeUri === connection.kubeUri;
 }
 
 export function getServerDocumentByConnection(
@@ -65,5 +80,18 @@ export function createServerConnection(
     title: document.title,
     login: document.login,
     serverUri: document.serverUri,
+  };
+}
+
+export function createKubeConnection(
+  document: DocumentTshKube
+): TrackedKubeConnection {
+  return {
+    kind: 'connection.kube',
+    connected: document.status === 'connected',
+    id: unique(),
+    title: document.title,
+    kubeConfigName: document.kubeConfigName,
+    kubeUri: document.kubeUri,
   };
 }

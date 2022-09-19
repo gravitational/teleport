@@ -61,7 +61,7 @@ const StyledNav = styled(Flex)`
 function createItems(ctx: ClusterContext): SideNavItem[] {
   const serverCount = ctx.getServers().length;
   const dbCount = ctx.getDbs().length;
-  // const kubeCount = ctx.getKubes().length;
+  const kubeCount = ctx.getKubes().length;
   // const appCount = ctx.getApps().length;
 
   return [
@@ -73,10 +73,10 @@ function createItems(ctx: ClusterContext): SideNavItem[] {
       to: '/resources/databases',
       title: `Databases (${dbCount})`,
     },
-    // {
-    //   to: '/resources/kubes',
-    //   title: `Kubes (${kubeCount})`,
-    // },
+    {
+      to: '/resources/kubes',
+      title: `Kubes (${kubeCount})`,
+    },
     // {
     //   to: '/resources/apps',
     //   title: `Apps (${appCount})`,

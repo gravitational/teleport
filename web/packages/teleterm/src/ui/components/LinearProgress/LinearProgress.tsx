@@ -17,7 +17,11 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-const LinearProgress: React.FC = () => {
+interface LinearProgressProps {
+  transparentBackground?: boolean;
+}
+
+const LinearProgress = (props: LinearProgressProps) => {
   return (
     <div
       style={{
@@ -27,7 +31,7 @@ const LinearProgress: React.FC = () => {
         bottom: '0',
       }}
     >
-      <StyledProgress>
+      <StyledProgress transparentBackground={props.transparentBackground}>
         <div className="parent-bar-2" />
       </StyledProgress>
     </div>
@@ -40,7 +44,8 @@ const StyledProgress = styled.div`
   display: block;
   height: 1px;
   z-index: 0;
-  background-color: #222c59;
+  background-color: ${props =>
+    props.transparentBackground ? 'transparent' : '#222c59'};
 
   .parent-bar-2 {
     position: absolute;
@@ -51,7 +56,7 @@ const StyledProgress = styled.div`
     transform-origin: left;
     background-color: #1976d2;
     animation: animation-linear-progress 2s cubic-bezier(0.165, 0.84, 0.44, 1)
-      1s infinite;
+      0.1s infinite;
   }
 
   @keyframes animation-linear-progress {

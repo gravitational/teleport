@@ -1,20 +1,18 @@
 type TrackedConnectionBase = {
-  kind: 'connection.server' | 'connection.gateway';
   connected: boolean;
+  id: string;
+  title: string;
 };
 
 export interface TrackedServerConnection extends TrackedConnectionBase {
   kind: 'connection.server';
   title: string;
-  id: string;
   serverUri: string;
   login: string;
 }
 
 export interface TrackedGatewayConnection extends TrackedConnectionBase {
   kind: 'connection.gateway';
-  title: string;
-  id: string;
   targetUri: string;
   targetName: string;
   targetUser?: string;
@@ -23,9 +21,16 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
   targetSubresourceName?: string;
 }
 
+export interface TrackedKubeConnection extends TrackedConnectionBase {
+  kind: 'connection.kube';
+  kubeConfigName: string;
+  kubeUri: string;
+}
+
 export type TrackedConnection =
   | TrackedServerConnection
-  | TrackedGatewayConnection;
+  | TrackedGatewayConnection
+  | TrackedKubeConnection;
 
 export type ExtendedTrackedConnection = TrackedConnection & {
   clusterName: string;

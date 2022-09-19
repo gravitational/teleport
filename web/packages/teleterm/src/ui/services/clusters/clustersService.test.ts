@@ -93,7 +93,11 @@ function createService(
   client: Partial<tsh.TshClient>,
   notificationsService?: NotificationsService
 ): ClustersService {
-  return new ClustersService(client as tsh.TshClient, notificationsService);
+  return new ClustersService(
+    client as tsh.TshClient,
+    undefined,
+    notificationsService
+  );
 }
 
 function getClientMocks(): Partial<tsh.TshClient> {
