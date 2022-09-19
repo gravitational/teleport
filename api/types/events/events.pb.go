@@ -7352,13 +7352,16 @@ type ElasticsearchRequest struct {
 	// Body is the request HTTP body.
 	Body []byte `protobuf:"bytes,8,opt,name=Body,proto3" json:"body"`
 	// Headers are the HTTP request headers.
-	Headers              github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,9,opt,name=Headers,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"headers,omitempty"`
-	Category             ElasticsearchCategory                                       `protobuf:"varint,10,opt,name=Category,proto3,enum=events.ElasticsearchCategory" json:"Category,omitempty"`
-	Target               string                                                      `protobuf:"bytes,11,opt,name=Target,proto3" json:"Target,omitempty"`
-	Query                string                                                      `protobuf:"bytes,12,opt,name=Query,proto3" json:"Query,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                                                    `json:"-"`
-	XXX_unrecognized     []byte                                                      `json:"-"`
-	XXX_sizecache        int32                                                       `json:"-"`
+	Headers github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,9,opt,name=Headers,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"headers,omitempty"`
+	// Category represents the category if API being accessed in a given request.
+	Category ElasticsearchCategory `protobuf:"varint,10,opt,name=Category,proto3,enum=events.ElasticsearchCategory" json:"Category,omitempty"`
+	// Target is an optional field indicating the target index or set of indices used as a subject of request.
+	Target string `protobuf:"bytes,11,opt,name=Target,proto3" json:"Target,omitempty"`
+	// Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
+	Query                string   `protobuf:"bytes,12,opt,name=Query,proto3" json:"Query,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ElasticsearchRequest) Reset()         { *m = ElasticsearchRequest{} }
