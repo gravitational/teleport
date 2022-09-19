@@ -202,11 +202,11 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 }
 
 // matchAndFilterKubeClusters is similar to MatchResourceByFilters, but does two things in addition:
-//  1) handles kube service having a 1-N relationship (service-clusters)
+//  1. handles kube service having a 1-N relationship (service-clusters)
 //     so each kube cluster goes through the filters
-//  2) filters out the non-matched clusters on the kube service and the kube service is
+//  2. filters out the non-matched clusters on the kube service and the kube service is
 //     modified in place with only the matched clusters
-//  3) only returns true if the service contained any matched cluster
+//  3. only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
 	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
 		return true, nil

@@ -653,9 +653,10 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 // NewResourceParser returns a parser made for boolean expressions based on a
 // json-serialiable resource. Customized to allow short identifiers common in all
 // resources:
-//  - `metadata.name` can be referenced with `name` ie: `name == "jenkins"``
-//  - `metadata.labels + spec.dynamic_labels` can be referenced with `labels`
+//   - `metadata.name` can be referenced with `name` ie: `name == "jenkins"“
+//   - `metadata.labels + spec.dynamic_labels` can be referenced with `labels`
 //     ie: `labels.env == "prod"`
+//
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
 func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, error) {
