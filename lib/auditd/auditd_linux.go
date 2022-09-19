@@ -66,19 +66,18 @@ type Client struct {
 
 // auditStatus represent auditd status.
 // Struct comes https://github.com/linux-audit/audit-userspace/blob/222dbaf5de27ab85e7aafcc7ea2cb68af2eab9b9/docs/audit_request_status.3#L19
-// and has been updated to include fields added to the kernel more recently.
 type auditStatus struct {
-	Mask                  uint32 /* Bit mask for valid entries */
-	Enabled               uint32 /* 1 = enabled, 0 = disabled */
-	Failure               uint32 /* Failure-to-log action */
-	PID                   uint32 /* pid of auditd process */
-	RateLimit             uint32 /* messages rate limit (per second) */
-	BacklogLimit          uint32 /* waiting messages limit */
-	Lost                  uint32 /* messages lost */
-	Backlog               uint32 /* messages waiting in queue */
-	Version               uint32 /* audit api version number or feature bitmap */
-	BacklogWaitTime       uint32 /* message queue wait timeout */
-	BacklogWaitTimeActual uint32 /* message queue wait timeout */
+	Mask         uint32 /* Bit mask for valid entries */
+	Enabled      uint32 /* 1 = enabled, 0 = disabled */
+	Failure      uint32 /* Failure-to-log action */
+	PID          uint32 /* pid of auditd process */
+	RateLimit    uint32 /* messages rate limit (per second) */
+	BacklogLimit uint32 /* waiting messages limit */
+	Lost         uint32 /* messages lost */
+	Backlog      uint32 /* messages waiting in queue */
+	// Newer kernels have more fields, but adding them here will cause
+	// compatibility issues with older kernels (3.10 for example).
+	// ref: https://github.com/gravitational/teleport/issues/16267
 }
 
 // IsLoginUIDSet returns true if login UID is set, false otherwise.
