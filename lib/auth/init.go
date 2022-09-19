@@ -186,8 +186,14 @@ type InitConfig struct {
 	// TraceClient is used to forward spans to the upstream telemetry collector
 	TraceClient otlptrace.Client
 
+	// Kubernetes is a service that manages kubernetes cluster resources.
+	Kubernetes services.Kubernetes
+
 	// AssertionReplayService is a service that mitigatates SSO assertion replay.
 	*local.AssertionReplayService
+
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -533,6 +539,18 @@ func createPresets(ctx context.Context, asrv *Server) error {
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
+			}
+
+			currentRole, err := asrv.GetRole(ctx, role.GetName())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			role = services.AddDefaultAllowRules(currentRole)
+
+			err = asrv.UpsertRole(ctx, role)
+			if err != nil {
+				return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
 			}
 		}
 	}
