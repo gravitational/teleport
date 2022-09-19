@@ -28,10 +28,10 @@ deployments, use your own private key and certificate.
 
     ```yaml
     proxy_service:
-    enabled: "yes"
-    web_listen_addr: :443
-    public_addr: tele.example.com:443
-    acme:
+      enabled: "yes"
+      web_listen_addr: 0.0.0.0:443
+      public_addr: tele.example.com:443
+      acme:
         enabled: "yes"
         email: user@example.com
     ```
