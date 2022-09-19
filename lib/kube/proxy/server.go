@@ -93,7 +93,8 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
-
+	// this is used to infer if the service should start when no kube clusters are provided.
+	c.resourceMatchers = c.ResourceMatchers
 	return nil
 }
 
@@ -135,12 +136,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	fwd, err := NewForwarder(log, cfg.ForwarderConfig)
-	// if load kubeconfig returned an error but the service is willing to start
-	// with resource watcher we let the service continue
-	if err != nil && (!trace.IsBadParameter(err) ||
-		cfg.KubeServiceType != KubeService ||
-		len(cfg.ResourceMatchers) == 0) {
+	cfg.ForwarderConfig.log = log
+	fwd, err := NewForwarder(cfg.ForwarderConfig)
+	if err != nil {
 		return nil, trace.Wrap(err)
 
 	}
@@ -170,7 +168,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		monitoredKubeClusters: monitoredKubeClusters{
 			static: fwd.kubeClusters(),
 		},
-		reconcileCh: make(chan struct{}, 1),
+		reconcileCh: make(chan struct{}),
 		log:         log,
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient

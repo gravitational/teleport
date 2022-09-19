@@ -91,7 +91,7 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 		WithField("kubeconfigPath", kubeconfigPath).
 		WithField("kubeClusterName", kubeClusterName).
 		WithField("serviceType", serviceType).
-		Debug("Reading Kubernetes detailsß.")
+		Debug("Reading Kubernetes details.")
 
 	// Proxy service should never have creds, forwards to kube service
 	if serviceType == ProxyService {
@@ -126,7 +126,7 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 				tpClusterName: currentContext,
 			}
 		} else {
-			return map[string]*kubeDetails{}, trace.BadParameter("no Kubernetes current-context found; Kubernetes proxy service requires either a valid kubeconfig_file with a current-context or to run inside of a Kubernetes pod")
+			return nil, trace.BadParameter("no Kubernetes current-context found; Kubernetes proxy service requires either a valid kubeconfig_file with a current-context or to run inside of a Kubernetes pod")
 		}
 	}
 

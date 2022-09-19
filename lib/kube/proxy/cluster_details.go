@@ -96,11 +96,11 @@ func parseKubeConfig(ctx context.Context, cluster types.KubeCluster, log *logrus
 			break
 		}
 	}
-
 	restConfig, err := clientcmd.NewDefaultClientConfig(*config, nil).ClientConfig()
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "unable to create client from kubeconfig for cluster %q", cluster.GetName())
 	}
 
-	return extractKubeCreds(ctx, cluster.GetName(), restConfig, log, checker)
+	creds, err := extractKubeCreds(ctx, cluster.GetName(), restConfig, log, checker)
+	return creds, trace.Wrap(err)
 }

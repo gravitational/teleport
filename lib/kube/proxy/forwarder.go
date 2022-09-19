@@ -155,6 +155,10 @@ type ForwarderConfig struct {
 	CheckImpersonationPermissions ImpersonationPermissionsChecker
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
+	// log is the logger function
+	log logrus.FieldLogger
+	// Selectors is a list of resource monitor selectors.
+	resourceMatchers []services.ResourceMatcher
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -216,12 +220,15 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 		// attempt loading the in-cluster credentials.
 		f.KubeClusterName = f.ClusterName
 	}
+	if f.log == nil {
+		f.log = logrus.New()
+	}
 	return nil
 }
 
 // NewForwarder returns new instance of Kubernetes request
 // forwarding proxy.
-func NewForwarder(log *logrus.Entry, cfg ForwarderConfig) (*Forwarder, error) {
+func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -234,7 +241,7 @@ func NewForwarder(log *logrus.Entry, cfg ForwarderConfig) (*Forwarder, error) {
 	closeCtx, close := context.WithCancel(cfg.Context)
 
 	fwd := &Forwarder{
-		log:               log,
+		log:               cfg.log,
 		router:            *httprouter.New(),
 		cfg:               cfg,
 		clientCredentials: clientCredentials,
@@ -267,9 +274,22 @@ func NewForwarder(log *logrus.Entry, cfg ForwarderConfig) (*Forwarder, error) {
 		fwd.log.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
 	}
 
-	fwd.clusterDetails, err = getKubeDetails(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, cfg.CheckImpersonationPermissions)
+	fwd.clusterDetails, err = getKubeDetails(cfg.Context, fwd.log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, cfg.CheckImpersonationPermissions)
 
-	return fwd, trace.Wrap(err)
+	// if kubeconfig parsing returned a BadParameter error - no clusters provided-
+	// but the service is willing to start as resource a watcher,
+	// we let the service continue otherwise we return an error.
+	if err != nil && (!trace.IsBadParameter(err) ||
+		cfg.KubeServiceType != KubeService ||
+		len(cfg.resourceMatchers) == 0) {
+		return nil, trace.Wrap(err)
+	} else if fwd.clusterDetails == nil {
+		// if service is starting as resource watcher but clusterDetails is nil
+		// we create it.
+		fwd.clusterDetails = make(map[string]*kubeDetails)
+	}
+
+	return fwd, nil
 }
 
 // Forwarder intercepts kubernetes requests, acting as Kubernetes API proxy.
@@ -277,7 +297,7 @@ func NewForwarder(log *logrus.Entry, cfg ForwarderConfig) (*Forwarder, error) {
 // however some requests like exec sessions it intercepts and records.
 type Forwarder struct {
 	mu     sync.Mutex
-	log    *logrus.Entry
+	log    logrus.FieldLogger
 	router httprouter.Router
 	cfg    ForwarderConfig
 	// clientCredentials is an expiring cache of ephemeral client credentials.
@@ -2026,11 +2046,11 @@ func (f *Forwarder) getServiceStaticLabels() map[string]string {
 
 // kubeClusters returns the list of available clusters
 func (f *Forwarder) kubeClusters() types.KubeClusters {
-	f.rwMutexDetails.Lock()
-	defer f.rwMutexDetails.Unlock()
+	f.rwMutexDetails.RLock()
+	defer f.rwMutexDetails.RUnlock()
 	res := make(types.KubeClusters, 0, len(f.clusterDetails))
 	for n, cred := range f.clusterDetails {
-		cluster, err := f.newKubernetesClusterV3FromDetails(n, cred)
+		cluster, err := f.newKubernetesClusterV3FromDetails(cred)
 		if err != nil {
 			f.log.WithError(err).Warnf("Error while creating *types.KubernetesClusterV3 for cluster %q", n)
 			continue
@@ -2044,11 +2064,11 @@ func (f *Forwarder) kubeClusters() types.KubeClusters {
 
 // findKubeClusterByName searches for the cluster otherwise returns a trace.NotFound error.
 func (f *Forwarder) findKubeClusterByName(name string) (types.KubeCluster, error) {
-	f.rwMutexDetails.Lock()
-	defer f.rwMutexDetails.Unlock()
+	f.rwMutexDetails.RLock()
+	defer f.rwMutexDetails.RUnlock()
 
 	if creds, ok := f.clusterDetails[name]; ok {
-		return f.newKubernetesClusterV3FromDetails(name, creds)
+		return f.newKubernetesClusterV3FromDetails(creds)
 	}
 
 	return nil, trace.NotFound("cluster %s not found", name)
@@ -2056,7 +2076,7 @@ func (f *Forwarder) findKubeClusterByName(name string) (types.KubeCluster, error
 
 // newKubernetesClusterV3FromDetails copies the details.kubeCluster and populates it with the
 // kube_service's static and dynamic labels values.
-func (f *Forwarder) newKubernetesClusterV3FromDetails(name string, details *kubeDetails) (*types.KubernetesClusterV3, error) {
+func (f *Forwarder) newKubernetesClusterV3FromDetails(details *kubeDetails) (*types.KubernetesClusterV3, error) {
 	clonedCluster := details.kubeCluster.Copy()
 	clonedCluster.Metadata.Labels = f.getClusterStaticLabels(clonedCluster)
 	clonedCluster.Spec.DynamicLabels = f.getClusterDynamicLabels(details)
