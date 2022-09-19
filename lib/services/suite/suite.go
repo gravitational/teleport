@@ -651,30 +651,6 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	_, err = s.ProvisioningS.GetToken(ctx, "token")
 	require.True(t, trace.IsNotFound(err))
 
-	// check tokens backwards compatibility and marshal/unmarshal
-	expiry := time.Now().UTC().Add(time.Hour)
-	v1 := &types.ProvisionTokenV1{
-		Token:   "old",
-		Roles:   types.SystemRoles{types.RoleNode, types.RoleProxy},
-		Expires: expiry,
-	}
-	v2, err := types.NewProvisionToken(v1.Token, v1.Roles, expiry)
-	require.NoError(t, err)
-
-	// Tokens in different version formats are backwards and forwards
-	// compatible
-	// TODO: Fix these tests
-	// require.Empty(t, cmp.Diff(v1.V2(), v2))
-	// require.Empty(t, cmp.Diff(v2.V1(), v1))
-
-	// Marshal V1, unmarshal V2
-	data, err := services.MarshalProvisionToken(v2, services.WithVersion(types.V1))
-	require.NoError(t, err)
-
-	out, err := services.UnmarshalProvisionToken(data)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, v2))
-
 	// Test delete all tokens
 	tok, err = types.NewProvisionToken("token1", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
 	require.NoError(t, err)

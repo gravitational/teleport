@@ -133,7 +133,7 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 
 	switch provisionToken := provisionToken.(type) {
 	case *types.ProvisionTokenV2:
-		// For now, we continue to accept the marshalling of ProvisionTokenV2
+		// For now, we continue to accept the marshaling of ProvisionTokenV2
 		// Once we remove the RPCs for submitting ProvisionTokenV2s, we can
 		// remove the support here.
 		if !cfg.PreserveResourceID {

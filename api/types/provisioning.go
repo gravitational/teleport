@@ -76,7 +76,7 @@ type ProvisionToken interface {
 	// V2 returns the V2 representation of a ProvisionToken
 	// This exists for the transition period where the V2 Token RPCs still exist
 	// and we may need to be able to convert tokens to a V2 representation
-	// for serialisation.
+	// for serialization.
 	//
 	// The second return value is a boolean indicating if this token can be
 	// represented as v2, for cases where a new provider type is used, this
@@ -323,7 +323,7 @@ func (p ProvisionTokenV2) String() string {
 
 // V3 returns V3 version of the ProvisionTokenV2 resource.
 func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
-	t := &ProvisionTokenV3{
+	v3 := &ProvisionTokenV3{
 		Kind:     KindToken,
 		Version:  V3,
 		Metadata: p.GetMetadata(),
@@ -334,8 +334,30 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 			SuggestedLabels: p.Spec.SuggestedLabels,
 		},
 	}
-	// TODO: Add Provider specific configs.
-	return t
+	// Add provider specific config.
+	switch p.Spec.JoinMethod {
+	case JoinMethodIAM:
+		iam := &ProvisionTokenSpecV3AWSIAM{}
+		for _, rule := range p.Spec.Allow {
+			iam.Allow = append(iam.Allow, &ProvisionTokenSpecV3AWSIAM_Rule{
+				Account: rule.AWSAccount,
+				ARN:     rule.AWSARN,
+			})
+		}
+		v3.Spec.IAM = iam
+	case JoinMethodEC2:
+		ec2 := &ProvisionTokenSpecV3AWSEC2{}
+		for _, rule := range p.Spec.Allow {
+			ec2.Allow = append(ec2.Allow, &ProvisionTokenSpecV3AWSEC2_Rule{
+				Account: rule.AWSAccount,
+				Role:    rule.AWSRole,
+				Regions: rule.AWSRegions,
+			})
+		}
+		ec2.IIDTTL = p.Spec.AWSIIDTTL
+		v3.Spec.EC2 = ec2
+	}
+	return v3
 }
 
 func (p *ProvisionTokenV2) V2() (*ProvisionTokenV2, bool) {
@@ -474,11 +496,6 @@ func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
 				AWSRole:    rule.Role,
 			})
 		}
-	default:
-		// TODO: Decide if this is staying as a panic.
-		// Assuming CheckAndSetDefaults has always been called - we can sort
-		// of rely on this never happening...
-		panic("unrecognised join type")
 	}
 	return rules
 }
@@ -596,7 +613,24 @@ func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 }
 
 func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, bool) {
-	panic("implement")
+	v2 := &ProvisionTokenV2{
+		Kind:     KindToken,
+		Version:  V2,
+		Metadata: p.Metadata,
+		Spec: ProvisionTokenSpecV2{
+			Roles:           p.Spec.Roles,
+			BotName:         p.Spec.BotName,
+			JoinMethod:      p.Spec.JoinMethod,
+			SuggestedLabels: p.Spec.SuggestedLabels,
+			Allow:           p.GetAllowRules(),
+		},
+	}
+	if p.Spec.EC2 != nil {
+		v2.Spec.AWSIIDTTL = p.Spec.EC2.IIDTTL
+	}
+	// TODO: When non-backwards-compatible join methods are added,
+	// the conversion should return nil, false here
+	return v2, true
 }
 
 // Validation for provider specific config

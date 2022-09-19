@@ -19,6 +19,7 @@ package local
 import (
 	"bytes"
 	"context"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"

@@ -17,11 +17,11 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -343,6 +343,138 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 	}
 }
 
+func TestProvisionTokenV2_V3(t *testing.T) {
+	tests := []struct {
+		name  string
+		token *ProvisionTokenV2
+		want  *ProvisionTokenV3
+	}{
+		{
+			name: "token",
+			token: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      SystemRoles{RoleBot},
+					JoinMethod: JoinMethodToken,
+					BotName:    "bot-foo",
+					SuggestedLabels: Labels{
+						"label": []string{"foo"},
+					},
+				},
+			},
+			want: &ProvisionTokenV3{
+				Kind:    KindToken,
+				Version: V3,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV3{
+					Roles:      SystemRoles{RoleBot},
+					JoinMethod: JoinMethodToken,
+					BotName:    "bot-foo",
+					SuggestedLabels: Labels{
+						"label": []string{"foo"},
+					},
+				},
+			},
+		},
+		{
+			name: "iam",
+			token: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodIAM,
+					Allow: []*TokenRule{
+						{
+							AWSAccount: "xyzzy",
+							AWSARN:     "arn-123",
+						},
+					},
+				},
+			},
+			want: &ProvisionTokenV3{
+				Kind:    KindToken,
+				Version: V3,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV3{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodIAM,
+					IAM: &ProvisionTokenSpecV3AWSIAM{
+						Allow: []*ProvisionTokenSpecV3AWSIAM_Rule{
+							{
+								Account: "xyzzy",
+								ARN:     "arn-123",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "ec2",
+			token: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodEC2,
+					AWSIIDTTL:  NewDuration(time.Second * 37),
+					Allow: []*TokenRule{
+						{
+							AWSAccount: "a-account",
+							AWSRegions: []string{"a-region"},
+							AWSRole:    "a-role",
+						},
+					},
+				},
+			},
+			want: &ProvisionTokenV3{
+				Kind:    KindToken,
+				Version: V3,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV3{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodEC2,
+					EC2: &ProvisionTokenSpecV3AWSEC2{
+						IIDTTL: NewDuration(time.Second * 37),
+						Allow: []*ProvisionTokenSpecV3AWSEC2_Rule{
+							{
+								Account: "a-account",
+								Regions: []string{"a-region"},
+								Role:    "a-role",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v3 := tt.token.V3()
+			require.Equal(t, tt.want, v3)
+		})
+	}
+}
+
+// ProvisionTokenV3 tests
 func validProvisionTokenV3(modifier func(p *ProvisionTokenV3)) *ProvisionTokenV3 {
 	token := &ProvisionTokenV3{
 		Kind:    KindToken,
@@ -362,7 +494,6 @@ func validProvisionTokenV3(modifier func(p *ProvisionTokenV3)) *ProvisionTokenV3
 	return token
 }
 
-// ProvisionTokenV3 tests
 func TestProvisionTokenV3_CheckAndSetDefaults(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -434,7 +565,7 @@ func TestProvisionTokenV3_CheckAndSetDefaults(t *testing.T) {
 			wantErr: &trace.BadParameterError{},
 		},
 		{
-			name: "missing ec2 confgiuration",
+			name: "missing ec2 configuration",
 			token: validProvisionTokenV3(func(p *ProvisionTokenV3) {
 				p.Spec.JoinMethod = JoinMethodEC2
 			}),
@@ -444,12 +575,10 @@ func TestProvisionTokenV3_CheckAndSetDefaults(t *testing.T) {
 			name: "valid iam configuration",
 			token: validProvisionTokenV3(func(p *ProvisionTokenV3) {
 				p.Spec.JoinMethod = JoinMethodIAM
-				p.Spec.ProviderConfiguration = &ProvisionTokenSpecV3_IAM{
-					IAM: &ProvisionTokenSpecV3AWSIAM{
-						Allow: []*ProvisionTokenSpecV3AWSIAM_Rule{
-							{
-								Account: "foo",
-							},
+				p.Spec.IAM = &ProvisionTokenSpecV3AWSIAM{
+					Allow: []*ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "foo",
 						},
 					},
 				}
@@ -459,15 +588,13 @@ func TestProvisionTokenV3_CheckAndSetDefaults(t *testing.T) {
 			name: "valid ec2 configuration",
 			token: validProvisionTokenV3(func(p *ProvisionTokenV3) {
 				p.Spec.JoinMethod = JoinMethodEC2
-				p.Spec.ProviderConfiguration = &ProvisionTokenSpecV3_EC2{
-					EC2: &ProvisionTokenSpecV3AWSEC2{
-						Allow: []*ProvisionTokenSpecV3AWSEC2_Rule{
-							{
-								Account: "foo",
-							},
+				p.Spec.EC2 = &ProvisionTokenSpecV3AWSEC2{
+					Allow: []*ProvisionTokenSpecV3AWSEC2_Rule{
+						{
+							Account: "foo",
 						},
-						IIDTTL: NewDuration(time.Minute * 12),
 					},
+					IIDTTL: NewDuration(time.Minute * 12),
 				}
 			}),
 		},
@@ -505,19 +632,17 @@ func TestProvisionTokenV3_GetAllowRules(t *testing.T) {
 			token: ProvisionTokenV3{
 				Spec: ProvisionTokenSpecV3{
 					JoinMethod: JoinMethodEC2,
-					ProviderConfiguration: &ProvisionTokenSpecV3_EC2{
-						EC2: &ProvisionTokenSpecV3AWSEC2{
-							Allow: []*ProvisionTokenSpecV3AWSEC2_Rule{
-								{
-									Account: "foo",
-									Regions: []string{"eu-west-666", "us-coast-612"},
-									Role:    "a-role",
-								},
-								{
-									Account: "bar",
-									Regions: []string{"a-region"},
-									Role:    "b-role",
-								},
+					EC2: &ProvisionTokenSpecV3AWSEC2{
+						Allow: []*ProvisionTokenSpecV3AWSEC2_Rule{
+							{
+								Account: "foo",
+								Regions: []string{"eu-west-666", "us-coast-612"},
+								Role:    "a-role",
+							},
+							{
+								Account: "bar",
+								Regions: []string{"a-region"},
+								Role:    "b-role",
 							},
 						},
 					},
@@ -541,17 +666,15 @@ func TestProvisionTokenV3_GetAllowRules(t *testing.T) {
 			token: ProvisionTokenV3{
 				Spec: ProvisionTokenSpecV3{
 					JoinMethod: JoinMethodIAM,
-					ProviderConfiguration: &ProvisionTokenSpecV3_IAM{
-						IAM: &ProvisionTokenSpecV3AWSIAM{
-							Allow: []*ProvisionTokenSpecV3AWSIAM_Rule{
-								{
-									Account: "foo",
-									ARN:     "arn-amazon-foo",
-								},
-								{
-									Account: "bar",
-									ARN:     "arn-amazon-bar",
-								},
+					IAM: &ProvisionTokenSpecV3AWSIAM{
+						Allow: []*ProvisionTokenSpecV3AWSIAM_Rule{
+							{
+								Account: "foo",
+								ARN:     "arn-amazon-foo",
+							},
+							{
+								Account: "bar",
+								ARN:     "arn-amazon-bar",
 							},
 						},
 					},
@@ -590,14 +713,149 @@ func TestProvisionTokenV3_GetAWSIIDTTL(t *testing.T) {
 		duration := NewDuration(time.Second * 6)
 		p := ProvisionTokenV3{
 			Spec: ProvisionTokenSpecV3{
-				ProviderConfiguration: &ProvisionTokenSpecV3_EC2{
-					EC2: &ProvisionTokenSpecV3AWSEC2{
-						IIDTTL: duration,
-					},
+				EC2: &ProvisionTokenSpecV3AWSEC2{
+					IIDTTL: duration,
 				},
 			},
 		}
 		got := p.GetAWSIIDTTL()
 		require.Equal(t, duration, got)
 	})
+}
+
+func TestProvisionTokenV3_V2(t *testing.T) {
+	tests := []struct {
+		name     string
+		token    *ProvisionTokenV3
+		want     *ProvisionTokenV2
+		wantBool bool
+	}{
+		{
+			name: "token",
+			token: &ProvisionTokenV3{
+				Kind:    KindToken,
+				Version: V3,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV3{
+					Roles:      SystemRoles{RoleNop},
+					BotName:    "foo",
+					JoinMethod: JoinMethodToken,
+					SuggestedLabels: Labels{
+						"foo": []string{"bar"},
+					},
+				},
+			},
+			want: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      SystemRoles{RoleNop},
+					BotName:    "foo",
+					JoinMethod: JoinMethodToken,
+					SuggestedLabels: Labels{
+						"foo": []string{"bar"},
+					},
+					Allow: []*TokenRule{},
+				},
+			},
+			wantBool: true,
+		},
+		{
+			name: "ec2",
+			token: &ProvisionTokenV3{
+				Kind:    KindToken,
+				Version: V3,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV3{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodEC2,
+					EC2: &ProvisionTokenSpecV3AWSEC2{
+						IIDTTL: NewDuration(time.Minute * 300),
+						Allow: []*ProvisionTokenSpecV3AWSEC2_Rule{
+							{
+								Account: "xyzzy",
+								Regions: []string{"eurasia-1"},
+								Role:    "lord-commander",
+							},
+						},
+					},
+				},
+			},
+			want: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodEC2,
+					Allow: []*TokenRule{
+						{
+							AWSAccount: "xyzzy",
+							AWSRegions: []string{"eurasia-1"},
+							AWSRole:    "lord-commander",
+						},
+					},
+					AWSIIDTTL: NewDuration(time.Minute * 300),
+				},
+			},
+			wantBool: true,
+		},
+		{
+			name: "iam",
+			token: &ProvisionTokenV3{
+				Kind:    KindToken,
+				Version: V3,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV3{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodIAM,
+					IAM: &ProvisionTokenSpecV3AWSIAM{
+						Allow: []*ProvisionTokenSpecV3AWSIAM_Rule{
+							{
+								Account: "xyzzy",
+								ARN:     "arn-123",
+							},
+						},
+					},
+				},
+			},
+			want: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: JoinMethodIAM,
+					Allow: []*TokenRule{
+						{
+							AWSAccount: "xyzzy",
+							AWSARN:     "arn-123",
+						},
+					},
+				},
+			},
+			wantBool: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, gotBool := tt.token.V2()
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantBool, gotBool)
+		})
+	}
 }
