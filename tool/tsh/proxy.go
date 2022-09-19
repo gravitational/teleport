@@ -363,6 +363,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		routeToDatabase:  routeToDatabase,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
+		rootClusterName:  rootCluster,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -422,12 +423,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 }
 
 type localProxyOpts struct {
-	proxyAddr string
-	listener  net.Listener
-	protocols []alpncommon.Protocol
-	insecure  bool
-	certFile  string
-	keyFile   string
+	proxyAddr               string
+	listener                net.Listener
+	protocols               []alpncommon.Protocol
+	insecure                bool
+	certFile                string
+	keyFile                 string
+	rootCAs                 *x509.CertPool
+	alpnConnUpgradeRequired bool
 }
 
 // protocol returns the first protocol or string if configuration doesn't contain any protocols.
@@ -458,13 +461,15 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: opts.insecure,
-		RemoteProxyAddr:    opts.proxyAddr,
-		Protocols:          protocols,
-		Listener:           opts.listener,
-		ParentContext:      ctx,
-		SNI:                address.Host(),
-		Certs:              certs,
+		InsecureSkipVerify:      opts.insecure,
+		RemoteProxyAddr:         opts.proxyAddr,
+		Protocols:               protocols,
+		Listener:                opts.listener,
+		ParentContext:           ctx,
+		SNI:                     address.Host(),
+		Certs:                   certs,
+		RootCAs:                 opts.rootCAs,
+		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
