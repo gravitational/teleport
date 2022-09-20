@@ -37,6 +37,18 @@ const (
 	AttachmentPlatform
 )
 
+func (a AuthenticatorAttachment) String() string {
+	switch a {
+	case AttachmentAuto:
+		return "auto"
+	case AttachmentCrossPlatform:
+		return "cross-platform"
+	case AttachmentPlatform:
+		return "platform"
+	}
+	return ""
+}
+
 // CredentialInfo holds information about a WebAuthn credential, typically a
 // resident public key credential.
 type CredentialInfo struct {
