@@ -22,9 +22,8 @@ import (
 	"context"
 	random "math/rand"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -57,11 +56,11 @@ func (n *Keygen) GeneratePrivateKey() (*keys.PrivateKey, error) {
 	return keys.ParsePrivateKey(priv)
 }
 
-func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+func (n *Keygen) GetNewKeyPairFromPool() (priv []byte, pub []byte, err error) {
 	return n.GenerateKeyPair()
 }
 
-func (n *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
+func (n *Keygen) GenerateKeyPair() (priv []byte, pub []byte, err error) {
 	randomKey := testPairs[(random.Int() % len(testPairs))]
 	return randomKey.Priv, randomKey.Pub, nil
 }
@@ -74,7 +73,7 @@ func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return n.GenerateUserCertWithoutValidation(c)
 }
 
-func (n *Keygen) GenerateJWT() ([]byte, []byte, error) {
+func (n *Keygen) GenerateJWT() (pub []byte, priv []byte, err error) {
 	return []byte(`-----BEGIN RSA PUBLIC KEY-----
 MIIBCgKCAQEA+Igxw1i29PtAgaXOdJnkpPRaKANbIYvXpXZ3+UZ0MGYEnS01nqVE
 gSic9sDPKtPcw0Bj35u6/2TTJpB1BJqYrcMB1ahP2aRzBgomUSV1BPVLI7F7EH6U
