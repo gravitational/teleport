@@ -178,7 +178,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "basic passing case",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -202,7 +203,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "pass with multiple rules",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -230,7 +232,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "pass with multiple regions",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -254,7 +257,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "pass with no regions",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -277,7 +281,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "wrong account",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -301,7 +306,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "wrong region",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -325,7 +331,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "bad HostID",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -349,7 +356,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "no identity document",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -372,7 +380,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "bad identity document",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -396,7 +405,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "instance already joined",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -420,7 +430,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "instance already joined, fake ID",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -444,7 +455,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "instance not running",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -468,7 +480,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "instance not exists",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -492,7 +505,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "TTL expired",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
 						{
@@ -516,7 +530,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "custom TTL pass",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					IIDTTL: types.Duration(10 * time.Minute),
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
@@ -541,7 +556,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		{
 			desc: "custom TTL fail",
 			tokenSpec: types.ProvisionTokenSpecV3{
-				Roles: []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
 				EC2: &types.ProvisionTokenSpecV3AWSEC2{
 					IIDTTL: types.Duration(10 * time.Minute),
 					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
