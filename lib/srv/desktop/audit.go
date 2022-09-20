@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 )
@@ -67,6 +68,11 @@ func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emit
 }
 
 func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+	// Clean up the name map if applicable
+	s.sdMap.Lock()
+	delete(s.sdMap.m, sessionID)
+	s.sdMap.Unlock()
+
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -142,6 +148,59 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.
 		DesktopAddr: desktopAddr,
 		Length:      length,
 	}
+	s.emit(ctx, emitter, event)
+}
+
+// onSharedDirectoryAnnounce does not emit an audit event, but rather registers a directory's
+// name in the sharedDirectoryNameMap, which will be used to add audit log entries corresponding
+// to later Shared Directory TDP messages.
+func (s *WindowsService) onSharedDirectoryAnnounce(sessionID string, m tdp.SharedDirectoryAnnounce) {
+	s.sdMap.Lock()
+	defer s.sdMap.Unlock()
+
+	s.sdMap.m[sessionID] = m.Name
+}
+
+func (s *WindowsService) onSharedDirectoryAcknowledge(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, ack tdp.SharedDirectoryAcknowledge) {
+	succeeded := true
+	if ack.ErrCode != tdp.ErrCodeSuccess {
+		succeeded = false
+	}
+
+	var directoryName string
+	s.sdMap.Lock()
+	if n, ok := s.sdMap.m[sessionID]; ok {
+		directoryName = n
+
+	} else {
+		directoryName = "unknown"
+		s.cfg.Log.Errorf("received a SharedDirectoryAcknowledge event for unknown directory in session: %v", sessionID)
+	}
+	s.sdMap.Unlock()
+
+	event := &events.DesktopSharedDirectoryStart{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopSharedDirectoryStartEvent,
+			Code:        libevents.DesktopSharedDirectoryStartCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sessionID,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		Succeeded:     succeeded,
+		DesktopAddr:   desktopAddr,
+		DirectoryName: directoryName,
+		DirectoryID:   ack.DirectoryID,
+	}
+
 	s.emit(ctx, emitter, event)
 }
 

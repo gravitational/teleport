@@ -1504,3 +1504,7 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	}
 	return string(s), nil
 }
+
+const (
+	ErrCodeSuccess = 0
+)

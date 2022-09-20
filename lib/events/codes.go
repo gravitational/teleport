@@ -190,6 +190,8 @@ const (
 	DesktopClipboardSendCode = "TDP02I"
 	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
 	DesktopClipboardReceiveCode = "TDP03I"
+	// DesktopSharedDirectoryStartCode is the desktop directory sharing start code.
+	DesktopSharedDirectoryStartCode = "TDP04I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"

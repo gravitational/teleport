@@ -93,6 +93,19 @@ const (
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
 )
 
+// sharedDirectoryNameMap keeps a mapping of sessionId
+// to a shared directory's name, for use by the audit log.
+type sharedDirectoryNameMap struct {
+	m map[string]string
+	sync.Mutex
+}
+
+func newSharedDirectoryNameMap() *sharedDirectoryNameMap {
+	return &sharedDirectoryNameMap{
+		m: make(map[string]string),
+	}
+}
+
 // WindowsService implements the RDP-based Windows desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
@@ -124,6 +137,10 @@ type WindowsService struct {
 	// clusterName is the cached local cluster name, to avoid calling
 	// cfg.AccessPoint.GetClusterName multiple times.
 	clusterName string
+
+	// sdMap is required for keeping track of a shared directory's
+	// name, for use by the audit event logger.
+	sdMap *sharedDirectoryNameMap
 
 	closeCtx context.Context
 	close    func()
@@ -358,6 +375,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
+		sdMap:       newSharedDirectoryNameMap(),
 	}
 
 	// initialize LDAP - if this fails it will automatically schedule a retry.
@@ -920,7 +938,12 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// it on the TDP connection
 				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
 			}
+		case byte(tdp.TypeSharedDirectoryAcknowledge):
+			if ack, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
+				s.onSharedDirectoryAcknowledge(ctx, emitter, id, sessionID, desktopAddr, ack)
+			}
 		}
+
 	}
 }
 
@@ -953,7 +976,10 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
 			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
+		case tdp.SharedDirectoryAnnounce:
+			s.onSharedDirectoryAnnounce(sessionID, m.(tdp.SharedDirectoryAnnounce))
 		}
+
 	}
 }
 
