@@ -164,7 +164,9 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			require.Equal(t, test.expectServerName, tlsConfig.ServerName)
 			require.Equal(t, test.expectInsecureSkipVerify, tlsConfig.InsecureSkipVerify)
 
-			// TODO use x509.CertPool.Equal introduced in 1.19 for better comparison.
+			// nolint:staticcheck
+			// TODO x509.CertPool.Subjects() is deprecated. use
+			// x509.CertPool.Equal introduced in 1.19 for comparison.
 			require.Equal(t, test.expectRootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
 
 			if test.expectClientCertificates {

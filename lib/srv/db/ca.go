@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,8 +48,14 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeRedshift,
 		types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
-		types.DatabaseTypeCloudSQL,
-		types.DatabaseTypeAzure:
+		types.DatabaseTypeCloudSQL:
+
+	case types.DatabaseTypeAzure:
+		// Azure Cache for Redis uses system cert poool
+		if database.GetProtocol() == defaults.ProtocolRedis {
+			return nil
+		}
+
 	default:
 		return nil
 	}
