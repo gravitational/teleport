@@ -345,3 +345,56 @@ func TestFnCacheContext(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrFnCacheClosed)
 }
+
+func TestFnCacheReloadOnErr(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:         time.Minute,
+		ReloadOnErr: true,
+	})
+	require.NoError(t, err)
+
+	happy := atomic.NewInt64(0)
+	sad := atomic.NewInt64(0)
+
+	// test synchronous case, all sad path loads should result in
+	// calls to loadfn.
+	for i := 0; i < 100; i++ {
+		FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
+			happy.Inc()
+			return "yay!", nil
+		})
+
+		FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
+			sad.Inc()
+			return "", fmt.Errorf("uh-oh")
+		})
+	}
+	require.Equal(t, int64(1), happy.Load())
+	require.Equal(t, int64(100), sad.Load())
+
+	// test concurrent case. some "sad" loads should overlap now.
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
+				happy.Inc()
+				return "yay!", nil
+			})
+		}()
+
+		go func() {
+			defer wg.Done()
+			FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
+				sad.Inc()
+				return "", fmt.Errorf("uh-oh")
+			})
+		}()
+	}
+	require.Equal(t, int64(1), happy.Load())
+	require.Greater(t, int64(200), sad.Load())
+}
