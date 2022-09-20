@@ -29,12 +29,12 @@ type Event struct {
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
 //
-//  * Teleport event codes start with "T" and belong in this const block.
+//   - Teleport event codes start with "T" and belong in this const block.
 //
-//  * Related events are grouped starting with the same number.
-//		eg: All user related events are grouped under 1xxx.
+//   - Related events are grouped starting with the same number.
+//     eg: All user related events are grouped under 1xxx.
 //
-//  * Suffix code with one of these letters: I (info), W (warn), E (error).
+//   - Suffix code with one of these letters: I (info), W (warn), E (error).
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"

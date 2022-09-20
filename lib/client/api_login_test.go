@@ -341,7 +341,8 @@ type standaloneBundle struct {
 }
 
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
-//  function and reusing in other places.
+//
+//	function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 

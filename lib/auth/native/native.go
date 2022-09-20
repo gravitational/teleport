@@ -368,8 +368,8 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 // BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
-//    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
-//    * If nodename is empty, it is not included in the list of principals.
+//   - If RoleAdmin is in the list of roles, only a single principal is returned: hostID
+//   - If nodename is empty, it is not included in the list of principals.
 func BuildPrincipals(hostID string, nodeName string, clusterName string, roles types.SystemRoles) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.

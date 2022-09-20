@@ -38,7 +38,7 @@ type LeafCluster struct {
 	Connected bool
 }
 
-//GetLeafClusters returns leaf clusters
+// GetLeafClusters returns leaf clusters
 func (c *Cluster) GetLeafClusters(ctx context.Context) ([]LeafCluster, error) {
 	var remoteClusters []types.RemoteCluster
 	err := addMetadataToRetryableError(ctx, func() error {
