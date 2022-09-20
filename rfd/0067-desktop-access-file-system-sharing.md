@@ -782,3 +782,16 @@ message DesktopSharedDirectoryMove {
   string NewPath = 9 [(gogoproto.jsontag) = "new_path"];
 }
 ```
+
+#### Debouncing for read/write
+
+The read/write events that are sent to us are fundamentally determined by the program on the Windows machine that's reading or writing to a shared file.
+In the case of copying files in/out of the shared directory, that program is typically File Explorer, which empirically does read/writes at a maximum of
+1MB (exactly 2^20 bytes) at a time. For files larger than 1MB, this manifests as several read/writes in a row showing up at time in such a case.
+
+In order to avoid the logs getting spammed with multiple messages corresponding to one "operation" (such as a multi MB read of a large file), we can create
+an algorithm which upon reciept of a read or write event, sets a short timer (say 1s), and if it receives another non-overlapping read/write for the same
+file before the timer runs out, stops the timer and amalgamates the events together, repeating until the timer runs out at which point a single event is
+written into the log (credit to @zmb3 for the algo design).
+
+This feature will be considered beyond the scope of the initial implementation, which will naively write all reads/writes as individual events.
