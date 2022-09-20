@@ -43,6 +43,10 @@ const (
 	pivYubiKeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
 )
 
+type cryptoPublicKeyI interface {
+	Equal(x crypto.PublicKey) bool
+}
+
 // PrivateKey implements crypto.Signer with additional helper methods. The underlying
 // private key may be a standard crypto.Signer implemented in the standard library
 // (aka *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey), or it may be a
@@ -51,11 +55,11 @@ type PrivateKey struct {
 	crypto.Signer
 	// sshPub is the public key in ssh.PublicKey form.
 	sshPub ssh.PublicKey
-	// keyPEM is the PEM-encoded private key.
+	// keyPEM is PEM-encoded private key data which can be parsed with ParsePrivateKey.
 	keyPEM []byte
 }
 
-// NewPrivateKey returns a new PrivateKey for the given Signer.
+// NewPrivateKey returns a new PrivateKey for the given crypto.Signer.
 func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -89,14 +93,47 @@ func (k *PrivateKey) PrivateKeyPEM() []byte {
 	return k.keyPEM
 }
 
-// TLSCertificate parses the given TLS certificate paired with the private key
+// TLSCertificate parses the given TLS certificate(s) paired with the private key
 // to rerturn a tls.Certificate, ready to be used in a TLS handshake.
-func (k *PrivateKey) TLSCertificate(cert []byte) (tls.Certificate, error) {
-	certPEMBlock, _ := pem.Decode(cert)
-	return tls.Certificate{
-		Certificate: [][]byte{certPEMBlock.Bytes},
-		PrivateKey:  k.Signer,
-	}, nil
+func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error) {
+	cert := tls.Certificate{
+		PrivateKey: k.Signer,
+	}
+
+	var skippedBlockTypes []string
+	for {
+		var certDERBlock *pem.Block
+		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
+		if certDERBlock == nil {
+			break
+		}
+		if certDERBlock.Type == "CERTIFICATE" {
+			cert.Certificate = append(cert.Certificate, certDERBlock.Bytes)
+		} else {
+			skippedBlockTypes = append(skippedBlockTypes, certDERBlock.Type)
+		}
+	}
+
+	if len(cert.Certificate) == 0 {
+		if len(skippedBlockTypes) == 0 {
+			return tls.Certificate{}, trace.BadParameter("tls: failed to find any PEM data in certificate input")
+		}
+		return tls.Certificate{}, trace.BadParameter("tls: failed to find \"CERTIFICATE\" PEM block in certificate input after skipping PEM blocks of the following types: %v", skippedBlockTypes)
+	}
+
+	// Check that the certificate's public key matches this private key.
+	x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	if keyPub, ok := k.Public().(cryptoPublicKeyI); !ok {
+		return tls.Certificate{}, trace.BadParameter("private key does not contain a valid public key")
+	} else if !keyPub.Equal(x509Cert.PublicKey) {
+		return tls.Certificate{}, trace.BadParameter("private key does not match certificate's public key")
+	}
+
+	return cert, nil
 }
 
 // agentKeyComment is used to generate an agent key comment.
