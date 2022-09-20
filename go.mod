@@ -124,9 +124,9 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.10
-	google.golang.org/api v0.96.0
-	google.golang.org/genproto v0.0.0-20220916172020-2692e8806bfa
-	google.golang.org/grpc v1.49.0
+	google.golang.org/api v0.91.0
+	google.golang.org/genproto v0.0.0-20220808204814-fd01256a5276
+	google.golang.org/grpc v1.48.0
 	google.golang.org/grpc/examples v0.0.0-20210424002626-9572fd6faeae
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
