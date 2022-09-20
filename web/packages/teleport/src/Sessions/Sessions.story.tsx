@@ -26,7 +26,6 @@ export default {
 export function Loaded() {
   const props = {
     sessions,
-    onRefresh,
     attempt: {
       isSuccess: true,
       isProcessing: false,
@@ -37,7 +36,3 @@ export function Loaded() {
 
   return <Sessions {...props} />;
 }
-
-const onRefresh = () => {
-  return Promise.resolve();
-};

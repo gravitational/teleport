@@ -18,7 +18,6 @@ import React from 'react';
 import { Indicator, Box } from 'design';
 import { Danger } from 'design/Alert';
 
-import AjaxPoller from 'teleport/components/AjaxPoller';
 import {
   FeatureBox,
   FeatureHeader,
@@ -30,7 +29,6 @@ import useStickerClusterId from 'teleport/useStickyClusterId';
 
 import SessionList from './SessionList';
 import useSessions from './useSessions';
-const POLLING_INTERVAL = 3000; // every 3 sec
 
 export default function Container() {
   const ctx = useTeleport();
@@ -40,7 +38,7 @@ export default function Container() {
 }
 
 export function Sessions(props: ReturnType<typeof useSessions>) {
-  const { attempt, onRefresh, sessions } = props;
+  const { attempt, sessions } = props;
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
@@ -52,12 +50,7 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
           <Indicator />
         </Box>
       )}
-      {attempt.isSuccess && (
-        <>
-          <SessionList sessions={sessions} />
-          <AjaxPoller time={POLLING_INTERVAL} onFetch={onRefresh} />
-        </>
-      )}
+      {attempt.isSuccess && <SessionList sessions={sessions} />}
     </FeatureBox>
   );
 }
