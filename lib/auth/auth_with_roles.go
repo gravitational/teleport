@@ -2110,9 +2110,28 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 func (a *ServerWithRoles) GenerateHostCert(
 	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
-	if err := a.action(apidefaults.Namespace, types.KindHostCert, types.VerbCreate); err != nil {
+	ctx := services.Context{
+		User: a.context.User,
+		HostCert: &services.HostCertContext{
+			HostID:      hostID,
+			NodeName:    nodeName,
+			Principals:  principals,
+			ClusterName: clusterName,
+			Role:        role,
+			TTL:         ttl,
+		},
+	}
+
+	// Instead of the usual RBAC checks, we'll manually call CheckAccessToRule
+	// here as we'll be evaluating `where` predicates with a custom RuleContext
+	// to expose cert request fields.
+	// We've only got a single verb to check so luckily it's pretty concise.
+	if err := a.withOptions().context.Checker.CheckAccessToRule(
+		&ctx, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, role, ttl)
 }
 
@@ -3771,15 +3790,15 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//  - Cluster administrator using "tctl auth sign --format=db" command locally
-//    on the auth server to produce a certificate for configuring a self-hosted
-//    database.
-//  - Remote user using "tctl auth sign --format=db" command with a remote
-//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//    role Db.
-//  - Database service when initiating connection to a database instance to
-//    produce a client certificate.
-//  - Proxy service when generating mTLS files to a database
+//   - Cluster administrator using "tctl auth sign --format=db" command locally
+//     on the auth server to produce a certificate for configuring a self-hosted
+//     database.
+//   - Remote user using "tctl auth sign --format=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//     role Db.
+//   - Database service when initiating connection to a database instance to
+//     produce a client certificate.
+//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if the User can `create` DatabaseCertificates
 	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
@@ -4587,6 +4606,108 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 	for _, app := range apps {
 		if err := a.checkAccessToApp(app); err == nil {
 			if err := a.authServer.DeleteApp(ctx, app.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users create clusters they wouldn't have access to (e.g.
+	// non-matching labels).
+	if err := a.checkAccessToKubeCluster(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.CreateKubernetesCluster(ctx, cluster))
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Don't allow users update clusters they don't have access to (e.g.
+	// non-matching labels). Make sure to check existing cluster too.
+	existing, err := a.authServer.GetKubernetesCluster(ctx, cluster.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToKubeCluster(existing); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToKubeCluster(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.UpdateKubernetesCluster(ctx, cluster))
+}
+
+// GetKubernetesCluster returns specified kubernetes cluster resource.
+func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeCluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checkAccessToKubeCluster(kubeCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kubeCluster, nil
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out kube clusters user doesn't have access to.
+	clusters, err := a.authServer.GetKubernetesClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, cluster := range clusters {
+		if err := a.checkAccessToKubeCluster(cluster); err == nil {
+			result = append(result, cluster)
+		}
+	}
+	return result, nil
+}
+
+// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
+func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure user has access to the kubernetes cluster before deleting.
+	cluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToKubeCluster(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
+}
+
+// DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure to only delete kubernetes cluster user has access to.
+	clusters, err := a.authServer.GetKubernetesClusters(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, cluster := range clusters {
+		if err := a.checkAccessToKubeCluster(cluster); err == nil {
+			if err := a.authServer.DeleteKubernetesCluster(ctx, cluster.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 		}

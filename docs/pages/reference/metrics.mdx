@@ -41,12 +41,12 @@ heartbeat completes successfully.
 The first successful heartbeat will transition Teleport into a recovering state.
 
 A second consecutive successful heartbeat will cause Teleport to transition to
-the OK state, so long as at least 10 seconds have elapsed since the
-first successful heartbeat.
+the OK state.
 
-Teleport heartbeats run every 5 seconds. This means that depending on the timing
-of heartbeats, it can take 10-20 seconds after connectivity is restored for
-`/readyz` to start reporting healthy again.
+Teleport heartbeats run approximately every 60 seconds when healthy, and failed
+heartbeats are retried approximately every 5 seconds. This means that depending
+on the timing of heartbeats, it can take 60-70 seconds after connectivity is
+restored for `/readyz` to start reporting healthy again.
 
 ### Status codes
 

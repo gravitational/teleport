@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -372,13 +373,11 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	defer clientConn.Close()
 	defer serverConn.Close()
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
 	// Let alpnConnHandler serve the connection in a separate go routine.
+	handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	go func() {
-		alpnConnHandler(timeoutCtx, serverConn)
-		require.NoError(t, timeoutCtx.Err())
+		defer cancel()
+		alpnConnHandler(handlerCtx, serverConn)
 	}()
 
 	// Send client request.
@@ -400,9 +399,18 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
 
-	response, err := http.ReadResponse(bufio.NewReader(clientTLSConn), req)
+	resp, err := http.ReadResponse(bufio.NewReader(clientTLSConn), req)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	// Always drain/close the body.
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Wait until handler is done. And verify context is canceled, NOT deadline exceeded.
+	<-handlerCtx.Done()
+	require.ErrorIs(t, handlerCtx.Err(), context.Canceled)
 }
 
 // TestProxyALPNProtocolsRouting tests the routing based on client TLS NextProtos values.

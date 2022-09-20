@@ -62,11 +62,11 @@ type Reader struct {
 // NewReader creates a new Reader to catch escape sequences from 'in'.
 //
 // Two sequences are supported:
-// - "~?": prints help text to 'out' listing supported sequences
-// - "~.": disconnect stops any future reads from in; after this sequence,
-//   callers can still read any unread data up to this sequence from Reader but
-//   all future Read calls will return ErrDisconnect; onDisconnect will also be
-//   called with ErrDisconnect immediately
+//   - "~?": prints help text to 'out' listing supported sequences
+//   - "~.": disconnect stops any future reads from in; after this sequence,
+//     callers can still read any unread data up to this sequence from Reader but
+//     all future Read calls will return ErrDisconnect; onDisconnect will also be
+//     called with ErrDisconnect immediately
 //
 // NewReader starts consuming 'in' immediately in the background. This allows
 // Reader to detect sequences without the caller actively calling Read (such as

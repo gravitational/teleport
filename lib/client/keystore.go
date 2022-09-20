@@ -18,6 +18,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -563,7 +565,7 @@ func (fs *fsLocalNonSessionKeyStore) publicKeyPath(idx KeyIndex) string {
 	return keypaths.PublicKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
-//  appCertPath returns the TLS certificate path for the given KeyIndex and app name.
+// appCertPath returns the TLS certificate path for the given KeyIndex and app name.
 func (fs *fsLocalNonSessionKeyStore) appCertPath(idx KeyIndex, appname string) string {
 	return keypaths.AppCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
 }
@@ -580,6 +582,14 @@ func (fs *fsLocalNonSessionKeyStore) kubeCertPath(idx KeyIndex, kubename string)
 
 // AddKnownHostKeys adds a new entry to `known_hosts` file.
 func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
+	// We're trying to serialize our writes to the 'known_hosts' file to avoid corruption, since there
+	// are cases when multiple tsh instances will try to write to it.
+	unlock, err := utils.FSTryWriteLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
+	if err != nil {
+		return trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
+	}
+	defer utils.StoreErrorOf(unlock, &retErr)
+
 	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -669,7 +679,13 @@ func matchesWildcard(hostname, pattern string) bool {
 }
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
-func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
+func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) (keys []ssh.PublicKey, retErr error) {
+	unlock, err := utils.FSTryReadLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
+	}
+	defer utils.StoreErrorOf(unlock, &retErr)
+
 	bytes, err := os.ReadFile(fs.knownHostsPath())
 	if err != nil {
 		if os.IsNotExist(err) {

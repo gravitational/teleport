@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +37,11 @@ func TestWriteUpgradeResponse(t *testing.T) {
 
 	resp, err := http.ReadResponse(bufio.NewReader(&buf), nil)
 	require.NoError(t, err)
+
+	// Always drain/close the body.
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
 	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
 	require.Equal(t, "custom", resp.Header.Get("Upgrade"))
 }
@@ -87,15 +93,20 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		go func() {
 			// serverConn will be hijacked.
 			w := newResponseWriterHijacker(nil, serverConn)
-			_, err = h.connectionUpgrade(w, r, nil)
+			_, err := h.connectionUpgrade(w, r, nil)
 			require.NoError(t, err)
 		}()
 
 		// Verify clientConn receives http.StatusSwitchingProtocols.
 		clientConnReader := bufio.NewReader(clientConn)
-		response, err := http.ReadResponse(clientConnReader, r)
+		resp, err := http.ReadResponse(clientConnReader, r)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusSwitchingProtocols, response.StatusCode)
+
+		// Always drain/close the body.
+		io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+
+		require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 
 		// Verify clientConn receives data sent by Config.ALPNHandler.
 		receive, err := clientConnReader.ReadString(byte('@'))
