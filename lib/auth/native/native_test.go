@@ -97,13 +97,13 @@ func TestGenerateUserCert(t *testing.T) {
 
 // TestBuildPrincipals makes sure that the list of principals for a host
 // certificate is correctly built.
-//   * If the node has role admin, then only the host ID should be listed
+//   - If the node has role admin, then only the host ID should be listed
 //     in the principals field.
-//   * If only a host ID is provided, don't include a empty node name
+//   - If only a host ID is provided, don't include a empty node name
 //     this is for backward compatibility.
-//   * If both host ID and node name are given, then both should be included
+//   - If both host ID and node name are given, then both should be included
 //     on the certificate.
-//   * If the host ID and node name are the same, only list one.
+//   - If the host ID and node name are the same, only list one.
 func TestBuildPrincipals(t *testing.T) {
 	t.Parallel()
 

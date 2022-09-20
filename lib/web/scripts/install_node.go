@@ -41,6 +41,7 @@ exit 1
 
 // InstallNodeBashScript is the script that will run on user's machine
 // to install teleport and join a teleport cluster.
+//
 //go:embed node-join/install.sh
 var installNodeBashScript string
 
