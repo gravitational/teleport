@@ -37,7 +37,8 @@ func getMigration(version int) string {
 //
 // Keys are stored as BYTEA to avoid collation ordering.
 // When debugging, convert the key to a readable value using:
-//   SELECT encode(key, 'escape') FROM lease;
+//
+//	SELECT encode(key, 'escape') FROM lease;
 const migrateV1 = `
 	CREATE TABLE item (
 		key BYTEA NOT NULL,

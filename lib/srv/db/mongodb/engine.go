@@ -102,14 +102,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // handleClientMessage implements the client message's roundtrip which can go
 // down a few different ways:
-// 1. If the client's command is not allowed by user's role, we do not pass it
-//    to the server and return an error to the client.
-// 2. In the most common case, we send client message to the server, read its
-//    reply and send it back to the client.
-// 3. Some client commands do not receive a reply in which case we just return
-//    after sending message to the server and wait for next client message.
-// 4. Server can also send multiple messages in a row in which case we exhaust
-//    them before returning to listen for next client message.
+//  1. If the client's command is not allowed by user's role, we do not pass it
+//     to the server and return an error to the client.
+//  2. In the most common case, we send client message to the server, read its
+//     reply and send it back to the client.
+//  3. Some client commands do not receive a reply in which case we just return
+//     after sending message to the server and wait for next client message.
+//  4. Server can also send multiple messages in a row in which case we exhaust
+//     them before returning to listen for next client message.
 func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Session, clientMessage protocol.Message, clientConn net.Conn, serverConn driver.Connection) error {
 	e.Log.Debugf("===> %v", clientMessage)
 	// First check the client command against user's role and log in the audit.
