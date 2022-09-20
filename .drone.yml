@@ -6034,19 +6034,16 @@ steps:
       - ls /go/chart
 
   - name: "Helm: Publish chart repository to S3"
-    image: plugins/s3
-    settings:
-      bucket:
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      access_key:
+      AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      secret_key:
+      AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
-      region: us-east-2
-      acl: public-read
-      source: /go/chart/*
-      target: /
-      strip_prefix: /go/chart
+    commands:
+      - aws s3 sync /go/chart s3://$AWS_S3_BUCKET/ 
 
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
@@ -6347,6 +6344,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: cfb01f68b3faea691321f2554aad9a73990ea69a2062c51ddf4ab154d91f416b
+hmac: d7e9ec62c4d3dbf49b5f5d681eaf538910415e9807a21402f63b63f052fc5b6e
 
 ...
