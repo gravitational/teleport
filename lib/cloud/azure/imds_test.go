@@ -163,7 +163,7 @@ func TestParseMetadataClientError(t *testing.T) {
 
 			require.True(t, tc.wantErr(err))
 			if tc.wantMessage != "" {
-				require.Contains(t, err.Error(), tc.wantMessage)
+				require.ErrorContains(t, err, tc.wantMessage)
 			}
 		})
 	}

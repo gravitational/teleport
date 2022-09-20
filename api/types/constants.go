@@ -354,8 +354,9 @@ const CloudHostnameTag = "TeleportHostname"
 type InstanceMetadataType string
 
 const (
-	InstanceMetadataTypeEC2   InstanceMetadataType = "EC2"
-	InstanceMetadataTypeAzure InstanceMetadataType = "Azure"
+	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
+	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
+	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
 )
 
 // OriginValues lists all possible origin values.

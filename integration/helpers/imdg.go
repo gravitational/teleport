@@ -37,5 +37,5 @@ func (d *DisabledIMDSClient) GetHostname(ctx context.Context) (string, error) {
 }
 
 func (d *DisabledIMDSClient) GetType() types.InstanceMetadataType {
-	return "disabled"
+	return types.InstanceMetadataTypeDisabled
 }

@@ -19,14 +19,14 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
 const (
-	// metadataReadLimit is the largest number of bytes that will be read from imds responses.
-	metadataReadLimit = 1_000_000
 	// imdsURL is the default base URL for Azure instance metadata.
 	imdsURL = "http://169.254.169.254/metadata"
 	// minimumSupportedAPIVersion is the minimum supported version of the Azure instance metadata API.
@@ -83,7 +83,10 @@ func (client *InstanceMetadataClient) selectVersion(ctx context.Context) error {
 
 // getRawMetadata gets the raw metadata from a specified path.
 func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route string) ([]byte, error) {
-	httpClient := &http.Client{Transport: &http.Transport{Proxy: nil}}
+	httpClient, err := defaults.HTTPClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.baseURL+route, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,7 +105,7 @@ func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route 
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	body, err := utils.ReadAtMost(resp.Body, metadataReadLimit)
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -308,7 +308,7 @@ func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error)
 func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
 	value, ok := m.tags[types.CloudHostnameTag]
 	if !ok {
-		return "", trace.NotFound("")
+		return "", trace.NotFound("cloud hostname key not found")
 	}
 	return value, nil
 }

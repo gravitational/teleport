@@ -23,13 +23,11 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
-
-// metadataReadLimit is the largest number of bytes that will be read from imds responses.
-const metadataReadLimit = 1_000_000
 
 // InstanceMetadataClient is a wrapper for an imds.Client.
 type InstanceMetadataClient struct {
@@ -73,7 +71,7 @@ func (client *InstanceMetadataClient) GetType() types.InstanceMetadataType {
 
 // EC2 resource ID is i-{8 or 17 hex digits}, see
 //   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
-var ec2ResourceIDRE = regexp.MustCompile("^i-[0-9a-f]{8,}$")
+var ec2ResourceIDRE = regexp.MustCompile("^i-[0-9a-f]{8}([0-9a-f]{9})?$")
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
@@ -89,7 +87,7 @@ func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path stri
 		return "", trace.Wrap(parseMetadataClientError(err))
 	}
 	defer output.Content.Close()
-	body, err := utils.ReadAtMost(output.Content, metadataReadLimit)
+	body, err := utils.ReadAtMost(output.Content, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

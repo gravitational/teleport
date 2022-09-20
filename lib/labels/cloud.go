@@ -71,8 +71,8 @@ func (conf *CloudConfig) checkAndSetDefaults() error {
 // metadata.
 type CloudImporter struct {
 	*CloudConfig
-	mu     sync.RWMutex
-	labels map[string]string
+	muLabels sync.RWMutex
+	labels   map[string]string
 
 	closeCh chan struct{}
 
@@ -111,8 +111,8 @@ func (l *CloudImporter) initAzure() {
 
 // Get returns the list of updated cloud labels.
 func (l *CloudImporter) Get() map[string]string {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
+	l.muLabels.RLock()
+	defer l.muLabels.RUnlock()
 	labels := make(map[string]string)
 	for k, v := range l.labels {
 		labels[k] = v
@@ -131,8 +131,6 @@ func (l *CloudImporter) Apply(r types.ResourceWithLabels) {
 
 // Sync will block and synchronously update cloud labels.
 func (l *CloudImporter) Sync(ctx context.Context) error {
-	m := make(map[string]string)
-
 	tags, err := l.Client.GetTags(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -145,6 +143,7 @@ func (l *CloudImporter) Sync(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	m := make(map[string]string)
 	for key, value := range tags {
 		if !types.IsValidLabelKey(key) {
 			l.Log.Debugf("Skipping cloud tag %q, not a valid label key.", key)
@@ -153,8 +152,8 @@ func (l *CloudImporter) Sync(ctx context.Context) error {
 		m[formatKey(l.namespace, key)] = value
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.muLabels.Lock()
+	defer l.muLabels.Unlock()
 	l.labels = m
 	return nil
 }

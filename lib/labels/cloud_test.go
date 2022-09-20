@@ -41,7 +41,7 @@ func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
 
 func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
 	if m.tagsDisabled {
-		return nil, trace.NotFound("")
+		return nil, trace.NotFound("Tags not available")
 	}
 	return m.tags, nil
 }
@@ -49,7 +49,7 @@ func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error)
 func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
 	value, ok := m.tags[types.CloudHostnameTag]
 	if !ok {
-		return "", trace.NotFound("")
+		return "", trace.NotFound("Tag TeleportHostname not found")
 	}
 	return value, nil
 }
