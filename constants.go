@@ -392,8 +392,6 @@ type OTPType string
 const (
 	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
 	TOTP = OTPType("totp")
-	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
-	HOTP = OTPType("hotp")
 )
 
 const (
