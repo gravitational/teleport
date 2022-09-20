@@ -161,7 +161,8 @@ LIBPCSCLITE_TEST_TAG := libpcsclite
 endif
 
 # Build teleport/api against libsclite?
-# Only build if LIBPCSCLITE=yes.
+# LIBPCSCLITE=yes and LIBPCSCLITE=static enable static libsclite builds.
+# LIBPCSCLITE=dynamic enables dynamic libsclite builds.
 # This is used for PIV functionality.
 LIBPCSCLITE_MESSAGE := without-PIV-support
 ifneq (, $(filter $(LIBPCSCLITE), yes static dynamic))

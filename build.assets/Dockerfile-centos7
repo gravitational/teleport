@@ -110,7 +110,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 # Install libpcsclite - compile with a newer GCC. The one installed by default is not able to compile it.
 ARG LIBPCSCLITE_VERSION
-RUN git clone --depth=1 https://github.com/gravitational/PCSC.git && \
+RUN git clone --depth=1 https://github.com/gravitational/PCSC.git -b ${LIBPCSCLITE_VERSION} && \
     cd PCSC && \
     ./bootstrap && \
     ./configure --enable-static --with-pic --disable-libsystemd && \

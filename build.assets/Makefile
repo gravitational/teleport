@@ -36,7 +36,7 @@ NODE_VERSION ?= 16.13.2
 RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
-LIBPCSCLITE_VERSION ?= 1.9.8
+LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 UID := $$(id -u)
 GID := $$(id -g)
