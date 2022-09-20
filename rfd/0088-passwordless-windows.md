@@ -153,7 +153,7 @@ Security considerations are largely unchanged in relation to the
 
 Windows Hello keys are protected by TPM 2.0 hardware if available. Windows also
 supports Windows Hello when TPM is missing via software. Windows Hello keys are
-scope by rpid, it means that windows hello keys created via broweser on webUI
+scope by rpid, it means that windows hello keys created via browser on Web UI
 will be available in `tsh`.
 
 [Microsoft webauthnAPI documentation][webauthn API windows docs] provides more
