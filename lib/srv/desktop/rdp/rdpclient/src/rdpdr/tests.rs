@@ -15,7 +15,7 @@
 use super::{
     scard::{
         CardProtocol, CardStateFlags, Connect_Call, Connect_Common, Context, Context_Call,
-        EstablishContext_Call, GetDeviceTypeId_Call, GetStatusChange_Call,
+        EstablishContext_Call, GetDeviceTypeId_Call, GetReaderIcon_Call, GetStatusChange_Call,
         HCardAndDisposition_Call, Handle, IoctlCode, ListReaders_Call, ReadCache_Call,
         ReadCache_Common, ReaderState, ReaderState_Common_Call, SCardIO_Request,
         ScardAccessStartedEvent_Call, Scope, Status_Call, Transmit_Call, WriteCache_Call,
@@ -1373,6 +1373,62 @@ fn test_scard_ioctl_disconnect() {
                 output_buffer_length: 24,
                 output_buffer: vec![
                     1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+}
+
+#[test]
+fn test_scard_ioctl_getreadericon() {
+    let context_value = 7;
+    let mut c = client(true, context_value, Some(context_value - 1));
+
+    test_payload_in_to_response_out(
+        &mut c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 128,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 2,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 133120,
+                input_buffer_length: 72,
+                io_control_code: IoctlCode::SCARD_IOCTL_GETREADERICON,
+            }),
+            scard_ctl: Some(Box::new(GetReaderIcon_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+                reader_name: "Teleport".to_string(),
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 2,
+                    io_status: 0,
+                },
+                output_buffer_length: 32,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 34, 0, 16, 128, 0, 0,
+                    0, 0, 0, 0, 2, 0, 0, 0, 0, 0,
                 ],
             }),
         )],

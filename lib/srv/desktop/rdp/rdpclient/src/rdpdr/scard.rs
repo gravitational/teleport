@@ -2031,9 +2031,9 @@ impl WriteCache_Common {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct GetReaderIcon_Call {
-    context: Context,
-    reader_name: String,
+pub(crate) struct GetReaderIcon_Call {
+    pub context: Context,
+    pub reader_name: String,
 }
 
 impl GetReaderIcon_Call {
@@ -2052,6 +2052,25 @@ impl GetReaderIcon_Call {
             context,
             reader_name,
         })
+    }
+}
+
+impl Encode for GetReaderIcon_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        encode_ptr(None, &mut index, &mut w)?; // _reader_ptr
+
+        self.context.encode_value(&mut w)?;
+        w.extend(encode_str_unicode(&self.reader_name)?);
+
+        Ok(w)
     }
 }
 
