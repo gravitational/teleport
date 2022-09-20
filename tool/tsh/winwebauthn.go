@@ -50,7 +50,7 @@ func newWinwebauthnSupportCommand(app *kingpin.CmdClause) *winwebauthnSupportCom
 }
 
 func (w *winwebauthnSupportCommand) run(cf *CLIConf) error {
-	diag, err := winwebauthn.Diag()
+	diag, err := winwebauthn.CheckSupport()
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if diag == nil {
 		return trace.Wrap(err)

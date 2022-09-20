@@ -51,7 +51,6 @@ var (
 // - todo support api v4
 // - should we use panic recovery?
 
-// TODO(tobiaszheller): write docs and link to webauth.dll header file.
 type Client struct {
 	version int
 }
@@ -68,8 +67,8 @@ const (
 )
 
 var (
-	cachedDiag   *DiagResult
-	cachedDiagMU sync.Mutex
+	cachedSupport   *CheckSupportResult
+	cachedSupportMU sync.Mutex
 )
 
 // IsAvailable returns true if Windows Webauthn is available in the system.
@@ -81,23 +80,23 @@ func isAvailable() bool {
 	// invocations to avoid user-visible delays.
 	// Diagnostics are safe to cache because dll isn't something that
 	// could change during program invocation.
-	cachedDiagMU.Lock()
-	defer cachedDiagMU.Unlock()
+	cachedSupportMU.Lock()
+	defer cachedSupportMU.Unlock()
 
-	if cachedDiag == nil {
+	if cachedSupport == nil {
 		var err error
-		cachedDiag, err = diag()
+		cachedSupport, err = checkSupport()
 		if err != nil {
 			log.WithError(err).Warn("Windows webauthn self-diagnostics failed")
 			return false
 		}
 	}
 
-	return cachedDiag.IsAvailable
+	return cachedSupport.IsAvailable
 }
 
-// diag returns diagnostics information about Webauthn support on windows.
-func diag() (*DiagResult, error) {
+// checkSupport returns diagnostics information about Windows Webauthn support.
+func checkSupport() (*CheckSupportResult, error) {
 	c, err := new()
 	if err != nil {
 		return nil, err
@@ -106,7 +105,7 @@ func diag() (*DiagResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DiagResult{
+	return &CheckSupportResult{
 		HasCompileSupport: true,
 		HasPlatformUV:     uvPlatform,
 		IsAvailable:       c.GetVersion() > 0,
@@ -513,10 +512,9 @@ func clientDataToCType(challenge, origin, cdType string) (*_WEBAUTHN_CLIENT_DATA
 		return nil, nil, err
 	}
 	cd := clientDataJson{
-		Type:      cdType,
-		Challenge: challenge,
-		Origin:    origin,
-		// TODO(tobiaszheller): pass cross origin
+		Type:        cdType,
+		Challenge:   challenge,
+		Origin:      origin,
 		CrossOrigin: false,
 	}
 	bb, err := json.Marshal(cd)
@@ -1037,9 +1035,6 @@ type _WEBAUTHN_ASSERTION struct {
 	pbCredLargeBlob *byte
 
 	dwCredLargeBlobStatus uint32
-
-	// TODO: tobiaszheller remove field below, just testing
-	fieldTodelete uint32
 }
 
 type _WEBAUTHN_X5C struct {

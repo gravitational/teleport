@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package winwebauthn is wrapper around Windows webauthn API.
+// It loads system webauthn.dll and uses it's method.
+// It supports API versions 1-4.
+// API definition: https://github.com/microsoft/webauthn/blob/master/webauthn.h
 package winwebauthn
 
 import (
@@ -72,8 +76,8 @@ func Register(
 	return register(ctx, origin, cc)
 }
 
-// DiagResult is the result from a Windows webauthn self diagnostics check.
-type DiagResult struct {
+// CheckSupport is the result from a Windows webauthn support check.
+type CheckSupportResult struct {
 	HasCompileSupport bool
 	HasSignature      bool
 	IsAvailable       bool
@@ -84,14 +88,14 @@ type DiagResult struct {
 // IsAvailable returns true if Touch ID is available in the system.
 // Typically, a series of checks is performed in an attempt to avoid false
 // positives.
-// See Diag.
+// See CheckSupport.
 func IsAvailable() bool {
 	return isAvailable()
 }
 
 // TODO(tobiaszheller): I already have RunDiagnostics which uses user itneractions,consider rename.
-func Diag() (*DiagResult, error) {
-	return diag()
+func CheckSupport() (*CheckSupportResult, error) {
+	return checkSupport()
 }
 
 type RunDiagnosticsResult struct {

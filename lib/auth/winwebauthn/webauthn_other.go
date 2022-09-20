@@ -45,8 +45,8 @@ func isAvailable() bool {
 	return false
 }
 
-func diag() (*DiagResult, error) {
-	return &DiagResult{
+func checkSupport() (*CheckSupportResult, error) {
+	return &CheckSupportResult{
 		HasCompileSupport: false,
 	}, nil
 }
