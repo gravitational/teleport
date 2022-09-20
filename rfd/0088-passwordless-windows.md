@@ -97,6 +97,9 @@ In case of a registration failure, `tsh` must do its best to delete the
 created-but-not-registered credential. Credential removal is only possible
 using webauthn API version 4+.
 
+Windows webauthn supports attestation. For FIDO devices it is passed from
+device. For Windows hello device it is TPM attestation.
+
 ### Authentication
 
 Authentication depends on server settings (otp, webauthn, passwordless).
