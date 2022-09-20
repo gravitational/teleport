@@ -80,6 +80,7 @@ function useMainStory() {
     customBanners: [],
     history,
     ctx,
+    dismissAlert: () => {},
     status,
     statusText,
   };
