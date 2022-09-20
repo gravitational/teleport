@@ -1023,29 +1023,35 @@ message ProvisionTokenV3List {
 }
 
 message ProvisionTokenSpecV3 {
-  // Roles is a list of roles associated with the token,
-  // that will be converted to metadata in the SSH and X509
-  // certificates issued to the user of the token
+  // Roles is a list of roles associated with the token, that will be converted
+  // to metadata in the SSH and X509 certificates issued to the user of the
+  // token.
   repeated string Roles = 1 [
     (gogoproto.jsontag) = "roles",
     (gogoproto.casttype) = "SystemRole"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include "token", "ec2", and "iam".
+  // Supported joining methods include:
+  // - "token"
+  // - "ec2"
+  // - "iam"
   string JoinMethod = 2 [
     (gogoproto.jsontag) = "join_method",
     (gogoproto.casttype) = "JoinMethod"
   ];
-  // BotName is the name of the bot this token grants access to, if any
+  // BotName is the name of the bot this token grants access to. This option
+  // can only be configured when the "bot" role is includes within Roles.
   string BotName = 3 [(gogoproto.jsontag) = "bot_name,omitempty"];
-  // SuggestedLabels is a set of labels that resources should set when using this token to enroll
-  // themselves in the cluster
+  // SuggestedLabels is a set of labels that resources should set when using
+  // this token to enroll themselves in the cluster.
   wrappers.LabelValues SuggestedLabels = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "suggested_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+  // IAM allows the configuration of options specific to the "iam" join method.
   ProvisionTokenSpecV3AWSIAM IAM = 5 [(gogoproto.jsontag) = "aws_iam,omitempty"];
+  // EC2 allows the configuration of options specific to the "ec2" join method.
   ProvisionTokenSpecV3AWSEC2 EC2 = 6 [(gogoproto.jsontag) = "aws_ec2,omitempty"];
 }
 

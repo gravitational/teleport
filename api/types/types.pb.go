@@ -2970,19 +2970,25 @@ func (m *ProvisionTokenV3List) XXX_DiscardUnknown() {
 var xxx_messageInfo_ProvisionTokenV3List proto.InternalMessageInfo
 
 type ProvisionTokenSpecV3 struct {
-	// Roles is a list of roles associated with the token,
-	// that will be converted to metadata in the SSH and X509
-	// certificates issued to the user of the token
+	// Roles is a list of roles associated with the token, that will be converted
+	// to metadata in the SSH and X509 certificates issued to the user of the
+	// token.
 	Roles []SystemRole `protobuf:"bytes,1,rep,name=Roles,proto3,casttype=SystemRole" json:"roles"`
 	// JoinMethod is the joining method required in order to use this token.
-	// Supported joining methods include "token", "ec2", and "iam".
+	// Supported joining methods include:
+	// - "token"
+	// - "ec2"
+	// - "iam"
 	JoinMethod JoinMethod `protobuf:"bytes,2,opt,name=JoinMethod,proto3,casttype=JoinMethod" json:"join_method"`
-	// BotName is the name of the bot this token grants access to, if any
+	// BotName is the name of the bot this token grants access to. This option
+	// can only be configured when the "bot" role is includes within Roles.
 	BotName string `protobuf:"bytes,3,opt,name=BotName,proto3" json:"bot_name,omitempty"`
-	// SuggestedLabels is a set of labels that resources should set when using this token to enroll
-	// themselves in the cluster
-	SuggestedLabels      Labels                      `protobuf:"bytes,4,opt,name=SuggestedLabels,proto3,customtype=Labels" json:"suggested_labels,omitempty"`
-	IAM                  *ProvisionTokenSpecV3AWSIAM `protobuf:"bytes,5,opt,name=IAM,proto3" json:"aws_iam,omitempty"`
+	// SuggestedLabels is a set of labels that resources should set when using
+	// this token to enroll themselves in the cluster.
+	SuggestedLabels Labels `protobuf:"bytes,4,opt,name=SuggestedLabels,proto3,customtype=Labels" json:"suggested_labels,omitempty"`
+	// IAM allows the configuration of options specific to the "iam" join method.
+	IAM *ProvisionTokenSpecV3AWSIAM `protobuf:"bytes,5,opt,name=IAM,proto3" json:"aws_iam,omitempty"`
+	// EC2 allows the configuration of options specific to the "ec2" join method.
 	EC2                  *ProvisionTokenSpecV3AWSEC2 `protobuf:"bytes,6,opt,name=EC2,proto3" json:"aws_ec2,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
 	XXX_unrecognized     []byte                      `json:"-"`
