@@ -273,6 +273,8 @@ type Context struct {
 	SSHSession *session.Session
 	// HostCert is an optional host certificate.
 	HostCert *HostCertContext
+	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
+	SessionTracker types.SessionTracker
 }
 
 // String returns user friendly representation of this context
@@ -299,6 +301,8 @@ const (
 	ImpersonateUserIdentifier = "impersonate_user"
 	// HostCertIdentifier refers to a host certificate being created.
 	HostCertIdentifier = "host_cert"
+	// SessionTrackerIdentifier refers to a session tracker in the rules.
+	SessionTrackerIdentifier = "session_tracker"
 )
 
 // GetResource returns resource specified in the context,
@@ -348,8 +352,67 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 			hostCert = ctx.HostCert
 		}
 		return predicate.GetFieldByTag(hostCert, teleport.JSON, fields[1:])
+	case SessionTrackerIdentifier:
+		return predicate.GetFieldByTag(toCtxTracker(ctx.SessionTracker), teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+	}
+}
+
+// ctxSession represents the public contract of a session.Session, as exposed
+// to a Context rule.
+// See RFD 82: https://github.com/gravitational/teleport/blob/master/rfd/0082-session-tracker-resource-rbac.md
+type ctxTracker struct {
+	SessionID    string   `json:"session_id"`
+	Kind         string   `json:"kind"`
+	Participants []string `json:"participants"`
+	State        string   `json:"state"`
+	Hostname     string   `json:"hostname"`
+	Address      string   `json:"address"`
+	Login        string   `json:"login"`
+	Cluster      string   `json:"cluster"`
+	KubeCluster  string   `json:"kube_cluster"`
+	HostUser     string   `json:"host_user"`
+	HostRoles    []string `json:"host_roles"`
+}
+
+func toCtxTracker(t types.SessionTracker) ctxTracker {
+	if t == nil {
+		return ctxTracker{}
+	}
+
+	getParticipants := func(s types.SessionTracker) []string {
+		participants := s.GetParticipants()
+		names := make([]string, len(participants))
+		for i, participant := range participants {
+			names[i] = participant.User
+		}
+
+		return names
+	}
+
+	getHostRoles := func(s types.SessionTracker) []string {
+		policySets := s.GetHostPolicySets()
+		roles := make([]string, len(policySets))
+		for i, policySet := range policySets {
+			roles[i] = policySet.Name
+		}
+
+		return roles
+	}
+
+	return ctxTracker{
+		SessionID:    t.GetSessionID(),
+		Kind:         t.GetKind(),
+		Participants: getParticipants(t),
+		State:        string(t.GetState()),
+		Hostname:     t.GetHostname(),
+		Address:      t.GetAddress(),
+		Login:        t.GetLogin(),
+		Cluster:      t.GetClusterName(),
+		KubeCluster:  t.GetKubeCluster(),
+		HostUser:     t.GetHostUser(),
+		HostRoles:    getHostRoles(t),
 	}
 }
 
