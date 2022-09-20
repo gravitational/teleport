@@ -30,12 +30,12 @@ import (
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_insert
 //
-// struct {
-//     MsgHeader header;             // standard message header
-//     int32     flags;              // bit vector - see below
-//     cstring   fullCollectionName; // "dbname.collectionname"
-//     document* documents;          // one or more documents to insert into the collection
-// }
+//	struct {
+//	    MsgHeader header;             // standard message header
+//	    int32     flags;              // bit vector - see below
+//	    cstring   fullCollectionName; // "dbname.collectionname"
+//	    document* documents;          // one or more documents to insert into the collection
+//	}
 //
 // OP_INSERT is deprecated starting MongoDB 5.0 in favor of OP_MSG.
 type MessageOpInsert struct {

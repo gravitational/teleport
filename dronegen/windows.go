@@ -23,6 +23,9 @@ const (
 	toolchainDir      = `/toolchains`
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 	webappsSrc        = `/go/src/github.com/gravitational/webapps`
+
+	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.70-beta.2-windows.exe`
+	relcliSha256 = `6b96852a5e9704b66025cffc71cfe7fe7a2aa7131277a96bccce7e890a2d5a0c`
 )
 
 func newWindowsPipeline(name string) pipeline {
@@ -68,6 +71,7 @@ func windowsTagPipeline() pipeline {
 				`Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
 			},
 		},
+		windowsRegisterArtifactsStep(p.Workspace.Path),
 		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
 	}
 	return p
@@ -232,6 +236,30 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
 			`yarn package-term "-c.extraMetadata.version=$TeleportVersion"`,
+		},
+	}
+}
+
+func windowsRegisterArtifactsStep(workspace string) step {
+	return step{
+		Name: "Register artifacts",
+		Environment: map[string]value{
+			"WORKSPACE_DIR":   {raw: workspace},
+			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT_STAGING"},
+			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY_STAGING"},
+			"RELCLI_BASE_URL": {raw: releasesHost},
+		},
+		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
+			`$ProgressPreference = 'SilentlyContinue'`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`$OutputsDir = "$Workspace/outputs"`,
+			`$relcliUrl = '` + relcliURL + `'`,
+			`$relcliSha256 = '` + relcliSha256 + `'`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace`,
+			`Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir`,
 		},
 	}
 }
