@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	apiazureutils "github.com/gravitational/teleport/api/utils/azure"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
@@ -669,7 +669,7 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 		name,
 	)
 
-	fqdn := name + ".mysql" + apiazureutils.DatabaseEndpointSuffix
+	fqdn := name + ".mysql" + azureutils.DatabaseEndpointSuffix
 	state := armmysql.ServerStateReady
 	version := armmysql.ServerVersionFive7
 	server := &armmysql.Server{
@@ -710,7 +710,7 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 		name,
 	)
 
-	fqdn := name + ".postgres" + apiazureutils.DatabaseEndpointSuffix
+	fqdn := name + ".postgres" + azureutils.DatabaseEndpointSuffix
 	state := armpostgresql.ServerStateReady
 	version := armpostgresql.ServerVersionEleven
 	server := &armpostgresql.Server{

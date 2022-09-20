@@ -35,20 +35,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func TestAuthGetAuthPreference(t *testing.T) {
-	t.Parallel()
-
-	auth, err := NewAuth(AuthConfig{
-		AuthClient: new(authClientMock),
-		Clients:    &cloud.TestCloudClients{},
-	})
-	require.NoError(t, err)
-
-	ap, err := auth.GetAuthPreference(context.TODO())
-	require.NoError(t, err)
-	require.Equal(t, types.DefaultAuthPreference(), ap)
-}
-
 func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	t.Parallel()
 
@@ -114,8 +100,13 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	systemCertPool, err := x509.SystemCertPool()
 	require.NoError(t, err)
 
+	// The authClientMock uses fixtures.TLSCACertPEM as the root signing CA.
 	defaultCertPool := x509.NewCertPool()
-	defaultCertPool.AppendCertsFromPEM([]byte(fixtures.TLSCACertPEM))
+	require.True(t, defaultCertPool.AppendCertsFromPEM([]byte(fixtures.TLSCACertPEM)))
+
+	// Use a different CA to pretend to be CAs for AWS hosted databases.
+	awsCertPool := x509.NewCertPool()
+	require.True(t, awsCertPool.AppendCertsFromPEM([]byte(fixtures.SAMLOktaCertPEM)))
 
 	tests := []struct {
 		name                     string
@@ -134,16 +125,28 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectClientCertificates: true,
 		},
 		{
+			name:            "AWS ElastiCache Redis",
+			sessionDatabase: newElastiCacheRedisDatabase(t, fixtures.SAMLOktaCertPEM),
+			expectRootCAs:   awsCertPool,
+		},
+		{
+			name:             "AWS Redishift",
+			sessionDatabase:  newRedshiftDatabase(t, fixtures.SAMLOktaCertPEM),
+			expectServerName: "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com",
+			expectRootCAs:    awsCertPool,
+		},
+		{
 			name:             "Azure Redis",
 			sessionDatabase:  newAzureRedisDatabase(t, "resource-id"),
 			expectServerName: "test-database.redis.cache.windows.net",
 			expectRootCAs:    systemCertPool,
 		},
 		{
-			name:                     "GCP Cloud SQL",
-			sessionDatabase:          newCloudSQLDatabase(t, "project-id", "instance-id"),
+			name:            "GCP Cloud SQL",
+			sessionDatabase: newCloudSQLDatabase(t, "project-id", "instance-id"),
+			// RootCAs is empty, and custom VerifyConnection function is provided.
 			expectServerName:         "project-id:instance-id",
-			expectRootCAs:            x509.NewCertPool(), // empty
+			expectRootCAs:            x509.NewCertPool(),
 			expectInsecureSkipVerify: true,
 			expectVerifyConnection:   true,
 		},
@@ -213,6 +216,34 @@ func newCloudSQLDatabase(t *testing.T, projectID, instanceID string) types.Datab
 		GCP: types.GCPCloudSQL{
 			ProjectID:  projectID,
 			InstanceID: instanceID,
+		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newElastiCacheRedisDatabase(t *testing.T, ca string) types.Database {
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "master.example-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		TLS: types.DatabaseTLS{
+			CACert: ca,
+		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newRedshiftDatabase(t *testing.T, ca string) types.Database {
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5432",
+		TLS: types.DatabaseTLS{
+			CACert: ca,
 		},
 	})
 	require.NoError(t, err)

@@ -53,14 +53,15 @@ func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, 
 }
 
 // NewRedisEnterpriseClientByAPI creates a new Azure Redis Enterprise client by
-// arm API client(s).
+// ARM API client(s).
 func NewRedisEnterpriseClientByAPI(databaseAPI armRedisEnterpriseDatabaseClient) CacheForRedisClient {
 	return &redisEnterpriseClient{
 		databaseAPI: databaseAPI,
 	}
 }
 
-// GetToken implements CacheForRedisClient.
+// GetToken retrieves the auth token for provided resource group and resource
+// name.
 func (c *redisEnterpriseClient) GetToken(ctx context.Context, group, name string) (string, error) {
 	clusterName, databaseName := c.getClusterAndDatabaseName(name)
 	resp, err := c.databaseAPI.ListKeys(ctx, group, clusterName, databaseName, &armredisenterprise.DatabasesClientListKeysOptions{})

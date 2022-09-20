@@ -26,24 +26,24 @@ import (
 func TestRedisClient(t *testing.T) {
 	t.Run("GetToken", func(t *testing.T) {
 		tests := []struct {
-			name          string
-			mockAPI       armRedisClient
-			expectedError bool
-			expectedToken string
+			name        string
+			mockAPI     armRedisClient
+			expectError bool
+			expectToken string
 		}{
 			{
 				name: "access denied",
 				mockAPI: &ARMRedisMock{
 					NoAuth: true,
 				},
-				expectedError: true,
+				expectError: true,
 			},
 			{
 				name: "succeed",
 				mockAPI: &ARMRedisMock{
 					Token: "some-token",
 				},
-				expectedToken: "some-token",
+				expectToken: "some-token",
 			},
 		}
 
@@ -53,11 +53,11 @@ func TestRedisClient(t *testing.T) {
 
 				c := NewRedisClientByAPI(test.mockAPI)
 				token, err := c.GetToken(context.TODO(), "group", "cluster")
-				if test.expectedError {
+				if test.expectError {
 					require.Error(t, err)
 				} else {
 					require.NoError(t, err)
-					require.Equal(t, test.expectedToken, token)
+					require.Equal(t, test.expectToken, token)
 				}
 			})
 		}

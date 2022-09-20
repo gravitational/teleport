@@ -40,7 +40,7 @@ func NewClientMap[ClientType any](newClient func(string, azcore.TokenCredential,
 	}
 }
 
-// Get fetches an Azure client by subscription. A new client is created if the
+// Get returns an Azure client by subscription. A new client is created if the
 // subscription is not found in the map.
 func (m *ClientMap[ClientType]) Get(subscription string, getCredentials func() (azcore.TokenCredential, error)) (client ClientType, err error) {
 	m.mu.RLock()

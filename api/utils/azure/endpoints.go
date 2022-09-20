@@ -92,11 +92,12 @@ func ParseCacheForRedisEndpoint(endpoint string) (name string, err error) {
 	}
 }
 
-// GetHostFromRedisURI extracts host name from a Redis URI.
+// GetHostFromRedisURI extracts host name from a Redis URI. The URI may start
+// with "redis://", "rediss://", or without. The URI may also have parameters
+// like "?mode=cluster".
 func GetHostFromRedisURI(uri string) (string, error) {
-	// The uri may start with "redis://", "rediss://", or without. Add a
-	// temporary schema to make a valid URL for url.Parse if schema is not
-	// found.
+	// Add a temporary schema to make a valid URL for url.Parse if schema is
+	// not found.
 	if !strings.Contains(uri, "://") {
 		uri = "schema://" + uri
 	}

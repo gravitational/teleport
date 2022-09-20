@@ -2386,7 +2386,8 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
 			DynamicLabels: dynamicLabels,
 			Azure: types.Azure{
-				Name: name,
+				Name:       name,
+				ResourceID: "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/Redis/example-teleport",
 			},
 			// Set CA cert to pass cert validation.
 			TLS: types.DatabaseTLS{

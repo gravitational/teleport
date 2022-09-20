@@ -48,7 +48,7 @@ func NewRedisClient(subscription string, cred azcore.TokenCredential, options *a
 	return NewRedisClientByAPI(api), nil
 }
 
-// NewRedisClientByAPI creates a new Azure Redis client by arm API client.
+// NewRedisClientByAPI creates a new Azure Redis client by ARM API client.
 func NewRedisClientByAPI(api armRedisClient) CacheForRedisClient {
 	return &redisClient{
 		api: api,

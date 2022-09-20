@@ -512,8 +512,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
 
-	// For Azure MySQL and PostgresSQL.
 	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
+		// For Azure MySQL and PostgresSQL.
 		name, err := azureutils.ParseDatabaseEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)

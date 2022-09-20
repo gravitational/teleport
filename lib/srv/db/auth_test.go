@@ -243,8 +243,8 @@ func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.S
 	return azureAccessToken, nil
 }
 
-// GetAzureRedisToken retrieves auth token for Azure Cache for Redis.
-func (a *testAuth) GetAzureRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
+func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
 	return azureRedisToken, nil
 }

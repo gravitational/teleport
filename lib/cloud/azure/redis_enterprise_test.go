@@ -29,8 +29,8 @@ func TestRedisEnterpriseClient(t *testing.T) {
 			name            string
 			mockDatabaseAPI armRedisEnterpriseDatabaseClient
 			resourceName    string
-			expectedError   bool
-			expectedToken   string
+			expectError     bool
+			expectToken     string
 		}{
 			{
 				name:         "access denied",
@@ -38,7 +38,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 				mockDatabaseAPI: &ARMRedisEnterpriseDatabaseMock{
 					NoAuth: true,
 				},
-				expectedError: true,
+				expectError: true,
 			},
 			{
 				name:         "succeed (default database name)",
@@ -48,7 +48,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 						"default": "some-token",
 					},
 				},
-				expectedToken: "some-token",
+				expectToken: "some-token",
 			},
 			{
 				name:         "succeed (specific database name)",
@@ -58,7 +58,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 						"some-database": "some-token",
 					},
 				},
-				expectedToken: "some-token",
+				expectToken: "some-token",
 			},
 		}
 
@@ -68,11 +68,11 @@ func TestRedisEnterpriseClient(t *testing.T) {
 
 				c := NewRedisEnterpriseClientByAPI(test.mockDatabaseAPI)
 				token, err := c.GetToken(context.TODO(), "group", test.resourceName)
-				if test.expectedError {
+				if test.expectError {
 					require.Error(t, err)
 				} else {
 					require.NoError(t, err)
-					require.Equal(t, test.expectedToken, token)
+					require.Equal(t, test.expectToken, token)
 				}
 			})
 		}

@@ -27,11 +27,11 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	apiazureutils "github.com/gravitational/teleport/api/utils/azure"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
-	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
+	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -315,7 +315,7 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Ses
 		return "", trace.Wrap(err)
 	}
 
-	var client libcloudazure.CacheForRedisClient
+	var client libazure.CacheForRedisClient
 	switch resourceID.ResourceType.String() {
 	case "Microsoft.Cache/Redis":
 		client, err = a.cfg.Clients.GetAzureRedisClient(resourceID.SubscriptionID)
@@ -332,7 +332,19 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Ses
 	}
 
 	token, err := client.GetToken(ctx, resourceID.ResourceGroupName, resourceID.Name)
-	return token, trace.Wrap(err)
+	if err != nil {
+		if trace.IsAccessDenied(err) {
+			// Some Azure error messages are long, multi-lined, and may even
+			// contain divider lines like "------". It's unreadable in
+			// redis-cli as the message has to be merged to a single line
+			// string. Thus logging the original error as debug and returning a
+			// more user friendly message.
+			a.cfg.Log.WithError(err).Debugf("Failed to get token for Azure Redis %v.", sessionCtx.Database.GetName())
+			return "", trace.AccessDenied("Failed to get token for Azure Redis %v. Please make sure the database agent has the \"listKeys\" permission on the database.", sessionCtx.Database.GetName())
+		}
+		return "", trace.Wrap(err)
+	}
+	return token, nil
 }
 
 // GetTLSConfig builds the client TLS configuration for the session.
@@ -508,8 +520,7 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 // tlsConfig based on session context.
 func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error {
 	// Use user provided server name if set. Override the current value if needed.
-	dbTLSConfig := sessionCtx.Database.GetTLS()
-	if dbTLSConfig.ServerName != "" {
+	if dbTLSConfig := sessionCtx.Database.GetTLS(); dbTLSConfig.ServerName != "" {
 		tlsConfig.ServerName = dbTLSConfig.ServerName
 		return nil
 	}
@@ -528,11 +539,11 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 
 	case defaults.ProtocolRedis:
 		// Azure Redis servers always serve the certificates with the proper
-		// hostname. However, OSS cluster mode may redirect to an IP address,
-		// and without ServerName the handshake will fail as the IPs are not
-		// in SANs.
+		// hostnames. However, OSS cluster mode may redirect to an IP address,
+		// and without correct ServerName the handshake will fail as the IPs
+		// are not in SANs.
 		if sessionCtx.Database.IsAzure() {
-			serverName, err := apiazureutils.GetHostFromRedisURI(sessionCtx.Database.GetURI())
+			serverName, err := azureutils.GetHostFromRedisURI(sessionCtx.Database.GetURI())
 			if err != nil {
 				return trace.Wrap(err)
 			}

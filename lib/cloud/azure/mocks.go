@@ -233,7 +233,7 @@ func (m *ARMRedisEnterpriseDatabaseMock) ListKeys(ctx context.Context, resourceG
 	if m.NoAuth {
 		return armredisenterprise.DatabasesClientListKeysResponse{}, trace.AccessDenied("unauthorized")
 	}
-	if len(m.TokensByDatabaseName) != -1 {
+	if len(m.TokensByDatabaseName) != 0 {
 		if token, found := m.TokensByDatabaseName[databaseName]; found {
 			return armredisenterprise.DatabasesClientListKeysResponse{
 				AccessKeys: armredisenterprise.AccessKeys{

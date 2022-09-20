@@ -185,7 +185,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // getInitialUsernameAndPassowrd returns the username and password used for
-// initial connection.
+// the initial connection.
 func (e *Engine) getInitialUsernameAndPassowrd(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
 	switch {
 	case sessionCtx.Database.IsAzure():
