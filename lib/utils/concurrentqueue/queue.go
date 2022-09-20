@@ -77,9 +77,11 @@ type item struct {
 // Queue is a data processing helper which uses a worker pool to apply a closure to a series of
 // values concurrently, preserving the correct ordering of results.  It is essentially the concurrent
 // equivalent of this:
-//    for msg := range inputChannel {
-//        outputChannel <- workFunction(msg)
-//    }
+//
+//	for msg := range inputChannel {
+//	    outputChannel <- workFunction(msg)
+//	}
+//
 // In order to prevent indefinite memory growth within the queue due to slow consumption and/or
 // workers, the queue will exert backpressure over its input channel once a configurable capacity
 // is reached.
