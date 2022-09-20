@@ -982,7 +982,7 @@
               "title": "teleport-plugin-pagerduty",
               "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
             },
-	          {
+            {
               "title": "teleport-plugin-mattermost",
               "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
             },
