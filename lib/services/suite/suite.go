@@ -1378,6 +1378,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindToken,
 			},
+			expectDeleteVersion: true,
 			crud: func(context.Context) types.Resource {
 				expires := time.Now().UTC().Add(time.Hour)
 				tok, err := types.NewProvisionToken("token",
@@ -1824,14 +1825,18 @@ skiploop:
 		}
 		// delete events don't have IDs yet
 		header.SetResourceID(0)
+		if tc.expectDeleteVersion {
+			header.Version = types.VDeleted
+		}
 		ExpectDeleteResource(t, w, 3*time.Second, header)
 	}
 }
 
 type eventTest struct {
-	name string
-	kind types.WatchKind
-	crud func(context.Context) types.Resource
+	name                string
+	kind                types.WatchKind
+	expectDeleteVersion bool
+	crud                func(context.Context) types.Resource
 }
 
 func eventsTestKinds(tests []eventTest) []types.WatchKind {
