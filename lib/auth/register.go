@@ -482,11 +482,12 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 			},
 		},
 		{
+			// DELETE IN 12.0, global endpoint does not support China or
+			// GovCloud or FIPS, is only a fallback for connecting to an auth
+			// server on an older version which does not support regional
+			// endpoints.
 			desc: "global",
 			opts: []stsIdentityRequestOption{
-				// Global endpoint does not support FIPS, this is a fallback
-				// when joining a cluster with an auth server on an older
-				// version which does not yet support regional endpoints.
 				withFIPSEndpoint(false),
 				withRegionalEndpoint(false),
 			},

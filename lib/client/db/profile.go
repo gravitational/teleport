@@ -18,10 +18,12 @@ limitations under the License.
 // that combine connection parameters for a particular database.
 //
 // For Postgres it's the connection service file:
-//   https://www.postgresql.org/docs/current/libpq-pgservice.html
+//
+//	https://www.postgresql.org/docs/current/libpq-pgservice.html
 //
 // For MySQL it's the option file:
-//   https://dev.mysql.com/doc/refman/8.0/en/option-files.html
+//
+//	https://dev.mysql.com/doc/refman/8.0/en/option-files.html
 package db
 
 import (

@@ -2,7 +2,7 @@
 
 # If this build was triggered from a tag on the teleport repo,
 # then assume we can use the same tag for the webapps repo.
-if [ ! -z "$DRONE_TAG" ]
+if [ -n "$DRONE_TAG" ]
 then
     echo "$DRONE_TAG"
     exit 0
