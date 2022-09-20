@@ -63,8 +63,8 @@ type Auth interface {
 	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
 	GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error)
-	// GetAzureRedisToken retrieves auth token for Azure Cache for Redis.
-	GetAzureRedisToken(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
+	GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
@@ -73,10 +73,20 @@ type Auth interface {
 	io.Closer
 }
 
+// AuthClient is an interface that defines a subset of libauth.Client's
+// functions that are required for database auth.
+type AuthClient interface {
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+	// GetAuthPreference returns the cluster authentication config.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+}
+
 // AuthConfig is the database access authenticator configuration.
 type AuthConfig struct {
 	// AuthClient is the cluster auth client.
-	AuthClient *libauth.Client
+	AuthClient AuthClient
 	// Clients provides interface for obtaining cloud provider clients.
 	Clients cloud.Clients
 	// Clock is the clock implementation.
@@ -298,8 +308,8 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 	return token.Token, nil
 }
 
-// GetAzureRedisToken retrieves auth token for Azure Cache for Redis.
-func (a *dbAuth) GetAzureRedisToken(ctx context.Context, sessionCtx *Session) (string, error) {
+// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
+func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Session) (string, error) {
 	resourceID, err := arm.ParseResourceID(sessionCtx.Database.GetAzure().ResourceID)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -526,7 +536,9 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			dbTLSConfig.ServerName = serverName
+
+			tlsConfig.ServerName = serverName
+			return nil
 		}
 
 		// Redis is using custom URI schema.

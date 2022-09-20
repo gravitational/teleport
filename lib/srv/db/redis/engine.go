@@ -190,7 +190,7 @@ func (e *Engine) getInitialUsernameAndPassowrd(ctx context.Context, sessionCtx *
 	switch {
 	case sessionCtx.Database.IsAzure():
 		// Retrieve the auth token for Azure Cache for Redis. Use default user.
-		password, err := e.Auth.GetAzureRedisToken(ctx, sessionCtx)
+		password, err := e.Auth.GetAzureCacheForRedisToken(ctx, sessionCtx)
 		return "", password, trace.Wrap(err)
 
 	default:

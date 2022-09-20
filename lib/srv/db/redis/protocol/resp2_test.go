@@ -78,8 +78,8 @@ func TestWriteCmd(t *testing.T) {
 		},
 		{
 			name:     "multi-line error",
-			val:      errors.New("something bad.\r\n  \n  and another line."),
-			expected: []byte("-ERR something bad. and another line.\r\n"),
+			val:      errors.New("something bad.\r\n  \n  and another line"),
+			expected: []byte("-ERR something bad. and another line\r\n"),
 		},
 		{
 			name:     "Teleport error",

@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -121,7 +122,7 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 		Name:     name,
 		Port:     "3306",
 		Properties: azure.ServerProperties{
-			FullyQualifiedDomainName: name + ".mysql" + types.AzureEndpointSuffix,
+			FullyQualifiedDomainName: name + ".mysql" + azureutils.DatabaseEndpointSuffix,
 			UserVisibleState:         string(armmysql.ServerStateReady),
 			Version:                  string(armmysql.ServerVersionFive7),
 		},
