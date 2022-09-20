@@ -155,7 +155,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	iid := getIID(t)
 
 	tokenName := "test_token"
-	token, err := types.NewProvisionTokenFromSpec(
+	token, err := types.NewProvisionTokenV2FromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
 		types.ProvisionTokenSpecV2{
@@ -230,7 +230,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	id := getCallerIdentity(t)
 
 	tokenName := "test_token"
-	token, err := types.NewProvisionTokenFromSpec(
+	token, err := types.NewProvisionTokenV2FromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
 		types.ProvisionTokenSpecV2{
