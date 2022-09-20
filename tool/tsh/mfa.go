@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/winwebauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -255,7 +256,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		// Ask the user?
 		// c.allowPasswordless=false at this point only means that the flag wasn't
 		// explicitly set.
-		if !c.allowPasswordless && wancli.IsFIDO2Available() {
+		if !c.allowPasswordless && (wancli.IsFIDO2Available() || winwebauthn.IsAvailable()) {
 			answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
 			if err != nil {
 				return trace.Wrap(err)

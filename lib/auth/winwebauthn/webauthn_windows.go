@@ -40,15 +40,15 @@ var (
 	procWebAuthNGetApiVersionNumber                           = modWebAuthn.NewProc("WebAuthNGetApiVersionNumber")
 	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = modWebAuthn.NewProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
 	procWebAuthNAuthenticatorMakeCredential                   = modWebAuthn.NewProc("WebAuthNAuthenticatorMakeCredential")
+	procWebAuthNFreeCredentialAttestation                     = modWebAuthn.NewProc("WebAuthNFreeCredentialAttestation")
 	procWebAuthNAuthenticatorGetAssertion                     = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
+	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
 	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
 )
 
 // TODO:
-// - free call for every request
 // - different API version
 // - Worth pointing out that in the windows Hello attestation, there is SHA1 used over the signatures which can be potentially a secuirity risk, so you need to check for the use of RS1 in some internal code paths and reject if found.
-// - if Attestation preference is not used, win-hello always return none.
 // - todo support api v4
 
 type Client struct {
@@ -73,19 +73,15 @@ var (
 	cachedDiagMU sync.Mutex
 )
 
-// TODO(tobiaszheller): comments!!
-// IsAvailable returns true if Touch ID is available in the system.
+// IsAvailable returns true if Windows Webauthn is available in the system.
 // Typically, a series of checks is performed in an attempt to avoid false
 // positives.
 // See Diag.
 func isAvailable() bool {
 	// IsAvailable guards most of the public APIs, so results are cached between
 	// invocations to avoid user-visible delays.
-	// Diagnostics are safe to cache. State such as code signature, entitlements
-	// and system availability of Touch ID / Secure Enclave isn't something that
+	// Diagnostics are safe to cache because dll isn't something that
 	// could change during program invocation.
-	// The outlier here is having a closed macbook (aka clamshell mode), as that
-	// does impede Touch ID APIs and is something that can change.
 	cachedDiagMU.Lock()
 	defer cachedDiagMU.Unlock()
 
@@ -214,6 +210,8 @@ func (c Client) GetAssertion(origin string, in protocol.PublicKeyCredentialReque
 	if out == nil {
 		return nil, fmt.Errorf("unexpected nil response from GetAssertion")
 	}
+	defer freeAssertion(out)
+
 	authData := bytePtrToByte(out.cbAuthenticatorData, out.pbAuthenticatorData)
 	signiture := bytePtrToByte(out.cbSignature, out.pbSignature)
 	userID := bytePtrToByte(out.cbUserId, out.pbUserId)
@@ -284,6 +282,8 @@ func (c Client) MakeCredential(origin string, in protocol.PublicKeyCredentialCre
 		return nil, fmt.Errorf("unexpected nil response from MakeCredential")
 	}
 
+	defer freeCredentialAttestation(out)
+
 	credentials := bytePtrToByte(out.CbCredentialId, out.PbCredentialId)
 
 	return &wanlib.CredentialCreationResponse{
@@ -301,6 +301,26 @@ func (c Client) MakeCredential(origin string, in protocol.PublicKeyCredentialCre
 			AttestationObject: bytePtrToByte(out.CbAttestationObject, out.PbAttestationObject),
 		},
 	}, nil
+}
+
+func freeCredentialAttestation(in *_WEBAUTHN_CREDENTIAL_ATTESTATION) error {
+	_, _, err := procWebAuthNFreeCredentialAttestation.Call(
+		uintptr(unsafe.Pointer(in)),
+	)
+	if err != syscall.Errno(0) {
+		return err
+	}
+	return nil
+}
+
+func freeAssertion(in *_WEBAUTHN_ASSERTION) error {
+	_, _, err := procWebAuthNFreeAssertion.Call(
+		uintptr(unsafe.Pointer(in)),
+	)
+	if err != syscall.Errno(0) {
+		return err
+	}
+	return nil
 }
 
 type hresult int32
