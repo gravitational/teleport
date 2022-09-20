@@ -339,8 +339,8 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Ses
 			// redis-cli as the message has to be merged to a single line
 			// string. Thus logging the original error as debug and returning a
 			// more user friendly message.
-			a.cfg.Log.WithError(err).Debugf("Failed to get token for Azure Redis %v.", sessionCtx.Database.GetName())
-			return "", trace.AccessDenied("Failed to get token for Azure Redis %v. Please make sure the database agent has the \"listKeys\" permission on the database.", sessionCtx.Database.GetName())
+			a.cfg.Log.WithError(err).Debugf("Failed to get token for Azure Redis %q.", sessionCtx.Database.GetName())
+			return "", trace.AccessDenied("Failed to get token for Azure Redis %q. Please make sure the database agent has the \"listKeys\" permission to the database.", sessionCtx.Database.GetName())
 		}
 		return "", trace.Wrap(err)
 	}
