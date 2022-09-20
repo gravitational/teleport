@@ -308,6 +308,22 @@ func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
 	return products
 }
 
+type image struct {
+	Repo string
+	Name string
+	Tag  imageTag
+}
+
+func (i *image) GetShellName() string {
+	// Ensure one and only one "/"
+	repo := strings.TrimSuffix(i.Repo, "/")
+	return fmt.Sprintf("%s/%s:%s", repo, i.Name, i.Tag.ShellValue)
+}
+
+func (i *image) GetDisplayName() string {
+	return fmt.Sprintf("%s:%s", i.Name, i.Tag.DisplayValue)
+}
+
 type Product struct {
 	Name                 string
 	DockerfilePath       string
@@ -316,7 +332,7 @@ type Product struct {
 	SupportedArchs       []string
 	SetupSteps           []step
 	DockerfileArgBuilder func(arch string) []string
-	ImageNameBuilder     func(repo, tag string) string
+	ImageNameBuilder     func(repo string, tag imageTag) image
 	GetRequiredStepNames func(arch string) []string
 }
 
@@ -351,17 +367,21 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *Pro
 				fmt.Sprintf("DEB_PATH=%s", debPaths[arch]),
 			}
 		},
-		ImageNameBuilder: func(repo, tag string) string {
+		ImageNameBuilder: func(repo string, tag imageTag) image {
 			imageProductName := "teleport"
 			if isEnterprise {
 				imageProductName += "-ent"
 			}
 
 			if isFips {
-				tag += "-fips"
+				tag.AppendString("fips")
 			}
 
-			return defaultImageTagBuilder(repo, imageProductName, tag)
+			return image{
+				Repo: repo,
+				Name: imageProductName,
+				Tag:  tag,
+			}
 		},
 	}
 }
@@ -381,7 +401,13 @@ func NewTeleportLabProduct(cloneDirectory string, version *releaseVersion, telep
 				fmt.Sprintf("BASE_IMAGE=%s", teleport.BuildLocalRegistryImageName(arch, version)),
 			}
 		},
-		ImageNameBuilder: func(repo, tag string) string { return defaultImageTagBuilder(repo, name, tag) },
+		ImageNameBuilder: func(repo string, tag imageTag) image {
+			return image{
+				Repo: repo,
+				Name: name,
+				Tag:  tag,
+			}
+		},
 		GetRequiredStepNames: func(arch string) []string {
 			return []string{teleport.GetBuildStepName(arch, version)}
 		},
@@ -395,7 +421,13 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 		DockerfilePath:   path.Join(cloneDirectory, "operator", "Dockerfile"),
 		WorkingDirectory: cloneDirectory,
 		SupportedArchs:   []string{"amd64", "arm", "arm64"},
-		ImageNameBuilder: func(repo, tag string) string { return defaultImageTagBuilder(repo, name, tag) },
+		ImageNameBuilder: func(repo string, tag imageTag) image {
+			return image{
+				Repo: repo,
+				Name: name,
+				Tag:  tag,
+			}
+		},
 		DockerfileArgBuilder: func(arch string) []string {
 			gccPackage := ""
 			compilerName := ""
@@ -428,10 +460,6 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 			}
 		},
 	}
-}
-
-func defaultImageTagBuilder(repo, name, tag string) string {
-	return fmt.Sprintf("%s%s:%s", repo, name, tag)
 }
 
 func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL string, archs []string) (step, map[string]string, string) {
@@ -651,7 +679,7 @@ type ContainerRepo struct {
 	RegistryDomain string
 	RegistryOrg    string
 	LoginCommands  []string
-	TagBuilder     func(baseTag string) string // Postprocessor for tags that append CR-specific suffixes
+	TagBuilder     func(baseTag imageTag) imageTag // Postprocessor for tags that append CR-specific suffixes
 }
 
 func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isStaging bool) *ContainerRepo {
@@ -693,12 +721,12 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 			"TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')",
 			fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 		},
-		TagBuilder: func(baseTag string) string {
-			if !isStaging {
-				return baseTag
+		TagBuilder: func(tag imageTag) imageTag {
+			if isStaging {
+				tag.AppendString("$TIMESTAMP")
 			}
 
-			return fmt.Sprintf("%s-%s", baseTag, "$TIMESTAMP")
+			return tag
 		},
 	}
 }
@@ -745,13 +773,13 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 	steps := make([]step, 0)
 
 	imageTags := cr.BuildImageTags(buildStepDetails[0].Version.ShellVersion)
-	pushedImageNames := make(map[string][]string, len(imageTags))
+	pushedImages := make(map[imageTag][]image, len(imageTags))
 	pushStepNames := make([]string, 0, len(buildStepDetails))
 	for _, buildStepDetail := range buildStepDetails {
-		pushStep, pushedImages := cr.tagAndPushStep(buildStepDetail, imageTags)
+		pushStep, pushedArchImages := cr.tagAndPushStep(buildStepDetail, imageTags)
 		pushStepNames = append(pushStepNames, pushStep.Name)
 		for _, imageTag := range imageTags {
-			pushedImageNames[imageTag] = append(pushedImageNames[imageTag], pushedImages[imageTag])
+			pushedImages[imageTag] = append(pushedImages[imageTag], pushedArchImages[imageTag])
 		}
 
 		steps = append(steps, pushStep)
@@ -759,8 +787,8 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 
 	imageRepo := cr.BuildImageRepo()
 	for _, imageTag := range imageTags {
-		manifestName := buildStepDetails[0].Product.ImageNameBuilder(imageRepo, imageTag)
-		manifestStepName := cr.createAndPushManifestStep(manifestName, pushStepNames, pushedImageNames[imageTag])
+		manifestImage := buildStepDetails[0].Product.ImageNameBuilder(imageRepo, imageTag)
+		manifestStepName := cr.createAndPushManifestStep(manifestImage, pushStepNames, pushedImages[imageTag])
 		steps = append(steps, manifestStepName)
 	}
 
@@ -784,15 +812,34 @@ func (cr *ContainerRepo) BuildImageRepo() string {
 	return fmt.Sprintf("%s/%s/", cr.RegistryDomain, cr.RegistryOrg)
 }
 
-func (cr *ContainerRepo) getTagsForVersion(shellVersion string) []string {
-	return []string{
-		fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1)", shellVersion),     //Major
-		fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2)", shellVersion),   // Minor
-		fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2,3)", shellVersion), // Canonical
+type imageTag struct {
+	ShellValue   string // Should evaluate in a shell context to the tag's value
+	DisplayValue string // Should be set to a human-readable version of ShellTag
+}
+
+func (it *imageTag) AppendString(s string) {
+	it.ShellValue += fmt.Sprintf("-%s", s)
+	it.DisplayValue += fmt.Sprintf("-%s", s)
+}
+
+func (cr *ContainerRepo) getTagsForVersion(shellVersion string) []imageTag {
+	return []imageTag{
+		{
+			ShellValue:   fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1)", shellVersion),
+			DisplayValue: "major",
+		},
+		{
+			ShellValue:   fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2)", shellVersion),
+			DisplayValue: "minor",
+		},
+		{
+			ShellValue:   fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2,3)", shellVersion),
+			DisplayValue: "canonical",
+		},
 	}
 }
 
-func (cr *ContainerRepo) BuildImageTags(shellVersion string) []string {
+func (cr *ContainerRepo) BuildImageTags(shellVersion string) []imageTag {
 	tags := cr.getTagsForVersion(shellVersion)
 
 	if cr.TagBuilder != nil {
@@ -804,23 +851,24 @@ func (cr *ContainerRepo) BuildImageTags(shellVersion string) []string {
 	return tags
 }
 
-func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []string) (step, map[string]string) {
+func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []imageTag) (step, map[imageTag]image) {
 	imageRepo := cr.BuildImageRepo()
 
-	archImageNames := make(map[string]string, len(imageTags))
+	archImages := make(map[imageTag]image, len(imageTags))
 	for _, imageTag := range imageTags {
-		imageName := buildStepDetails.Product.ImageNameBuilder(imageRepo, imageTag)
-		archImageNames[imageTag] = fmt.Sprintf("%s-%s", imageName, buildStepDetails.BuiltImageArch)
+		archTag := imageTag
+		archTag.AppendString(buildStepDetails.BuiltImageArch)
+		archImages[imageTag] = buildStepDetails.Product.ImageNameBuilder(imageRepo, archTag)
 	}
 
 	commands := []string{
 		fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImageName), // This will pull from the local registry
 	}
-	for _, archImageName := range archImageNames {
-		commands = append(commands, fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, archImageName))
+	for _, archImage := range archImages {
+		commands = append(commands, fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, archImage.GetShellName()))
 	}
-	for _, archImageName := range archImageNames {
-		commands = append(commands, fmt.Sprintf("docker push %q", archImageName))
+	for _, archImage := range archImages {
+		commands = append(commands, fmt.Sprintf("docker push %q", archImage.GetShellName()))
 	}
 
 	step := step{
@@ -834,29 +882,27 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		},
 	}
 
-	return step, archImageNames
+	return step, archImages
 }
 
-func (cr *ContainerRepo) createAndPushManifestStep(manifestName string, pushStepNames, pushedImageNames []string) step {
+func (cr *ContainerRepo) createAndPushManifestStep(manifestImage image, pushStepNames []string, pushedImages []image) step {
 	if len(pushStepNames) == 0 {
 		return step{}
 	}
 
-	displayManifestName := trimRegistry(cleanShellVersionString(manifestName))
-
-	manifestCommandArgs := make([]string, 0, len(pushedImageNames))
-	for _, pushedImageName := range pushedImageNames {
-		manifestCommandArgs = append(manifestCommandArgs, fmt.Sprintf("--amend %q", pushedImageName))
+	manifestCommandArgs := make([]string, 0, len(pushedImages))
+	for _, pushedImage := range pushedImages {
+		manifestCommandArgs = append(manifestCommandArgs, fmt.Sprintf("--amend %q", pushedImage.GetShellName()))
 	}
 
 	return step{
-		Name:        fmt.Sprintf("Create manifest and push %q to %s", displayManifestName, cr.Name),
+		Name:        fmt.Sprintf("Create manifest and push %q to %s", manifestImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
 		Commands: cr.buildCommandsWithLogin([]string{
-			fmt.Sprintf("docker manifest create %q %s", manifestName, strings.Join(manifestCommandArgs, " ")),
-			fmt.Sprintf("docker manifest push %q", manifestName),
+			fmt.Sprintf("docker manifest create %q %s", manifestImage.GetShellName(), strings.Join(manifestCommandArgs, " ")),
+			fmt.Sprintf("docker manifest push %q", manifestImage.GetShellName()),
 		}),
 		DependsOn: pushStepNames,
 	}
