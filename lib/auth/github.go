@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -141,16 +142,13 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 	}
 
 	for org := range orgs {
-		orgResult, err := orgCache.Get(ctx, org, func(ctx context.Context) (interface{}, error) {
+		usesSSO, err := utils.FnCacheGet(ctx, orgCache, org, func(ctx context.Context) (bool, error) {
 			return orgUsesExternalSSO(ctx, org, client)
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		usesSSO, ok := orgResult.(bool)
-		if !ok {
-			return trace.BadParameter("Expected bool from cache, got %T", orgResult)
-		}
+
 		if usesSSO {
 			return trace.AccessDenied(
 				"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license if you want to authenticate with this organization",
@@ -178,6 +176,15 @@ func orgUsesExternalSSO(ctx context.Context, org string, client httpRequester) (
 		var urlErr *url.Error
 
 		resp, err = makeHTTPGetReq(ctx, ssoURL, client)
+		// Drain and close the body regardless of outcome.
+		// Errors handled below.
+		if resp != nil {
+			io.Copy(io.Discard, resp.Body)
+			if bodyErr := resp.Body.Close(); bodyErr != nil {
+				logrus.WithError(bodyErr).Error("Error closing response body.")
+			}
+		}
+		// Handle makeHTTPGetReq errors.
 		if err == nil {
 			break
 		} else if errors.As(err, &urlErr) && urlErr.Timeout() {
@@ -191,10 +198,6 @@ func orgUsesExternalSSO(ctx context.Context, org string, client httpRequester) (
 		}
 		// Unknown error, don't try making any more requests
 		return false, trace.Wrap(err, "Unknown error trying to reach GitHub to check for organization external SSO")
-	}
-	err := resp.Body.Close()
-	if err != nil {
-		logrus.WithError(err).Error("Error closing response body.")
 	}
 
 	// "sso" page exists, org uses external SSO

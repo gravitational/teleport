@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -309,7 +310,7 @@ func (m mockHTTPRequester) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	resp := new(http.Response)
-	resp.Body = io.NopCloser(nil)
+	resp.Body = io.NopCloser(bytes.NewReader([]byte{}))
 	resp.StatusCode = m.statusCode
 
 	return resp, nil

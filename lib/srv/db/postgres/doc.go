@@ -26,14 +26,14 @@ limitations under the License.
 //
 // The package provides the following main types:
 //
-// * Proxy. Runs inside Teleport proxy and proxies connections from Postgres
-//   clients to appropriate database servers over reverse tunnel.
+//   - Proxy. Runs inside Teleport proxy and proxies connections from Postgres
+//     clients to appropriate database servers over reverse tunnel.
 //
-// * Engine. Runs inside Teleport database service, accepts connections
-//   coming from proxy over reversetunnel and proxies them to databases.
+//   - Engine. Runs inside Teleport database service, accepts connections
+//     coming from proxy over reversetunnel and proxies them to databases.
 //
-// * TestServer. Fake Postgres server that implements a small part of its
-//   wire protocol, used in functional tests.
+//   - TestServer. Fake Postgres server that implements a small part of its
+//     wire protocol, used in functional tests.
 //
 // Protocol
 // --------
@@ -55,23 +55,24 @@ limitations under the License.
 // The sequence diagram roughly looks like this:
 //
 // psql                   proxy
-//  |                       |
-//  | ---- SSLRequest ----> |
-//  |                       |
-//  | <------  'S' -------- |
-//  |                       |
-//  | -- StartupMessage --> |                     engine
-//  |                       |                       |
-//  |                       | -- StartupMessage --> |                  Postgres
-//  |                       |                       |                     |
-//  |                       |                       | ----- connect ----> |
-//  |                       |                       |                     |
-//  | <-------------- ReadyForQuery --------------- |                     |
-//  |                       |                       |                     |
-//  | ------------------------------ Query -----------------------------> |
-//  | <---------------------------- DataRow ----------------------------- |
-//  | <------------------------- ReadyForQuery -------------------------- |
-//  |                       |                       |                     |
-//  | ----------------------------- Terminate --------------------------> |
-//  |                       |                       |                     |
+//
+//	|                       |
+//	| ---- SSLRequest ----> |
+//	|                       |
+//	| <------  'S' -------- |
+//	|                       |
+//	| -- StartupMessage --> |                     engine
+//	|                       |                       |
+//	|                       | -- StartupMessage --> |                  Postgres
+//	|                       |                       |                     |
+//	|                       |                       | ----- connect ----> |
+//	|                       |                       |                     |
+//	| <-------------- ReadyForQuery --------------- |                     |
+//	|                       |                       |                     |
+//	| ------------------------------ Query -----------------------------> |
+//	| <---------------------------- DataRow ----------------------------- |
+//	| <------------------------- ReadyForQuery -------------------------- |
+//	|                       |                       |                     |
+//	| ----------------------------- Terminate --------------------------> |
+//	|                       |                       |                     |
 package postgres
