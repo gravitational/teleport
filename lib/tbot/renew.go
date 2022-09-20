@@ -489,17 +489,17 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 func (b *Bot) renewIdentityViaAuth(
 	ctx context.Context,
 ) (*identity.Identity, error) {
-	// If using the IAM join method we always go through the initial join flow
-	// and fetch new nonrenewable certs
 	var joinMethod types.JoinMethod
 	if b.cfg.Onboarding != nil {
 		joinMethod = b.cfg.Onboarding.JoinMethod
 	}
+
+	// When using join methods that are repeatable - renew fully rather than
+	// renewing using existing credentials.
 	switch joinMethod {
-	case types.JoinMethodIAM:
+	case types.JoinMethodIAM, types.JoinMethodGithub:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
-	default:
 	}
 
 	// Ask the auth server to generate a new set of certs with a new
