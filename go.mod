@@ -67,6 +67,7 @@ require (
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-20220714234348-5d0f5fedefc0
 	github.com/hashicorp/golang-lru v0.5.4
+	github.com/invopop/yaml v0.2.0
 	github.com/jackc/pgconn v1.11.0
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
 	github.com/jackc/pgproto3/v2 v2.2.0

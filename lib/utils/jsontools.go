@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/ghodss/yaml"
+	"github.com/invopop/yaml"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
