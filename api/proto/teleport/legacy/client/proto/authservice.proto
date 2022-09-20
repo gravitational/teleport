@@ -115,6 +115,8 @@ message Event {
     types.KubernetesClusterV3 KubernetesCluster = 33 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
     // Installer is an installer resource
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
+    // ProvisionTokenV3 is a V3 Provision Token resource.
+    types.ProvisionTokenV3 ProvisionTokenV3 = 35 [(gogoproto.jsontag) = "provision_token_v3,omitempty"];
   }
 }
 
