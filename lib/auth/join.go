@@ -103,6 +103,9 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodGitHub:
+		// TODO: Implement Github validation
+		panic("github not implemented yet...")
 	case types.JoinMethodIAM:
 		// IAM join method must use the gRPC RegisterUsingIAMMethod
 		return nil, trace.AccessDenied("this token is only valid for the IAM " +
@@ -139,32 +142,36 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 
 		joinMethod := provisionToken.GetJoinMethod()
 
-		// certs for IAM method should not be renewable
+		// certs for join methods which are repeatable should not be renewable
 		var renewable bool
+		var shouldDeleteToken bool
 		switch joinMethod {
 		case types.JoinMethodToken:
+			shouldDeleteToken = true
 			renewable = true
-		case types.JoinMethodIAM:
+		case types.JoinMethodIAM, types.JoinMethodGitHub:
 			renewable = false
 		default:
-			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
+			return nil, trace.BadParameter(
+				"unsupported join method %q for bot",
+				joinMethod,
+			)
 		}
-		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable)
+		certs, err := a.generateInitialBotCerts(
+			ctx, botResourceName, req.PublicSSHKey, expires, renewable,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		switch joinMethod {
-		case types.JoinMethodToken:
+		if shouldDeleteToken {
 			// delete ephemeral bot join tokens so they can't be re-used
 			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
-				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
-					string(backend.MaskKeyName(provisionToken.GetName())))
+				log.WithError(err).Warnf(
+					"Could not delete bot provision token %q after generating certs",
+					string(backend.MaskKeyName(provisionToken.GetName())),
+				)
 			}
-		case types.JoinMethodIAM:
-			// don't delete long-lived IAM join tokens
-		default:
-			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
 		}
 
 		log.Infof("Bot %q has joined the cluster.", botName)
