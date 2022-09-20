@@ -55,7 +55,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	for _, u := range users {
-		for _, r := range u.() {
+		for _, r := range u.GetRoles() {
 			if r == name {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
