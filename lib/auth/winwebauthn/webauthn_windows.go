@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -65,8 +64,6 @@ const (
 	apiVersion3 = 3
 	apiVersion4 = 4
 )
-
-var errUnavailable = errors.New("windows webauthn unavailable in current build")
 
 var (
 	cachedDiag   *DiagResult
