@@ -418,6 +418,8 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
+	log.Infof("bytes %s", string(out.Bytes()))
+
 	var certs proto.Certs
 	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
 		return nil, trace.Wrap(err)

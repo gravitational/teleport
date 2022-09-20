@@ -37,6 +37,9 @@ const (
 	JoinMethodEC2 JoinMethod = "ec2"
 	// JoinMethodIAM indicates that the node will join with the IAM join method.
 	JoinMethodIAM JoinMethod = "iam"
+	// JoinMethodGithub indicates that the node will join with the Github join
+	// method.
+	JoinMethodGithub JoinMethod = "github"
 )
 
 // ProvisionToken is a provisioning token
