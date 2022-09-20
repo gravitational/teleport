@@ -860,7 +860,7 @@ func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) 
 	return trace.Wrap(err)
 }
 
-// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
+// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
@@ -1602,6 +1602,7 @@ type ClientI interface {
 	services.Restrictions
 	services.Apps
 	services.Databases
+	services.Kubernetes
 	services.WindowsDesktops
 	WebService
 	services.Status

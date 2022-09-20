@@ -114,6 +114,12 @@ $ tctl tokens add \
 The output should contain a `teleport app start` command that can be used to
 start the Teleport Application Service in the next step.
 
+<Admonition type="tip" title="non-standard AWS regions">
+Replace `https://console.aws.amazon.com` with
+`https://console.amazonaws-us-gov.com` for AWS GovCloud (US) regions or
+`https://console.amazonaws.cn` for AWS China regions.
+</Admonition>
+
 ### Install and start Teleport
 Install Teleport on the host where you will run the Teleport Application
 Service. See our [Installation](../../installation.mdx) page for options
@@ -132,6 +138,13 @@ $ teleport app start \
    --name=aws-dynamodb \
    --uri=https://console.aws.amazon.com/dynamodbv2/home
 ```
+
+<Admonition type="warning" title="non-standard AWS regions">
+For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
+regions, please set the corresponding region in the `AWS_REGION` environment
+variable or in the AWS credentials file so that the Application Service can use
+the correct STS endpoint.
+</Admonition>
 
 ## Step 4/5. Give Teleport permissions to assume roles
 

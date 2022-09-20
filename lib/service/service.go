@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
@@ -1314,7 +1315,7 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
+func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, log logrus.FieldLogger) (events.IAuditLog, error) {
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
@@ -1358,7 +1359,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 				return nil, trace.Wrap(err)
 			}
 
-			logger, err := dynamoevents.New(ctx, cfg, backend)
+			logger, err := dynamoevents.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1462,7 +1463,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log, process.backend)
+		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1562,6 +1563,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
+		FIPS:                    cfg.FIPS,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1912,6 +1914,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Presence:         cfg.services,
 		Restrictions:     cfg.services,
 		Apps:             cfg.services,
+		Kubernetes:       cfg.services,
 		Databases:        cfg.services,
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,
@@ -2557,6 +2560,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = pool
+		//nolint:staticcheck // Keep BuildNameToCertificate to avoid changes in legacy behavior.
 		tlsConfig.BuildNameToCertificate()
 
 		listener = tls.NewListener(listener, tlsConfig)
@@ -3476,7 +3480,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		webServer = &http.Server{
-			Handler:           proxyLimiter,
+			Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 		}
@@ -3966,7 +3970,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	})
 
 	minimalWebServer = &http.Server{
-		Handler:           minimalProxyLimiter,
+		Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 	}
