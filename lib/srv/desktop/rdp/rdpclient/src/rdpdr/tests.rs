@@ -1434,3 +1434,57 @@ fn test_scard_ioctl_getreadericon() {
         )],
     );
 }
+
+#[test]
+fn test_scard_ioctl_isvalidcontext() {
+    let context_value = 10;
+    let mut c = client(true, context_value, Some(context_value - 1));
+
+    test_payload_in_to_response_out(
+        &mut c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 88,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 2,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 2048,
+                input_buffer_length: 32,
+                io_control_code: IoctlCode::SCARD_IOCTL_ISVALIDCONTEXT,
+            }),
+            scard_ctl: Some(Box::new(Context_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 2,
+                    io_status: 0,
+                },
+                output_buffer_length: 24,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+}
