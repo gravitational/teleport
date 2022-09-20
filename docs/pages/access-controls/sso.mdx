@@ -249,6 +249,17 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
       # Set as saml, oidc, or github
       type: saml|oidc|github
   ```
+
+  <Admonition type="note" title="IdP-initiated SSO">
+    Enabling the `allow_idp_initiated` flag in SAML connectors allows users to
+    login to Teleport with one click from the dashboard provided by the IdP.
+
+    This feature is potentially unsafe and should be used with caution.
+
+    Enabling IdP-initiated login comes with notable security risks such as:
+    - Possibility of replay attacks on the SAML payload giving an attacker a secret web session
+    - Increased risk to man-in-the-middle based session hijacking and impersonation attacks
+  </Admonition>
   </TabItem>
   <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
@@ -284,6 +295,16 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
   ```
 
   </ScopedBlock>
+  <Admonition type="note" title="IdP-initiated SSO">
+    Enabling the `allow_idp_initiated` flag in SAML connectors allows users to
+    login to Teleport with one click from the dashboard provided by the IdP.
+
+    This feature is potentially unsafe and should be used with caution.
+
+    Enabling IdP-initiated login comes with notable security risks such as:
+    - Possibility of replay attacks on the SAML payload giving an attacker a secret web session
+    - Increased risk to man-in-the-middle based session hijacking and impersonation attacks
+  </Admonition>
   </TabItem>
 </Tabs>
 
@@ -348,6 +369,17 @@ spec:
     <paste SAML XML contents here>
 ```
 
+<Admonition type="note" title="IdP-initiated SSO">
+  Enabling the `allow_idp_initiated` flag in SAML connectors allows users to
+  login to Teleport with one click from the dashboard provided by the IdP.
+
+  This feature is potentially unsafe and should be used with caution.
+
+  Enabling IdP-initiated login comes with notable security risks such as:
+  - Possibility of replay attacks on the SAML payload giving an attacker a secret web session
+  - Increased risk to man-in-the-middle based session hijacking and impersonation attacks
+</Admonition>
+
 </TabItem>
 <TabItem label="OneLogin">
 
@@ -383,6 +415,17 @@ spec:
 (!/examples/resources/saml-connector.yaml!)
 ```
 
+<Admonition type="note" title="IdP-initiated SSO">
+  Enabling the `allow_idp_initiated` flag in SAML connectors allows users to
+  login to Teleport with one click from the dashboard provided by the IdP.
+
+  This feature is potentially unsafe and should be used with caution.
+
+  Enabling IdP-initiated login comes with notable security risks such as:
+  - Possibility of replay attacks on the SAML payload giving an attacker a secret web session
+  - Increased risk to man-in-the-middle based session hijacking and impersonation attacks
+</Admonition>
+
 </TabItem>
 <TabItem label="GitHub">
 
@@ -401,13 +444,6 @@ version: v2
 
 </TabItem>
 </Tabs>
-
-<Admonition type="note" title="IdP-initiated SSO">
-  Enabling the `allow_idp_initiated` flag in SAML connectors allows users to
-  login to Teleport with one click from the dashboard provided by the IdP.
-  This comes with [multiple security considerations worth reviewing](https://github.com/gravitational/teleport/blob/master/rfd/0073-idp-initiated-login.md).
-  Please ensure you understand the security implications of enabling this flag before doing so.
-</Admonition>
 
 You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
 the entity descriptor from your IDP. 
