@@ -17,10 +17,7 @@ limitations under the License.
 package common
 
 import (
-	"strings"
-
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -44,25 +41,12 @@ const (
 	// ProtocolSQLServer is the TLS ALPN protocol value used to indicate SQL Server protocol.
 	ProtocolSQLServer Protocol = "teleport-sqlserver"
 
-	// ProtocolSnowflake is TLS ALPN protocol value used to indicate Snowflake protocol.
-	ProtocolSnowflake Protocol = "teleport-snowflake"
-
-	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
-	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
-
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
 
-	// ProtocolReverseTunnelV2 is TLS ALPN protocol value used to indicate reversetunnel clients
-	// that are aware of proxy peering. This is only used on the client side to allow intermediate
-	// load balancers to make decisions based on the ALPN header. ProtocolReverseTunnel should still
-	// be included in the list of ALPN header for the proxy server to handle the connection properly.
-	ProtocolReverseTunnelV2 Protocol = "teleport-reversetunnelv2"
-
-	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP2 protocol
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"
 
@@ -82,27 +66,21 @@ const (
 	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
 	// MySQL server version.
 	ProtocolMySQLWithVerPrefix = Protocol(string(ProtocolMySQL) + "-")
-
-	// ProtocolTCP is TLS ALPN protocol value used to indicate plain TCP connection.
-	ProtocolTCP Protocol = "teleport-tcp"
-
-	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
-	// Ping.
-	ProtocolPingSuffix Protocol = "-ping"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
-var SupportedProtocols = append(
-	ProtocolsWithPing(ProtocolsWithPingSupport...),
-	append([]Protocol{
-		ProtocolHTTP2,
-		ProtocolHTTP,
-		ProtocolProxySSH,
-		ProtocolReverseTunnel,
-		ProtocolAuth,
-		ProtocolTCP,
-	}, DatabaseProtocols...)...,
-)
+var SupportedProtocols = []Protocol{
+	ProtocolHTTP2,
+	ProtocolHTTP,
+	ProtocolPostgres,
+	ProtocolMySQL,
+	ProtocolMongoDB,
+	ProtocolRedisDB,
+	ProtocolSQLServer,
+	ProtocolProxySSH,
+	ProtocolReverseTunnel,
+	ProtocolAuth,
+}
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
 func ProtocolsToString(protocols []Protocol) []string {
@@ -126,10 +104,6 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolRedisDB, nil
 	case defaults.ProtocolSQLServer:
 		return ProtocolSQLServer, nil
-	case defaults.ProtocolSnowflake:
-		return ProtocolSnowflake, nil
-	case defaults.ProtocolElasticsearch:
-		return ProtocolElasticsearch, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -141,58 +115,10 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 // connection needs to be forwarded to proxy database service where custom TLS handler is invoked
 // to terminated DB connection.
 func IsDBTLSProtocol(protocol Protocol) bool {
-	dbTLSProtocols := []Protocol{
-		ProtocolMongoDB,
-		ProtocolRedisDB,
-		ProtocolSQLServer,
-		ProtocolSnowflake,
-		ProtocolElasticsearch,
+	switch protocol {
+	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer:
+		return true
+	default:
+		return false
 	}
-
-	return slices.Contains(
-		append(dbTLSProtocols, ProtocolsWithPing(dbTLSProtocols...)...),
-		protocol,
-	)
-}
-
-// DatabaseProtocols is the list of the database protocols supported.
-var DatabaseProtocols = []Protocol{
-	ProtocolPostgres,
-	ProtocolMySQL,
-	ProtocolMongoDB,
-	ProtocolRedisDB,
-	ProtocolSQLServer,
-	ProtocolSnowflake,
-	ProtocolElasticsearch,
-}
-
-// ProtocolsWithPingSupport is the list of protocols that Ping connection is
-// supported. For now, only database protocols are supported.
-var ProtocolsWithPingSupport = DatabaseProtocols
-
-// ProtocolsWithPing receives a list a protocols and returns a list of them with
-// the Ping protocol suffix.
-func ProtocolsWithPing(protocols ...Protocol) []Protocol {
-	res := make([]Protocol, len(protocols))
-	for i := range res {
-		res[i] = ProtocolWithPing(protocols[i])
-	}
-
-	return res
-}
-
-// ProtocolWithPing receives a protocol and returns it with the Ping protocol
-// suffix.
-func ProtocolWithPing(protocol Protocol) Protocol {
-	return Protocol(string(protocol) + string(ProtocolPingSuffix))
-}
-
-// IsPingProcotol checks if the provided protocol is suffixed with Ping.
-func IsPingProtocol(protocol Protocol) bool {
-	return strings.HasSuffix(string(protocol), string(ProtocolPingSuffix))
-}
-
-// HasPingSupport checks if the provided protocol supports Ping protocol.
-func HasPingSupport(protocol Protocol) bool {
-	return slices.Contains(ProtocolsWithPingSupport, protocol)
 }

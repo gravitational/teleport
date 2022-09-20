@@ -47,7 +47,13 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 		if err != nil {
 			return nil, err
 		}
-		return a.(*utils.NetAddr), nil
+		addr := a.(*utils.NetAddr)
+		if addr != nil {
+			// make a copy to avoid a data race when the caching resolver is shared by goroutines.
+			addrCopy := *addr
+			return &addrCopy, nil
+		}
+		return addr, nil
 	}, nil
 }
 
@@ -59,8 +65,9 @@ func WebClientResolver(addrs []utils.NetAddr, insecureTLS bool) Resolver {
 		for _, addr := range addrs {
 			// In insecure mode, any certificate is accepted. In secure mode the hosts
 			// CAs are used to validate the certificate on the proxy.
+			// Ignore HTTP proxy for backwards compatibility.
 			tunnelAddr, err := webclient.GetTunnelAddr(
-				&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS})
+				&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS, IgnoreHTTPProxy: true})
 
 			if err != nil {
 				errs = append(errs, err)

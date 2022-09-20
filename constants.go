@@ -27,6 +27,9 @@ import (
 // WebAPIVersion is a current webapi version
 const WebAPIVersion = "v1"
 
+// ForeverTTL means that object TTL will not expire unless deleted
+const ForeverTTL time.Duration = 0
+
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.
@@ -116,9 +119,6 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
-	// ComponentProxyPeer is the proxy peering component of the proxy service
-	ComponentProxyPeer = "proxy:peer"
-
 	// ComponentApp is the application proxy service.
 	ComponentApp = "app:service"
 
@@ -145,6 +145,9 @@ const (
 
 	// ComponentBackend is a backend component
 	ComponentBackend = "backend"
+
+	// ComponentCachingClient is a caching auth client
+	ComponentCachingClient = "client:cache"
 
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
@@ -248,12 +251,6 @@ const (
 
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
-
-	// ComponentInstance is an abstract component common to all services.
-	ComponentInstance = "instance"
-
-	// ComponentVersionControl is the component common to all version control operations.
-	ComponentVersionControl = "version-control"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
@@ -455,17 +452,8 @@ const (
 	// CertExtensionGeneration counts the number of times a certificate has
 	// been renewed.
 	CertExtensionGeneration = "generation"
-	// CertExtensionAllowedResources lists the resources which this certificate
-	// should be allowed to access
-	CertExtensionAllowedResources = "teleport-allowed-resources"
-	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
-	// The Node/Agent will append connection traces to this diagnostic instance.
-	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
 )
 
-// Note: when adding new providers to this list, consider updating the help message for --provider flag
-// for `tctl sso configure oidc` and `tctl sso configure saml` commands
-// as well as docs at https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds
 const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
@@ -526,6 +514,34 @@ const (
 	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
 	TraitExternalPrefix = "external"
 
+	// TraitLogins is the name of the role variable used to store
+	// allowed logins.
+	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
+
+	// TraitKubeGroups is the name the role variable used to store
+	// allowed kubernetes groups
+	TraitKubeGroups = "kubernetes_groups"
+
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
+
+	// TraitDBNames is the name of the role variable used to store
+	// allowed database names.
+	TraitDBNames = "db_names"
+
+	// TraitDBUsers is the name of the role variable used to store
+	// allowed database users.
+	TraitDBUsers = "db_users"
+
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
@@ -568,6 +584,12 @@ const (
 
 // SCP is Secure Copy.
 const SCP = "scp"
+
+// Root is *nix system administrator account name.
+const Root = "root"
+
+// Administrator is the Windows system administrator account name.
+const Administrator = "Administrator"
 
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
@@ -626,9 +648,6 @@ const (
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
-	// TerminalSizeRequest is a request for the terminal size of the session.
-	TerminalSizeRequest = "x-teleport-terminal-size"
-
 	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
 	MFAPresenceRequest = "x-teleport-mfa-presence"
 
@@ -644,10 +663,6 @@ const (
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.
 	EnvSSHSessionDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
-
-	// SSHSessionJoinPrincipal is the SSH principal used when joining sessions.
-	// This starts with a hyphen so it isn't a valid unix login.
-	SSHSessionJoinPrincipal = "-teleport-internal-join"
 )
 
 const (
@@ -659,6 +674,15 @@ const (
 
 	// KubeConfigFile is a default filename where k8s stores its user local config
 	KubeConfigFile = "config"
+
+	// EnvHome is home environment variable
+	EnvHome = "HOME"
+
+	// EnvUserProfile is the home directory environment variable on Windows.
+	EnvUserProfile = "USERPROFILE"
+
+	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
+	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
@@ -724,11 +748,6 @@ const (
 	// to check if the user's home directory exists.
 	CheckHomeDirSubCommand = "checkhomedir"
 
-	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
-	// specific UID to prevent the matching user from being deleted before
-	// spawning the intended child process.
-	ParkSubCommand = "park"
-
 	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
 	// handle SFTP connections.
 	SFTPSubCommand = "sftp"
@@ -778,14 +797,5 @@ const UserSingleUseCertTTL = time.Minute
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
 
-const (
-	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
-	// call.
-	WebAPIConnUpgrade = "/webapi/connectionupgrade"
-	// WebAPIConnUpgradeHeader is the header used to indicate the requested
-	// connection upgrade types in the connection upgrade API.
-	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
-	WebAPIConnUpgradeTypeALPN = "alpn"
-)
+// StandardRDPPort is the default port used for RDP.
+const StandardRDPPort = 3389

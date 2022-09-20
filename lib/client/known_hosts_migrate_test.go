@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -39,7 +40,7 @@ func newMigrateTest() knownHostsMigrateTest {
 }
 
 func generateHostCert(t *testing.T, s *knownHostsMigrateTest, clusterName string) []byte {
-	_, hostPub, err := s.keygen.GenerateKeyPair()
+	_, hostPub, err := s.keygen.GenerateKeyPair("")
 	require.NoError(t, err)
 
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
@@ -50,6 +51,7 @@ func generateHostCert(t *testing.T, s *knownHostsMigrateTest, clusterName string
 		HostID:        "127.0.0.1",
 		NodeName:      "127.0.0.1",
 		ClusterName:   clusterName,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: hostPub,
 	})
 	require.Nil(t, err)

@@ -17,3 +17,9 @@ resource "google_compute_address" "proxy_ip" {
   address_type = "EXTERNAL"
   network_tier = "PREMIUM"
 }
+
+resource "google_compute_address" "grafana_ip" {
+  name         = "grafana-ip"
+  address_type = "EXTERNAL"
+  network_tier = "PREMIUM"
+}

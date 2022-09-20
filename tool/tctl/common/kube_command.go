@@ -66,8 +66,7 @@ func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
 func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
-
-	kubes, err := client.GetKubernetesServers(ctx)
+	kubes, err := client.GetKubeServices(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

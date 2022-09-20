@@ -17,20 +17,20 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-	"testing"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
+
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
 )
 
-func TestLicenseUnmarshal(t *testing.T) {
-	t.Parallel()
+type LicenseSuite struct {
+}
 
+var _ = check.Suite(&LicenseSuite{})
+
+func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 	type testCase struct {
 		description string
 		input       string
@@ -40,55 +40,49 @@ func TestLicenseUnmarshal(t *testing.T) {
 	testCases := []testCase{
 		{
 			description: "simple case",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "desktop": true, "moderated_sessions": true, "machine_id": true, "resource_access_requests": true, "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "Teleport Commercial"}, "spec": {"account_id": "accountID", "usage": true, "k8s": true, "app": true, "db": true, "desktop": true, "moderated_sessions": true, "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("Teleport Commercial", types.LicenseSpecV3{
-				ReportsUsage:                   types.NewBool(true),
-				SupportsKubernetes:             types.NewBool(true),
-				SupportsApplicationAccess:      types.NewBoolP(true),
-				SupportsDatabaseAccess:         types.NewBool(true),
-				SupportsDesktopAccess:          types.NewBool(true),
-				SupportsModeratedSessions:      types.NewBool(true),
-				SupportsMachineID:              types.NewBool(true),
-				SupportsResourceAccessRequests: types.NewBool(true),
-				Cloud:                          types.NewBool(false),
-				AWSAccountID:                   "123",
-				AWSProductID:                   "4",
-				AccountID:                      "accountID",
+				ReportsUsage:              types.NewBool(true),
+				SupportsKubernetes:        types.NewBool(true),
+				SupportsApplicationAccess: types.NewBoolP(true),
+				SupportsDatabaseAccess:    types.NewBool(true),
+				SupportsDesktopAccess:     types.NewBool(true),
+				SupportsModeratedSessions: types.NewBool(true),
+				Cloud:                     types.NewBool(false),
+				AWSAccountID:              "123",
+				AWSProductID:              "4",
+				AccountID:                 "accountID",
 			}),
 		},
 		{
 			description: "simple case with string booleans",
-			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "desktop": "yes", "moderated_sessions": "yes", "machine_id": "yes", "resource_access_requests": "yes", "aws_account": "123", "aws_pid": "4"}}`,
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"account_id": "accountID", "usage": "yes", "k8s": "yes", "app": "yes", "db": "yes", "desktop": "yes", "moderated_sessions": "yes", "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("license", types.LicenseSpecV3{
-				ReportsUsage:                   types.NewBool(true),
-				SupportsKubernetes:             types.NewBool(true),
-				SupportsApplicationAccess:      types.NewBoolP(true),
-				SupportsDatabaseAccess:         types.NewBool(true),
-				SupportsDesktopAccess:          types.NewBool(true),
-				SupportsModeratedSessions:      types.NewBool(true),
-				SupportsMachineID:              types.NewBool(true),
-				SupportsResourceAccessRequests: types.NewBool(true),
-				Cloud:                          types.NewBool(false),
-				AWSAccountID:                   "123",
-				AWSProductID:                   "4",
-				AccountID:                      "accountID",
+				ReportsUsage:              types.NewBool(true),
+				SupportsKubernetes:        types.NewBool(true),
+				SupportsApplicationAccess: types.NewBoolP(true),
+				SupportsDatabaseAccess:    types.NewBool(true),
+				SupportsDesktopAccess:     types.NewBool(true),
+				SupportsModeratedSessions: types.NewBool(true),
+				Cloud:                     types.NewBool(false),
+				AWSAccountID:              "123",
+				AWSProductID:              "4",
+				AccountID:                 "accountID",
 			}),
 		},
 		{
 			description: "with cloud flag",
 			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"cloud": "yes", "account_id": "accountID", "usage": "yes", "k8s": "yes", "aws_account": "123", "aws_pid": "4"}}`,
 			expected: MustNew("license", types.LicenseSpecV3{
-				ReportsUsage:                   types.NewBool(true),
-				SupportsKubernetes:             types.NewBool(true),
-				SupportsDatabaseAccess:         types.NewBool(false),
-				SupportsDesktopAccess:          types.NewBool(false),
-				SupportsModeratedSessions:      types.NewBool(false),
-				SupportsMachineID:              types.NewBool(false),
-				SupportsResourceAccessRequests: types.NewBool(false),
-				Cloud:                          types.NewBool(true),
-				AWSAccountID:                   "123",
-				AWSProductID:                   "4",
-				AccountID:                      "accountID",
+				ReportsUsage:              types.NewBool(true),
+				SupportsKubernetes:        types.NewBool(true),
+				SupportsDatabaseAccess:    types.NewBool(false),
+				SupportsDesktopAccess:     types.NewBool(false),
+				SupportsModeratedSessions: types.NewBool(false),
+				Cloud:                     types.NewBool(true),
+				AWSAccountID:              "123",
+				AWSProductID:              "4",
+				AccountID:                 "accountID",
 			}),
 		},
 		{
@@ -103,18 +97,18 @@ func TestLicenseUnmarshal(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		comment := fmt.Sprintf("test case %q", tc.description)
+		comment := check.Commentf("test case %q", tc.description)
 		out, err := UnmarshalLicense([]byte(tc.input))
 		if tc.err == nil {
-			require.NoError(t, err, comment)
-			require.Empty(t, cmp.Diff(tc.expected, out))
+			c.Assert(err, check.IsNil, comment)
+			fixtures.DeepCompare(c, tc.expected, out)
 			data, err := MarshalLicense(out)
-			require.NoError(t, err, comment)
+			c.Assert(err, check.IsNil, comment)
 			out2, err := UnmarshalLicense(data)
-			require.NoError(t, err, comment)
-			require.Empty(t, cmp.Diff(tc.expected, out2))
+			c.Assert(err, check.IsNil, comment)
+			fixtures.DeepCompare(c, tc.expected, out2)
 		} else {
-			require.IsType(t, err, tc.err, comment)
+			c.Assert(err, check.FitsTypeOf, tc.err, comment)
 		}
 	}
 }

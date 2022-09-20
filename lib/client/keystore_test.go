@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -41,6 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -69,43 +72,16 @@ func TestListKeys(t *testing.T) {
 
 	// read all bob keys:
 	for i := 0; i < keyNum; i++ {
-		key, err := s.store.GetKey(keys[i].KeyIndex, WithSSHCerts{}, WithDBCerts{})
+		keys2, err := s.store.GetKey(keys[i].KeyIndex, WithSSHCerts{}, WithDBCerts{})
 		require.NoError(t, err)
-		require.Equal(t, &keys[i], key)
+		require.Empty(t, cmp.Diff(*keys2, keys[i], cmpopts.EquateEmpty()))
 	}
 
 	// read sam's key and make sure it's the same:
 	skey, err := s.store.GetKey(samIdx, WithSSHCerts{})
 	require.NoError(t, err)
 	require.Equal(t, samKey.Cert, skey.Cert)
-	require.Equal(t, samKey.MarshalSSHPublicKey(), skey.MarshalSSHPublicKey())
-}
-
-func TestGetCertificates(t *testing.T) {
-	s, cleanup := newTest(t)
-	defer cleanup()
-
-	const keyNum = 3
-
-	// add keys for 3 different clusters with the same user and proxy.
-	keys := make([]Key, keyNum)
-	var proxy = "proxy.example.com"
-	var user = "bob"
-	for i := 0; i < keyNum; i++ {
-		idx := KeyIndex{proxy, user, fmt.Sprintf("cluster-%v", i)}
-		key := s.makeSignedKey(t, idx, false)
-		require.NoError(t, s.addKey(key))
-		keys[i] = *key
-	}
-
-	certificates, err := s.store.GetSSHCertificates(proxy, user)
-	require.NoError(t, err)
-
-	for i := 0; i < keyNum; i++ {
-		expectCert, err := keys[i].SSHCert()
-		require.NoError(t, err)
-		require.Equal(t, expectCert, certificates[i])
-	}
+	require.Equal(t, samKey.Pub, skey.Pub)
 }
 
 func TestKeyCRUD(t *testing.T) {
@@ -123,7 +99,7 @@ func TestKeyCRUD(t *testing.T) {
 	keyCopy, err := s.store.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
 	require.NoError(t, err)
 	key.ProxyHost = keyCopy.ProxyHost
-	require.Equal(t, keyCopy, key)
+	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
 	require.Len(t, key.DBTLSCerts, 1)
 
 	// Delete just the db cert, reload & verify it's gone
@@ -131,8 +107,8 @@ func TestKeyCRUD(t *testing.T) {
 	require.NoError(t, err)
 	keyCopy, err = s.store.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
 	require.NoError(t, err)
-	key.DBTLSCerts = make(map[string][]byte)
-	require.Equal(t, keyCopy, key)
+	key.DBTLSCerts = nil
+	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
 
 	// Delete & verify that it's gone
 	err = s.store.DeleteKey(idx)
@@ -191,7 +167,7 @@ func TestKnownHosts(t *testing.T) {
 		pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 		require.NoError(t, err)
 
-		_, p2, _ := s.keygen.GenerateKeyPair()
+		_, p2, _ := s.keygen.GenerateKeyPair("")
 		pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
 		err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub})
@@ -246,7 +222,7 @@ func TestKnownHosts(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			wg.Add(1)
 			go func() {
-				_, p2, _ := s.keygen.GenerateKeyPair()
+				_, p2, _ := s.keygen.GenerateKeyPair("")
 				tmpPub, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
 				err := s.store.AddKnownHostKeys("example2.com", "proxy.example2.com", []ssh.PublicKey{tmpPub})
@@ -314,7 +290,7 @@ func TestProxySSHConfig(t *testing.T) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 
-	hostPriv, hostPub, err := s.keygen.GenerateKeyPair()
+	hostPriv, hostPub, err := s.keygen.GenerateKeyPair("")
 	require.NoError(t, err)
 
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
@@ -322,6 +298,7 @@ func TestProxySSHConfig(t *testing.T) {
 
 	hostCert, err := s.keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: hostPub,
 		HostID:        "127.0.0.1",
 		NodeName:      "127.0.0.1",
@@ -366,7 +343,7 @@ func TestProxySSHConfig(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, int(called.Load()), 1)
 
-	_, spub, err := testauthority.New().GenerateKeyPair()
+	_, spub, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
 	caPub22, _, _, _, err := ssh.ParseAuthorizedKey(spub)
 	require.NoError(t, err)
@@ -498,9 +475,11 @@ func (s *keyStoreTest) addKey(key *Key) error {
 
 // makeSignedKey helper returns all 3 components of a user key (signed by CAPriv key)
 func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *Key {
-	priv, err := s.keygen.GeneratePrivateKey()
-	require.NoError(t, err)
-
+	var (
+		err             error
+		priv, pub, cert []byte
+	)
+	priv, pub, _ = s.keygen.GenerateKeyPair("")
 	allowedLogins := []string{idx.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {
@@ -508,6 +487,8 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
+	cryptoPubKey, err := sshutils.CryptoPublicKey(pub)
+	require.NoError(t, err)
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
@@ -516,7 +497,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: priv.Public(),
+		PublicKey: cryptoPubKey,
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
@@ -525,9 +506,10 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
 	require.NoError(t, err)
 
-	cert, err := s.keygen.GenerateUserCert(services.UserCertParams{
+	cert, err = s.keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
+		CASigningAlg:          defaults.CASignatureAlgorithm,
+		PublicUserKey:         pub,
 		Username:              idx.Username,
 		AllowedLogins:         allowedLogins,
 		TTL:                   ttl,
@@ -535,15 +517,15 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 		PermitPortForwarding:  true,
 	})
 	require.NoError(t, err)
-
-	key := NewKey(priv)
-	key.KeyIndex = idx
-	key.PrivateKey = priv
-	key.Cert = cert
-	key.TLSCert = tlsCert
-	key.TrustedCA = []auth.TrustedCerts{s.tlsCACert}
-	key.DBTLSCerts["example-db"] = tlsCert
-	return key
+	return &Key{
+		KeyIndex:   idx,
+		Priv:       priv,
+		Pub:        pub,
+		Cert:       cert,
+		TLSCert:    tlsCert,
+		TrustedCA:  []auth.TrustedCerts{s.tlsCACert},
+		DBTLSCerts: map[string][]byte{"example-db": tlsCert},
+	}
 }
 
 func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
@@ -566,7 +548,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newTest(t *testing.T) (keyStoreTest, func()) {
-	dir, err := os.MkdirTemp("", "teleport-keystore")
+	dir, err := ioutil.TempDir("", "teleport-keystore")
 	require.NoError(t, err)
 
 	store, err := NewFSLocalKeyStore(dir)

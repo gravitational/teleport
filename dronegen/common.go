@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -69,7 +70,7 @@ var (
 	}
 )
 
-var buildboxVersion value
+var buildboxVersion value = value{raw: "teleport9"}
 
 var goRuntime value
 
@@ -79,21 +80,25 @@ func init() {
 		log.Fatalf("could not get Go version: %v", err)
 	}
 	goRuntime = value{raw: string(bytes.TrimSpace(v))}
-
-	v, err = exec.Command("make", "-s", "-C", "build.assets", "print-buildbox-version").Output()
-	if err != nil {
-		log.Fatalf("could not get buildbox version: %v", err)
-	}
-	buildboxVersion = value{raw: string(bytes.TrimSpace(v))}
 }
 
-func pushTriggerForBranch(branches ...string) trigger {
+func pushTriggerFor(branches ...string) trigger {
 	t := trigger{
 		Event: triggerRef{Include: []string{"push"}},
 		Repo:  triggerRef{Include: []string{"gravitational/teleport"}},
 	}
 	t.Branch.Include = append(t.Branch.Include, branches...)
 	return t
+}
+
+func cloneRepoCommands(cloneDirectory, commit string) []string {
+	return []string{
+		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
+		fmt.Sprintf("cd %q", cloneDirectory),
+		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
+		`git fetch origin`,
+		fmt.Sprintf("git checkout -qf %q", commit),
+	}
 }
 
 type buildType struct {
@@ -180,11 +185,6 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 	return result
 }
 
-func (b *buildType) hasTeleportConnect() bool {
-	return (b.os == "darwin" && b.arch == "amd64") ||
-		(b.os == "linux" && b.arch == "amd64" && !b.centos7 && !b.fips)
-}
-
 // dockerService generates a docker:dind service
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerService(v ...volumeRef) service {
@@ -211,23 +211,15 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
-	if b.centos7 || b.arch == "amd64" {
+	if b.centos7 {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
 		makefileTarget += "-fips"
 	}
-
-	// Override Windows targets.
-	if b.os == "windows" {
-		if b.windowsUnsigned {
-			makefileTarget = "release-windows-unsigned"
-		} else {
-			makefileTarget = "release-windows"
-		}
+	if b.os == "windows" && b.windowsUnsigned {
+		makefileTarget = "release-windows-unsigned"
 	}
-
 	return makefileTarget
 }
 
@@ -241,5 +233,48 @@ func waitForDockerStep() step {
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
 		Volumes: dockerVolumeRefs(),
+	}
+}
+
+func verifyValidPromoteRunSteps(checkoutPath, commit string, isParallelismEnabled bool) []step {
+	tagStep := verifyTaggedStep()
+	cloneStep := cloneRepoStep(checkoutPath, commit)
+	verifyStep := verifyNotPrereleaseStep(checkoutPath)
+
+	if isParallelismEnabled {
+		cloneStep.DependsOn = []string{tagStep.Name}
+		verifyStep.DependsOn = []string{cloneStep.Name}
+	}
+
+	return []step{tagStep, cloneStep, verifyStep}
+}
+
+func verifyTaggedStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
+}
+
+// Note that tags are also valid here as a tag refers to a specific commit
+func cloneRepoStep(clonePath, commit string) step {
+	return step{
+		Name:     "Check out code",
+		Image:    "alpine/git:latest",
+		Commands: cloneRepoCommands(clonePath, commit),
+	}
+}
+
+func verifyNotPrereleaseStep(checkoutPath string) step {
+	return step{
+		Name:  "Check if tag is prerelease",
+		Image: "golang:1.18-alpine",
+		Commands: []string{
+			fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
+			"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
+		},
 	}
 }

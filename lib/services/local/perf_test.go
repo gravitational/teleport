@@ -19,6 +19,8 @@ package local
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -68,7 +70,9 @@ func BenchmarkGetNodes(b *testing.B) {
 				bk, err = memory.New(memory.Config{})
 				require.NoError(b, err)
 			} else {
-				dir := b.TempDir()
+				dir, err := ioutil.TempDir("", "teleport")
+				require.NoError(b, err)
+				defer os.RemoveAll(dir)
 
 				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
 					Path: dir,
@@ -118,11 +122,11 @@ func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeC
 }
 
 // benchmarkGetNodes runs GetNodes b.N times.
-func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
+func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
 	var nodes []types.Server
 	var err error
 	for i := 0; i < b.N; i++ {
-		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace)
+		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace, opts...)
 		require.NoError(b, err)
 	}
 	// do *something* with the loop result.  probably unnecessary since the loop

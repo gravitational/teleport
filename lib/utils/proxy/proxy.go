@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -166,7 +165,7 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 
 type proxyDial struct {
 	// proxyHost is the HTTPS proxy address.
-	proxyURL *url.URL
+	proxyHost string
 	// insecure is whether to skip certificate validation.
 	insecure bool
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
@@ -194,7 +193,7 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 		defer cancel()
 		ctx = timeoutCtx
 	}
-	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address)
+	conn, err := apiclient.DialProxy(ctx, d.proxyHost, address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,7 +220,7 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 // SSH connection.
 func (d proxyDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	// Build a proxy connection first.
-	pconn, err := apiclient.DialProxy(ctx, d.proxyURL, addr)
+	pconn, err := apiclient.DialProxy(ctx, d.proxyHost, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,7 +287,7 @@ func WithInsecureSkipTLSVerify(insecure bool) DialerOptionFunc {
 // server directly.
 func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	// Try and get proxy addr from the environment.
-	proxyURL := apiproxy.GetProxyURL(addr)
+	proxyAddr := apiproxy.GetProxyAddress(addr)
 
 	var options dialerOptions
 	for _, opt := range opts {
@@ -297,17 +296,17 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 
 	// If no proxy settings are in environment return regular ssh dialer,
 	// otherwise return a proxy dialer.
-	if proxyURL == nil {
+	if proxyAddr == nil {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
-			tlsConfig:         options.tlsConfig,
-			tlsRoutingEnabled: options.tlsRoutingEnabled,
 			insecure:          options.insecureSkipTLSVerify,
+			tlsRoutingEnabled: options.tlsRoutingEnabled,
+			tlsConfig:         options.tlsConfig,
 		}
 	}
-	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyURL)
+	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
 	return proxyDial{
-		proxyURL:          proxyURL,
+		proxyHost:         proxyAddr.Host,
 		insecure:          options.insecureSkipTLSVerify,
 		tlsRoutingEnabled: options.tlsRoutingEnabled,
 		tlsConfig:         options.tlsConfig,

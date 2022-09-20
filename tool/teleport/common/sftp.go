@@ -118,7 +118,7 @@ func onSFTP() error {
 		serveErr = trace.Wrap(serveErr)
 	}
 
-	// Wait until event marshaling goroutine is finished
+	// Wait until event marshalling goroutine is finished
 	close(sftpEvents)
 	<-done
 

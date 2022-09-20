@@ -21,15 +21,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organization
+// identity provider, e.g. google in some organisation
 type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
@@ -77,8 +75,6 @@ type OIDCConnector interface {
 	SetScope([]string)
 	// SetClaimsToRoles sets dynamic mapping from claims to roles
 	SetClaimsToRoles([]ClaimMapping)
-	// GetUsernameClaim gets the name of the claim from the OIDC connector to be used as the user's username.
-	GetUsernameClaim() string
 	// SetDisplay sets friendly name for this provider.
 	SetDisplay(string)
 	// GetGoogleServiceAccountURI returns path to google service account URI
@@ -91,8 +87,6 @@ type OIDCConnector interface {
 	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
 	// "Note: Although you can use service accounts in applications that run from a Google Workspace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of end users to share documents outside of the domain would not apply to service accounts."
 	GetGoogleAdminEmail() string
-	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
-	GetAllowUnverifiedEmail() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -310,11 +304,6 @@ func (o *OIDCConnectorV3) GetScope() []string {
 	return o.Spec.Scope
 }
 
-// GetUsernameClaim gets the name of the claim from the OIDC connector to be used as the user's username.
-func (o *OIDCConnectorV3) GetUsernameClaim() string {
-	return o.Spec.UsernameClaim
-}
-
 // GetClaimsToRoles specifies dynamic mapping from claims to roles
 func (o *OIDCConnectorV3) GetClaimsToRoles() []ClaimMapping {
 	return o.Spec.ClaimsToRoles
@@ -364,8 +353,8 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
-		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
+	if o.Metadata.Name == constants.Local {
+		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}
 
 	if o.Spec.ClientID == "" {
@@ -431,39 +420,4 @@ func (o *OIDCConnectorV3) CheckSetRedirectURL() {
 	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
 		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
 	}
-}
-
-// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
-func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
-	return o.Spec.AllowUnverifiedEmail
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *OIDCAuthRequest) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.StateToken == "" {
-		return trace.BadParameter("StateToken: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
-	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
-		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
-	}
-
-	return nil
 }

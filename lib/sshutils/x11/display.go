@@ -33,9 +33,9 @@ const (
 	// DefaultDisplayOffset is the default display offset when
 	// searching for an open XServer unix socket.
 	DefaultDisplayOffset = 10
-	// DefaultMaxDisplays is the default maximum number of displays
+	// DefaultMaxDisplay is the default maximum display number
 	// supported when searching for an open XServer unix socket.
-	DefaultMaxDisplays = 1000
+	DefaultMaxDisplay = 1000
 	// MaxDisplay is the theoretical max display value which
 	// X Clients and serverwill be able to parse into a unix socket.
 	MaxDisplayNumber = math.MaxInt32

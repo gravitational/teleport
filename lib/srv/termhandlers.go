@@ -18,11 +18,9 @@ package srv
 
 import (
 	"context"
-	"encoding/json"
-
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -86,9 +84,6 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		}
 		scx.SetTerm(term)
 		scx.termAllocated = true
-		if term.TTY() != nil {
-			scx.ttyName = term.TTY().Name()
-		}
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
 		scx.Errorf("Failed setting window size: %v", err)
@@ -146,22 +141,6 @@ func (t *TermHandlers) HandleWinChange(ctx context.Context, ch ssh.Channel, req 
 func (t *TermHandlers) HandleForceTerminate(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	err := t.SessionRegistry.ForceTerminate(ctx)
 	return trace.Wrap(err)
-}
-
-func (t *TermHandlers) HandleTerminalSize(req *ssh.Request) error {
-	sessionID := string(req.Payload)
-	size, err := t.SessionRegistry.GetTerminalSize(sessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	payload, err := json.Marshal(size)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	req.Reply(true, payload)
-	return nil
 }
 
 func parseExecRequest(req *ssh.Request, ctx *ServerContext) (Exec, error) {

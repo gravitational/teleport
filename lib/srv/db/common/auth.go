@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -73,7 +72,7 @@ type AuthConfig struct {
 	// AuthClient is the cluster auth client.
 	AuthClient *libauth.Client
 	// Clients provides interface for obtaining cloud provider clients.
-	Clients cloud.Clients
+	Clients CloudClients
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
 	// Log is used for logging.
@@ -86,7 +85,7 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AuthClient")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		c.Clients = NewCloudClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -127,10 +126,6 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
-		if getPolicyErr != nil {
-			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
-		}
 		return "", trace.AccessDenied(`Could not generate RDS IAM auth token:
 
   %v
@@ -139,7 +134,7 @@ Make sure that Teleport database agent's IAM policy is attached and has "rds-con
 permissions (note that IAM changes may take a few minutes to propagate):
 
 %v
-`, err, policy)
+`, err, sessionCtx.Database.GetIAMPolicy())
 	}
 	return token, nil
 }
@@ -164,10 +159,6 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
-		if getPolicyErr != nil {
-			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
-		}
 		return "", "", trace.AccessDenied(`Could not generate Redshift IAM auth token:
 
   %v
@@ -177,7 +168,7 @@ to generate Redshift credentials (note that IAM changes may take a few minutes t
 propagate):
 
 %v
-`, err, policy)
+`, err, sessionCtx.Database.GetIAMPolicy())
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
 }
@@ -260,8 +251,8 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL cloud.GCPSQLAdminClient, user *sqladmin.User) error {
-	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, user)
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL GCPSQLAdminClient, user *sqladmin.User) error {
+	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
 
@@ -363,7 +354,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		// Cloud SQL server presented certificates encode instance names as
 		// "<project-id>:<instance-id>" in CommonName. This is verified against
 		// the ServerName in a custom connection verification step (see below).
-		tlsConfig.ServerName = sessionCtx.Database.GetGCP().GetServerName()
+		tlsConfig.ServerName = GCPServerName(sessionCtx)
 		// This just disables default verification.
 		tlsConfig.InsecureSkipVerify = true
 		// This will verify CN and cert chain on each connection.
@@ -376,8 +367,8 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		tlsConfig.ServerName = dbTLSConfig.ServerName
 	}
 
-	// RDS/Aurora/Redshift/ElastiCache and Cloud SQL auth is done with an auth
-	// token so don't generate a client certificate and exit here.
+	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
+	// don't generate a client certificate and exit here.
 	if sessionCtx.Database.IsCloudHosted() {
 		return tlsConfig, nil
 	}
@@ -447,7 +438,6 @@ func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, er
 			return nil, trace.BadParameter("invalid server CA certificate")
 		}
 	}
-
 	return tlsConfig, nil
 }
 
@@ -480,14 +470,14 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
 func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *tls.Certificate, cas [][]byte, err error) {
-	privateKey, err := native.GeneratePrivateKey()
+	privateBytes, _, err := native.GenerateKeyPair("")
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	// Postgres requires the database username to be encoded as a common
 	// name in the client certificate.
 	subject := pkix.Name{CommonName: sessionCtx.DatabaseUser}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKey)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateBytes)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -501,7 +491,7 @@ func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clientCert, err := privateKey.TLSCertificate(resp.Cert)
+	clientCert, err := tls.X509KeyPair(resp.Cert, privateBytes)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

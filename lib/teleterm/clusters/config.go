@@ -32,7 +32,7 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip TLS cert check
 	InsecureSkipVerify bool
 	// Log is a component logger
-	Log *logrus.Entry
+	Log logrus.FieldLogger
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
@@ -46,7 +46,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "conn:storage")
+		c.Log = logrus.WithField(trace.Component, "teleterm: storage")
 	}
 
 	return nil

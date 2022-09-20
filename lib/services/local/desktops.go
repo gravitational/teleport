@@ -137,6 +137,11 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 	}
 
 	key := backend.Key(windowsDesktopsPrefix, hostID, name)
+	// legacy behavior, we didn't have host IDs
+	// DELETE IN 10.0 (zmb3, lxea)
+	if hostID == "" {
+		key = backend.Key(windowsDesktopsPrefix, name)
+	}
 
 	err := s.Delete(ctx, key)
 	if err != nil {
@@ -150,7 +155,7 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 
 // DeleteAllWindowsDesktops removes all windows desktop resources.
 func (s *WindowsDesktopService) DeleteAllWindowsDesktops(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopsPrefix, "")
+	startKey := backend.Key(windowsDesktopsPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -165,8 +170,9 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 		return nil, trace.BadParameter("nonpositive parameter limit")
 	}
 
-	rangeStart := backend.Key(windowsDesktopsPrefix, req.StartKey)
-	rangeEnd := backend.RangeEnd(backend.Key(windowsDesktopsPrefix, ""))
+	keyPrefix := []string{windowsDesktopsPrefix}
+	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
+	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        types.KindWindowsDesktop,
 		Labels:              req.Labels,

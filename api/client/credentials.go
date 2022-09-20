@@ -19,7 +19,7 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"os"
+	"io/ioutil"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -115,7 +115,7 @@ func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cas, err := os.ReadFile(c.caFile)
+	cas, err := ioutil.ReadFile(c.caFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}

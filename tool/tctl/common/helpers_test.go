@@ -27,12 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/kingpin"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -60,72 +58,84 @@ func withInsecure(insecure bool) optionsFunc {
 	}
 }
 
-func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
+func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
 	var options options
 	for _, v := range opts {
 		v(&options)
 	}
+	var stdoutBuff bytes.Buffer
+	command := &ResourceCommand{
+		stdout: &stdoutBuff,
+	}
 	cfg := service.MakeDefaultConfig()
+
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	command.Initialize(app, cfg)
+
+	selectedCmd, err := app.Parse(args)
+	require.NoError(t, err)
 
 	var ccf GlobalCLIFlags
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
 	ccf.Insecure = options.Insecure
 
-	clientConfig, err := applyConfig(&ccf, cfg)
+	clientConfig, err := ApplyConfig(&ccf, cfg)
 	require.NoError(t, err)
 
 	if options.CertPool != nil {
 		clientConfig.TLS.RootCAs = options.CertPool
 	}
 
+	ctx := context.Background()
 	client, err := authclient.Connect(ctx, clientConfig)
 	require.NoError(t, err)
-	return client
-}
 
-type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *service.Config)
-	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
-}
-
-func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
-	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-
-	app := utils.InitCLIParser("tctl", GlobalHelpString)
-	cmd.Initialize(app, cfg)
-
-	selectedCmd, err := app.Parse(args)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	client := getAuthClient(ctx, t, fc, opts...)
-	_, err = cmd.TryRun(ctx, selectedCmd, client)
-	return err
-}
-
-func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
-	var stdoutBuff bytes.Buffer
-	command := &ResourceCommand{
-		stdout: &stdoutBuff,
+	_, err = command.TryRun(ctx, selectedCmd, client)
+	if err != nil {
+		return nil, err
 	}
-	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
+	return &stdoutBuff, nil
 }
 
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var options options
+	for _, v := range opts {
+		v(&options)
+	}
+
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
 		stdout: &stdoutBuff,
 	}
+	cfg := service.MakeDefaultConfig()
+
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	command.Initialize(app, cfg)
 
 	args = append([]string{"tokens"}, args...)
-	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
-}
+	selectedCmd, err := app.Parse(args)
+	require.NoError(t, err)
 
-func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
-	command := &UserCommand{}
-	args = append([]string{"users"}, args...)
-	return runCommand(t, fc, command, args, opts...)
+	var ccf GlobalCLIFlags
+	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
+	ccf.Insecure = options.Insecure
+
+	clientConfig, err := ApplyConfig(&ccf, cfg)
+	require.NoError(t, err)
+
+	if options.CertPool != nil {
+		clientConfig.TLS.RootCAs = options.CertPool
+	}
+
+	ctx := context.Background()
+	client, err := authclient.Connect(ctx, clientConfig)
+	require.NoError(t, err)
+
+	_, err = command.TryRun(ctx, selectedCmd, client)
+	if err != nil {
+		return nil, err
+	}
+	return &stdoutBuff, nil
 }
 
 func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
@@ -171,7 +181,6 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 
 	var err error
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if options.fileConfig != nil {
 		err = config.ApplyFileConfig(options.fileConfig, cfg)
 		require.NoError(t, err)

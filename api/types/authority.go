@@ -71,6 +71,10 @@ type CertAuthority interface {
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
+	// GetSigningAlg returns the signing algorithm used by signing keys.
+	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
+	// SetSigningAlg sets the signing algorithm used by signing keys.
+	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
 	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
 	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
@@ -259,6 +263,16 @@ func (ca *CertAuthorityV2) ID() *CertAuthID {
 	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
 }
 
+// GetSigningAlg returns the CA's signing algorithm type
+func (ca *CertAuthorityV2) GetSigningAlg() CertAuthoritySpecV2_SigningAlgType {
+	return ca.Spec.SigningAlg
+}
+
+// SetSigningAlg sets the CA's signing algorith type
+func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType) {
+	ca.Spec.SigningAlg = alg
+}
+
 func (ca *CertAuthorityV2) getOldKeySet(index int) (keySet CAKeySet) {
 	// in the "old" CA schema, index 0 contains the active keys and index 1 the
 	// additional trusted keys
@@ -388,8 +402,10 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if err := ca.GetType().Check(); err != nil {
-		return trace.Wrap(err)
+	switch ca.GetType() {
+	case UserCA, HostCA, JWTSigner:
+	default:
+		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
 
 	return nil

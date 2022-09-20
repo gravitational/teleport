@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -64,7 +65,7 @@ func (c *CloserConn) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-// Context returns a context that is canceled once the connection is closed.
+// Context returns a context that is cancelled once the connection is closed.
 func (c *CloserConn) Context() context.Context {
 	return c.ctx
 }
@@ -99,7 +100,7 @@ func RoundtripWithConn(conn net.Conn) (string, error) {
 		return "", err
 	}
 	defer re.Body.Close()
-	out, err := io.ReadAll(re.Body)
+	out, err := ioutil.ReadAll(re.Body)
 	if err != nil {
 		return "", err
 	}

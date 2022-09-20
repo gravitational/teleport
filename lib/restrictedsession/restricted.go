@@ -23,18 +23,15 @@ import (
 	"bytes"
 	"embed"
 	"encoding/binary"
-	"os"
 	"sync"
-	"unsafe"
-
-	"github.com/aquasecurity/libbpfgo"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/aquasecurity/libbpfgo"
+	"github.com/sirupsen/logrus"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -95,11 +92,6 @@ func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
 	if !config.Enabled {
 		log.Debugf("Restricted session is not enabled, skipping.")
 		return &NOP{}, nil
-	}
-
-	// Before proceeding, check that eBPF based LSM is enabled in the kernel
-	if err = checkBpfLsm(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Starting restricted session.")
@@ -164,24 +156,24 @@ func (m *sessionMgr) Close() {
 
 // OpenSession inserts the cgroupID into the BPF hash map to enable
 // enforcement by the kernel
-func (m *sessionMgr) OpenSession(ctx *srv.ServerContext, cgroupID uint64) {
+func (m *sessionMgr) OpenSession(ctx *bpf.SessionContext, cgroupID uint64) {
 	m.watch.Add(cgroupID, ctx)
 
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, cgroupID)
 
-	m.restrictedCGroups.Update(unsafe.Pointer(&key[0]), unsafe.Pointer(&unit[0]))
+	m.restrictedCGroups.Update(key, unit)
 
 	log.Debugf("CGroup %v registered", cgroupID)
 }
 
 // CloseSession removes the cgroupID from the BPF hash map to enable
 // enforcement by the kernel
-func (m *sessionMgr) CloseSession(ctx *srv.ServerContext, cgroupID uint64) {
+func (m *sessionMgr) CloseSession(ctx *bpf.SessionContext, cgroupID uint64) {
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, cgroupID)
 
-	m.restrictedCGroups.DeleteKey(unsafe.Pointer(&key[0]))
+	m.restrictedCGroups.DeleteKey(key)
 
 	m.watch.Remove(cgroupID)
 
@@ -292,7 +284,7 @@ func (l *auditEventLoop) loop() {
 			continue
 		}
 
-		if err = ctx.StreamWriter().EmitAuditEvent(ctx.Context, event); err != nil {
+		if err = ctx.Emitter.EmitAuditEvent(ctx.Context, event); err != nil {
 			log.WithError(err).Warn("Failed to emit network event.")
 		}
 	}
@@ -304,27 +296,6 @@ func (l *auditEventLoop) close() {
 	l.lost.Close()
 
 	l.wg.Wait()
-}
-
-// checkBpfLsm checks that eBPF is one of the enabled
-// LSM "modules".
-func checkBpfLsm() error {
-	const lsmInfo = "/sys/kernel/security/lsm"
-
-	csv, err := os.ReadFile(lsmInfo)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, mod := range bytes.Split(csv, []byte(",")) {
-		if bytes.Equal(mod, []byte("bpf")) {
-			return nil
-		}
-	}
-
-	return trace.Errorf(`%s does not contain bpf entry, indicating that the kernel
-is not enabled for eBPF based LSM enforcement. Make sure the kernel is compiled with
-CONFIG_BPF_LSM=y and enabled via CONFIG_LSM or lsm= boot option`, lsmInfo)
 }
 
 // attachLSM attaches the LSM programs in the module to

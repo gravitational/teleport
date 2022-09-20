@@ -227,7 +227,7 @@ func TestRetrievePolicy(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Retrieve doesn't use `identity` so we can pass a nil value.
-			policies := NewPolicies("", "", test.iamMock)
+			policies := NewPolicies("", test.iamMock)
 
 			policy, versions, err := policies.Retrieve(ctx, "", test.tags)
 			if test.returnError {
@@ -246,7 +246,6 @@ func TestUpsertPolicy(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	accountID := "123456789012"
-	partitionID := "aws"
 
 	tests := map[string]struct {
 		expectedPolicyArn string
@@ -315,7 +314,7 @@ func TestUpsertPolicy(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies(partitionID, accountID, test.iamMock)
+			policies := NewPolicies(accountID, test.iamMock)
 
 			arn, err := policies.Upsert(ctx, &Policy{})
 			if test.returnError {
@@ -368,7 +367,7 @@ func TestAttachPolicy(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies("", "", test.iamMock)
+			policies := NewPolicies("", test.iamMock)
 
 			err := policies.Attach(ctx, "", test.identity)
 			if test.returnError {
@@ -420,7 +419,7 @@ func TestAttachPolicyBoundary(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies("", "", test.iamMock)
+			policies := NewPolicies("", test.iamMock)
 
 			err := policies.AttachBoundary(ctx, "", test.identity)
 			if test.returnError {

@@ -43,7 +43,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
+		Storage:            storage,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -52,7 +53,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr: cfg.Addr,
 		Daemon:   daemonService,
-		CertsDir: cfg.CertsDir,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,6 +77,8 @@ func Serve(ctx context.Context, cfg Config) error {
 		daemonService.Stop()
 		apiServer.Stop()
 	}()
+
+	log.Infof("tsh daemon is listening on %v.", cfg.Addr)
 
 	errAPI := <-serverAPIWait
 

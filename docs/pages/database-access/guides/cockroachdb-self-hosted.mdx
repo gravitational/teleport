@@ -19,7 +19,6 @@ This guide will help you to:
 2. Configure mutual TLS authentication between Teleport and your CockroachDB cluster.
 3. Connect to your CockroachDB cluster via Teleport.
 
-
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access CockroachDB Self-Hosted](../../../img/database-access/guides/cockroachdb_selfhosted.png)
 </ScopedBlock>
@@ -50,7 +49,6 @@ This guide will help you to:
 Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
-
 
 <Tabs>
 <TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
@@ -185,17 +183,27 @@ $ tsh db ls
 </TabItem>
 </Tabs>
 
-To retrieve credentials for a database and connect to it:
+Fetch short-lived client certificate for it using `tsh db login` command:
 
 ```code
-$ tsh db connect roach
+$ tsh db login roach
 ```
+
+<Admonition type="tip">
+  You can be logged into multiple databases simultaneously.
+</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database server:
 
 ```code
-$ tsh db connect --db-user=alice roach
+$ tsh db login --db-user=alice roach
+```
+
+Now connect to the database:
+
+```code
+$ tsh db connect roach
 ```
 
 <Admonition type="note">

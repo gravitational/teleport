@@ -21,12 +21,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 func init() {
-	metrics.RegisterPrometheusCollectors(metrics.BuildCollector())
+	utils.RegisterPrometheusCollectors(utils.BuildCollector())
 	rand.Seed(time.Now().UnixNano())
 }
 

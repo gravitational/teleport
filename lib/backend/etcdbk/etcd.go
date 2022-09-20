@@ -23,7 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"os"
+	"io/ioutil"
 	"sort"
 	"strings"
 	"time"
@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
@@ -188,7 +187,7 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,7 +277,7 @@ func (cfg *Config) Validate() error {
 		cfg.DialTimeout = apidefaults.DefaultDialTimeout
 	}
 	if cfg.PasswordFile != "" {
-		out, err := os.ReadFile(cfg.PasswordFile)
+		out, err := ioutil.ReadFile(cfg.PasswordFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -314,11 +313,11 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
-		clientCertPEM, err := os.ReadFile(b.cfg.TLSCertFile)
+		clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
-		clientKeyPEM, err := os.ReadFile(b.cfg.TLSKeyFile)
+		clientKeyPEM, err := ioutil.ReadFile(b.cfg.TLSKeyFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -330,7 +329,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	}
 
 	if b.cfg.TLSCAFile != "" {
-		caCertPEM, err := os.ReadFile(b.cfg.TLSCAFile)
+		caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -807,7 +806,7 @@ func convertErr(err error) error {
 		return nil
 	}
 	if err == context.Canceled {
-		return trace.ConnectionProblem(err, "operation has been canceled")
+		return trace.ConnectionProblem(err, "operation has been cancelled")
 	} else if err == context.DeadlineExceeded {
 		return trace.ConnectionProblem(err, "operation has timed out")
 	} else if err == rpctypes.ErrEmptyKey {

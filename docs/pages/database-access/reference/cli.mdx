@@ -103,13 +103,11 @@ $ teleport db configure create \
 | - | - |
 | `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
 | `--token` | Invitation token to register with the Auth Service. Default: none. |
-| `--rds-discovery` | List of AWS regions in which the Database Service will discover RDS/Aurora instances. |
-| `--redshift-discovery` | List of AWS regions in which the Database Service will discover Redshift instances. |
-| `--elasticache-discovery` | List of AWS regions in which the Database Service will discover ElastiCache Redis clusters. |
-| `--memorydb-discovery` | List of AWS regions in which the Database Service will discover MemoryDB clusters. |
+| `--rds-discovery` | List of AWS regions the agent will discover for RDS/Aurora instances. |
+| `--redshift-discovery` | List of AWS regions the agent will discover for Redshift instances. |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
-| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver snowflake]`. |
+| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver]`. |
 | `--uri` | Address the proxied database is reachable at. |
 | `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
 | `-o/--output` | Write to stdout with `-o=stdout`, the default config file with `-o=file`, or a custom path with `-o=file:///path` |

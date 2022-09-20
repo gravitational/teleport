@@ -8,6 +8,7 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
+      - '**.md'
   pull_request:
     branches:
       - master
@@ -15,6 +16,7 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
+      - '**.md'
 
 jobs:
   analyze:

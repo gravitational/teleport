@@ -22,6 +22,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -29,10 +30,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/utils"
 )
 
 type TextFormatter struct {
@@ -78,6 +78,12 @@ func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
 		callerEnabled:    true,
 		timestampEnabled: false,
 	}
+}
+
+func NewTestTextFormatter() *TextFormatter {
+	formatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+	formatter.timestampEnabled = true
+	return formatter
 }
 
 // CheckAndSetDefaults checks and sets log format configuration
@@ -248,14 +254,6 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	delete(e.Data, trace.Component)
 
 	return j.JSONFormatter.Format(e)
-}
-
-func NewTestJSONFormatter() *JSONFormatter {
-	formatter := &JSONFormatter{}
-	if err := formatter.CheckAndSetDefaults(); err != nil {
-		panic(err)
-	}
-	return formatter
 }
 
 func (w *writer) writeError(value interface{}) {

@@ -1,3 +1,0 @@
-clusterName: helm-lint
-authentication:
-  connectorName: "okta"

@@ -22,8 +22,6 @@ import (
 	"net"
 	"time"
 
-	oteltrace "go.opentelemetry.io/otel/trace"
-
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -32,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -49,8 +48,8 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 	return f(ctx, network, addr)
 }
 
-// newDirectDialer makes a new dialer to connect directly to an Auth server.
-func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+// NewDirectDialer makes a new dialer to connect directly to an Auth server, ignoring any HTTP proxies.
+func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return &net.Dialer{
 		Timeout:   dialTimeout,
 		KeepAlive: keepAlivePeriod,
@@ -81,9 +80,9 @@ func tracedDialer(ctx context.Context, fn ContextDialerFunc) ContextDialerFunc {
 // on the environment.
 func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return tracedDialer(ctx, func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
-		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
-			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
+		dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
+		if proxyAddr := proxy.GetProxyAddress(addr); proxyAddr != nil {
+			return DialProxyWithDialer(ctx, proxyAddr.Host, addr, dialer)
 		}
 		return dialer.DialContext(ctx, network, addr)
 	})
@@ -110,7 +109,7 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 
 // newTunnelDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
 func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
-	dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
+	dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		conn, err = dialer.DialContext(ctx, network, addr)
 		if err != nil {

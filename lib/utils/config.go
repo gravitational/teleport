@@ -17,7 +17,7 @@ limitations under the License.
 package utils
 
 import (
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 
@@ -33,8 +33,8 @@ func TryReadValueAsFile(value string) (string, error) {
 	if !filepath.IsAbs(value) {
 		return value, nil
 	}
-	// treat it as an absolute filepath
-	contents, err := os.ReadFile(value)
+	// treat it as a file
+	contents, err := ioutil.ReadFile(value)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}

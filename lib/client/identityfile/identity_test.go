@@ -16,9 +16,9 @@ package identityfile
 
 import (
 	"bytes"
-	"crypto"
+	"crypto/rsa"
 	"crypto/x509/pkix"
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -33,20 +33,25 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/stretchr/testify/require"
 )
 
-func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
-	cert, err := tlsca.GenerateSelfSignedCAWithSigner(priv, pkix.Name{
+func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
+	rsaKey, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+	}
+	cert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
 		CommonName:   "localhost",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
-	ca, err := tlsca.FromCertAndSigner(cert, priv)
+	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
 	if err != nil {
 		return nil, auth.TrustedCerts{}, trace.Wrap(err)
 	}
@@ -54,12 +59,15 @@ func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, auth.TrustedCert
 }
 
 func newClientKey(t *testing.T) *client.Key {
-	privateKey, err := testauthority.New().GeneratePrivateKey()
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
 
 	ff, tc, err := newSelfSignedCA(privateKey)
 	require.NoError(t, err)
 	keygen := testauthority.New()
+
+	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
+	require.NoError(t, err)
 
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
@@ -71,29 +79,31 @@ func newClientKey(t *testing.T) *client.Key {
 
 	tlsCert, err := ff.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: privateKey.Public(),
+		PublicKey: cryptoPubKey,
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(defaults.CATTL),
 	})
 	require.NoError(t, err)
 
 	ta := testauthority.New()
-	signer, err := ta.GeneratePrivateKey()
+	priv, _, err := ta.GenerateKeyPair("")
 	require.NoError(t, err)
-	caSigner, err := ssh.NewSignerFromKey(signer)
+	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:      caSigner,
-		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		CASigningAlg:  defaults.CASignatureAlgorithm,
+		PublicUserKey: publicKey,
 		Username:      "testuser",
 	})
 	require.NoError(t, err)
 
 	return &client.Key{
-		PrivateKey: privateKey,
-		Cert:       certificate,
-		TLSCert:    tlsCert,
+		Priv:    privateKey,
+		Pub:     publicKey,
+		Cert:    certificate,
+		TLSCert: tlsCert,
 		TrustedCA: []auth.TrustedCerts{
 			tc,
 		},
@@ -118,12 +128,12 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// key is OK:
-	out, err := os.ReadFile(cfg.OutputPath)
+	out, err := ioutil.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(key.PrivateKeyPEM()))
+	require.Equal(t, string(out), string(key.Priv))
 
 	// cert is OK:
-	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
+	out, err = ioutil.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
 	require.NoError(t, err)
 	require.Equal(t, string(out), string(key.Cert))
 
@@ -134,18 +144,18 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// key+cert are OK:
-	out, err = os.ReadFile(cfg.OutputPath)
+	out, err = ioutil.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
 
 	wantArr := [][]byte{
-		key.PrivateKeyPEM(),
-		[]byte("\n"),
+		key.Priv,
+		{'\n'},
 		key.Cert,
 		key.TLSCert,
 		bytes.Join(key.TLSCAs(), []byte{}),
 	}
 	want := string(bytes.Join(wantArr, nil))
-	require.Equal(t, want, string(out))
+	require.Equal(t, string(out), want)
 
 	// Test kubeconfig creation.
 	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")

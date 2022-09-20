@@ -275,7 +275,6 @@ func GetEnvForTSH(destination *config.DestinationConfig) (map[string]string, err
 	// so we'll specify them exactly.
 	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, tlsCAs.UserCAPath)
 	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, tlsCAs.HostCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, tlsCAs.DatabaseCAPath)
 
 	// TODO(timothyb89): Kubernetes support. We don't generate kubeconfigs yet, so we have
 	// nothing to give tsh for now.

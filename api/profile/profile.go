@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io/fs"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/user"
@@ -28,7 +29,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -72,7 +72,10 @@ type Profile struct {
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 
-	// SiteName is equivalent to the --cluster flag
+	// AuthType (like "google")
+	AuthType string `yaml:"auth_type,omitempty"`
+
+	// SiteName is equivalient to --cluster argument
 	SiteName string `yaml:"cluster,omitempty"`
 
 	// ForwardedPorts is the list of ports to forward to the target node.
@@ -88,10 +91,6 @@ type Profile struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
-
-	// AuthConnector (like "google", "passwordless").
-	// Equivalent to the --auth tsh flag.
-	AuthConnector string `yaml:"auth_connector,omitempty"`
 }
 
 // Name returns the name of the profile.
@@ -106,7 +105,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
+	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -152,7 +151,7 @@ func certPoolFromCASDir(p *Profile) (*x509.CertPool, error) {
 		if info.IsDir() {
 			return nil
 		}
-		cert, err := os.ReadFile(path)
+		cert, err := ioutil.ReadFile(path)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -181,27 +180,28 @@ func certPoolFromLegacyCAFile(p *Profile) (*x509.CertPool, error) {
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
 func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	cert, err := os.ReadFile(p.SSHCertPath())
+	cert, err := ioutil.ReadFile(p.SSHCertPath())
+	if err != nil {
+		// Try reading SSHCert from old cert path, return original error otherwise
+		// DELETE IN 8.0.0
+		var err2 error
+		cert, err2 = ioutil.ReadFile(p.OldSSHCertPath())
+		if err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	key, err := ioutil.ReadFile(p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sshCert, err := sshutils.ParseCertificate(cert)
+	caCerts, err := ioutil.ReadFile(p.KnownHostsPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := os.ReadFile(p.KnownHostsPath())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, err := keys.LoadPrivateKey(p.UserKeyPath())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
+	ssh, err := sshutils.ProxyClientSSHConfig(cert, key, [][]byte{caCerts})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,7 +215,7 @@ func SetCurrentProfileName(dir string, name string) error {
 	}
 
 	path := filepath.Join(dir, currentProfileFilename)
-	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
+	if err := ioutil.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -237,7 +237,7 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, currentProfileFilename))
+	data, err := ioutil.ReadFile(filepath.Join(dir, currentProfileFilename))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", trace.NotFound("current-profile is not set")
@@ -256,7 +256,7 @@ func ListProfileNames(dir string) ([]string, error) {
 	if dir == "" {
 		return nil, trace.BadParameter("cannot list profiles: missing dir")
 	}
-	files, err := os.ReadDir(dir)
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,8 +266,7 @@ func ListProfileNames(dir string) ([]string, error) {
 		if file.IsDir() {
 			continue
 		}
-
-		if file.Type()&os.ModeSymlink != 0 {
+		if file.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
 		if !strings.HasSuffix(file.Name(), ".yaml") {
@@ -318,7 +317,7 @@ func FromDir(dir string, name string) (*Profile, error) {
 
 // profileFromFile loads the profile from a YAML file.
 func profileFromFile(filePath string) (*Profile, error) {
-	bytes, err := os.ReadFile(filePath)
+	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -358,7 +357,7 @@ func (p *Profile) saveToFile(filepath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = os.WriteFile(filepath, bytes, 0660); err != nil {
+	if err = ioutil.WriteFile(filepath, bytes, 0660); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -414,9 +413,10 @@ func (p *Profile) SSHCertPath() string {
 	return keypaths.SSHCertPath(p.Dir, p.Name(), p.Username, p.SiteName)
 }
 
-// PPKFilePath returns the path to the profile's PuTTY PPK-formatted keypair.
-func (p *Profile) PPKFilePath() string {
-	return keypaths.PPKFilePath(p.Dir, p.Name(), p.Username)
+// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
+// DELETE IN 8.0.0
+func (p *Profile) OldSSHCertPath() string {
+	return keypaths.OldSSHCertPath(p.Dir, p.Name(), p.Username)
 }
 
 // KnownHostsPath returns the path to the profile's ssh certificate authorities.

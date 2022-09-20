@@ -19,7 +19,7 @@ Enterprise Edition:
 
 <Tabs>
   <TabItem label="Open Source">
-    GitHub's `teams_to_roles` section maps users to roles based on users' teams.
+    GitHub's `teams_to_logins` section maps users to roles based on users' teams.
 
     ```yaml
     kind: github
@@ -37,11 +37,11 @@ Enterprise Edition:
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
-      teams_to_roles:
+      teams_to_logins:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # keep this field as is for now
-          roles: ["admin"]
+          logins: ["admin"]
     ```
   </TabItem>
 
@@ -161,12 +161,12 @@ Assign this role to a user in OIDC or SAML connector:
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to kubernetes groups
-      teams_to_roles:
+      teams_to_logins:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # List of Kubernetes groups this GitHub team is allowed to connect to
           # Keep this field as is for now
-          roles: ["admins"]
+          logins: ["admins"]
     ```
   </TabItem>
 
@@ -314,9 +314,9 @@ Take a look at the example usage in a [Teleport Helm chart](https://github.com/g
 
 Integrate with your identity provider:
 
-- [OIDC guide](../access-controls/sso/oidc.mdx)
-- [ADFS guide](../access-controls/sso/adfs.mdx)
-- [Azure AD guide](../access-controls/sso/azuread.mdx)
-- [Google Workspace guide](../access-controls/sso/google-workspace.mdx)
-- [Onelogin guide](../access-controls/sso/one-login.mdx)
-- [Okta guide](../access-controls/sso/okta.mdx)
+- [OIDC guide](../enterprise/sso/oidc.mdx)
+- [ADFS guide](../enterprise/sso/adfs.mdx)
+- [Azure AD guide](../enterprise/sso/azuread.mdx)
+- [Google Workspace guide](../enterprise/sso/google-workspace.mdx)
+- [Onelogin guide](../enterprise/sso/one-login.mdx)
+- [Okta guide](../enterprise/sso/okta.mdx)

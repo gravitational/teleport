@@ -36,8 +36,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -69,8 +71,6 @@ var (
 	)
 )
 
-var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
-
 func init() {
 	prometheus.MustRegister(serverTX)
 	prometheus.MustRegister(serverRX)
@@ -101,9 +101,6 @@ type AccessPoint interface {
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
-
-	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
-	services.ConnectionDiagnosticTraceAppender
 }
 
 // Server is regular or forwarding SSH server.
@@ -135,6 +132,9 @@ type Server interface {
 	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
 
+	// GetSessionServer returns a session server.
+	GetSessionServer() rsession.Service
+
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
 
@@ -151,18 +151,11 @@ type Server interface {
 	// using reverse tunnel.
 	UseTunnel() bool
 
-	// OpenBPFSession will start monitoring all events within a session and
-	// emitting them to the Audit Log.
-	OpenBPFSession(ctx *ServerContext) (uint64, error)
+	// GetBPF returns the BPF service used for enhanced session recording.
+	GetBPF() bpf.BPF
 
-	// CloseBPFSession will stop monitoring events for a particular session.
-	CloseBPFSession(ctx *ServerContext) error
-
-	// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
-	OpenRestrictedSession(ctx *ServerContext, cgroupID uint64)
-
-	// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
-	CloseRestrictedSession(ctx *ServerContext, cgroupID uint64)
+	// GetRestrictedSessionManager returns the manager for restricting user activity
+	GetRestrictedSessionManager() restricted.Manager
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -172,14 +165,6 @@ type Server interface {
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
-
-	// GetCreateHostUser returns whether the node should create
-	// temporary teleport users or not
-	GetCreateHostUser() bool
-
-	// GetHostUsers returns the HostUsers instance being used to manage
-	// host user provisioning
-	GetHostUsers() HostUsers
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
@@ -197,15 +182,16 @@ type IdentityContext struct {
 	// Login is the operating system user associated with the connection.
 	Login string
 
-	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
+	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
 	// authorized_keys format.
 	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority types.CertAuthority
 
-	// AccessChecker is used to check RBAC permissions.
-	AccessChecker services.AccessChecker
+	// RoleSet is the roles this Teleport user is associated with. RoleSet is
+	// used to check RBAC permissions.
+	RoleSet services.RoleSet
 
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
@@ -231,10 +217,6 @@ type IdentityContext struct {
 	// Generation counts the number of times this identity's certificate has
 	// been renewed.
 	Generation uint64
-
-	// AllowedResourceIDs lists the resources this identity should be allowed to
-	// access
-	AllowedResourceIDs []types.ResourceID
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -294,11 +276,11 @@ type ServerContext struct {
 	// time this context was created.
 	SessionRecordingConfig types.SessionRecordingConfig
 
-	// RemoteClient holds an SSH client to a remote server. Only used by the
+	// RemoteClient holds a SSH client to a remote server. Only used by the
 	// recording proxy.
 	RemoteClient *tracessh.Client
 
-	// RemoteSession holds an SSH session to a remote server. Only used by the
+	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
 	RemoteSession *tracessh.Session
 
@@ -306,11 +288,11 @@ type ServerContext struct {
 	clientLastActive time.Time
 
 	// disconnectExpiredCert is set to time when/if the certificate should
-	// be disconnected, set to empty if no disconnect is necessary
+	// be disconnected, set to empty if no disconect is necessary
 	disconnectExpiredCert time.Time
 
 	// clientIdleTimeout is set to the timeout on
-	// client inactivity, set to 0 if not setup
+	// on client inactivity, set to 0 if not setup
 	clientIdleTimeout time.Duration
 
 	// cancelContext signals closure to all outstanding operations
@@ -323,9 +305,6 @@ type ServerContext struct {
 	// to be tracked because the terminal is set to nil after it's "taken" in the
 	// session. Terminals can be allocated for both "exec" or "session" requests.
 	termAllocated bool
-
-	// ttyName is the name of the TTY used for a session, ex: /dev/pts/0
-	ttyName string
 
 	// request is the request that was issued by the client
 	request *ssh.Request
@@ -345,7 +324,7 @@ type ServerContext struct {
 	ChannelType string
 
 	// SrcAddr is the source address of the request. This the originator IP
-	// address and port in an SSH "direct-tcpip" request. This value is only
+	// address and port in a SSH "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	SrcAddr string
 
@@ -354,10 +333,6 @@ type ServerContext struct {
 	// populated for port forwarding requests.
 	DstAddr string
 
-	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
-	// by the server.
-	AllowFileCopying bool
-
 	// x11rdy{r,w} is used to signal from the child process to the
 	// parent process when X11 forwarding is set up.
 	x11rdyr *os.File
@@ -365,9 +340,6 @@ type ServerContext struct {
 
 	// x11Config holds the xauth and XServer listener config for this session.
 	x11Config *X11Config
-
-	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
-	JoinOnly bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -396,7 +368,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		SessionRecordingConfig: recConfig,
 		Identity:               identityContext,
-		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeout:      identityContext.RoleSet.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
 	}
@@ -413,16 +385,12 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.ComponentFields: fields,
 	})
 
-	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
-		child.JoinOnly = true
-	}
-
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
@@ -446,7 +414,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
 		LockTargets:           lockTargets,
-		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
+		LockingMode:           identityContext.RoleSet.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -523,31 +491,6 @@ func (c *ServerContext) SessionID() rsession.ID {
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
-}
-
-// StreamWriter returns the underlying stream writer for the session or an
-// events.DiscardStream if the session has yet to be established.
-func (c *ServerContext) StreamWriter() events.StreamWriter {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.session == nil {
-		return &events.DiscardStream{}
-	}
-
-	return c.session.Recorder()
-}
-
-// GetPID returns the PID of the Teleport process that was re-execed
-// or -1 if the process has not yet completed spawning.
-func (c *ServerContext) GetPID() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.term == nil {
-		return -1
-	}
-
-	return c.term.PID()
 }
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
@@ -669,25 +612,6 @@ func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.session
-}
-
-func (c *ServerContext) SetAllowFileCopying(allow bool) {
-	c.AllowFileCopying = allow
-}
-
-// CheckFileCopyingAllowed returns an error if remote file operations via
-// SCP or SFTP are not allowed by the user's role or the node's config.
-func (c *ServerContext) CheckFileCopyingAllowed() error {
-	// Check if remote file operations are disabled for this node.
-	if !c.AllowFileCopying {
-		return ErrNodeFileCopyingNotPermitted
-	}
-	// Check if the user's RBAC role allows remote file operations.
-	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return errRoleFileCopyingNotPermitted
-	}
-
-	return nil
 }
 
 // OpenXServerListener opens a new XServer unix listener.
@@ -830,7 +754,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var closers []io.Closer
+	closers := []io.Closer{}
 	if c.term != nil {
 		closers = append(closers, c.term)
 		c.term = nil
@@ -975,7 +899,10 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 	}
 
 	// If the identity has roles, extract the role names.
-	roleNames := c.Identity.AccessChecker.RoleNames()
+	var roleNames []string
+	if len(c.Identity.RoleSet) > 0 {
+		roleNames = c.Identity.RoleSet.RoleNames()
+	}
 
 	// Fill in the environment variables from the config and interpolate them if needed.
 	environment := make(map[string]string)
@@ -1025,7 +952,10 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	// If the identity has roles, extract the role names.
-	roleNames := c.Identity.AccessChecker.RoleNames()
+	var roleNames []string
+	if len(c.Identity.RoleSet) > 0 {
+		roleNames = c.Identity.RoleSet.RoleNames()
+	}
 
 	// Extract the command to be executed. This only exists if command execution
 	// (exec or shell) is being requested, port forwarding has no command to
@@ -1060,8 +990,6 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		Login:                 c.Identity.Login,
 		Roles:                 roleNames,
 		Terminal:              c.termAllocated || command == "",
-		TerminalName:          c.ttyName,
-		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),
@@ -1183,7 +1111,7 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
-	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
+	roles := apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...))
 	lockTargets = append(lockTargets,
 		services.RolesToLockTargets(roles)...,
 	)

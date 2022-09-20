@@ -30,8 +30,6 @@ import (
 )
 
 func TestSessionTracker(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -76,7 +74,7 @@ func TestSessionTracker(t *testing.T) {
 		require.Equal(t, expectedExpiry, tracker.tracker.Expiry())
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 
-		// canceling the goroutine's ctx should halt the update loop
+		// cancelling the goroutine's ctx should halt the update loop
 		cancel()
 		_, ok := <-done
 		require.False(t, ok)

@@ -33,9 +33,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -137,6 +140,7 @@ type Server struct {
 	authClient      auth.ClientI
 	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
+	sessionServer   session.Service
 	dataDir         string
 
 	clock clockwork.Clock
@@ -156,11 +160,11 @@ type Server struct {
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
 
+	targetID, targetAddr, targetHostname string
+
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
-
-	targetID, targetAddr, targetHostname string
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -214,11 +218,11 @@ type ServerConfig struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 
+	TargetID, TargetAddr, TargetHostname string
+
 	// TracerProvider is used to create tracers capable
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
-
-	TargetID, TargetAddr, TargetHostname string
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -296,16 +300,17 @@ func New(c ServerConfig) (*Server, error) {
 		address:         c.Address,
 		authClient:      c.AuthClient,
 		authService:     c.AuthClient,
+		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
 		hostUUID:        c.HostUUID,
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
-		tracerProvider:  c.TracerProvider,
 		targetID:        c.TargetID,
 		targetAddr:      c.TargetAddr,
 		targetHostname:  c.TargetHostname,
+		tracerProvider:  c.TracerProvider,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -409,6 +414,11 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
+// GetSessionServer returns a session server.
+func (s *Server) GetSessionServer() session.Service {
+	return s.sessionServer
+}
+
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
 func (s *Server) GetPAM() (*pam.Config, error) {
@@ -421,32 +431,18 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// OpenBPFSession is a nop since the session must be run on the actual node
-func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
-	return 0, nil
+// GetBPF returns the BPF service used by enhanced session recording. BPF
+// for the forwarding server makes no sense (it has to run on the actual
+// node), so return a NOP implementation.
+func (s Server) GetBPF() bpf.BPF {
+	return &bpf.NOP{}
 }
 
-// CloseBPFSession is a nop since the session must be run on the actual node
-func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
-	return nil
-}
-
-// OpenRestrictedSession is a nop since the session must be run on the actual node
-func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
-
-// CloseRestrictedSession is a nop since the session must be run on the actual node
-func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
-
-// GetCreateHostUser determines whether users should be created on the
-// host automatically
-func (s *Server) GetCreateHostUser() bool {
-	return false
-}
-
-// GetHostUsers returns the HostUsers instance being used to manage
-// host user provisioning, unimplemented for the forwarder server.
-func (s *Server) GetHostUsers() srv.HostUsers {
-	return nil
+// GetRestrictedSessionManager returns a NOP manager since for a
+// forwarding server it makes no sense (it has to run on the actual
+// node).
+func (s Server) GetRestrictedSessionManager() restricted.Manager {
+	return &restricted.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.
@@ -994,39 +990,6 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 
 func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	scx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
-
-	// Certs with a join-only principal can only use a
-	// subset of all the possible request types.
-	if scx.JoinOnly {
-		switch req.Type {
-		case tracessh.TracingRequest:
-			return s.handleTracingRequest(ctx, req, scx)
-		case sshutils.PTYRequest:
-			return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
-		case sshutils.ShellRequest:
-			return s.termHandlers.HandleShell(ctx, ch, req, scx)
-		case sshutils.WindowChangeRequest:
-			return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
-		case teleport.ForceTerminateRequest:
-			return s.termHandlers.HandleForceTerminate(ch, req, scx)
-		case sshutils.EnvRequest:
-			// We ignore all SSH setenv requests for join-only principals.
-			// SSH will send them anyway but it seems fine to silently drop them.
-		case sshutils.SubsystemRequest:
-			return s.handleSubsystem(ctx, ch, req, scx)
-		case sshutils.AgentForwardRequest:
-			// to maintain interoperability with OpenSSH, agent forwarding requests
-			// should never fail, all errors should be logged and we should continue
-			// processing requests.
-			err := s.handleAgentForward(ch, req, scx)
-			if err != nil {
-				s.log.Debug(err)
-			}
-			return nil
-		default:
-			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
-		}
-	}
 
 	switch req.Type {
 	case tracessh.TracingRequest:

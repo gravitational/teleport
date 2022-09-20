@@ -19,6 +19,7 @@ package common
 import (
 	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -166,7 +167,7 @@ func TestDatabaseResource(t *testing.T) {
 
 	// Create the databases.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
-	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+	require.NoError(t, ioutil.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 	_, err = runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 
@@ -253,7 +254,7 @@ func TestAppResource(t *testing.T) {
 
 	// Create the apps.
 	appYAMLPath := filepath.Join(t.TempDir(), "app.yaml")
-	require.NoError(t, os.WriteFile(appYAMLPath, []byte(appYAML), 0644))
+	require.NoError(t, ioutil.WriteFile(appYAMLPath, []byte(appYAML), 0644))
 	_, err = runResourceCommand(t, fileConfig, []string{"create", appYAMLPath})
 	require.NoError(t, err)
 
@@ -316,7 +317,7 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
-	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+	require.NoError(t, ioutil.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 
 	// Reset RootCertPool and run tctl command with --insecure flag.
 	opts := []optionsFunc{

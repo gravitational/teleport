@@ -23,31 +23,26 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/genproto/googleapis/firestore/admin/v1"
-
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"cloud.google.com/go/firestore"
-
-	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -269,7 +264,7 @@ type event struct {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(cfg EventsConfig) (*Log, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,6 +336,85 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 		return firestorebk.ConvertGRPCError(err)
 	}
 	return nil
+}
+
+// EmitAuditEventLegacy emits audit event
+func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) error {
+	sessionID := fields.GetString(events.SessionEventID)
+	eventIndex := fields.GetInt(events.EventIndex)
+	// no session id - global event gets a random uuid to get a good partition
+	// key distribution
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
+	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+	}
+	created := fields.GetTime(events.EventTime)
+	if created.IsZero() {
+		created = l.Clock.Now().UTC()
+	}
+	data, err := json.Marshal(fields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	event := event{
+		SessionID:      sessionID,
+		EventIndex:     int64(eventIndex),
+		EventType:      fields.GetString(events.EventType),
+		EventNamespace: apidefaults.Namespace,
+		CreatedAt:      created.Unix(),
+		Fields:         string(data),
+	}
+	start := time.Now()
+	_, err = l.svc.Collection(l.CollectionName).Doc(l.getDocIDForEvent(event)).Create(l.svcContext, event)
+	writeLatencies.Observe(time.Since(start).Seconds())
+	writeRequests.Inc()
+	if err != nil {
+		return firestorebk.ConvertGRPCError(err)
+	}
+	return nil
+}
+
+// PostSessionSlice sends chunks of recorded session to the event log
+func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
+	batch := l.svc.Batch()
+	for _, chunk := range slice.Chunks {
+		// if legacy event with no type or print event, skip it
+		if chunk.EventType == events.SessionPrintEvent || chunk.EventType == "" {
+			continue
+		}
+		fields, err := events.EventFromChunk(slice.SessionID, chunk)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		data, err := json.Marshal(fields)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		event := event{
+			SessionID:      slice.SessionID,
+			EventNamespace: apidefaults.Namespace,
+			EventType:      chunk.EventType,
+			EventIndex:     chunk.EventIndex,
+			CreatedAt:      time.Unix(0, chunk.Time).In(time.UTC).Unix(),
+			Fields:         string(data),
+		}
+		batch.Create(l.svc.Collection(l.CollectionName).Doc(l.getDocIDForEvent(event)), event)
+	}
+	start := time.Now()
+	_, err := batch.Commit(l.svcContext)
+	batchWriteLatencies.Observe(time.Since(start).Seconds())
+	batchWriteRequests.Inc()
+	if err != nil {
+		return firestorebk.ConvertGRPCError(err)
+	}
+	return nil
+}
+
+func (l *Log) UploadSessionRecording(events.SessionRecording) error {
+	return trace.NotImplemented("UploadSessionRecording not implemented for firestore backend")
 }
 
 // GetSessionChunk returns a reader which can be used to read a byte stream
@@ -534,6 +608,12 @@ func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order typ
 type searchEventsFilter struct {
 	eventTypes []string
 	condition  utils.FieldsCondition
+}
+
+// WaitForDelivery waits for resources to be released and outstanding requests to
+// complete after calling Close method
+func (l *Log) WaitForDelivery(ctx context.Context) error {
+	return nil
 }
 
 func (l *Log) getIndexParent() string {

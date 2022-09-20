@@ -1,2 +1,0 @@
-CompileFlags:
-  Add: [-Wall, -xobjective-c, -fblocks, -fobjc-arc]

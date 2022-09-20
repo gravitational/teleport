@@ -17,7 +17,6 @@ limitations under the License.
 package review
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
@@ -38,16 +37,16 @@ func TestIsInternal(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: false},
-						"4": {Team: "Core", Owner: false},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
 					},
 					CodeReviewersOmit: map[string]bool{},
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
-						"5": {Team: "Core", Owner: true},
-						"6": {Team: "Core", Owner: true},
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
 					},
 					DocsReviewersOmit: map[string]bool{},
 					// Admins.
@@ -66,16 +65,16 @@ func TestIsInternal(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: false},
-						"4": {Team: "Core", Owner: false},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
 					},
 					CodeReviewersOmit: map[string]bool{},
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
-						"5": {Team: "Core", Owner: true},
-						"6": {Team: "Core", Owner: true},
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
 					},
 					DocsReviewersOmit: map[string]bool{},
 					// Admins.
@@ -94,16 +93,16 @@ func TestIsInternal(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: false},
-						"4": {Team: "Core", Owner: false},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
 					},
 					CodeReviewersOmit: map[string]bool{},
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
-						"5": {Team: "Core", Owner: true},
-						"6": {Team: "Core", Owner: true},
+						"5": Reviewer{Team: "Core", Owner: true},
+						"6": Reviewer{Team: "Core", Owner: true},
 					},
 					DocsReviewersOmit: map[string]bool{},
 					// Admins.
@@ -140,10 +139,10 @@ func TestGetCodeReviewers(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: false},
-						"4": {Team: "Core", Owner: false},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
 					},
 					CodeReviewersOmit: map[string]bool{},
 					// Admins.
@@ -163,11 +162,11 @@ func TestGetCodeReviewers(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: false},
-						"4": {Team: "Core", Owner: false},
-						"5": {Team: "Core", Owner: false},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+						"5": Reviewer{Team: "Core", Owner: false},
 					},
 					CodeReviewersOmit: map[string]bool{
 						"3": true,
@@ -189,11 +188,11 @@ func TestGetCodeReviewers(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: false},
-						"4": {Team: "Core", Owner: false},
-						"5": {Team: "Internal"},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: false},
+						"4": Reviewer{Team: "Core", Owner: false},
+						"5": Reviewer{Team: "Internal"},
 					},
 					CodeReviewersOmit: map[string]bool{},
 					// Admins.
@@ -213,15 +212,15 @@ func TestGetCodeReviewers(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: true},
-						"4": {Team: "Core", Owner: false},
-						"5": {Team: "Core", Owner: false},
-						"6": {Team: "Core", Owner: false},
-						"7": {Team: "Internal", Owner: false},
-						"8": {Team: "Cloud", Owner: false},
-						"9": {Team: "Cloud", Owner: false},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: true},
+						"4": Reviewer{Team: "Core", Owner: false},
+						"5": Reviewer{Team: "Core", Owner: false},
+						"6": Reviewer{Team: "Core", Owner: false},
+						"7": Reviewer{Team: "Internal", Owner: false},
+						"8": Reviewer{Team: "Cloud", Owner: false},
+						"9": Reviewer{Team: "Cloud", Owner: false},
 					},
 					CodeReviewersOmit: map[string]bool{
 						"6": true,
@@ -246,13 +245,13 @@ func TestGetCodeReviewers(t *testing.T) {
 				c: &Config{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
-						"3": {Team: "Core", Owner: true},
-						"4": {Team: "Core", Owner: false},
-						"5": {Team: "Core", Owner: false},
-						"6": {Team: "Core", Owner: false},
-						"7": {Team: "Internal", Owner: false},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
+						"3": Reviewer{Team: "Core", Owner: true},
+						"4": Reviewer{Team: "Core", Owner: false},
+						"5": Reviewer{Team: "Core", Owner: false},
+						"6": Reviewer{Team: "Core", Owner: false},
+						"7": Reviewer{Team: "Internal", Owner: false},
 					},
 					CodeReviewersOmit: map[string]bool{
 						"6": true,
@@ -271,33 +270,9 @@ func TestGetCodeReviewers(t *testing.T) {
 			setA:   []string{"1", "2", "3"},
 			setB:   []string{"5"},
 		},
-		{
-			desc: "docs reviewers submitting code changes are treated as internal authors",
-			assignments: &Assignments{
-				c: &Config{
-					CodeReviewers: map[string]Reviewer{
-						"code-1": {Team: "Core", Owner: true},
-						"code-2": {Team: "Core", Owner: false},
-					},
-					DocsReviewers: map[string]Reviewer{
-						"docs-1": {Team: "Core", Owner: true},
-					},
-					Admins: []string{"code-1", "code-2"},
-				},
-			},
-			author: "docs-1",
-			setA:   []string{"code-1"},
-			setB:   []string{"code-2"},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			// We just want to validate that this test gets to the point where it's
-			// checking for approvals. This means the bot did not reject the PR
-			// as an external author.
-			require.ErrorContains(t, test.assignments.checkCodeReviews(test.author, nil),
-				"at least one approval required from each set")
-
 			setA, setB := test.assignments.getCodeReviewerSets(test.author)
 			require.ElementsMatch(t, setA, test.setA)
 			require.ElementsMatch(t, setB, test.setB)
@@ -319,8 +294,8 @@ func TestGetDocsReviewers(t *testing.T) {
 				c: &Config{
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
 					},
 					DocsReviewersOmit: map[string]bool{},
 					// Admins.
@@ -339,8 +314,8 @@ func TestGetDocsReviewers(t *testing.T) {
 				c: &Config{
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
 					},
 					DocsReviewersOmit: map[string]bool{
 						"2": true,
@@ -361,8 +336,8 @@ func TestGetDocsReviewers(t *testing.T) {
 				c: &Config{
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
-						"1": {Team: "Core", Owner: true},
-						"2": {Team: "Core", Owner: true},
+						"1": Reviewer{Team: "Core", Owner: true},
+						"2": Reviewer{Team: "Core", Owner: true},
 					},
 					DocsReviewersOmit: map[string]bool{},
 					// Admins.
@@ -390,12 +365,12 @@ func TestCheckExternal(t *testing.T) {
 		c: &Config{
 			// Code.
 			CodeReviewers: map[string]Reviewer{
-				"1": {Team: "Core", Owner: true},
-				"2": {Team: "Core", Owner: true},
-				"3": {Team: "Core", Owner: true},
-				"4": {Team: "Core", Owner: false},
-				"5": {Team: "Core", Owner: false},
-				"6": {Team: "Core", Owner: false},
+				"1": Reviewer{Team: "Core", Owner: true},
+				"2": Reviewer{Team: "Core", Owner: true},
+				"3": Reviewer{Team: "Core", Owner: true},
+				"4": Reviewer{Team: "Core", Owner: false},
+				"5": Reviewer{Team: "Core", Owner: false},
+				"6": Reviewer{Team: "Core", Owner: false},
 			},
 			CodeReviewersOmit: map[string]bool{},
 			// Default.
@@ -408,48 +383,72 @@ func TestCheckExternal(t *testing.T) {
 	tests := []struct {
 		desc    string
 		author  string
-		reviews []github.Review
+		reviews map[string]*github.Review
 		result  bool
 	}{
 		{
 			desc:    "no-reviews-fail",
 			author:  "5",
-			reviews: []github.Review{},
+			reviews: map[string]*github.Review{},
 			result:  false,
 		},
 		{
 			desc:   "two-non-admin-reviews-fail",
 			author: "5",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "4", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{
+					Author: "3",
+					State:  approved,
+				},
+				"4": &github.Review{
+					Author: "4",
+					State:  approved,
+				},
 			},
 			result: false,
 		},
 		{
 			desc:   "one-admin-reviews-fail",
 			author: "5",
-			reviews: []github.Review{
-				{Author: "1", State: Approved},
-				{Author: "4", State: Approved},
+			reviews: map[string]*github.Review{
+				"1": &github.Review{
+					Author: "1",
+					State:  approved,
+				},
+				"4": &github.Review{
+					Author: "4",
+					State:  approved,
+				},
 			},
 			result: false,
 		},
 		{
 			desc:   "two-admin-reviews-one-denied-success",
 			author: "5",
-			reviews: []github.Review{
-				{Author: "1", State: ChangesRequested},
-				{Author: "2", State: Approved},
+			reviews: map[string]*github.Review{
+				"1": &github.Review{
+					Author: "1",
+					State:  changesRequested,
+				},
+				"2": &github.Review{
+					Author: "2",
+					State:  approved,
+				},
 			},
 			result: false,
 		},
 		{
 			desc:   "two-admin-reviews-success",
 			author: "5",
-			reviews: []github.Review{
-				{Author: "1", State: Approved},
-				{Author: "2", State: Approved},
+			reviews: map[string]*github.Review{
+				"1": &github.Review{
+					Author: "1",
+					State:  approved,
+				},
+				"2": &github.Review{
+					Author: "2",
+					State:  approved,
+				},
 			},
 			result: true,
 		},
@@ -472,21 +471,21 @@ func TestCheckInternal(t *testing.T) {
 		c: &Config{
 			// Code.
 			CodeReviewers: map[string]Reviewer{
-				"1":  {Team: "Core", Owner: true},
-				"2":  {Team: "Core", Owner: true},
-				"3":  {Team: "Core", Owner: true},
-				"9":  {Team: "Core", Owner: true},
-				"4":  {Team: "Core", Owner: false},
-				"5":  {Team: "Core", Owner: false},
-				"6":  {Team: "Core", Owner: false},
-				"8":  {Team: "Internal", Owner: false},
-				"10": {Team: "Cloud", Owner: false},
-				"11": {Team: "Cloud", Owner: false},
-				"12": {Team: "Cloud", Owner: false},
+				"1":  Reviewer{Team: "Core", Owner: true},
+				"2":  Reviewer{Team: "Core", Owner: true},
+				"3":  Reviewer{Team: "Core", Owner: true},
+				"9":  Reviewer{Team: "Core", Owner: true},
+				"4":  Reviewer{Team: "Core", Owner: false},
+				"5":  Reviewer{Team: "Core", Owner: false},
+				"6":  Reviewer{Team: "Core", Owner: false},
+				"8":  Reviewer{Team: "Internal", Owner: false},
+				"10": Reviewer{Team: "Cloud", Owner: false},
+				"11": Reviewer{Team: "Cloud", Owner: false},
+				"12": Reviewer{Team: "Cloud", Owner: false},
 			},
 			// Docs.
 			DocsReviewers: map[string]Reviewer{
-				"7": {Team: "Core", Owner: true},
+				"7": Reviewer{Team: "Core", Owner: true},
 			},
 			DocsReviewersOmit: map[string]bool{},
 			CodeReviewersOmit: map[string]bool{},
@@ -500,22 +499,21 @@ func TestCheckInternal(t *testing.T) {
 	tests := []struct {
 		desc    string
 		author  string
-		reviews []github.Review
+		reviews map[string]*github.Review
 		docs    bool
 		code    bool
-		large   bool
 		result  bool
 	}{
 		{
 			desc:    "no-reviews-fail",
 			author:  "4",
-			reviews: []github.Review{},
+			reviews: map[string]*github.Review{},
 			result:  false,
 		},
 		{
 			desc:    "docs-only-no-reviews-fail",
 			author:  "4",
-			reviews: []github.Review{},
+			reviews: map[string]*github.Review{},
 			docs:    true,
 			code:    false,
 			result:  false,
@@ -523,8 +521,8 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "docs-only-non-docs-approval-fail",
 			author: "4",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
 			},
 			docs:   true,
 			code:   false,
@@ -533,8 +531,8 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "docs-only-docs-approval-success",
 			author: "4",
-			reviews: []github.Review{
-				{Author: "7", State: Approved},
+			reviews: map[string]*github.Review{
+				"7": &github.Review{Author: "7", State: approved},
 			},
 			docs:   true,
 			code:   false,
@@ -543,7 +541,7 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:    "code-only-no-reviews-fail",
 			author:  "4",
-			reviews: []github.Review{},
+			reviews: map[string]*github.Review{},
 			docs:    false,
 			code:    true,
 			result:  false,
@@ -551,8 +549,8 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "code-only-one-approval-fail",
 			author: "4",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -561,9 +559,9 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "code-only-two-approval-setb-fail",
 			author: "4",
-			reviews: []github.Review{
-				{Author: "5", State: Approved},
-				{Author: "6", State: Approved},
+			reviews: map[string]*github.Review{
+				"5": &github.Review{Author: "5", State: approved},
+				"6": &github.Review{Author: "6", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -572,45 +570,20 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "code-only-one-changes-fail",
 			author: "4",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "4", State: ChangesRequested},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"4": &github.Review{Author: "4", State: changesRequested},
 			},
 			docs:   false,
 			code:   true,
 			result: false,
-		},
-		{
-			desc:   "code-only-large-pr-requires-admin-fails",
-			author: "6",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "4", State: Approved},
-			},
-			docs:   false,
-			code:   true,
-			large:  true,
-			result: false,
-		},
-		{
-			desc:   "code-only-large-pr-has-admin-succeeds",
-			author: "6",
-			reviews: []github.Review{
-				{Author: "1", State: Approved},
-				{Author: "3", State: Approved},
-				{Author: "4", State: Approved},
-			},
-			docs:   false,
-			code:   true,
-			large:  true,
-			result: true,
 		},
 		{
 			desc:   "code-only-two-approvals-success",
 			author: "6",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "4", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"4": &github.Review{Author: "4", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -619,8 +592,8 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "docs-and-code-only-docs-approval-fail",
 			author: "6",
-			reviews: []github.Review{
-				{Author: "7", State: Approved},
+			reviews: map[string]*github.Review{
+				"7": &github.Review{Author: "7", State: approved},
 			},
 			docs:   true,
 			code:   true,
@@ -629,9 +602,9 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "docs-and-code-only-code-approval-fail",
 			author: "6",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "4", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"4": &github.Review{Author: "4", State: approved},
 			},
 			docs:   true,
 			code:   true,
@@ -640,10 +613,10 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "docs-and-code-docs-and-code-approval-success",
 			author: "6",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "4", State: Approved},
-				{Author: "7", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"4": &github.Review{Author: "4", State: approved},
+				"7": &github.Review{Author: "7", State: approved},
 			},
 			docs:   true,
 			code:   true,
@@ -652,8 +625,8 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "code-only-internal-on-approval-failure",
 			author: "8",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -662,9 +635,9 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "code-only-internal-code-approval-success",
 			author: "8",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "4", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"4": &github.Review{Author: "4", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -673,33 +646,9 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "code-only-internal-two-code-owner-approval-success",
 			author: "4",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "9", State: Approved},
-			},
-			docs:   false,
-			code:   true,
-			result: true,
-		},
-		{
-			desc:   "code-only-changes-requested-after-approval-failure",
-			author: "4",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "9", State: Approved},
-				{Author: "9", State: ChangesRequested},
-			},
-			docs:   false,
-			code:   true,
-			result: false,
-		},
-		{
-			desc:   "code-only-comment-after-approval-success",
-			author: "4",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "9", State: Approved},
-				{Author: "9", State: Commented},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"9": &github.Review{Author: "9", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -708,9 +657,9 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "cloud-with-self-approval-failure",
 			author: "10",
-			reviews: []github.Review{
-				{Author: "11", State: Approved},
-				{Author: "12", State: Approved},
+			reviews: map[string]*github.Review{
+				"11": &github.Review{Author: "11", State: approved},
+				"12": &github.Review{Author: "12", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -719,9 +668,9 @@ func TestCheckInternal(t *testing.T) {
 		{
 			desc:   "cloud-with-core-approval-success",
 			author: "10",
-			reviews: []github.Review{
-				{Author: "3", State: Approved},
-				{Author: "9", State: Approved},
+			reviews: map[string]*github.Review{
+				"3": &github.Review{Author: "3", State: approved},
+				"9": &github.Review{Author: "9", State: approved},
 			},
 			docs:   false,
 			code:   true,
@@ -730,7 +679,7 @@ func TestCheckInternal(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := r.CheckInternal(test.author, test.reviews, test.docs, test.code, test.large)
+			err := r.CheckInternal(test.author, test.reviews, test.docs, test.code)
 			if test.result {
 				require.NoError(t, err)
 			} else {
@@ -746,11 +695,11 @@ func TestFromString(t *testing.T) {
 	require.NoError(t, err)
 
 	require.EqualValues(t, r.c.CodeReviewers, map[string]Reviewer{
-		"1": {
+		"1": Reviewer{
 			Team:  "Core",
 			Owner: true,
 		},
-		"2": {
+		"2": Reviewer{
 			Team:  "Core",
 			Owner: false,
 		},
@@ -759,11 +708,11 @@ func TestFromString(t *testing.T) {
 		"3": true,
 	})
 	require.EqualValues(t, r.c.DocsReviewers, map[string]Reviewer{
-		"4": {
+		"4": Reviewer{
 			Team:  "Core",
 			Owner: true,
 		},
-		"5": {
+		"5": Reviewer{
 			Team:  "Core",
 			Owner: false,
 		},
@@ -775,77 +724,6 @@ func TestFromString(t *testing.T) {
 		"7",
 		"8",
 	})
-}
-
-type randStatic struct{}
-
-func (r *randStatic) Intn(n int) int {
-	return 0
-}
-
-func TestPreferredReviewers(t *testing.T) {
-	assignments := &Assignments{
-		c: &Config{
-			Rand: &randStatic{},
-			CodeReviewers: map[string]Reviewer{
-				"1": {Team: "Core", Owner: true, PreferredReviewerFor: []string{"lib/srv/db"}},
-				"2": {Team: "Core", Owner: true, PreferredReviewerFor: []string{"lib/srv/db", "lib/alpn"}},
-				"3": {Team: "Core", Owner: true},
-				"4": {Team: "Core", Owner: false, PreferredReviewerFor: []string{"lib/srv/app"}},
-				"5": {Team: "Core", Owner: false, PreferredReviewerFor: []string{"lib/srv/db"}},
-				"6": {Team: "Core", Owner: false},
-			},
-		},
-	}
-
-	tests := []struct {
-		description string
-		author      string
-		files       []github.PullRequestFile
-		expected    []string
-	}{
-		{
-			description: "both reviewers are preferred",
-			author:      "3",
-			files: []github.PullRequestFile{
-				{Name: "lib/srv/db/engine.go"},
-			},
-			expected: []string{"1", "5"},
-		},
-		{
-			description: "one of the reviewers is preferred",
-			author:      "3",
-			files: []github.PullRequestFile{
-				{Name: "lib/alpn/proxy.go"},
-			},
-			expected: []string{"2", "4"},
-		},
-		{
-			description: "preferred reviewers for different files",
-			author:      "3",
-			files: []github.PullRequestFile{
-				{Name: "lib/alpn/proxy.go"},
-				{Name: "lib/srv/db/engine.go"},
-			},
-			expected: []string{"1", "2", "5"},
-		},
-		{
-			description: "no preferred reviewers",
-			author:      "3",
-			files: []github.PullRequestFile{
-				{Name: "lib/service/service.go"},
-			},
-			expected: []string{"1", "4"},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			actual := assignments.getCodeReviewers(test.author, test.files)
-			sort.Strings(actual)
-			require.ElementsMatch(t, test.expected, actual)
-		})
-	}
 }
 
 const reviewers = `
@@ -872,7 +750,7 @@ const reviewers = `
 			"team": "Core",
 			"owner": false
 		}
-	},
+	},	
 	"docsReviewersOmit": {
 		"6": true
     },

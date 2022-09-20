@@ -21,20 +21,34 @@ Log into your Teleport cluster and see available databases:
   </TabItem>
 </Tabs>
 
-To connect to a particular database instance:
+To connect to a particular database instance, first retrieve its certificate
+using the `tsh db login` command:
+
+```code
+$ tsh db login example-redis
+```
+
+<Admonition type="tip" title="Tip">
+  You can be logged into multiple databases simultaneously.
+</Admonition>
+
+You can optionally specify the database name and the user to use by default
+when connecting to the database instance:
+
+```code
+$ tsh db login --db-user=alice example-redis
+```
+
+If flag `--db-user` is not provided, Teleport logs in as the `default` user.
+
+Once logged in, connect to the database:
 
 ```code
 $ tsh db connect example-redis
 ```
 
-You can optionally specify the database user to use by default when connecting
-to the database instance:
-
-```code
-$ tsh db connect --db-user=alice example-redis
-```
-
-If flag `--db-user` is not provided, Teleport logs in as the `default` user.
+The `redis-cli` command-line client should be available in the system `PATH` in order to be
+able to connect.
 
 Now you can log in as the previously created user using the below command:
 

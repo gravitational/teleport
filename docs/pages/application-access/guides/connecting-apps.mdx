@@ -1,7 +1,9 @@
 ---
-title: Web Application Access
+title: Use Teleport for Application Access
 description: How to configure Teleport for Application Access.
 ---
+
+# Connecting Web Applications
 
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
 and follow the installation [instructions](../../installation.mdx).
@@ -283,7 +285,7 @@ requests forwarded to a web application.
 
 Headers injected this way override any headers with the same names that may
 be sent by an application. The following headers are reserved and can't be
-rewritten: `Teleport-Jwt-Assertion`, `Cf-Access-Token`, and any `X-Forwarded-*`.
+rewritten: `X-Teleport-Jwt`, `Cf-Access-Token`, `X-Forwarded-*`.
 
 Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
 In the example above, `X-Internal-Trait` header will be populated with the value

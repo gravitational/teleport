@@ -65,10 +65,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 
 	var apps types.Apps
 	for _, server := range appServers {
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if !server.GetApp().IsTCP() {
-			apps = append(apps, server.GetApp())
-		}
+		apps = append(apps, server.GetApp())
 	}
 
 	return listResourcesGetResponse{

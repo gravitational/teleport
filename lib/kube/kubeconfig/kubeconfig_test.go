@@ -17,6 +17,7 @@ package kubeconfig
 import (
 	"crypto/x509/pkix"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -37,7 +39,7 @@ import (
 )
 
 func setup(t *testing.T) (string, clientcmdapi.Config) {
-	f, err := os.CreateTemp("", "kubeconfig")
+	f, err := ioutil.TempFile("", "kubeconfig")
 	if err != nil {
 		t.Fatalf("failed to create temp kubeconfig file: %v", err)
 	}
@@ -190,7 +192,7 @@ func TestUpdate(t *testing.T) {
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
-		ClientKeyData:         creds.PrivateKeyPEM(),
+		ClientKeyData:         creds.Priv,
 		LocationOfOrigin:      kubeconfigPath,
 		Extensions:            map[string]runtime.Object{},
 	}
@@ -404,15 +406,18 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, err := keygen.GeneratePrivateKey()
+	priv, pub, err := keygen.GenerateKeyPair("")
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
+	cryptoPub, err := sshutils.CryptoPublicKey(pub)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	clock := clockwork.NewRealClock()
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: priv.Public(),
+		PublicKey: cryptoPub,
 		Subject: pkix.Name{
 			CommonName: "teleport-user",
 		},
@@ -423,8 +428,9 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	return &client.Key{
-		PrivateKey: priv,
-		TLSCert:    tlsCert,
+		Priv:    priv,
+		Pub:     pub,
+		TLSCert: tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},

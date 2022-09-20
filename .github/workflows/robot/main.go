@@ -60,8 +60,6 @@ func main() {
 		err = b.Dismiss(ctx)
 	case "label":
 		err = b.Label(ctx)
-	case "backport":
-		err = b.Backport(ctx)
 	default:
 		err = trace.BadParameter("unknown workflow: %v", workflow)
 	}

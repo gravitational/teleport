@@ -1,4 +1,0 @@
-clusterName: helm-lint
-authentication:
-  type: "this-should-be-ignored"
-authenticationType: "github"

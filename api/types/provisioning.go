@@ -58,10 +58,6 @@ type ProvisionToken interface {
 	GetJoinMethod() JoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
-
-	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
-	GetSuggestedLabels() Labels
-
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -252,11 +248,6 @@ func (p *ProvisionTokenV2) GetMetadata() Metadata {
 // SetMetadata sets resource metatada
 func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 	p.Metadata = meta
-}
-
-// GetSuggestedLabels returns the labels the resource should set when using this token
-func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
-	return p.Spec.SuggestedLabels
 }
 
 // V1 returns V1 version of the resource

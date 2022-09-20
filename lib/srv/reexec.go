@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -30,12 +30,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -94,17 +92,9 @@ type ExecCommand struct {
 	ClusterName string `json:"cluster_name"`
 
 	// Terminal indicates if a TTY has been allocated for the session. This is
-	// typically set if either a shell was requested or a TTY was explicitly
-	// allocated for an exec request.
+	// typically set if either an shell was requested or a TTY was explicitly
+	// allocated for a exec request.
 	Terminal bool `json:"term"`
-
-	// TerminalName is the name of TTY terminal, ex: /dev/tty1.
-	// Currently, this field is used by auditd.
-	TerminalName string `json:"terminal_name"`
-
-	// ClientAddress contains IP address of the connected client.
-	// Currently, this field is used by auditd.
-	ClientAddress string `json:"client_address"`
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
@@ -176,7 +166,7 @@ type UaccMetadata struct {
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client. By
-	// default, it writes to stdout, but if a TTY is allocated, it will write
+	// default it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
 	errorWriter := os.Stdout
 
@@ -202,32 +192,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	auditdMsg := auditd.Message{
-		SystemUser:   c.Login,
-		TeleportUser: c.Username,
-		ConnAddress:  c.ClientAddress,
-		TTYName:      c.TerminalName,
-	}
-
-	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
-		log.WithError(err).Errorf("failed to send user start event to auditd: %v", err)
-	}
-
-	defer func() {
-		if err != nil {
-			if errors.Is(err, user.UnknownUserError(c.Login)) {
-				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-					log.WithError(err).Errorf("failed to send UserErr event to auditd: %v", err)
-				}
-				return
-			}
-		}
-
-		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
-			log.WithError(err).Errorf("failed to send UserEnd event to auditd: %v", err)
-		}
-	}()
-
 	var tty *os.File
 	var pty *os.File
 	uaccEnabled := false
@@ -244,7 +208,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		errorWriter = tty
 		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
 		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently, there is no way to log this error out-of-band with the
+		// Currently there is no way to log this error out-of-band with the
 		// command output, so for now we essentially ignore it.
 		if err == nil {
 			uaccEnabled = true
@@ -268,8 +232,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			stderr = tty
 		} else {
 			stdin = os.Stdin
-			stdout = io.Discard
-			stderr = io.Discard
+			stdout = ioutil.Discard
+			stderr = ioutil.Discard
 		}
 
 		// Open the PAM context.
@@ -317,25 +281,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	err = waitForContinue(contfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
-	// If we're planning on changing credentials, we should first park an
-	// innocuous process with the same UID and then check the user database
-	// again, to avoid it getting deleted under our nose.
-	parkerCtx, parkerCancel := context.WithCancel(context.Background())
-	defer parkerCancel()
-	if cmd.SysProcAttr.Credential != nil {
-		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		localUserCheck, err := user.Lookup(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
-		}
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
@@ -402,8 +347,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	parkerCancel()
-
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
 	// occurred during shell execution or the shell exits with an error (like
@@ -418,7 +361,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	return io.Discard, exitCode(err), trace.Wrap(err)
+	return ioutil.Discard, exitCode(err), trace.Wrap(err)
 }
 
 // RunForward reads in the command to run from the parent process (over a
@@ -455,8 +398,8 @@ func RunForward() (errw io.Writer, code int, err error) {
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
-			Stdout:      io.Discard,
-			Stderr:      io.Discard,
+			Stdout:      ioutil.Discard,
+			Stderr:      ioutil.Discard,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
@@ -501,26 +444,19 @@ func RunForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	return io.Discard, teleport.RemoteCommandSuccess, nil
+	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
 func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return io.Discard, teleport.HomeDirNotFound, nil
+		return ioutil.Discard, teleport.HomeDirNotFound, nil
 	}
 	if !utils.IsDir(home) {
-		return io.Discard, teleport.HomeDirNotFound, nil
+		return ioutil.Discard, teleport.HomeDirNotFound, nil
 	}
-	return io.Discard, teleport.RemoteCommandSuccess, nil
-}
-
-// runPark does nothing, forever.
-func runPark() (errw io.Writer, code int, err error) {
-	for {
-		time.Sleep(time.Hour)
-	}
+	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
 }
 
 // RunAndExit will run the requested command and then exit. This wrapper
@@ -538,8 +474,6 @@ func RunAndExit(commandType string) {
 		w, code, err = RunForward()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
-	case teleport.ParkSubCommand:
-		w, code, err = runPark()
 	default:
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -555,8 +489,7 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand,
-			teleport.ParkSubCommand, teleport.SFTPSubCommand:
+		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand, teleport.SFTPSubCommand:
 			return true
 		}
 	}
@@ -845,32 +778,6 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return true, nil
-}
-
-// Spawns a process with the given credentials, outliving the context.
-func newParker(ctx context.Context, credential syscall.Credential) error {
-	executable, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &credential,
-	}
-
-	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
-
-	if err := cmd.Start(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// the process will get killed when the context ends but we still need to
-	// Wait on it
-	go cmd.Wait()
-
-	return nil
 }
 
 // getCmdCredentials parses the uid, gid, and groups of the

@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
@@ -75,7 +74,6 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -93,7 +91,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	s.connector = mockConnector(t)
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -145,7 +143,6 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -153,7 +150,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -249,7 +246,9 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 	waitForEvents(t, process, serviceReadyEvents...)
 
 	if cfg.Databases.Enabled {
-		waitForDatabases(t, process, cfg.Databases.Databases)
+		for _, database := range cfg.Databases.Databases {
+			waitForDatabase(t, process, database)
+		}
 	}
 	return process
 }

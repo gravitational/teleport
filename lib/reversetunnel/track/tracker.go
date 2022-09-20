@@ -22,8 +22,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils/workpool"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/workpool"
 )
 
 type Lease = workpool.Lease
@@ -163,7 +164,6 @@ func (t *Tracker) tick() {
 		}
 		t.wp.Set(uint64(count))
 	}
-
 }
 
 func (t *Tracker) getOrCreate() *proxySet {
@@ -175,13 +175,29 @@ func (t *Tracker) getOrCreate() *proxySet {
 	return t.sets
 }
 
-// Claim attempts to claim a lease based on the given principals returning a
-// function to unclaim and if the claim was successful.
-func (t *Tracker) Claim(principals ...string) (unclaim func(), ok bool) {
+// WithProxy runs the supplied closure if and only if
+// no other work is currently being done with the proxy
+// identified by principals.
+func (t *Tracker) WithProxy(work func(), principals ...string) (didWork bool) {
 	if ok := t.claim(principals...); !ok {
-		return nil, false
+		return false
 	}
-	return func() { t.release(principals...) }, true
+	defer t.release(principals...)
+	work()
+	return true
+}
+
+// ClaimContext holds a claim on the proxy identified by principals that's
+// released at the end of the context.
+func (t *Tracker) ClaimContext(ctx context.Context, principals ...string) bool {
+	if ok := t.claim(principals...); !ok {
+		return false
+	}
+	go func() {
+		<-ctx.Done()
+		t.release(principals...)
+	}()
+	return true
 }
 
 func (t *Tracker) claim(principals ...string) (ok bool) {

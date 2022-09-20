@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -123,9 +124,10 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 }
 
-// WriteForSSHPlayback reads events from an AuditReader and writes them to disk in a format optimized for playback.
-func WriteForSSHPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (*SSHPlaybackWriter, error) {
-	w := &SSHPlaybackWriter{
+// WriteForPlayback reads events from audit reader and writes them to the format optimized for playback
+// this function returns *PlaybackWriter and error
+func WriteForPlayback(ctx context.Context, sid session.ID, reader AuditReader, dir string) (*PlaybackWriter, error) {
+	w := &PlaybackWriter{
 		sid:        sid,
 		reader:     reader,
 		dir:        dir,
@@ -140,7 +142,7 @@ func WriteForSSHPlayback(ctx context.Context, sid session.ID, reader AuditReader
 }
 
 // SessionEvents returns slice of event fields from gzipped events file.
-func (w *SSHPlaybackWriter) SessionEvents() ([]EventFields, error) {
+func (w *PlaybackWriter) SessionEvents() ([]EventFields, error) {
 	var sessionEvents []EventFields
 	//events
 	eventFile, err := os.Open(w.EventsPath)
@@ -176,7 +178,7 @@ func (w *SSHPlaybackWriter) SessionEvents() ([]EventFields, error) {
 
 // SessionChunks interprets the file at the given path as gzip-compressed list of session events and returns
 // the uncompressed contents as a result.
-func (w *SSHPlaybackWriter) SessionChunks() ([]byte, error) {
+func (w *PlaybackWriter) SessionChunks() ([]byte, error) {
 	var stream []byte
 	chunkFile, err := os.Open(w.ChunksPath)
 	if err != nil {
@@ -188,16 +190,16 @@ func (w *SSHPlaybackWriter) SessionChunks() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer grChunk.Close()
-	stream, err = io.ReadAll(grChunk)
+	stream, err = ioutil.ReadAll(grChunk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return stream, nil
 }
 
-// SSHPlaybackWriter reads messages from an AuditReader and writes them
+// PlaybackWriter reads messages from an AuditReader and writes them
 // to disk in a format suitable for SSH session playback.
-type SSHPlaybackWriter struct {
+type PlaybackWriter struct {
 	sid        session.ID
 	dir        string
 	reader     AuditReader
@@ -210,7 +212,7 @@ type SSHPlaybackWriter struct {
 }
 
 // Close closes all files
-func (w *SSHPlaybackWriter) Close() error {
+func (w *PlaybackWriter) Close() error {
 	if w.indexFile != nil {
 		if err := w.indexFile.Close(); err != nil {
 			log.Warningf("Failed to close index file: %v.", err)
@@ -243,7 +245,7 @@ func (w *SSHPlaybackWriter) Close() error {
 
 // Write writes all events from the AuditReader and writes
 // files to disk in the format optimized for playback.
-func (w *SSHPlaybackWriter) Write(ctx context.Context) error {
+func (w *PlaybackWriter) Write(ctx context.Context) error {
 	if err := w.openIndexFile(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -261,7 +263,7 @@ func (w *SSHPlaybackWriter) Write(ctx context.Context) error {
 	}
 }
 
-func (w *SSHPlaybackWriter) writeEvent(event apievents.AuditEvent) error {
+func (w *PlaybackWriter) writeEvent(event apievents.AuditEvent) error {
 	switch event.GetType() {
 	// Timing events for TTY playback go to both a chunks file (the raw bytes) as
 	// well as well as the events file (structured events).
@@ -286,7 +288,7 @@ func (w *SSHPlaybackWriter) writeEvent(event apievents.AuditEvent) error {
 	}
 }
 
-func (w *SSHPlaybackWriter) writeSessionPrintEvent(event apievents.AuditEvent) error {
+func (w *PlaybackWriter) writeSessionPrintEvent(event apievents.AuditEvent) error {
 	print, ok := event.(*apievents.SessionPrint)
 	if !ok {
 		return trace.BadParameter("expected session print event, got %T", event)
@@ -316,7 +318,7 @@ func (w *SSHPlaybackWriter) writeSessionPrintEvent(event apievents.AuditEvent) e
 	return nil
 }
 
-func (w *SSHPlaybackWriter) writeRegularEvent(event apievents.AuditEvent) error {
+func (w *PlaybackWriter) writeRegularEvent(event apievents.AuditEvent) error {
 	w.eventIndex++
 	event.SetIndex(w.eventIndex)
 	if err := w.openEventsFile(0); err != nil {
@@ -333,7 +335,7 @@ func (w *SSHPlaybackWriter) writeRegularEvent(event apievents.AuditEvent) error 
 	return nil
 }
 
-func (w *SSHPlaybackWriter) openIndexFile() error {
+func (w *PlaybackWriter) openIndexFile() error {
 	if w.indexFile != nil {
 		return nil
 	}
@@ -346,7 +348,7 @@ func (w *SSHPlaybackWriter) openIndexFile() error {
 	return nil
 }
 
-func (w *SSHPlaybackWriter) openEventsFile(eventIndex int64) error {
+func (w *PlaybackWriter) openEventsFile(eventIndex int64) error {
 	if w.eventsFile != nil {
 		return nil
 	}
@@ -376,7 +378,7 @@ func (w *SSHPlaybackWriter) openEventsFile(eventIndex int64) error {
 	return nil
 }
 
-func (w *SSHPlaybackWriter) openChunksFile(offset int64) error {
+func (w *PlaybackWriter) openChunksFile(offset int64) error {
 	if w.chunksFile != nil {
 		return nil
 	}

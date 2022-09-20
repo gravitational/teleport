@@ -104,13 +104,15 @@ type NodeSession struct {
 // newSession creates a new Teleport session with the given remote node
 // if 'joinSession' is given, the session will join the existing session
 // of another user
-func newSession(ctx context.Context,
+func newSession(
+	ctx context.Context,
 	client *NodeClient,
-	joinSession types.SessionTracker,
+	joinSession *session.Session,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
+	legacyID bool,
 	enableEscapeSequences bool,
 ) (*NodeSession, error) {
 	// Initialize the terminal. Note that at this point, we don't know if this
@@ -137,17 +139,12 @@ func newSession(ctx context.Context,
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
 	if joinSession != nil {
-		sessionID := joinSession.GetSessionID()
-		terminalSize, err := client.GetRemoteTerminalSize(ctx, sessionID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		ns.id = session.ID(sessionID)
-		ns.namespace = joinSession.GetMetadata().Namespace
+		ns.id = joinSession.ID
+		ns.namespace = joinSession.Namespace
+		tsize := joinSession.TerminalParams.Winsize()
 
 		if ns.terminal.IsAttached() {
-			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
+			err = ns.terminal.Resize(int16(tsize.Width), int16(tsize.Height))
 			if err != nil {
 				log.Error(err)
 			}
@@ -157,7 +154,15 @@ func newSession(ctx context.Context,
 	} else {
 		sid, ok := ns.env[sshutils.SessionEnvVar]
 		if !ok {
-			sid = string(session.NewID())
+			// DELETE IN: 4.1.0.
+			//
+			// Always send UUIDv4 after 4.1.
+			if legacyID {
+				sid = string(session.NewLegacyID())
+			} else {
+				sid = string(session.NewID())
+			}
+
 		}
 		ns.id = session.ID(sid)
 	}

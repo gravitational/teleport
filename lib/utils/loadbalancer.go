@@ -19,7 +19,6 @@ package utils
 import (
 	"context"
 	"io"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -31,28 +30,17 @@ import (
 // NewLoadBalancer returns new load balancer listening on frontend
 // and redirecting requests to backends using round robin algo
 func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
-	return newLoadBalancer(ctx, frontend, roundRobinPolicy(), backends...)
-}
-
-// NewRandomLoadBalancer returns new load balancer listening on frontend
-// and redirecting requests to backends randomly.
-func NewRandomLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
-	return newLoadBalancer(ctx, frontend, randomPolicy(), backends...)
-}
-
-// newLoadBalancer returns new load balancer with the given load balance policy.
-func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerPolicy, backends ...NetAddr) (*LoadBalancer, error) {
 	if ctx == nil {
 		return nil, trace.BadParameter("missing parameter context")
 	}
 	waitCtx, waitCancel := context.WithCancel(ctx)
 	return &LoadBalancer{
-		frontend:   frontend,
-		ctx:        ctx,
-		backends:   backends,
-		policy:     policy,
-		waitCtx:    waitCtx,
-		waitCancel: waitCancel,
+		frontend:     frontend,
+		ctx:          ctx,
+		backends:     backends,
+		currentIndex: -1,
+		waitCtx:      waitCtx,
+		waitCancel:   waitCancel,
 		Entry: log.WithFields(log.Fields{
 			trace.Component: "loadbalancer",
 			trace.ComponentFields: log.Fields{
@@ -63,51 +51,20 @@ func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerP
 	}, nil
 }
 
-// loadBalancerPolicy selects which backend to send traffic to.
-type loadBalancerPolicy func([]NetAddr) (NetAddr, error)
-
-// roundRobinPolicy selects backends in sequential order
-func roundRobinPolicy() loadBalancerPolicy {
-	next := -1
-	return func(backends []NetAddr) (NetAddr, error) {
-		if len(backends) == 0 {
-			return NetAddr{}, trace.ConnectionProblem(nil, "no backends")
-		}
-
-		next++
-		if next >= len(backends) {
-			next = 0
-		}
-
-		return backends[next], nil
-	}
-}
-
-// randomPolicy selects backends in a random order.
-func randomPolicy() loadBalancerPolicy {
-	return func(backends []NetAddr) (NetAddr, error) {
-		if len(backends) == 0 {
-			return NetAddr{}, trace.ConnectionProblem(nil, "no backends")
-		}
-		i := rand.Intn(len(backends))
-		return backends[i], nil
-	}
-}
-
 // LoadBalancer implements naive round robin TCP load
 // balancer used in tests.
 type LoadBalancer struct {
 	sync.RWMutex
 	connID int64
 	*log.Entry
-	frontend    NetAddr
-	backends    []NetAddr
-	ctx         context.Context
-	policy      loadBalancerPolicy
-	listener    net.Listener
-	connections map[NetAddr]map[int64]net.Conn
-	waitCtx     context.Context
-	waitCancel  context.CancelFunc
+	frontend     NetAddr
+	backends     []NetAddr
+	ctx          context.Context
+	currentIndex int
+	listener     net.Listener
+	connections  map[NetAddr]map[int64]net.Conn
+	waitCtx      context.Context
+	waitCancel   context.CancelFunc
 }
 
 // trackeConnection adds connection to the connection tracker
@@ -156,6 +113,7 @@ func (l *LoadBalancer) AddBackend(b NetAddr) {
 func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
 	l.Lock()
 	defer l.Unlock()
+	l.currentIndex = -1
 	for i := range l.backends {
 		if l.backends[i] == b {
 			l.backends = append(l.backends[:i], l.backends[i+1:]...)
@@ -169,12 +127,11 @@ func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
 func (l *LoadBalancer) nextBackend() (NetAddr, error) {
 	l.Lock()
 	defer l.Unlock()
-	backend, err := l.policy(l.backends)
-	if err != nil {
-		return NetAddr{}, trace.Wrap(err)
+	if len(l.backends) == 0 {
+		return NetAddr{}, trace.ConnectionProblem(nil, "no backends")
 	}
-
-	return backend, nil
+	l.currentIndex = ((l.currentIndex + 1) % len(l.backends))
+	return l.backends[l.currentIndex], nil
 }
 
 func (l *LoadBalancer) closeListener() {

@@ -17,15 +17,23 @@ limitations under the License.
 package utils
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"time"
+
+	"github.com/gofrs/flock"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
-// OpenFileWithFlagsFunc defines a function used to open files providing options.
-type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
+// ErrUnsuccessfulLockTry designates an error when we temporarily couldn't acquire lock
+// (most probably it was already locked by someone else), another try might succeed.
+var ErrUnsuccessfulLockTry = errors.New("could not acquire lock on the file at this time")
 
 // EnsureLocalPath makes sure the path exists, or, if omitted results in the subpath in
 // default gravity config directory, e.g.
@@ -36,9 +44,9 @@ type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.Fi
 // It also makes sure that base dir exists
 func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string) (string, error) {
 	if customPath == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil || homeDir == "" {
-			return "", trace.BadParameter("could not get user home dir: %v", err)
+		homeDir := getHomeDir()
+		if homeDir == "" {
+			return "", trace.BadParameter("no path provided and environment variable %v is not not set", teleport.EnvHome)
 		}
 		customPath = filepath.Join(homeDir, defaultLocalDir, defaultLocalPath)
 	}
@@ -143,4 +151,73 @@ func StatDir(path string) (os.FileInfo, error) {
 		return nil, trace.BadParameter("%v is not a directory", path)
 	}
 	return fi, nil
+}
+
+// getHomeDir returns the home directory based off the OS.
+func getHomeDir() string {
+	switch runtime.GOOS {
+	case constants.LinuxOS:
+		return os.Getenv(teleport.EnvHome)
+	case constants.DarwinOS:
+		return os.Getenv(teleport.EnvHome)
+	case constants.WindowsOS:
+		return os.Getenv(teleport.EnvUserProfile)
+	}
+	return ""
+}
+
+// FSTryWriteLock tries to grab write lock, returns ErrUnsuccessfulLockTry
+// if lock is already acquired by someone else
+func FSTryWriteLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	locked, err := fileLock.TryLock()
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if !locked {
+		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
+	}
+
+	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+}
+
+// FSTryWriteLockTimeout tries to grab write lock, it's doing it until locks is acquired, or timeout is expired,
+// or context is expired.
+func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if _, err := fileLock.TryLockContext(timedCtx, 10*time.Millisecond); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+}
+
+// FSTryReadLock tries to grab write lock, returns ErrUnsuccessfulLockTry
+// if lock is already acquired by someone else
+func FSTryReadLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	locked, err := fileLock.TryRLock()
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if !locked {
+		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
+	}
+
+	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+}
+
+// FSTryReadLockTimeout tries to grab read lock, it's doing it until locks is acquired, or timeout is expired,
+// or context is expired.
+func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if _, err := fileLock.TryRLockContext(timedCtx, 10*time.Millisecond); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
 }

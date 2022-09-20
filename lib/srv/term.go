@@ -26,8 +26,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/creack/pty"
 	"github.com/gravitational/trace"
+	"github.com/kr/pty"
 	"github.com/moby/term"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -147,7 +147,7 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 	// Open PTY and corresponding TTY.
 	t.pty, t.tty, err = pty.Open()
 	if err != nil {
-		log.Warnf("Could not start PTY: %v", err)
+		log.Warnf("Could not start PTY %v", err)
 		return nil, err
 	}
 

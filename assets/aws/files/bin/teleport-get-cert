@@ -4,9 +4,7 @@
 # to prove to letsencrypt that they own the domain.
 
 set -e
-if [[ "${DEBUG:-false}" == "true" ]]; then
-    set -x
-fi
+set -x
 
 # Source variables from user-data
 . /etc/teleport.d/conf

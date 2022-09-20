@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"net"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -41,6 +40,8 @@ type TestServerConfig struct {
 	AuthClient auth.ClientI
 	// Name is the server name for identification purposes.
 	Name string
+	// Address is an optional server listen address.
+	Address string
 	// AuthUser is used in tests simulating IAM token authentication.
 	AuthUser string
 	// AuthToken is used in tests simulating IAM token authentication.
@@ -56,40 +57,6 @@ type TestServerConfig struct {
 	// ClientAuth sets tls.ClientAuth in server's tls.Config. It can be used to force client
 	// certificate validation in tests.
 	ClientAuth tls.ClientAuthType
-
-	Listener net.Listener
-}
-
-func (cfg *TestServerConfig) CheckAndSetDefaults() error {
-	if cfg.Listener == nil {
-		listener, err := net.Listen("tcp", "localhost:0")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Listener = listener
-	}
-
-	return nil
-}
-
-func (cfg *TestServerConfig) CloseOnError(err *error) error {
-	if *err != nil {
-		return cfg.Close()
-	}
-	return nil
-}
-
-func (cfg *TestServerConfig) Close() error {
-	return cfg.Listener.Close()
-}
-
-func (cfg *TestServerConfig) Port() (string, error) {
-	_, port, err := net.SplitHostPort(cfg.Listener.Addr().String())
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return port, nil
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
@@ -99,7 +66,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	if cn == "" {
 		cn = "localhost"
 	}
-	privateKey, err := testauthority.New().GeneratePrivateKey()
+	privateKey, _, err := testauthority.New().GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,8 +85,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cert, err := privateKey.TLSCertificate(resp.Cert)
+	cert, err := tls.X509KeyPair(resp.Cert, privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -155,13 +121,13 @@ type TestClientConfig struct {
 // MakeTestClientTLSCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
 func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
-	key, err := client.GenerateRSAKey()
+	key, err := client.NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Generate client certificate for the Teleport user.
 	cert, err := config.AuthServer.GenerateDatabaseTestCert(auth.DatabaseTestCertRequest{
-		PublicKey:       key.MarshalSSHPublicKey(),
+		PublicKey:       key.Pub,
 		Cluster:         config.Cluster,
 		Username:        config.Username,
 		RouteToDatabase: config.RouteToDatabase,
@@ -169,7 +135,7 @@ func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := key.TLSCertificate(cert)
+	tlsCert, err := tls.X509KeyPair(cert, key.Priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,7 +150,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 	ca, err := config.AuthClient.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.DatabaseCA,
+		Type:       types.HostCA,
 		DomainName: config.Cluster,
 	}, false)
 	if err != nil {

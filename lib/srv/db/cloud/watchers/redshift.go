@@ -100,9 +100,16 @@ func (f *redshiftFetcher) Get(ctx context.Context) (types.Databases, error) {
 			continue
 		}
 
-		databases = append(databases, database)
+		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
+		if err != nil {
+			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			databases = append(databases, database)
+		} else {
+			f.log.Debugf("%v doesn't match selector.", database)
+		}
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return databases, nil
 }
 
 // String returns the fetcher's string description.
@@ -122,7 +129,7 @@ func getRedshiftClusters(ctx context.Context, redshiftClient redshiftiface.Redsh
 		func(page *redshift.DescribeClustersOutput, lastPage bool) bool {
 			pageNum++
 			clusters = append(clusters, page.Clusters...)
-			return pageNum <= common.MaxPages
+			return pageNum <= maxPages
 		},
 	)
 	return clusters, common.ConvertError(err)

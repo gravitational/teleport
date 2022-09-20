@@ -78,8 +78,8 @@ type SessionTracker interface {
 	// GetAddress returns the address of the session target.
 	GetAddress() string
 
-	// GetClusterName returns the name of the cluster.
-	GetClusterName() string
+	// GetClustername returns the name of the cluster.
+	GetClustername() string
 
 	// GetLogin returns the target machine username used for this session.
 	GetLogin() string
@@ -106,9 +106,6 @@ type SessionTracker interface {
 	// GetHostPolicySets returns a list of policy sets held by the host user at the time of session creation.
 	// This a subset of a role that contains some versioning and naming information in addition to the require policies
 	GetHostPolicySets() []*SessionTrackerPolicySet
-
-	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
-	GetLastActive() time.Time
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -275,7 +272,7 @@ func (s *SessionTrackerV1) GetAddress() string {
 }
 
 // GetClustername returns the name of the cluster the session is running in.
-func (s *SessionTrackerV1) GetClusterName() string {
+func (s *SessionTrackerV1) GetClustername() string {
 	return s.Spec.ClusterName
 }
 
@@ -335,17 +332,4 @@ func (s *SessionTrackerV1) UpdatePresence(user string) error {
 // This a subset of a role that contains some versioning and naming information in addition to the require policies
 func (s *SessionTrackerV1) GetHostPolicySets() []*SessionTrackerPolicySet {
 	return s.Spec.HostPolicies
-}
-
-// GetLastActive returns the time at which the session was last active (i.e used by any participant).
-func (s *SessionTrackerV1) GetLastActive() time.Time {
-	var last time.Time
-
-	for _, participant := range s.Spec.Participants {
-		if participant.LastActive.After(last) {
-			last = participant.LastActive
-		}
-	}
-
-	return last
 }

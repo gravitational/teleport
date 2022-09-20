@@ -335,6 +335,22 @@ func TestNewWebClientNoProxy(t *testing.T) {
 	require.Contains(t, err.Error(), "no such host")
 }
 
+func TestNewWebClientIgnoreProxy(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
+	client, err := newWebClient(&Config{
+		Context:         context.Background(),
+		ProxyAddr:       "localhost:3080",
+		IgnoreHTTPProxy: true,
+	})
+	require.NoError(t, err)
+	//nolint:bodyclose
+	resp, err := client.Get("https://fakedomain.example.com")
+	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
+	require.NotContains(t, err.Error(), "proxyconnect")
+	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
+	require.Contains(t, err.Error(), "no such host")
+}
+
 func TestSSHProxyHostPort(t *testing.T) {
 	tests := []struct {
 		testName        string

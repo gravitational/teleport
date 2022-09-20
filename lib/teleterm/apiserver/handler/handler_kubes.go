@@ -41,14 +41,14 @@ func (s *Handler) ListKubes(ctx context.Context, req *api.ListKubesRequest) (*ap
 
 func newAPIKube(kube clusters.Kube) *api.Kube {
 	apiLabels := APILabels{}
-	for name, value := range kube.KubernetesCluster.GetStaticLabels() {
+	for name, value := range kube.StaticLabels {
 		apiLabels = append(apiLabels, &api.Label{
 			Name:  name,
 			Value: value,
 		})
 	}
 
-	for name, cmd := range kube.KubernetesCluster.GetDynamicLabels() {
+	for name, cmd := range kube.DynamicLabels {
 		apiLabels = append(apiLabels, &api.Label{
 			Name:  name,
 			Value: cmd.GetResult(),
@@ -58,7 +58,7 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 	sort.Sort(apiLabels)
 
 	return &api.Kube{
-		Name:   kube.KubernetesCluster.GetName(),
+		Name:   kube.Name,
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
 	}

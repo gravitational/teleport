@@ -25,7 +25,6 @@ import (
 
 func Test_LinearRetryMax(t *testing.T) {
 	t.Parallel()
-
 	cases := []struct {
 		desc              string
 		config            LinearConfig

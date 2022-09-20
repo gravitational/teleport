@@ -30,13 +30,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
+func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *events.MockEmitter, MonitorConfig) {
 	conn := &mockTrackingConn{make(chan struct{})}
-	emitter := eventstest.NewChannelEmitter(1)
+	emitter := &events.MockEmitter{}
 	cfg := MonitorConfig{
 		Context:     ctx,
 		Conn:        conn,
@@ -57,7 +57,6 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -80,7 +79,7 @@ func TestMonitorLockInForce(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
-	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
+	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)
 
 	// Monitor should also detect preexistent locks.
 	conn, emitter, cfg = newTestMonitor(ctx, t, asrv)
@@ -89,12 +88,11 @@ func TestMonitorLockInForce(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
-	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
+	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)
 }
 
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -141,7 +139,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
-	require.Equal(t, services.StrictLockingModeAccessDenied.Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
+	require.Equal(t, services.StrictLockingModeAccessDenied.Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)
 }
 
 type mockTrackingConn struct {
@@ -168,7 +166,6 @@ func (t *mockActivityTracker) UpdateClientActivity() {}
 // is already before time.Now
 func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	t.Parallel()
-
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)

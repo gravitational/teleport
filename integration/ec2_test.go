@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -33,10 +34,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -59,13 +58,12 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
-	config.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &config.FileDescriptors)
+	config.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
 	config.AuthServers = append(config.AuthServers, authAddr)
 	config.Log = newSilentLogger()
-	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
 }
 
@@ -77,7 +75,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
 
-	proxyAddr := helpers.NewListener(t, service.ListenerProxyWeb, &config.FileDescriptors)
+	proxyAddr := net.JoinHostPort(Host, ports.Pop())
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.WebAddr.Addr = proxyAddr
@@ -86,7 +84,6 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.DataDir = t.TempDir()
 	config.AuthServers = append(config.AuthServers, authAddr)
 	config.Log = newSilentLogger()
-	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
 }
 
@@ -102,12 +99,12 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
-	config.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &config.FileDescriptors)
+	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, config.Auth.ListenAddr)
+	config.AuthServers = append(config.AuthServers, config.Auth.SSHAddr)
 	config.Auth.StorageConfig = storageConfig
 	config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -118,7 +115,6 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	config.SSH.Enabled = false
 	config.Clock = clock
 	config.Log = newSilentLogger()
-	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
 }
 
@@ -161,7 +157,7 @@ func TestEC2NodeJoin(t *testing.T) {
 		types.ProvisionTokenSpecV2{
 			Roles: []types.SystemRole{types.RoleNode},
 			Allow: []*types.TokenRule{
-				{
+				&types.TokenRule{
 					AWSAccount: iid.AccountID,
 					AWSRegions: []string{iid.Region},
 				},
@@ -191,7 +187,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.Empty(t, nodes)
 
 	// create and start the node
-	nodeConfig := newNodeConfig(t, authConfig.Auth.ListenAddr, tokenName, types.JoinMethodEC2)
+	nodeConfig := newNodeConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodEC2)
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -236,7 +232,7 @@ func TestIAMNodeJoin(t *testing.T) {
 		types.ProvisionTokenSpecV2{
 			Roles: []types.SystemRole{types.RoleNode, types.RoleProxy},
 			Allow: []*types.TokenRule{
-				{
+				&types.TokenRule{
 					AWSAccount: *id.Account,
 				},
 			},
@@ -254,7 +250,7 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	// create and start the proxy, will use the IAM method to join by connecting
 	// directly to the auth server
-	proxyConfig := newProxyConfig(t, authConfig.Auth.ListenAddr, tokenName, types.JoinMethodIAM)
+	proxyConfig := newProxyConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodIAM)
 	proxySvc, err := service.NewTeleport(proxyConfig)
 	require.NoError(t, err)
 	require.NoError(t, proxySvc.Start())
@@ -331,16 +327,13 @@ func TestEC2Labels(t *testing.T) {
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
-	tconf.Proxy.SSHAddr.Addr = helpers.NewListener(t, service.ListenerProxySSH, &tconf.FileDescriptors)
-	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
-	tconf.Proxy.ReverseTunnelListenAddr.Addr = helpers.NewListener(t, service.ListenerProxyTunnel, &tconf.FileDescriptors)
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
+	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
 
 	appConf := service.App{
 		Name: "test-app",
@@ -358,7 +351,7 @@ func TestEC2Labels(t *testing.T) {
 	tconf.Databases.Enabled = true
 	tconf.Databases.Databases = []service.Database{dbConfig}
 
-	helpers.EnableKubernetesService(t, tconf)
+	enableKubernetesService(t, tconf)
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{
@@ -377,7 +370,7 @@ func TestEC2Labels(t *testing.T) {
 	var nodes []types.Server
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
-	var kubes []types.KubeServer
+	var kubes []types.Server
 
 	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
@@ -388,7 +381,7 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
 		require.NoError(t, err)
-		kubes, err = authServer.GetKubernetesServers(ctx)
+		kubes, err = authServer.GetKubeServices(ctx)
 		require.NoError(t, err)
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
@@ -412,10 +405,10 @@ func TestEC2Labels(t *testing.T) {
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
 
-		kubeClusters := helpers.GetKubeClusters(t, authServer)
+		kubeClusters := getKubeClusters(t, authServer)
 		require.Len(t, kubeClusters, 1)
 		kube := kubeClusters[0]
-		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
+		_, kubeHasLabel := kube.StaticLabels[tagName]
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
 }
@@ -438,14 +431,12 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
-	tconf.Proxy.SSHAddr.Addr = helpers.NewListener(t, service.ListenerProxySSH, &tconf.FileDescriptors)
-	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, ports.Pop())
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
+	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, ports.Pop())
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{

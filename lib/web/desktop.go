@@ -30,10 +30,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -212,7 +212,7 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 }
 
 func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
-	pk, err := keys.ParsePrivateKey(sessCtx.session.GetPriv())
+	priv, err := ssh.ParsePrivateKey(sessCtx.session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -225,7 +225,8 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		},
 		RouteToCluster: siteName,
 		ExistingCreds: &client.Key{
-			PrivateKey:          pk,
+			Pub:                 ssh.MarshalAuthorizedKey(priv.PublicKey()),
+			Priv:                sessCtx.session.GetPriv(),
 			Cert:                sessCtx.session.GetPub(),
 			TLSCert:             sessCtx.session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
@@ -238,7 +239,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	if !ok {
 		return nil, trace.NotFound("failed to find windows desktop certificates for %q", desktopName)
 	}
-	certConf, err := pk.TLSCertificate(windowsDesktopCerts)
+	certConf, err := tls.X509KeyPair(windowsDesktopCerts, sessCtx.session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +294,6 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType: types.WindowsDesktopTunnel,
 		ServerID: service.GetName() + "." + clusterName,
-		ProxyIDs: service.GetProxyIDs(),
 	})
 }
 

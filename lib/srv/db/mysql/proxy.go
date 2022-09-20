@@ -169,7 +169,7 @@ func (p *Proxy) makeServer(clientConn net.Conn, serverVersion string) *server.Co
 // performHandshake performs the initial handshake between MySQL client and
 // this server, up to the point where the client sends us a certificate for
 // authentication, and returns the upgraded connection.
-func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (utils.TLSConn, error) {
+func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (*tls.Conn, error) {
 	// MySQL protocol is server-initiated which means the client will expect
 	// server to send initial handshake message.
 	err := server.WriteInitialHandshake()
@@ -194,11 +194,10 @@ func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (u
 	case *tls.Conn:
 		return c, nil
 	case *multiplexer.Conn:
-		tlsConn, ok := c.Conn.(utils.TLSConn)
+		tlsConn, ok := c.Conn.(*tls.Conn)
 		if !ok {
 			return nil, trace.BadParameter("expected TLS connection, got: %T", c.Conn)
 		}
-
 		return tlsConn, nil
 	}
 	return nil, trace.BadParameter("expected *tls.Conn or *multiplexer.Conn, got: %T",

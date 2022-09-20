@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -36,12 +37,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -51,9 +50,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+
 	"gopkg.in/yaml.v2"
 )
+
+var validCASigAlgos = []string{
+	ssh.SigAlgoRSA,
+	ssh.SigAlgoRSASHA2256,
+	ssh.SigAlgoRSASHA2512,
+}
 
 // FileConfig structre represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
@@ -95,7 +100,7 @@ func ReadFromFile(filePath string) (*FileConfig, error) {
 		if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
 		}
-		return nil, trace.Wrap(err, "failed to open file for Teleport configuration at %v", filePath)
+		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}
 	defer f.Close()
 	return ReadConfig(f)
@@ -114,7 +119,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 // ReadConfig reads Teleport configuration from reader in YAML format
 func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// read & parse YAML config:
-	bytes, err := io.ReadAll(reader)
+	bytes, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed reading Teleport configuration")
 	}
@@ -160,15 +165,6 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
-	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
-	NodeLabels string
-	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
-	// a single value or a list.
-	CAPin string
-	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
-	JoinMethod string
-	// NodeName is the name of the teleport node
-	NodeName string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -190,12 +186,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	conf := service.MakeDefaultConfig()
 
 	var g Global
-
-	if flags.NodeName != "" {
-		g.NodeName = flags.NodeName
-	} else {
-		g.NodeName = conf.Hostname
-	}
+	g.NodeName = conf.Hostname
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
@@ -205,28 +196,15 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
-	joinMethod := flags.JoinMethod
-	if joinMethod == "" && flags.AuthToken != "" {
-		joinMethod = string(types.JoinMethodToken)
-	}
-	g.JoinParams = JoinParams{
-		TokenName: flags.AuthToken,
-		Method:    types.JoinMethod(joinMethod),
-	}
-
+	g.AuthToken = flags.AuthToken
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
 	}
 
-	g.CAPin = strings.Split(flags.CAPin, ",")
-
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	s, err := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	s := makeSampleSSHConfig(conf, roles[defaults.RoleNode])
 
 	// Auth config:
 	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
@@ -272,7 +250,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
+func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -284,22 +262,20 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 				Period:  time.Minute,
 			},
 		}
-		labels, err := client.ParseLabelSpec(flags.NodeLabels)
-		if err != nil {
-			return s, trace.Wrap(err)
+		s.Labels = map[string]string{
+			"env": "example",
 		}
-		s.Labels = labels
 	} else {
 		s.EnabledFlag = "no"
 	}
 
-	return s, nil
+	return s
 }
 
 func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
 	if enabled {
-		a.ListenAddress = conf.Auth.ListenAddr.Addr
+		a.ListenAddress = conf.Auth.SSHAddr.Addr
 		a.ClusterName = ClusterName(flags.ClusterName)
 		a.EnabledFlag = "yes"
 
@@ -437,40 +413,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-
-	matchers := make([]AWSEC2Matcher, 0, len(conf.SSH.AWSMatchers))
-
-	for _, matcher := range conf.SSH.AWSMatchers {
-		if matcher.InstallParams == nil {
-			matcher.InstallParams = &InstallParams{
-				JoinParams: JoinParams{
-					TokenName: defaults.IAMInviteTokenName,
-					Method:    types.JoinMethodIAM,
-				},
-				ScriptName: installers.InstallerScriptName,
-			}
-		} else {
-			if method := matcher.InstallParams.JoinParams.Method; method == "" {
-				matcher.InstallParams.JoinParams.Method = types.JoinMethodIAM
-			} else if method != types.JoinMethodIAM {
-				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
-			}
-			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
-				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
-			}
-
-			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				matcher.InstallParams.ScriptName = installers.InstallerScriptName
-			}
-		}
-
-		if matcher.SSM.DocumentName == "" {
-			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
-		}
-		matchers = append(matchers, matcher)
+	if conf.CASignatureAlgorithm != nil && !apiutils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
+		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
 	}
-
-	conf.SSH.AWSMatchers = matchers
 
 	return nil
 }
@@ -556,13 +501,9 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Global is 'teleport' (global) section of the config file
 type Global struct {
-	NodeName string `yaml:"nodename,omitempty"`
-	DataDir  string `yaml:"data_dir,omitempty"`
-	PIDFile  string `yaml:"pid_file,omitempty"`
-
-	// AuthToken is the old way of configuring the token to be used by the
-	// node to join the Teleport cluster. `JoinParams.TokenName` should be
-	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
+	NodeName    string           `yaml:"nodename,omitempty"`
+	DataDir     string           `yaml:"data_dir,omitempty"`
+	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
 	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
@@ -589,7 +530,9 @@ type Global struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 
-	// CASignatureAlgorithm is ignored but ketp for config backwards compat
+	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
+	// algorithm that the server uses for signing user and host certificates.
+	// If omitted, the default will be used.
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -702,6 +645,16 @@ type Auth struct {
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 
+	// TrustedClustersFile is a file path to a file containing public CA keys
+	// of clusters we trust. One key per line, those starting with '#' are comments
+	// Deprecated: Remove in Teleport 2.4.1.
+	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
+
+	// DynamicConfig determines when file configuration is pushed to the backend. Setting
+	// it here overrides defaults.
+	// Deprecated: Remove in Teleport 2.4.1.
+	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
+
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
@@ -750,14 +703,6 @@ type Auth struct {
 
 	// RoutingStrategy configures the routing strategy to nodes.
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
-
-	// TunnelStrategy configures the tunnel strategy used by the cluster.
-	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
-
-	// ProxyPingInterval defines in which interval the TLS routing ping message
-	// should be sent. This is applicable only when using ping-wrapped
-	// connections, regular TLS routing connections are not affected.
-	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -876,12 +821,6 @@ type AuthenticationConfig struct {
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
-
-	// Passwordless enables/disables passwordless support.
-	// Requires Webauthn to work.
-	// Defaults to true if the Webauthn is configured, defaults to false
-	// otherwise.
-	Passwordless *types.BoolOption `yaml:"passwordless"`
 }
 
 // Parse returns a types.AuthPreference (type, second factor, U2F).
@@ -913,14 +852,11 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		RequireSessionMFA: a.RequireSessionMFA,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
-		AllowPasswordless: a.Passwordless,
 	})
 }
 
 type UniversalSecondFactor struct {
-	AppID string `yaml:"app_id"`
-	// Facets kept only to avoid breakages during Teleport updates.
-	// Webauthn is now used instead of U2F.
+	AppID                string   `yaml:"app_id"`
 	Facets               []string `yaml:"facets"`
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
@@ -932,6 +868,7 @@ func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	}
 	return &types.U2F{
 		AppID:                u.AppID,
+		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,
 	}, nil
 }
@@ -940,10 +877,7 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
-	// Disabled has no effect, it is kept solely to not break existing
-	// configurations.
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
-	Disabled bool `yaml:"disabled,omitempty"`
+	Disabled              bool     `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -955,18 +889,13 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
-	if w.Disabled {
-		log.Warnf(`` +
-			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
-			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
-	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
 		// types.Webauthn.CheckAndSetDefaults to correct it.
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
+		Disabled:              w.Disabled,
 	}, nil
 }
 
@@ -989,7 +918,7 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	// Try reading as a file and parsing that.
-	data, err := os.ReadFile(certOrPath)
+	data, err := ioutil.ReadFile(certOrPath)
 	if err != nil {
 		// Don't use trace in order to keep a clean error message.
 		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
@@ -1030,22 +959,6 @@ type SSH struct {
 
 	// X11 is used to configure X11 forwarding settings
 	X11 *X11 `yaml:"x11,omitempty"`
-
-	// MaybeSSHFileCopy enables or disables remote file operations via SCP/SFTP.
-	// We're using a pointer-to-bool here because the system default is to allow
-	// SCP/SFTP, we need to distinguish between an unset value and a false
-	// value so we can an override unset value with `true`.
-	//
-	// Don't read this value directly: call the SSHFileCopy method
-	// instead.
-	MaybeSSHFileCopy *bool `yaml:"ssh_file_copy,omitempty"`
-
-	// DisableCreateHostUser disables automatic user provisioning on this
-	// SSH node.
-	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
-
-	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1054,15 +967,6 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 		return true
 	}
 	return *ssh.MaybeAllowTCPForwarding
-}
-
-// SSHFileCopy checks whether the config file allows for file copying
-// via SCP/SFTP.
-func (ssh *SSH) SSHFileCopy() bool {
-	if ssh.MaybeSSHFileCopy == nil {
-		return true
-	}
-	return *ssh.MaybeSSHFileCopy
 }
 
 // X11ServerConfig returns the X11 forwarding server configuration.
@@ -1083,26 +987,24 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		return cfg, nil
 	}
 
-	cfg.DisplayOffset = x11.DefaultDisplayOffset
-	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
-
-		if cfg.DisplayOffset > x11.MaxDisplayNumber {
+	cfg.MaxDisplay = x11.DefaultMaxDisplay
+	if ssh.X11.MaxDisplay != nil {
+		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
+		// If set, max display must not be greater than the
+		// max display number supported by X Server
+		if cfg.MaxDisplay > x11.MaxDisplayNumber {
 			cfg.DisplayOffset = x11.MaxDisplayNumber
 		}
 	}
 
-	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
-	if ssh.X11.MaxDisplay != nil {
-		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
-
-		if cfg.MaxDisplay < cfg.DisplayOffset {
-			return nil, trace.BadParameter("x11.MaxDisplay cannot be smaller than x11.DisplayOffset")
+	cfg.DisplayOffset = x11.DefaultDisplayOffset
+	if ssh.X11.DisplayOffset != nil {
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+		// If set, display offset must not be greater than the
+		// max display number
+		if cfg.DisplayOffset > cfg.MaxDisplay {
+			cfg.DisplayOffset = cfg.MaxDisplay
 		}
-	}
-
-	if cfg.MaxDisplay > x11.MaxDisplayNumber {
-		cfg.MaxDisplay = x11.MaxDisplayNumber
 	}
 
 	return cfg, nil
@@ -1207,9 +1109,9 @@ type X11 struct {
 	// DisplayOffset tells the server what X11 display number to start from when
 	// searching for an open X11 unix socket for XServer proxies.
 	DisplayOffset *uint `yaml:"display_offset,omitempty"`
-	// MaxDisplay tells the server what X11 display number to stop at when
+	// DisplayOffset tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
-	MaxDisplay *uint `yaml:"max_display,omitempty"`
+	MaxDisplay *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
@@ -1224,8 +1126,6 @@ type Databases struct {
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
-	// AzureMatchers match Azure hosted databases.
-	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
 }
 
 // ResourceMatcher matches cluster resources.
@@ -1236,56 +1136,12 @@ type ResourceMatcher struct {
 
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", "elasticache",
-	// or "memorydb".
+	// Types are AWS database types to match, "rds" or "redshift".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
-}
-
-// AWSEC2Matcher matches EC2 instances
-type AWSEC2Matcher struct {
-	// Matcher is used to match EC2 instances based on tags
-	Matcher AWSMatcher `yaml:",inline"`
-	// InstallParams sets the join method when installing on
-	// discovered EC2 nodes
-	InstallParams *InstallParams `yaml:"install,omitempty"`
-	// SSM provides options to use when sending a document command to
-	// an EC2 node
-	SSM AWSSSM `yaml:"ssm,omitempty"`
-}
-
-// InstallParams sets join method to use on discovered nodes
-type InstallParams struct {
-	// JoinParams sets the token and method to use when generating
-	// config on EC2 instances
-	JoinParams JoinParams `yaml:"join_params,omitempty"`
-	// ScriptName is the name of the teleport installer script
-	// resource for the EC2 instance to execute
-	ScriptName string `yaml:"script_name,omitempty"`
-}
-
-// AWSSSM provides options to use when executing SSM documents
-type AWSSSM struct {
-	// DocumentName is the name of the document to use when executing an
-	// SSM command
-	DocumentName string `yaml:"document_name,omitempty"`
-}
-
-// AzureMatcher matches Azure databases.
-type AzureMatcher struct {
-	// Subscriptions are Azure subscriptions to query for resources.
-	Subscriptions []string `yaml:"subscriptions,omitempty"`
-	// ResourceGroups are Azure resource groups to query for resources.
-	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure database types to match: "mysql", "postgres"
-	Types []string `yaml:"types,omitempty"`
-	// Regions are Azure locations to match for databases.
-	Regions []string `yaml:"regions,omitempty"`
-	// ResourceTags are Azure tags on resources to match.
-	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -1347,14 +1203,6 @@ type DatabaseMySQL struct {
 	ServerVersion string `yaml:"server_version,omitempty"`
 }
 
-// SecretStore contains settings for managing secrets.
-type SecretStore struct {
-	// KeyPrefix specifies the secret key prefix.
-	KeyPrefix string `yaml:"key_prefix,omitempty"`
-	// KMSKeyID specifies the KMS key used to encrypt and decrypt the secret.
-	KMSKeyID string `yaml:"kms_key_id,omitempty"`
-}
-
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
@@ -1363,12 +1211,6 @@ type DatabaseAWS struct {
 	Redshift DatabaseAWSRedshift `yaml:"redshift"`
 	// RDS contains RDS specific settings.
 	RDS DatabaseAWSRDS `yaml:"rds"`
-	// ElastiCache contains ElastiCache specific settings.
-	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
-	// SecretStore contains settings for managing secrets.
-	SecretStore SecretStore `yaml:"secret_store"`
-	// MemoryDB contains MemoryDB specific settings.
-	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1383,18 +1225,6 @@ type DatabaseAWSRDS struct {
 	InstanceID string `yaml:"instance_id,omitempty"`
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string `yaml:"cluster_id,omitempty"`
-}
-
-// DatabaseAWSElastiCache contains settings for ElastiCache databases.
-type DatabaseAWSElastiCache struct {
-	// ReplicationGroupID is the ElastiCache replication group ID.
-	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
-}
-
-// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
-type DatabaseAWSMemoryDB struct {
-	// ClusterName is the MemoryDB cluster name.
-	ClusterName string `yaml:"cluster_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -1478,11 +1308,6 @@ type Proxy struct {
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
 	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
-	// PeerAddr is the address this proxy will be dialed at by its peers.
-	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
-	// PeerPublicAddr is the hostport the proxy advertises for peer proxy
-	// client connections.
-	PeerPublicAddr string `yaml:"peer_public_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
@@ -1720,6 +1545,14 @@ type LDAPConfig struct {
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+
+	// PasswordFile was used in Teleport 8 before we supported client certificates
+	// for LDAP authentication. Support for LDAP passwords was removed for Teleport 9
+	// and this field remains only to issue a warning to users who are upgrading to
+	// Teleport 9.
+	//
+	// TODO(zmb3) DELETE IN 10.0
+	PasswordFile string `yaml:"password_file"`
 }
 
 // TracingService contains configuration for the tracing_service.

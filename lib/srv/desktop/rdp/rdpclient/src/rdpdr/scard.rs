@@ -13,13 +13,13 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::piv;
 use crate::Payload;
-use crate::{piv, Message};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
-use rdp::model::data::Message as MessageTrait;
+use rdp::model::data::Message;
 use rdp::model::error::*;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::collections::HashMap;
@@ -441,7 +441,7 @@ impl RPCEStreamHeader {
             filler: 0xcccccccc,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u8(self.version)?;
         w.write_u8(self.endianness.to_u8().unwrap())?;
@@ -612,7 +612,7 @@ impl Long_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         Ok(w)
@@ -660,7 +660,7 @@ impl EstablishContext_Return {
             context,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
@@ -802,7 +802,7 @@ impl ListReaders_Return {
             readers,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let readers = encode_multistring_unicode(&self.readers)?;
@@ -1093,7 +1093,7 @@ impl GetStatusChange_Return {
             reader_states,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
@@ -1194,7 +1194,7 @@ impl Connect_Return {
             active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
@@ -1357,7 +1357,7 @@ impl Status_Return {
             encoding,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
@@ -1476,7 +1476,7 @@ impl Transmit_Return {
             recv_buffer,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
@@ -1539,7 +1539,7 @@ impl GetDeviceTypeId_Return {
             device_type_id: SCARD_READER_TYPE_VENDOR,
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_type_id)?;
@@ -1628,7 +1628,7 @@ impl ReadCache_Return {
             },
         }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
@@ -1739,7 +1739,7 @@ impl GetReaderIcon_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
-    fn encode(&self) -> RdpResult<Message> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 

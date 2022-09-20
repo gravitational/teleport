@@ -2,24 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth
-  namespace: ${NAMESPACE}
+  namespace: loadtest
   labels:
     teleport-role: auth
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       teleport-role: auth
   template:
     metadata:
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "3434"
       labels:
         teleport-role: auth
-        backend: etcd
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "3434"
     spec:
       volumes:
         - name: config
@@ -34,6 +28,16 @@ spec:
         - name: storage
           emptyDir: {}
       containers:
+        - name: telegraf
+          image: telegraf:1.20.3
+          envFrom:
+            - secretRef:
+                name: influxdb-creds
+          volumeMounts:
+            - name: config
+              mountPath: /etc/telegraf/telegraf.conf
+              subPath: telegraf.conf
+              readOnly: true
         - name: teleport
           image: ${TELEPORT_IMAGE}
           args: ["-d", "--insecure", "--diag-addr=0.0.0.0:3434"]
@@ -77,7 +81,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: auth
-  namespace: ${NAMESPACE}
+  namespace: loadtest
 spec:
   ports:
     - name: auth

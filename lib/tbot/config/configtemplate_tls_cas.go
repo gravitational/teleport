@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
@@ -76,16 +76,13 @@ func (t *TemplateTLSCAs) Name() string {
 	return TemplateTLSCAsName
 }
 
-func (t *TemplateTLSCAs) Describe(destination bot.Destination) []FileDescription {
+func (t *TemplateTLSCAs) Describe(destination destination.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name: t.UserCAPath,
 		},
 		{
 			Name: t.HostCAPath,
-		},
-		{
-			Name: t.DatabaseCAPath,
 		},
 	}
 }
@@ -104,18 +101,13 @@ func concatCACerts(cas []types.CertAuthority) []byte {
 	return caCerts
 }
 
-func (t *TemplateTLSCAs) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
-	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
+func (t *TemplateTLSCAs) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	userCAs, err := bot.GetCertAuthorities(ctx, types.UserCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	databaseCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
+	userCAs, err := authClient.GetCertAuthorities(ctx, types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -135,10 +127,6 @@ func (t *TemplateTLSCAs) Render(ctx context.Context, bot Bot, currentIdentity *i
 	}
 
 	if err := dest.Write(t.UserCAPath, concatCACerts(userCAs)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := dest.Write(t.DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 

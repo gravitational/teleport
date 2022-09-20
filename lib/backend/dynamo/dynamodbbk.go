@@ -125,10 +125,14 @@ func (cfg *Config) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	Config
-	svc     dynamodbiface.DynamoDBAPI
-	streams dynamodbstreamsiface.DynamoDBStreamsAPI
-	clock   clockwork.Clock
-	buf     *backend.CircularBuffer
+	svc              dynamodbiface.DynamoDBAPI
+	streams          dynamodbstreamsiface.DynamoDBStreamsAPI
+	clock            clockwork.Clock
+	buf              *backend.CircularBuffer
+	ctx              context.Context
+	cancel           context.CancelFunc
+	watchStarted     context.Context
+	signalWatchStart context.CancelFunc
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
 
@@ -202,22 +206,28 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
 
+	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
+
 	defer l.Debug("AWS session is created.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
-
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
 	)
+	closeCtx, cancel := context.WithCancel(ctx)
+	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
-		Entry:  l,
-		Config: *cfg,
-		clock:  clockwork.NewRealClock(),
-		buf:    buf,
+		Entry:            l,
+		Config:           *cfg,
+		clock:            clockwork.NewRealClock(),
+		buf:              buf,
+		ctx:              closeCtx,
+		cancel:           cancel,
+		watchStarted:     watchStarted,
+		signalWatchStart: signalWatchStart,
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -279,13 +289,13 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// Enable TTL on table.
-	err = TurnOnTimeToLive(ctx, b.svc, b.TableName, ttlKey)
+	err = b.turnOnTimeToLive(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Turn on DynamoDB streams, needed to implement events.
-	err = TurnOnStreams(ctx, b.svc, b.TableName)
+	err = b.turnOnStreams(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -510,7 +520,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		"#v": aws.String("Value"),
 	})
 	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
-		":prev": {
+		":prev": &dynamodb.AttributeValue{
 			B: expected.Value,
 		},
 	})
@@ -591,6 +601,7 @@ func (b *Backend) setClosed() {
 // and releases associated resources
 func (b *Backend) Close() error {
 	b.setClosed()
+	b.cancel()
 	return b.buf.Close()
 }
 

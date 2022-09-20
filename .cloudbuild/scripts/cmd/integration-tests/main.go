@@ -26,14 +26,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -81,16 +80,20 @@ func innerMain() error {
 	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
 	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
-	log.Println("Analyzing code changes")
+	log.Println("Analysing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
 
-	if !ch.Code {
+	hasOnlyDocChanges := ch.Docs && (!ch.Code)
+	if hasOnlyDocChanges {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
+
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
@@ -133,13 +136,10 @@ func innerMain() error {
 	// diagnostic warnings that would pollute the build log and just confuse
 	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
+	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
-	defer etcdSvc.Stop()
 
 	log.Printf("Running nonroot integration tests...")
 	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)

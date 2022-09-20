@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -34,8 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
-	emitter := &eventstest.MockEmitter{}
+func setup() (*WindowsService, *tlsca.Identity, *libevents.MockEmitter) {
+	emitter := &libevents.MockEmitter{}
 	log := logrus.New()
 	log.SetOutput(io.Discard)
 

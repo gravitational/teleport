@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -50,9 +49,13 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 		config.CipherSuites = cipherSuites
 	}
 
+	// Pick the servers preferred ciphersuite, not the clients.
+	config.PreferServerCipherSuites = true
+
 	config.MinVersion = tls.VersionTLS12
 	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
+	config.ClientSessionCache = tls.NewLRUClientSessionCache(
+		DefaultLRUCapacity)
 }
 
 // CreateTLSConfiguration sets up default TLS configuration
@@ -84,12 +87,6 @@ type TLSCredentials struct {
 	Cert       []byte
 }
 
-// macMaxTLSCertValidityPeriod is the maximum validity period
-// for a TLS certificate enforced by macOS.
-// As of Go 1.18, certificates are validated via the system
-// verifier and not in Go.
-const macMaxTLSCertValidityPeriod = 825 * 24 * time.Hour
-
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
 func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
@@ -98,7 +95,7 @@ func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 		return nil, trace.Wrap(err)
 	}
 	notBefore := time.Now()
-	notAfter := notBefore.Add(macMaxTLSCertValidityPeriod)
+	notAfter := notBefore.Add(time.Hour * 24 * 365 * 10) // 10 years
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -162,26 +159,6 @@ func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
 	}
 
 	return out, nil
-}
-
-// TLSConn is a `net.Conn` that implements some of the functions defined by the
-// `tls.Conn` struct. This interface can be used where it could receive a
-// `tls.Conn` wrapped in another connection. For example, in the ALPN Proxy,
-// some TLS Connections can be wrapped with ping protocol.
-type TLSConn interface {
-	net.Conn
-
-	// ConnectionState returns basic TLS details about the connection.
-	// More info at: https://pkg.go.dev/crypto/tls#Conn.ConnectionState
-	ConnectionState() tls.ConnectionState
-	// Handshake runs the client or server handshake protocol if it has not yet
-	// been run.
-	// More info at: https://pkg.go.dev/crypto/tls#Conn.Handshake
-	Handshake() error
-	// HandshakeContext runs the client or server handshake protocol if it has
-	// not yet been run.
-	// More info at: https://pkg.go.dev/crypto/tls#Conn.HandshakeContext
-	HandshakeContext(context.Context) error
 }
 
 // cipherSuiteMapping is the mapping between Teleport formatted cipher

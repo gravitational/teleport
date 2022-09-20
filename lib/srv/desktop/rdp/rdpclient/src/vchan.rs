@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::errors::invalid_data_error;
 use crate::Payload;
-use crate::{errors::invalid_data_error, Message, Messages};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::core::tpkt;
@@ -75,8 +75,8 @@ impl Client {
     pub fn add_header_and_chunkify(
         &self,
         channel_flags: Option<ChannelPDUFlags>,
-        payload: Message,
-    ) -> RdpResult<Messages> {
+        payload: Vec<u8>,
+    ) -> RdpResult<Vec<Vec<u8>>> {
         let mut inner = payload;
         let total_len = inner.len() as u32;
 
@@ -168,7 +168,7 @@ impl ChannelPDUHeader {
                 .ok_or_else(|| invalid_data_error("invalid flags in ChannelPDUHeader"))?,
         })
     }
-    pub fn encode(&self) -> RdpResult<Message> {
+    pub fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.length)?;
         w.write_u32::<LittleEndian>(self.flags.bits())?;

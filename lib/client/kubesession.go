@@ -163,7 +163,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 			return trace.Wrap(err)
 		}
 
-		auth, err := proxy.ConnectToCluster(ctx, s.meta.GetClusterName())
+		auth, err := proxy.ConnectToCluster(ctx, s.meta.GetClustername())
 		if err != nil {
 			return trace.Wrap(err)
 		}

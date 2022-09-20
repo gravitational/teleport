@@ -96,7 +96,6 @@ func TestLoadAllConfigs(t *testing.T) {
 				Headers: map[string]string{"bar": "123"},
 			},
 		},
-		Aliases: map[string]string{},
 	}, config)
 
 }
@@ -109,7 +108,6 @@ func TestTshConfigMerge(t *testing.T) {
 				"bar": "baz",
 			},
 		}},
-		Aliases: map[string]string{},
 	}
 
 	tests := []struct {
@@ -122,7 +120,7 @@ func TestTshConfigMerge(t *testing.T) {
 			name:    "empty + empty = empty",
 			config1: nil,
 			config2: nil,
-			want:    TshConfig{Aliases: map[string]string{}},
+			want:    TshConfig{},
 		},
 		{
 			name:    "empty + x = x",
@@ -151,8 +149,7 @@ func TestTshConfigMerge(t *testing.T) {
 					Headers: map[string]string{
 						"baz": "456",
 					},
-				}},
-			},
+				}}},
 			want: TshConfig{
 				ExtraHeaders: []ExtraProxyHeaders{
 					{
@@ -167,9 +164,7 @@ func TestTshConfigMerge(t *testing.T) {
 							"bar": "123",
 						},
 					},
-				},
-				Aliases: map[string]string{},
-			},
+				}},
 		},
 		{
 			name: "headers combine same proxy",
@@ -201,37 +196,7 @@ func TestTshConfigMerge(t *testing.T) {
 							"bar": "123",
 						},
 					},
-				},
-				Aliases: map[string]string{},
-			},
-		},
-		{
-			name: "aliases combine",
-			config1: &TshConfig{
-				ExtraHeaders:   nil,
-				ProxyTemplates: nil,
-				Aliases: map[string]string{
-					"foo": "foo1",
-					"bar": "bar1",
-				},
-			},
-			config2: &TshConfig{
-				ExtraHeaders:   nil,
-				ProxyTemplates: nil,
-				Aliases: map[string]string{
-					"baz": "baz2",
-					"bar": "bar2",
-				},
-			},
-			want: TshConfig{
-				ExtraHeaders:   nil,
-				ProxyTemplates: nil,
-				Aliases: map[string]string{
-					"foo": "foo1",
-					"baz": "baz2",
-					"bar": "bar2",
-				},
-			},
+				}},
 		},
 	}
 

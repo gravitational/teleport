@@ -188,8 +188,6 @@ type Policies interface {
 
 // policies default implementation of the policies functions.
 type policies struct {
-	// partitionID is the partition ID.
-	partitionID string
 	// accountID current AWS account ID.
 	accountID string
 	// iamClient already initialized IAM client.
@@ -197,13 +195,9 @@ type policies struct {
 }
 
 // NewPolicies creates new instance of Policies using the provided
-// identity, partitionID and IAM client.
-func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI) Policies {
-	return &policies{
-		partitionID: partitionID,
-		accountID:   accountID,
-		iamClient:   iamClient,
-	}
+// identity and IAM client.
+func NewPolicies(accountID string, iamClient iamiface.IAMAPI) Policies {
+	return &policies{accountID, iamClient}
 }
 
 // Upsert creates a new Policy or creates a Policy version if a policy with the
@@ -219,7 +213,7 @@ func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.partitionID, p.accountID, policy.Name)
+	policyARN := fmt.Sprintf("arn:aws:iam::%s:policy/%s", p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -228,7 +222,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 	// Retrieve policy versions.
 	_, versions, err := p.Retrieve(ctx, policyARN, policy.Tags)
 	if err != nil && !trace.IsNotFound(err) {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(ConvertRequestFailureError(err))
 	}
 
 	// Convert tags into IAM policy tags.
@@ -246,7 +240,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			Tags:           policyTags,
 		})
 		if err != nil {
-			return "", trace.Wrap(ConvertIAMError(err))
+			return "", trace.Wrap(ConvertRequestFailureError(err))
 		}
 
 		log.Debugf("Created new policy %q with ARN %q", policy.Name, aws.StringValue(resp.Policy.Arn))
@@ -275,7 +269,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			VersionId: aws.String(policyVersionID),
 		})
 		if err != nil {
-			return "", trace.Wrap(ConvertIAMError(err))
+			return "", trace.Wrap(ConvertRequestFailureError(err))
 		}
 
 		log.Debugf("Max policy versions reached for policy %q, deleted policy version %q", policyARN, policyVersionID)
@@ -288,7 +282,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 		SetAsDefault:   aws.Bool(true),
 	})
 	if err != nil {
-		return "", trace.Wrap(ConvertIAMError(err))
+		return "", trace.Wrap(ConvertRequestFailureError(err))
 	}
 
 	log.Debugf("Created new policy version %q for %q", aws.StringValue(createPolicyResp.PolicyVersion.VersionId), policyARN)
@@ -304,7 +298,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 func (p *policies) Retrieve(ctx context.Context, arn string, tags map[string]string) (*iam.Policy, []*iam.PolicyVersion, error) {
 	getPolicyResp, err := p.iamClient.GetPolicyWithContext(ctx, &iam.GetPolicyInput{PolicyArn: aws.String(arn)})
 	if err != nil {
-		return nil, nil, trace.Wrap(ConvertIAMError(err))
+		return nil, nil, trace.Wrap(ConvertRequestFailureError(err))
 	}
 
 	for tagName, tagValue := range tags {
@@ -315,7 +309,7 @@ func (p *policies) Retrieve(ctx context.Context, arn string, tags map[string]str
 
 	resp, err := p.iamClient.ListPolicyVersionsWithContext(ctx, &iam.ListPolicyVersionsInput{PolicyArn: aws.String(arn)})
 	if err != nil {
-		return nil, nil, trace.Wrap(ConvertIAMError(err))
+		return nil, nil, trace.Wrap(ConvertRequestFailureError(err))
 	}
 
 	return getPolicyResp.Policy, resp.Versions, nil
@@ -336,7 +330,7 @@ func (p *policies) Attach(ctx context.Context, arn string, identity Identity) er
 			UserName:  aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
+			return trace.Wrap(ConvertRequestFailureError(err))
 		}
 	case Role, *Role:
 		_, err := p.iamClient.AttachRolePolicyWithContext(ctx, &iam.AttachRolePolicyInput{
@@ -344,7 +338,7 @@ func (p *policies) Attach(ctx context.Context, arn string, identity Identity) er
 			RoleName:  aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
+			return trace.Wrap(ConvertRequestFailureError(err))
 		}
 	default:
 		return trace.BadParameter("policies can be attached to users and roles, received %q.", identity.GetType())
@@ -369,7 +363,7 @@ func (p *policies) AttachBoundary(ctx context.Context, arn string, identity Iden
 			UserName:            aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
+			return trace.Wrap(ConvertRequestFailureError(err))
 		}
 	case Role, *Role:
 		_, err := p.iamClient.PutRolePermissionsBoundaryWithContext(ctx, &iam.PutRolePermissionsBoundaryInput{
@@ -377,7 +371,7 @@ func (p *policies) AttachBoundary(ctx context.Context, arn string, identity Iden
 			RoleName:            aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
+			return trace.Wrap(ConvertRequestFailureError(err))
 		}
 	default:
 		return trace.BadParameter("boundary policies can be attached to users and roles, received %q.", identity.GetType())

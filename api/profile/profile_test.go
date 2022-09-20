@@ -43,7 +43,6 @@ func TestProfileBasics(t *testing.T) {
 		DynamicForwardedPorts: []string{"localhost:8080"},
 		Dir:                   dir,
 		SiteName:              "example.com",
-		AuthConnector:         "passwordless",
 	}
 
 	// verify that profile name is proxy host component

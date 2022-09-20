@@ -21,6 +21,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -164,11 +165,11 @@ func (a *AgentServer) Serve() error {
 			if !ok {
 				return trace.Wrap(err, "unknown error")
 			}
-			if utils.IsUseOfClosedNetworkError(neterr) {
-				return nil
-			}
-			if !neterr.Timeout() {
-				log.WithError(err).Error("Got non-timeout error.")
+			if !neterr.Temporary() {
+				if strings.Contains(neterr.Error(), "use of closed network connection") {
+					return nil
+				}
+				log.WithError(err).Error("Got permanent error.")
 				return trace.Wrap(err)
 			}
 			if tempDelay == 0 {
@@ -179,7 +180,7 @@ func (a *AgentServer) Serve() error {
 			if max := 1 * time.Second; tempDelay > max {
 				tempDelay = max
 			}
-			log.WithError(err).Errorf("Got timeout error (will sleep %v).", tempDelay)
+			log.WithError(err).Errorf("Got temporary error (will sleep %v).", tempDelay)
 			time.Sleep(tempDelay)
 			continue
 		}

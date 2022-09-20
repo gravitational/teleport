@@ -33,14 +33,14 @@ pub const DRIVE_CAPABILITY_VERSION_02: u32 = 0x00000002;
 pub const GENERAL_CAPABILITY_VERSION_01: u32 = 0x00000001;
 pub const GENERAL_CAPABILITY_VERSION_02: u32 = 0x00000002;
 
-#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq)]
+#[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 pub enum Component {
     RDPDR_CTYP_CORE = 0x4472,
     RDPDR_CTYP_PRN = 0x5052,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq)]
+#[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 pub enum PacketId {
     PAKID_CORE_SERVER_ANNOUNCE = 0x496E,

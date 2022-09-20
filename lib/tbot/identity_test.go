@@ -29,8 +29,6 @@ import (
 )
 
 func TestLoadEmptyIdentity(t *testing.T) {
-	t.Parallel()
-
 	dir := t.TempDir()
 	dest := config.DestinationDirectory{
 		Path: dir,

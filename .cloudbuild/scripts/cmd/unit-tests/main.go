@@ -1,5 +1,3 @@
-//go:build linux
-
 /*
 Copyright 2021 Gravitational, Inc.
 
@@ -25,12 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
@@ -38,13 +31,12 @@ import (
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
-// debugFsPath is the path where debugfs should be mounted.
-const debugFsPath = "/sys/kernel/debug"
-
 // main is just a stub that prints out an error message and sets a nonzero exit
-// code on failure. All the work happens in `innerMain()`.
+// code on failure. All of the work happens in `innerMain()`.
 func main() {
 	if err := run(); err != nil {
 		log.Fatalf("FAILED: %s", err.Error())
@@ -62,8 +54,6 @@ type commandlineArgs struct {
 	skipUnshallow          bool
 }
 
-// NOTE: changing the interface to this build script may require follow-up
-// changes in the cloudbuild yaml for both `teleport` and `teleport.e`
 func parseCommandLine() (commandlineArgs, error) {
 	args := commandlineArgs{}
 
@@ -107,14 +97,14 @@ func parseCommandLine() (commandlineArgs, error) {
 
 		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
 		if err != nil {
-			return args, trace.Wrap(err, "Bad artifact search path")
+			return args, trace.Wrap(err, "Bad artefact search path")
 		}
 	}
 
 	return args, nil
 }
 
-// run parses the command line, performs the high level docs change check
+// run parses the command line, performs the highlevel docs change check
 // and creates the marker file if necessary
 func run() error {
 	args, err := parseCommandLine()
@@ -142,25 +132,24 @@ func run() error {
 		}
 	}
 
-	log.Println("Analyzing code changes")
+	log.Println("Analysing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
 
-	if !ch.Code {
+	hasOnlyDocChanges := ch.Docs && (!ch.Code)
+	if hasOnlyDocChanges {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
 
 	log.Printf("Starting etcd...")
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
-	if err != nil {
+	if err := etcd.Start(cancelCtx, args.workspace, 0, 0); err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
-	defer etcdSvc.Stop()
 
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
@@ -171,11 +160,6 @@ func run() error {
 
 		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
 	}()
-
-	log.Printf("Mounting debugfs")
-	if err := mountDebugFS(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	log.Printf("Running unit tests...")
 	err = runUnitTests(args.workspace)
@@ -189,49 +173,13 @@ func run() error {
 }
 
 func runUnitTests(workspace string) error {
-	enableTests := []string{
-		"TELEPORT_ETCD_TEST=yes",
-		"TELEPORT_XAUTH_TEST=yes",
-		"TELEPORT_BPF_TEST=yes",
-	}
-
 	cmd := exec.Command("make", "test")
 	cmd.Dir = workspace
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, enableTests...)
+	cmd.Env = append(cmd.Env, "TELEPORT_ETCD_TEST=yes")
+	cmd.Env = append(cmd.Env, "TELEPORT_XAUTH_TEST=yes")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
-}
-
-// mountDebugFS mounts debugfs at /sys/kernel/debug, so BPF test can run in GCB.
-func mountDebugFS() error {
-	if isDebugFsMounted() {
-		return nil
-	}
-	// equivalent to: mount -t debugfs none /sys/kernel/debug/
-	if err := unix.Mount("debugfs", debugFsPath, "debugfs", 0, ""); err != nil {
-		return trace.Wrap(err, "failed to mount debugfs")
-	}
-
-	return nil
-}
-
-// isDebugFsMounted returns true if debugfs is mounted, false otherwise.
-func isDebugFsMounted() bool {
-	mounts, err := os.ReadFile("/proc/mounts")
-	if err != nil {
-		log.Warningf("Failed to read /proc/mounts: %v", err)
-		return false
-	}
-
-	for _, line := range strings.Split(string(mounts), "\n") {
-		tokens := strings.Fields(line)
-		if len(tokens) == 6 && tokens[0] == "debugfs" && tokens[1] == debugFsPath {
-			return true
-		}
-	}
-
-	return false
 }

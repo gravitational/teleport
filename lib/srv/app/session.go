@@ -85,14 +85,11 @@ type sessionChunk struct {
 	log *logrus.Entry
 }
 
-// sessionOpt defines an option function for creating sessionChunk.
-type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Application) error
-
 // newSessionChunk creates a new chunk session.
 // The session chunk is created with inflight=1,
 // and as such expects `release()` to eventually be called
 // by the caller of this function.
-func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) (*sessionChunk, error) {
+func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
 		closeC:       make(chan struct{}),
@@ -117,26 +114,6 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 		return nil, trace.Wrap(err)
 	}
 
-	for _, opt := range opts {
-		if err = opt(ctx, sess, identity, app); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// Put the session chunk in the cache so that upcoming requests can use it for
-	// 5 minutes or the time until the certificate expires, whichever comes first.
-	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
-	err = s.cache.set(identity.RouteToApp.SessionID, sess, ttl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess, nil
-}
-
-// withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
-// a generated JWT token to all requests.
-func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
 	// Request a JWT token that will be attached to all requests.
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
@@ -145,7 +122,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		Expires:  identity.Expires,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Add JWT token to the traits so it can be used in headers templating.
@@ -168,7 +145,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 			user:         identity.Username,
 		})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	sess.fwd, err = forward.New(
@@ -179,16 +156,18 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		forward.WebsocketDial(transport.ws.dialer),
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
-}
 
-// withAWSForwarder is a sessionOpt that uses forwarder of the AWS signning
-// service.
-func (s *Server) withAWSForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	sess.fwd = s.awsSigner.Forwarder
-	return nil
+	// Put the session chunk in the cache so that upcoming requests can use it for
+	// 5 minutes or the time until the certificate expires, whichever comes first.
+	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
+	err = s.cache.set(identity.RouteToApp.SessionID, sess, ttl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
 }
 
 // acquire() increments in-flight request count by 1.
@@ -357,16 +336,14 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) err
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)
 	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.c.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
+	if err != nil {
+		// Ignore access denied errors, which we will get if the auth
+		// server is v9.2.1 or earlier, since only node, proxy, and
 		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session chunk %v", sess.id)
-		return nil
-	default: // aka err != nil
+		if trace.IsAccessDenied(err) {
+			s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session chunk %v", sess.id)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 

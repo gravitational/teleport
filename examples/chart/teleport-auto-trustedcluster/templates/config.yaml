@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  teleport.yaml: |
+{{ toYaml .Values.config | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}-bootstrap-script
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  bootstrap.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    SLEEP_TIME=5
+    OUTPUT_FILE="/tmp/teleport-trustedcluster.yaml"
+    cat << EOF > ${OUTPUT_FILE}
+    ---
+    kind: trusted_cluster
+    metadata:
+      name: root-cluster
+    spec:
+      enabled: true
+      role_map:
+      - local: ['admin']
+        remote: ${ROOT_CLUSTER_ADMIN_ROLE}
+      token: ${ROOT_CLUSTER_JOIN_TOKEN}
+      tunnel_addr: ${ROOT_CLUSTER_TUNNEL_ADDRESS}
+      web_proxy_addr: ${ROOT_CLUSTER_WEB_ADDRESS}
+    version: v2
+    EOF
+    echo "[sidecar] Trusted cluster definition:"
+    cat ${OUTPUT_FILE}
+    echo "[sidecar] Adding trusted cluster definition to Teleport"
+    until tctl create -f ${OUTPUT_FILE}; do
+      echo "[sidecar] Adding trusted cluster failed. Waiting ${SLEEP_TIME} seconds and trying again."
+      sleep ${SLEEP_TIME}
+    done
+    echo "[sidecar] Trusted cluster added. Tailing a never-ending file to keep the sidecar pod running..."
+    tail -F /dev/null

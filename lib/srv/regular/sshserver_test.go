@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -34,18 +35,14 @@ import (
 	"time"
 
 	"github.com/mailgun/timetools"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -61,10 +58,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // teleportTestUser is additional user used for tests
@@ -149,7 +147,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testServer.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -185,6 +183,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
+		SetSessionServer(nodeClient),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
@@ -302,7 +301,7 @@ const hostID = "00000000-0000-0000-0000-000000000000"
 func startReadAll(r io.Reader) <-chan []byte {
 	ch := make(chan []byte)
 	go func() {
-		data, _ := io.ReadAll(r)
+		data, _ := ioutil.ReadAll(r)
 		ch <- data
 	}()
 	return ch
@@ -472,7 +471,7 @@ func TestDirectTCPIP(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Make sure the response is what was expected.
-	body, err := io.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, []byte("hello, world\n"), body)
 }
@@ -657,7 +656,7 @@ func TestAgentForward(t *testing.T) {
 	// wait for the output
 	var socketPath string
 	require.Eventually(t, func() bool {
-		output, err := os.ReadFile(tmpFile.Name())
+		output, err := ioutil.ReadFile(tmpFile.Name())
 		if err == nil && len(output) != 0 {
 			socketPath = strings.TrimSpace(string(output))
 			return true
@@ -722,7 +721,7 @@ func TestX11Forward(t *testing.T) {
 	f.ssh.srv.x11 = &x11.ServerConfig{
 		Enabled:       true,
 		DisplayOffset: x11.DefaultDisplayOffset,
-		MaxDisplay:    x11.DefaultMaxDisplays,
+		MaxDisplay:    x11.DefaultMaxDisplay,
 	}
 
 	ctx := context.Background()
@@ -1007,7 +1006,7 @@ func TestSessionHijack(t *testing.T) {
 	ctx := context.Background()
 	_, err := user.Lookup(teleportTestUser)
 	if err != nil {
-		t.Skipf("user %v is not found, skipping test", teleportTestUser)
+		t.Skip(fmt.Sprintf("user %v is not found, skipping test", teleportTestUser))
 	}
 
 	f := newFixture(t)
@@ -1174,7 +1173,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
 		CertAuthorityWatcher:          caWatcher,
-		CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1191,7 +1189,8 @@ func TestProxyRoundRobin(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1209,37 +1208,46 @@ func TestProxyRoundRobin(t *testing.T) {
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	resolver := func(context.Context) (*utils.NetAddr, error) {
-		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
+	// start agent and load balance requests
+	eventsC := make(chan string, 2)
+	rsAgent, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
+		Context:     ctx,
+		Addr:        reverseTunnelAddress,
+		ClusterName: "remote",
+		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
+		Signer:      f.signer,
+		Client:      proxyClient,
+		AccessPoint: proxyClient,
+		EventsC:     eventsC,
+		Log:         logger,
+	})
+	require.NoError(t, err)
+	rsAgent.Start()
+
+	rsAgent2, err := reversetunnel.NewAgent(reversetunnel.AgentConfig{
+		Context:     ctx,
+		Addr:        reverseTunnelAddress,
+		ClusterName: "remote",
+		Username:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
+		Signer:      f.signer,
+		Client:      proxyClient,
+		AccessPoint: proxyClient,
+		EventsC:     eventsC,
+		Log:         logger,
+	})
+	require.NoError(t, err)
+	rsAgent2.Start()
+	defer rsAgent2.Close()
+
+	timeout := time.After(time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case event := <-eventsC:
+			require.Equal(t, reversetunnel.ConnectedEvent, event)
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for clusters to connect")
+		}
 	}
-
-	pool1, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
-		Resolver:    resolver,
-		Client:      proxyClient,
-		AccessPoint: proxyClient,
-		HostSigner:  f.signer,
-		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
-		Cluster:     "remote",
-	})
-	require.NoError(t, err)
-
-	err = pool1.Start()
-	require.NoError(t, err)
-	defer pool1.Stop()
-
-	pool2, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
-		Resolver:    resolver,
-		Client:      proxyClient,
-		AccessPoint: proxyClient,
-		HostSigner:  f.signer,
-		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
-		Cluster:     "remote",
-	})
-	require.NoError(t, err)
-
-	err = pool2.Start()
-	require.NoError(t, err)
-	defer pool2.Stop()
 
 	sshConfig := &ssh.ClientConfig{
 		User:            f.user,
@@ -1253,9 +1261,8 @@ func TestProxyRoundRobin(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
-
 	// close first connection, and test it again
-	pool1.Stop()
+	rsAgent.Close()
 
 	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
@@ -1293,7 +1300,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		LockWatcher:                   lockWatcher,
 		NodeWatcher:                   nodeWatcher,
 		CertAuthorityWatcher:          caWatcher,
-		CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 
@@ -1311,7 +1317,8 @@ func TestProxyDirectAccess(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1449,6 +1456,7 @@ func TestLimiter(t *testing.T) {
 	fClock := &fakeClock{
 		clock: f.clock,
 	}
+
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
 			Clock:          fClock,
@@ -1482,6 +1490,7 @@ func TestLimiter(t *testing.T) {
 		nodeClient,
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
+		SetSessionServer(nodeClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1540,7 +1549,6 @@ func TestLimiter(t *testing.T) {
 	// current connections = 2
 	_, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
 	require.Error(t, err)
-
 	require.NoError(t, se.Close())
 	se.Wait()
 	require.NoError(t, clt.Close())
@@ -1646,7 +1654,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authSrv.GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -1925,7 +1933,7 @@ func TestX11ProxySupport(t *testing.T) {
 func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	t.Parallel()
 
-	f := newFixtureWithoutDiskBasedLogging(t)
+	f := newFixture(t)
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
@@ -1968,7 +1976,8 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		"",
 		utils.NetAddr{},
 		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
+		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -2055,7 +2064,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	require.Equal(t, "hello again\n", string(out))
 }
 
-// upack holds all ssh signing artifacts needed for signing and checking user keys
+// upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte
@@ -2082,7 +2091,7 @@ type upack struct {
 func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := testSvr.Auth()
-	upriv, upub, err := native.GenerateKeyPair()
+	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

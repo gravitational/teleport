@@ -25,8 +25,8 @@ import (
 	"golang.org/x/net/http/httpproxy"
 )
 
-// GetProxyURL gets the HTTP proxy address to use for a given address, if any.
-func GetProxyURL(dialAddr string) *url.URL {
+// GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
+func GetProxyAddress(dialAddr string) *url.URL {
 	addrURL, err := parse(dialAddr)
 	if err != nil || addrURL == nil {
 		return nil

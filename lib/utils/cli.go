@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	stdlog "log"
 	"math"
 	"os"
@@ -32,13 +33,14 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 )
 
 type LoggingPurpose int
@@ -49,22 +51,22 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
-	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetLevel(level)
+func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
+	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
+	log.SetLevel(level)
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
-		if level == logrus.DebugLevel {
-			logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-			logrus.SetOutput(os.Stderr)
+		if level == log.DebugLevel {
+			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+			log.SetOutput(os.Stderr)
 		} else {
-			logrus.SetOutput(io.Discard)
+			log.SetOutput(ioutil.Discard)
 		}
 	case LoggingForDaemon:
-		logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-		logrus.SetOutput(os.Stderr)
+		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+		log.SetOutput(os.Stderr)
 	}
 }
 
@@ -73,49 +75,49 @@ func InitLoggerForTests() {
 	// Parse flags to check testing.Verbose().
 	flag.Parse()
 
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
+	logger := log.StandardLogger()
+	logger.ReplaceHooks(make(log.LevelHooks))
+	log.SetFormatter(NewTestTextFormatter())
+	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
 		return
 	}
-	logger.SetLevel(logrus.WarnLevel)
-	logger.SetOutput(io.Discard)
+	logger.SetLevel(log.WarnLevel)
+	logger.SetOutput(ioutil.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
-func NewLoggerForTests() *logrus.Logger {
-	logger := logrus.New()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logger.SetFormatter(NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
+func NewLoggerForTests() *log.Logger {
+	logger := log.New()
+	logger.ReplaceHooks(make(log.LevelHooks))
+	logger.SetFormatter(NewTestTextFormatter())
+	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
 }
 
 // WrapLogger wraps an existing logger entry and returns
 // an value satisfying the Logger interface
-func WrapLogger(logger *logrus.Entry) Logger {
+func WrapLogger(logger *log.Entry) Logger {
 	return &logWrapper{Entry: logger}
 }
 
 // NewLogger creates a new empty logger
-func NewLogger() *logrus.Logger {
-	logger := logrus.New()
+func NewLogger() *log.Logger {
+	logger := log.New()
 	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
 // Logger describes a logger value
 type Logger interface {
-	logrus.FieldLogger
+	log.FieldLogger
 	// GetLevel specifies the level at which this logger
 	// value is logging
-	GetLevel() logrus.Level
+	GetLevel() log.Level
 	// SetLevel sets the logger's level to the specified value
-	SetLevel(level logrus.Level)
+	SetLevel(level log.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -136,7 +138,7 @@ func GetIterations() int {
 	if err != nil {
 		panic(err)
 	}
-	logrus.Debugf("Starting tests with %v iterations.", iter)
+	log.Debugf("Starting tests with %v iterations.", iter)
 	return iter
 }
 
@@ -147,7 +149,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if logrus.GetLevel() == logrus.DebugLevel {
+	if log.GetLevel() == log.DebugLevel {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -279,7 +281,7 @@ func Color(color int, v interface{}) string {
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
+func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
 	log.Info(msg)
 	if w != nil {
@@ -297,62 +299,12 @@ func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params
 func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app = kingpin.New(appName, appHelp)
 
-	// make all flags repeatable, this makes the CLI easier to use.
-	app.AllRepeatable(true)
-
 	// hide "--help" flag
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
 
 	// set our own help template
-	return app.UsageTemplate(createUsageTemplate())
-}
-
-// createUsageTemplate creates an usage template for kingpin applications.
-func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
-	opt := &usageTemplateOptions{
-		commandPrintfWidth: defaultCommandPrintfWidth,
-	}
-
-	for _, optFunc := range opts {
-		optFunc(opt)
-	}
-	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
-}
-
-// UpdateAppUsageTemplate updates usage template for kingpin applications by
-// pre-parsing the arguments then applying any changes to the usage template if
-// necessary.
-func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
-	// If ParseContext fails, kingpin will not show usage so there is no need
-	// to update anything here. See app.Parse for more details.
-	context, err := app.ParseContext(args)
-	if err != nil {
-		return
-	}
-
-	app.UsageTemplate(createUsageTemplate(
-		withCommandPrintfWidth(app, context),
-	))
-}
-
-// withCommandPrintfWidth returns an usage template option that
-// updates command printf width if longer than default.
-func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseContext) func(*usageTemplateOptions) {
-	return func(opt *usageTemplateOptions) {
-		var commands []*kingpin.CmdModel
-		if context.SelectedCommand != nil {
-			commands = context.SelectedCommand.Model().FlattenedCommands()
-		} else {
-			commands = app.Model().FlattenedCommands()
-		}
-
-		for _, command := range commands {
-			if !command.Hidden && len(command.FullCommand) > opt.commandPrintfWidth {
-				opt.commandPrintfWidth = len(command.FullCommand)
-			}
-		}
-	}
+	return app.UsageTemplate(defaultUsageTemplate)
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -440,19 +392,8 @@ func needsQuoting(text string) bool {
 	return false
 }
 
-// usageTemplateOptions defines options to format the usage template.
-type usageTemplateOptions struct {
-	// commandPrintfWidth is the width of the command name with padding, for
-	//   {{.FullCommand | printf "%%-%ds"}}
-	commandPrintfWidth int
-}
-
-// defaultCommandPrintfWidth is the default command printf width.
-const defaultCommandPrintfWidth = 12
-
-// defaultUsageTemplate is a fmt format that defines the usage template with
-// compactly formatted commands. Should be only used in createUsageTemplate.
-const defaultUsageTemplate = `{{define "FormatCommand"}}\
+// Usage template with compactly formatted commands.
+var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{if .FlagSummary}} {{.FlagSummary}}{{end}}\
 {{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
 {{end}}\
@@ -460,7 +401,7 @@ const defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{define "FormatCommands"}}\
 {{range .FlattenedCommands}}\
 {{if not .Hidden}}\
-  {{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
+  {{.FullCommand | printf "%-12s" }}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end}}\
 {{end}}\
 {{end}}\

@@ -631,14 +631,7 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            rdpdr::CHANNEL_NAME => {
-                let responses = self.rdpdr.read_and_create_reply(message)?;
-                let chan = &rdpdr::CHANNEL_NAME.to_string();
-                for resp in responses {
-                    self.mcs.write(chan, resp)?;
-                }
-                Ok(())
-            }
+            rdpdr::CHANNEL_NAME => self.rdpdr.read_and_reply(message, &mut self.mcs),
             cliprdr::CHANNEL_NAME => match self.cliprdr {
                 Some(ref mut clip) => clip.read_and_reply(message, &mut self.mcs),
                 None => Ok(()),
@@ -1874,8 +1867,5 @@ extern "C" {
     ) -> CGOErrCode;
 }
 
-/// Payload represents raw incoming RDP messages for parsing.
+/// Payload is a generic type used to represent raw incoming RDP messages for parsing.
 pub(crate) type Payload = Cursor<Vec<u8>>;
-/// Message represents a raw outgoing RDP message to send to the RDP server.
-pub(crate) type Message = Vec<u8>;
-pub(crate) type Messages = Vec<Message>;

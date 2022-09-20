@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -46,7 +45,7 @@ import (
 func TestCreateResetPasswordToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	// Configure cluster and user for MFA, registering various devices.
@@ -71,7 +70,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Equal(t, event.(*apievents.UserTokenCreate).User, teleport.UserSystem)
 
 	// verify that user has no MFA devices
-	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
+	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
 	require.Empty(t, devs)
 
@@ -246,7 +245,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	secrets, err := srv.Auth().GetUserTokenSecrets(ctx, token.GetName())
+	secrets, err := srv.Auth().Identity.GetUserTokenSecrets(ctx, token.GetName())
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -277,6 +276,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 	require.Equal(t, token.GetURL(), "https://<proxyhost>:3080/web/invite/"+token.GetName())
 	require.NotEmpty(t, token.GetCreated())
 	require.NotEmpty(t, token.GetMetadata().Expires)
+
 }
 
 // DELETE IN 9.0: remove legacy prefix and fallbacks.
@@ -352,7 +352,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	fakeClock := srv.Clock().(clockwork.FakeClock)
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &events.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 	ctx := context.Background()
 
@@ -443,8 +443,9 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		Webauthn: &types.Webauthn{
-			RPID: "teleport",
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
 		},
 	})
 	require.NoError(t, err)
@@ -461,6 +462,16 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 				return &proto.CreatePrivilegeTokenRequest{
 					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
 						TOTP: &proto.TOTPResponse{Code: "wrong-otp-token-value"},
+					}},
+				}
+			},
+		},
+		{
+			name: "locked from u2f attempts",
+			getReq: func() *proto.CreatePrivilegeTokenRequest {
+				return &proto.CreatePrivilegeTokenRequest{
+					ExistingMFAResponse: &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
+						U2F: &proto.U2FResponse{},
 					}},
 				}
 			},

@@ -205,21 +205,20 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 
 </ScopedBlock>
 
-Now we can inspect available databases:
+Now we can inspect available databases and retrieve credentials for the
+configured Aurora instance:
 
 ```code
 $ tsh db ls
+$ tsh db login aurora
 ```
 
-Finally, connect to the database:
+Finally, connect to the database using the `psql` command shown in the output of
+the `tsh db login` command, which looks similar to this:
 
 ```code
-$ tsh db connect --db-user=alice --db-name postgres aurora
+$ psql "service=<cluster>-aurora user=alice dbname=postgres"
 ```
-
-## Troubleshooting
-
-(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
 ## Next Steps
 
@@ -227,6 +226,6 @@ For the next steps, dive deeper into the topics relevant to your Database
 Access use-case, for example:
 
 - Check out configuration [guides](./guides.mdx).
-- Learn how to configure [GUI clients](../connect-your-client/gui-clients.mdx).
+- Learn how to configure [GUI clients](./guides/gui-clients.mdx).
 - Learn about Database Access [role-based access control](./rbac.mdx).
 - See [frequently asked questions](./faq.mdx).

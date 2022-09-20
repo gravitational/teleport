@@ -12,9 +12,7 @@ db_service:
     # Database types. Valid options are:
     # 'rds' - discovers and registers AWS RDS and Aurora databases.
     # 'redshift' - discovers and registers AWS Redshift databases.
-    # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
-    # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
-  - types: ["rds", "redshift", "elasticache", "memorydb"]
+  - types: ["rds", "redshift"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # AWS resource tags to match when registering databases.
@@ -55,45 +53,14 @@ db_service:
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
 
-    # Optional AWS configuration for AWS hosted databases. AWS region- and
-    # service-specific configurations can usually be auto-detected from the
-    # endpoint.
+    # AWS specific configuration, only required for RDS/Aurora/Redshift.
     aws:
       # Region the database is deployed in.
       region: "us-east-1"
-      # Redshift-specific configuration.
+      # Redshift specific configuration.
       redshift:
         # Redshift cluster identifier.
         cluster_id: "redshift-cluster-1"
-      # RDS-specific configuration.
-      rds:
-        # RDS instance identifier.
-        instance_id: "rds-instance-1"
-        # RDS Aurora cluster identifier.
-        cluster_id: "aurora-cluster-1"
-      # ElastiCache-specific configuration.
-      elasticache:
-        # ElastiCache replication group identifier.
-        replication_group_id: "elasticache-replication-group-1"
-      # MemoryDB-specific configuration.
-      memorydb:
-        # MemoryDB cluster name.
-        cluster_name: "memorydb-cluster-1"
-
-      # Optional AWS Secrets Manager configuration for managing ElastiCache
-      # or MemoryDB users.
-      #
-      # IMPORTANT: please make sure databases sharing the same Teleport-managed
-      # users have the same secret_store configuration. The configuration
-      # should also be consistent across all Database Services in High
-      # Availability (HA) mode.
-      secret_store:
-        # Prefix to all secrets created by the service. Defaults to 'teleport/'.
-        key_prefix: "teleport/"
-        # KMS Key ID used for secret encryption and description. If not
-        # specified, Secrets Manager uses AWS managed key 'aws/secretsmanager'
-        # by default.
-        kms_key_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
     # GCP specific configuration for Cloud SQL databases.
     gcp:

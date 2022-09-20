@@ -67,6 +67,9 @@ type RemoteClusterTunnelManagerConfig struct {
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
 	LocalCluster string
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// Local ReverseTunnelServer to reach other cluster members connecting to
 	// this proxy over a tunnel.
 	ReverseTunnelServer Server
@@ -78,9 +81,6 @@ type RemoteClusterTunnelManagerConfig struct {
 	FIPS bool
 	// Log is the logger
 	Log logrus.FieldLogger
-	// LocalAuthAddresses is a list of auth servers to use when dialing back to
-	// the local cluster.
-	LocalAuthAddresses []string
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -219,18 +219,17 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		HostSigner:          cfg.HostSigner,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
+		LocalAuthAddresses:  cfg.LocalAuthAddresses,
 		Clock:               cfg.Clock,
 		KubeDialAddr:        cfg.KubeDialAddr,
 		ReverseTunnelServer: cfg.ReverseTunnelServer,
 		FIPS:                cfg.FIPS,
-		LocalAuthAddresses:  cfg.LocalAuthAddresses,
 		// RemoteClusterManager only runs on proxies.
 		Component: teleport.ComponentProxy,
 
 		// Configs for remote cluster.
-		Cluster:         cluster,
-		Resolver:        StaticResolver(addr),
-		IsRemoteCluster: true,
+		Cluster:  cluster,
+		Resolver: StaticResolver(addr),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)

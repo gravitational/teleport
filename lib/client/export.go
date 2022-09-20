@@ -14,5 +14,16 @@
 
 package client
 
-var PromptMFAStandalone = &promptMFAStandalone
+// PasswordFromConsoleFn exports passwordFromConsoleFn for tests.
+var PasswordFromConsoleFn = &passwordFromConsoleFn
+
+// PromptOTP exports promptOTP for tests.
+var PromptOTP = &promptOTP
+
+// PromptU2F exports promptU2F for tests.
+var PromptU2F = &promptU2F
+
+// PromptWebauthn exports promptWebauthn for tests.
 var PromptWebauthn = &promptWebauthn
+
+var PromptMFAStandalone = &promptMFAStandalone

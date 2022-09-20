@@ -319,7 +319,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
 
 	io := srv.NewTermManager()
 
@@ -455,7 +455,7 @@ func (s *session) launch() error {
 			ClusterName: s.forwarder.cfg.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
+			ServerID:        s.forwarder.cfg.ServerID,
 			ServerNamespace: s.forwarder.cfg.Namespace,
 			ServerHostname:  s.sess.teleportCluster.name,
 			ServerAddr:      s.sess.kubeAddress,
@@ -610,7 +610,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		Streamer:     streamer,
 		Clock:        s.forwarder.cfg.Clock,
 		SessionID:    tsession.ID(s.id.String()),
-		ServerID:     s.forwarder.cfg.HostID,
+		ServerID:     s.forwarder.cfg.ServerID,
 		Namespace:    s.forwarder.cfg.Namespace,
 		RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
@@ -660,7 +660,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		}
 
 		serverMetadata := apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
+			ServerID:        s.forwarder.cfg.ServerID,
 			ServerNamespace: s.forwarder.cfg.Namespace,
 		}
 
@@ -794,7 +794,6 @@ func (s *session) join(p *party) error {
 			KubernetesCluster: s.ctx.kubeCluster,
 			KubernetesUsers:   []string{},
 			KubernetesGroups:  []string{},
-			KubernetesLabels:  s.ctx.kubeClusterLabels,
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: s.id.String(),
