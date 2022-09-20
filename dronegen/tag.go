@@ -325,7 +325,6 @@ func tagPipeline(b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
@@ -552,7 +551,6 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
