@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -150,7 +150,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -253,7 +253,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -360,7 +360,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -525,7 +525,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.3
+    RUNTIME: go1.18.6
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -923,6 +923,25 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Register artifacts
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $ProgressPreference = 'SilentlyContinue'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $OutputsDir = "$Workspace/outputs"
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-beta.2-windows.exe'
+  - $relcliSha256 = '6b96852a5e9704b66025cffc71cfe7fe7a2aa7131277a96bccce7e890a2d5a0c'
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
+  - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -947,7 +966,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -1050,7 +1069,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -1632,7 +1651,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -1745,7 +1764,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1792,7 +1811,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -1904,7 +1923,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1951,7 +1970,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -2036,6 +2055,10 @@ steps:
     -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+  - |-
+    cd /go/artifacts && for FILE in teleport-connect*.deb teleport-connect*.rpm; do
+      sha256sum $FILE > $FILE.sha256;
+    done && ls -l
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2072,7 +2095,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2119,7 +2142,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -2229,7 +2252,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2415,7 +2438,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2603,7 +2626,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2791,7 +2814,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2965,7 +2988,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3012,7 +3035,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -3122,7 +3145,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3308,7 +3331,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3490,7 +3513,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3595,7 +3618,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.3
+    RUNTIME: go1.18.6
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3680,7 +3703,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3883,7 +3906,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4067,7 +4090,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4112,7 +4135,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -4222,7 +4245,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4269,7 +4292,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -4379,7 +4402,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4556,7 +4579,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4733,7 +4756,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4919,7 +4942,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -5110,7 +5133,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -5162,7 +5185,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -5275,7 +5298,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -5673,48 +5696,154 @@ steps:
 - name: buildbox
   image: docker
   commands:
-  - apk add --no-cache make
+  - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox
-  - docker push quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
 - name: buildbox-fips
   image: docker
   commands:
-  - apk add --no-cache make
+  - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-fips
-  - docker push quay.io/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
 - name: buildbox-arm
   image: docker
   commands:
-  - apk add --no-cache make
+  - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-arm
-  - docker push quay.io/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: buildbox-centos7
+  image: docker
+  commands:
+  - apk add --no-cache make aws-cli
+  - chown -R $UID:$GID /go
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - make -C build.assets buildbox-centos7
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
+  environment:
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: buildbox-centos7-fips
+  image: docker
+  commands:
+  - apk add --no-cache make aws-cli
+  - chown -R $UID:$GID /go
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - make -C build.assets buildbox-centos7-fips
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
+  environment:
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6806,7 +6935,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -6850,6 +6979,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 38b2ec9bb24e9b0ac54096684d0dcb4b38f4f16880a671c2ee36a68aef68cd60
+hmac: c2a0204245e9de488fc71b0842529e8dac875f8c39368f606abe5ccf754fe3cb
 
 ...

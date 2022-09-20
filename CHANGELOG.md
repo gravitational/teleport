@@ -1,5 +1,65 @@
 # Changelog
 
+## 10.2.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh` on Windows failing to lock `known_hosts` file. [#16441](https://github.com/gravitational/teleport/pull/16441)
+* Fixed issue with `tsh` producing auditd errors on certain kernels. [#16448](https://github.com/gravitational/teleport/pull/16448)
+* Fixed issue with upgraded clusters not being able to test connection in the new node joining wizard. [#16399](https://github.com/gravitational/teleport/pull/16399)
+* Fixed issue with some Kubernetes clients failing when trying to use exec API through Kubernetes Access. [#16282](https://github.com/gravitational/teleport/pull/16282)
+* Fixed issue with `tsh ssh` returning "access denied" when connecting to nodes by labels in some cases. [#16324](https://github.com/gravitational/teleport/pull/16324)
+* Updated Helm charts to support Kubernetes v1.25. [#16343](https://github.com/gravitational/teleport/pull/16343)
+* Updated IAM joining to use FIPS STS endpoints when running in FIPS mode. [#16374](https://github.com/gravitational/teleport/pull/16374)
+* Added `tctl alerts create` command to allow administrators to set custom alerts. [#16290](https://github.com/gravitational/teleport/pull/16290)
+* Added EC2 joining support for Windows Desktop Service. [#16438](https://github.com/gravitational/teleport/pull/16438)
+
+## 10.2.1
+
+This release of Teleport contains a security fix as well as multiple bug fixes.
+
+### Upgraded Go to 1.18.6
+
+Teleport build infrastructure has been upgraded to include security fixes from
+the latest Go 1.18.6 release.
+
+See Go [security announcement](https://groups.google.com/g/golang-announce/c/x49AQzIVX-s)
+for details.
+
+### Other fixes
+
+* Fixed issue with invalid `TeleportHostname` tag name breaking automatic AWS labels import. [#16015](https://github.com/gravitational/teleport/pull/16015)
+* Fixed issue with corrupted `known_hosts` file when using `tsh` concurrently. [#16203](https://github.com/gravitational/teleport/pull/16203)
+* Fixed potential panic in `tctl` commands. [#16255](https://github.com/gravitational/teleport/pull/16255)
+* Fixed issue with a dot being appended to the token value generated with `tctl auth sign`. [#16238](https://github.com/gravitational/teleport/pull/16238)
+* Fixed issue with executing SSH commands on multiple nodes when per-session MFA is enabled. [#16148](https://github.com/gravitational/teleport/pull/16148)
+* Updated the new "Add server" wizard to gracefully treat lack of permissions. [webapps#1187](https://github.com/gravitational/webapps/pull/1187)
+* Added SFTP events to audit log. [webapps#1188](https://github.com/gravitational/webapps/pull/1188)
+
+## 10.2.0
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh` reporting "no suitable devices found" when using Yubikeys. [#16011](https://github.com/gravitational/teleport/pull/16011)
+* Fixed potential panic when using unsupported Google application credentials file. [#16042](https://github.com/gravitational/teleport/pull/16042)
+* Fixed issue with database connections getting terminated due to idle timeout when running long queries. [#16017](https://github.com/gravitational/teleport/pull/16017)
+* Fixed issue with `tsh ssh` and `tsh aws` commands failing with "unknown flag" errors. [#16094](https://github.com/gravitational/teleport/pull/16094)
+* Fixed issue with empty Github connector fields being always marshaled. [#16012](https://github.com/gravitational/teleport/pull/16012)
+* Fixed issue with SSH sessions not properly terminating in some cases. [#16065](https://github.com/gravitational/teleport/pull/16065)
+* Introduced a new web UI guided wizard for joining SSH nodes. [#16169](https://github.com/gravitational/teleport/pull/16169), [#16087](https://github.com/gravitational/teleport/pull/16087)
+* Added support for Azure PostgreSQL and MySQL databases auto-discovery. [#15988](https://github.com/gravitational/teleport/pull/15988), [#15990](https://github.com/gravitational/teleport/pull/15990), [#15989](https://github.com/gravitational/teleport/pull/15989), [#15991](https://github.com/gravitational/teleport/pull/15991), [#15992](https://github.com/gravitational/teleport/pull/15992)
+* Added support for directory sharing to Desktop Access. [#16054](https://github.com/gravitational/teleport/pull/16054)
+* Added new Teleport version notifications to `tsh login` and `tsh status`. [#16180](https://github.com/gravitational/teleport/pull/16180)
+* Added support for sending session events to Linux Audit System (`auditd`). [#16140](https://github.com/gravitational/teleport/pull/16140)
+* Added `--browser=none` support to `tctl sso test` command that prints the URL in the console. [#16086](https://github.com/gravitational/teleport/pull/16086)
+* Added retries to biometric key authentication when using unregistered fingerprint. [#15947](https://github.com/gravitational/teleport/pull/15947)
+* Added support for IAM joining in AWS China regions. [#15915](https://github.com/gravitational/teleport/pull/15915)
+* Added support for AWS Console Access in AWS GovCloud regions. [#16067](https://github.com/gravitational/teleport/pull/16067)
+* Added the lock target to `lock.create` audit events. [#15981](https://github.com/gravitational/teleport/pull/15981)
+* Updated `tctl bots add` to display correct proxy address. [#16089](https://github.com/gravitational/teleport/pull/16089)
+* Updated Access Requests to include appropriate `--request-id` flag to generated `tsh login` command. [#15962](https://github.com/gravitational/teleport/pull/15962)
+* Increased maximum backend range limit to account for clusters with a lot of node churn. [#16103](https://github.com/gravitational/teleport/pull/16103)
+
 ## 10.1.9
 
 This release of Teleport contains multiple improvements and bug fixes.
@@ -28,6 +88,7 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Improved connection reliability in proxy peering mode. [#15313](https://github.com/gravitational/teleport/pull/15313)
 * Improved error messaging in joined Kubernetes sessions. [#15492](https://github.com/gravitational/teleport/pull/15492)
 * Improved network utilization on proxies. [#15838](https://github.com/gravitational/teleport/pull/15838)
+* Added RDP licensing negotiation [gravitational/rdp-rs#17](https://github.com/gravitational/rdp-rs/pull/17)
 
 ## 10.1.4
 
@@ -328,7 +389,7 @@ to keep using it.
 
 In previous versions of Teleport users needed full access to a Node/Kubernetes
 pod in order to join a session. Teleport 10 relaxes this requirement. Joining
-sessions remains deny-by-default but now only `join_policy` statements are
+sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the Moderated Sessions guide for more details:

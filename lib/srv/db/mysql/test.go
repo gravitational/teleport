@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/go-mysql-org/go-mysql/client"
@@ -48,6 +49,20 @@ func MakeTestClient(config common.TestClientConfig) (*client.Conn, error) {
 		func(conn *client.Conn) {
 			conn.SetTLSConfig(tlsConfig)
 		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+// MakeTestClientWithoutTLS returns a MySQL client connection without setting
+// TLS config to the MySQL client.
+func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase) (*client.Conn, error) {
+	conn, err := client.Connect(addr,
+		routeToDatabase.Username,
+		"",
+		routeToDatabase.Database,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

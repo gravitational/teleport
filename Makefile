@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.1.9
+VERSION=10.2.2
 
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
@@ -775,6 +775,14 @@ fix-license: $(ADDLICENSE)
 $(ADDLICENSE):
 	cd && go install github.com/google/addlicense@v1.0.0
 
+# This rule updates version files and Helm snapshots based on the Makefile
+# VERSION variable.
+#
+# Used prior to a release by bumping VERSION in this Makefile and then
+# running "make update-version".
+.PHONY: update-version
+update-version: version test-helm-update-snapshots
+
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
 version: $(VERSRC)
@@ -1092,6 +1100,11 @@ deb:
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
+
+# check binary compatibility with different OSes
+.PHONY: test-compat
+test-compat:
+	./build.assets/build-test-compat.sh
 
 .PHONY: ensure-webassets
 ensure-webassets:

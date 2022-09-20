@@ -460,6 +460,11 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		if c.options.caPath != "" {
 			args = append(args, []string{"--cacert", c.options.caPath}...)
 		}
+
+		// Set SNI when sending to remote web proxy.
+		if c.options.localProxyHost == "" {
+			args = append(args, []string{"--sni", c.tc.WebProxyHost()}...)
+		}
 	}
 
 	// append database number if provided
