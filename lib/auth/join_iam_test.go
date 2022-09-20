@@ -520,7 +520,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// add token to auth server
-			token, err := types.NewProvisionTokenFromSpec(
+			token, err := types.NewProvisionTokenV2FromSpec(
 				tc.tokenName,
 				time.Now().Add(time.Minute),
 				tc.tokenSpec)

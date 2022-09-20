@@ -540,7 +540,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			}
 			a.clock = clock
 
-			token, err := types.NewProvisionTokenFromSpec(
+			token, err := types.NewProvisionTokenV2FromSpec(
 				"test_token",
 				time.Now().Add(time.Minute),
 				tc.tokenSpec)
@@ -583,7 +583,7 @@ func TestHostUniqueCheck(t *testing.T) {
 
 	a.clock = clockwork.NewFakeClockAt(instance1.pendingTime)
 
-	token, err := types.NewProvisionTokenFromSpec(
+	token, err := types.NewProvisionTokenV2FromSpec(
 		"test_token",
 		time.Now().Add(time.Minute),
 		types.ProvisionTokenSpecV2{

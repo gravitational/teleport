@@ -257,7 +257,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 
 func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole, expiry time.Time) types.ProvisionToken {
 	t.Helper()
-	token, err := types.NewProvisionTokenFromSpec(tokenName, expiry, types.ProvisionTokenSpecV2{
+	token, err := types.NewProvisionTokenV2FromSpec(tokenName, expiry, types.ProvisionTokenSpecV2{
 		Roles:   []types.SystemRole{role},
 		BotName: botName,
 	})
