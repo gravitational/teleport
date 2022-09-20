@@ -32,7 +32,7 @@ type ProxyGetter interface {
 // NodesGetter is a service that gets nodes.
 type NodesGetter interface {
 	// GetNodes returns a list of registered servers.
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
 }
 
 // Presence records and reports the presence of all components
@@ -41,8 +41,16 @@ type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
+	// UpsertLocalClusterName upserts local domain
+	UpsertLocalClusterName(name string) error
+
+	// GetLocalClusterName upserts local domain
+	GetLocalClusterName() (string, error)
+
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// ListNodes returns a paginated list of registered servers.
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 
 	// NodesGetter gets nodes
 	NodesGetter
@@ -56,6 +64,9 @@ type Presence interface {
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
+
+	// UpsertNodes bulk inserts nodes.
+	UpsertNodes(namespace string, servers []types.Server) error
 
 	// DELETE IN: 5.1.0
 	//
@@ -169,11 +180,7 @@ type Presence interface {
 	DeleteAllRemoteClusters() error
 
 	// UpsertKubeService registers kubernetes service presence.
-	// DELETE in 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, types.Server) error
-
-	// UpsertKubeServiceV2 registers kubernetes service presence
-	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// GetAppServers gets all application servers.
 	//
@@ -214,28 +221,13 @@ type Presence interface {
 	KeepAliveServer(ctx context.Context, h types.KeepAlive) error
 
 	// GetKubeServices returns a list of registered kubernetes services.
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// DeleteKubeService deletes a named kubernetes service.
-	// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer.
 	DeleteKubeService(ctx context.Context, name string) error
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
-	// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers.
 	DeleteAllKubeServices(context.Context) error
-
-	// GetKubernetesServers returns a list of registered kubernetes servers.
-	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
-
-	// DeleteKubernetesServer deletes a named kubernetes servers.
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
-
-	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
-	DeleteAllKubernetesServers(context.Context) error
-
-	// UpsertKubernetesServer registers an kubernetes server.
-	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)
@@ -249,5 +241,5 @@ type Presence interface {
 	DeleteAllWindowsDesktopServices(context.Context) error
 
 	// ListResoures returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.Resource, nextKey string, err error)
 }

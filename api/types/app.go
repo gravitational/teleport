@@ -26,13 +26,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // Application represents a web app.
 type Application interface {
-	// ResourceWithLabels provides common resource methods.
-	ResourceWithLabels
+	// ResourceWithOrigin provides common resource methods.
+	ResourceWithOrigin
 	// GetNamespace returns the app namespace.
 	GetNamespace() string
 	// GetStaticLabels returns the app static labels.
@@ -43,6 +42,8 @@ type Application interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the app dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
+	// GetAllLabels returns combined static and dynamic labels.
+	GetAllLabels() map[string]string
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// String returns string representation of the app.
@@ -61,10 +62,6 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
-	// IsTCP returns true if this app represents a TCP endpoint.
-	IsTCP() bool
-	// GetProtocol returns the application protocol.
-	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
@@ -251,19 +248,6 @@ func (a *AppV3) IsAWSConsole() bool {
 	return false
 }
 
-// IsTCP returns true if this app represents a TCP endpoint.
-func (a *AppV3) IsTCP() bool {
-	return strings.HasPrefix(a.Spec.URI, "tcp://")
-}
-
-// GetProtocol returns the application protocol.
-func (a *AppV3) GetProtocol() string {
-	if a.IsTCP() {
-		return "TCP"
-	}
-	return "HTTP"
-}
-
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
 func (a *AppV3) GetAWSAccountID() string {
 	return a.Metadata.Labels[constants.AWSAccountIDLabel]
@@ -286,13 +270,6 @@ func (a *AppV3) String() string {
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
 	return proto.Clone(a).(*AppV3)
-}
-
-// MatchSearch goes through select field values and tries to
-// match against the list of search values.
-func (a *AppV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName(), a.GetDescription(), a.GetPublicAddr())
-	return MatchSearch(fieldVals, values, nil)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -339,17 +316,14 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DeduplicateApps deduplicates apps by combination of app name and public address.
-// Apps can have the same name but also could have different addresses.
+// DeduplicateApps deduplicates apps by name.
 func DeduplicateApps(apps []Application) (result []Application) {
-	type key struct{ name, addr string }
-	seen := make(map[key]struct{})
+	seen := make(map[string]struct{})
 	for _, app := range apps {
-		key := key{app.GetName(), app.GetPublicAddr()}
-		if _, ok := seen[key]; ok {
+		if _, ok := seen[app.GetName()]; ok {
 			continue
 		}
-		seen[key] = struct{}{}
+		seen[app.GetName()] = struct{}{}
 		result = append(result, app)
 	}
 	return result

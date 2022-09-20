@@ -201,32 +201,26 @@ func (f *Fanout) Emit(events ...types.Event) {
 // into an uninitialized state.  Reset may be called on an uninitialized
 // fanout instance to remove "queued" watchers.
 func (f *Fanout) Reset() {
-	watchers := f.takeAndReset()
-	// goroutines run with a "happens after" releationship to the
-	// expressions that create them.  since we move ownership of the
-	// old watcher mapping prior to spawning this goroutine, we are
-	// "safe" to modify it without worrying about locking.  because
-	// we don't continue to hold the lock in the foreground goroutine,
-	// this fanout instance may permit new events/registrations/inits/resets
-	// while the old watchers are still being closed.  this is fine, since
-	// the aformentioned move guarantees that these old watchers aren't
-	// going to observe any of the new state transitions.
-	go closeWatchers(watchers)
-}
-
-func (f *Fanout) takeAndReset() map[string][]fanoutEntry {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	watchersToClose := f.watchers
-	f.watchers = make(map[string][]fanoutEntry)
+	f.closeWatchersAsync()
 	f.init = false
-	return watchersToClose
 }
 
 // Close permanently closes the fanout.  Existing watchers will be
 // closed and no new watchers will be added.
 func (f *Fanout) Close() {
-	watchers := f.takeAndClose()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closeWatchersAsync()
+	f.closed = true
+}
+
+// closeWatchersAsync moves ownership of the watcher mapping to a background goroutine
+// for asynchronous cancellation and sets up a new empty mapping.
+func (f *Fanout) closeWatchersAsync() {
+	watchersToClose := f.watchers
+	f.watchers = make(map[string][]fanoutEntry)
 	// goroutines run with a "happens after" releationship to the
 	// expressions that create them.  since we move ownership of the
 	// old watcher mapping prior to spawning this goroutine, we are
@@ -236,24 +230,13 @@ func (f *Fanout) Close() {
 	// while the old watchers are still being closed.  this is fine, since
 	// the aformentioned move guarantees that these old watchers aren't
 	// going to observe any of the new state transitions.
-	go closeWatchers(watchers)
-}
-
-func (f *Fanout) takeAndClose() map[string][]fanoutEntry {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	watchersToClose := f.watchers
-	f.watchers = make(map[string][]fanoutEntry)
-	f.closed = true
-	return watchersToClose
-}
-
-func closeWatchers(watchersToClose map[string][]fanoutEntry) {
-	for _, entries := range watchersToClose {
-		for _, entry := range entries {
-			entry.watcher.cancel()
+	go func() {
+		for _, entries := range watchersToClose {
+			for _, entry := range entries {
+				entry.watcher.cancel()
+			}
 		}
-	}
+	}()
 }
 
 func (f *Fanout) addWatcher(w *fanoutWatcher) {
@@ -454,15 +437,9 @@ func (s *FanoutSet) Emit(events ...types.Event) {
 func (s *FanoutSet) Reset() {
 	s.rw.Lock() // see field-level docks for locking model
 	defer s.rw.Unlock()
-	var watcherMappings []map[string][]fanoutEntry
 	for _, f := range s.members {
-		watcherMappings = append(watcherMappings, f.takeAndReset())
+		f.Reset()
 	}
-	go func() {
-		for _, watchers := range watcherMappings {
-			closeWatchers(watchers)
-		}
-	}()
 }
 
 // Close permanently closes the fanout.  Existing watchers will be
@@ -470,13 +447,7 @@ func (s *FanoutSet) Reset() {
 func (s *FanoutSet) Close() {
 	s.rw.Lock() // see field-level docks for locking model
 	defer s.rw.Unlock()
-	var watcherMappings []map[string][]fanoutEntry
 	for _, f := range s.members {
-		watcherMappings = append(watcherMappings, f.takeAndClose())
+		f.Close()
 	}
-	go func() {
-		for _, watchers := range watcherMappings {
-			closeWatchers(watchers)
-		}
-	}()
 }

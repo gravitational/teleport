@@ -26,8 +26,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/creack/pty"
 	"github.com/gravitational/trace"
+	"github.com/kr/pty"
 	"github.com/moby/term"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"

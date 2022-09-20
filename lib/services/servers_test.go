@@ -24,16 +24,20 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-// TestServersCompare tests comparing two servers
-func TestServersCompare(t *testing.T) {
-	t.Parallel()
+type ServerSuite struct {
+}
 
+var _ = check.Suite(&ServerSuite{})
+
+// TestServersCompare tests comparing two servers
+func (s *ServerSuite) TestServersCompare(c *check.C) {
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -50,42 +54,42 @@ func TestServersCompare(t *testing.T) {
 	}
 	node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
 	// Server is equal to itself
-	require.Equal(t, CompareServers(node, node), Equal)
+	c.Assert(CompareServers(node, node), check.Equals, Equal)
 
 	// Only timestamps are different
 	node2 := *node
 	node2.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 8, time.UTC))
-	require.Equal(t, CompareServers(node, &node2), OnlyTimestampsDifferent)
+	c.Assert(CompareServers(node, &node2), check.Equals, OnlyTimestampsDifferent)
 
 	// Labels are different
 	node2 = *node
 	node2.Metadata.Labels = map[string]string{"a": "d"}
-	require.Equal(t, CompareServers(node, &node2), Different)
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Command labels are different
 	node2 = *node
 	node2.Spec.CmdLabels = map[string]types.CommandLabelV2{"a": {Period: types.Duration(time.Minute), Command: []string{"ls", "-lR"}}}
-	require.Equal(t, CompareServers(node, &node2), Different)
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Address has changed
 	node2 = *node
 	node2.Spec.Addr = "localhost:3033"
-	require.Equal(t, CompareServers(node, &node2), Different)
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Public addr has changed
 	node2 = *node
 	node2.Spec.PublicAddr = "localhost:3033"
-	require.Equal(t, CompareServers(node, &node2), Different)
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Hostname has changed
 	node2 = *node
 	node2.Spec.Hostname = "luna2"
-	require.Equal(t, CompareServers(node, &node2), Different)
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// TeleportVersion has changed
 	node2 = *node
 	node2.Spec.Version = "5.0.0"
-	require.Equal(t, CompareServers(node, &node2), Different)
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
 	// Rotation has changed
 	node2 = *node
@@ -102,19 +106,17 @@ func TestServersCompare(t *testing.T) {
 			Standby:       time.Date(2018, 3, 4, 5, 6, 13, 8, time.UTC),
 		},
 	}
-	require.Equal(t, CompareServers(node, &node2), Different)
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 }
 
 // TestGuessProxyHostAndVersion checks that the GuessProxyHostAndVersion
 // correctly guesses the public address of the proxy (Teleport Cluster).
-func TestGuessProxyHostAndVersion(t *testing.T) {
-	t.Parallel()
-
+func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
 	// No proxies passed in.
 	host, version, err := GuessProxyHostAndVersion(nil)
-	require.Equal(t, host, "")
-	require.Equal(t, version, "")
-	require.True(t, trace.IsNotFound(err))
+	c.Assert(host, check.Equals, "")
+	c.Assert(version, check.Equals, "")
+	fixtures.ExpectNotFound(c, err)
 
 	// No proxies have public address set.
 	proxyA := types.ServerV2{}
@@ -122,9 +124,9 @@ func TestGuessProxyHostAndVersion(t *testing.T) {
 	proxyA.Spec.Version = "test-A"
 
 	host, version, err = GuessProxyHostAndVersion([]types.Server{&proxyA})
-	require.Equal(t, host, fmt.Sprintf("%v:%v", proxyA.Spec.Hostname, defaults.HTTPListenPort))
-	require.Equal(t, version, proxyA.Spec.Version)
-	require.NoError(t, err)
+	c.Assert(host, check.Equals, fmt.Sprintf("%v:%v", proxyA.Spec.Hostname, defaults.HTTPListenPort))
+	c.Assert(version, check.Equals, proxyA.Spec.Version)
+	c.Assert(err, check.IsNil)
 
 	// At least one proxy has public address set.
 	proxyB := types.ServerV2{}
@@ -132,14 +134,12 @@ func TestGuessProxyHostAndVersion(t *testing.T) {
 	proxyB.Spec.Version = "test-B"
 
 	host, version, err = GuessProxyHostAndVersion([]types.Server{&proxyA, &proxyB})
-	require.Equal(t, host, proxyB.Spec.PublicAddr)
-	require.Equal(t, version, proxyB.Spec.Version)
-	require.NoError(t, err)
+	c.Assert(host, check.Equals, proxyB.Spec.PublicAddr)
+	c.Assert(version, check.Equals, proxyB.Spec.Version)
+	c.Assert(err, check.IsNil)
 }
 
 func TestUnmarshalServerKubernetes(t *testing.T) {
-	t.Parallel()
-
 	// Regression test for
 	// https://github.com/gravitational/teleport/issues/4862
 	//
@@ -212,8 +212,6 @@ func TestUnmarshalServerKubernetes(t *testing.T) {
 // TestOnlyTimestampsDifferent tests that OnlyTimestampsDifferent is returned
 // after checking that whether KubernetesClusters and Apps are different.
 func TestOnlyTimestampsDifferent(t *testing.T) {
-	t.Parallel()
-
 	now := time.Now()
 	later := now.Add(time.Minute)
 

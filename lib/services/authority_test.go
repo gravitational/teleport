@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	. "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -84,29 +83,25 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("ca1 with 1 cert", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1})
-		require.NotNil(t, pool)
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1})
 		require.NoError(t, err)
-		require.Equal(t, 1, count)
+		require.Len(t, pool.Subjects(), 1)
 	})
 	t.Run("ca2 with 2 certs", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca2})
-		require.NotNil(t, pool)
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca2})
 		require.NoError(t, err)
-		require.Equal(t, 2, count)
+		require.Len(t, pool.Subjects(), 2)
 	})
 	t.Run("ca3 with 1 cert", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca3})
-		require.NotNil(t, pool)
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca3})
 		require.NoError(t, err)
-		require.Equal(t, 1, count)
+		require.Len(t, pool.Subjects(), 1)
 	})
 
 	t.Run("ca1 + ca2 + ca3 with 4 certs total", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2, ca3})
-		require.NotNil(t, pool)
+		pool, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2, ca3})
 		require.NoError(t, err)
-		require.Equal(t, 4, count)
+		require.Len(t, pool.Subjects(), 4)
 	})
 }
 
@@ -171,7 +166,7 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	ta := testauthority.New()
 	t.Cleanup(ta.Close)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := ta.GenerateKeyPair("")
 	require.NoError(t, err)
 	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "clustername"}, nil, time.Hour)
 	require.NoError(t, err)

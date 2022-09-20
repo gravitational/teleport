@@ -26,34 +26,22 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
-	// Import to register MongoDB engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
-	// Import to register Postgres engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
-	// Import to register Snowflake engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
-	// Import to register Elasticsearch engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
-
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -67,16 +55,12 @@ type Config struct {
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
-	// Emitter is used to emit audit events.
-	Emitter apievents.Emitter
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
-	// Limiter limits the number of connections per client IP.
-	Limiter *limiter.Limiter
 	// Authorizer is used to authorize requests coming from proxy.
 	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
@@ -91,13 +75,8 @@ type Config struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []services.AWSMatcher
-	// AzureMatchers is a list of Azure databases matchers.
-	AzureMatchers []services.AzureMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
-	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
-	// between all databases.
-	CloudLabels labels.Importer
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.
@@ -109,15 +88,11 @@ type Config struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CloudClients creates cloud API clients.
-	CloudClients clients.Clients
+	CloudClients common.CloudClients
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
-	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
-	// CloudUsers manage users for cloud hosted databases.
-	CloudUsers *users.Users
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -140,9 +115,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
-	}
-	if c.Emitter == nil {
-		c.Emitter = c.AuthClient
 	}
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
@@ -178,7 +150,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing LockWatcher")
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = clients.NewClients()
+		c.CloudClients = common.NewCloudClients()
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -190,29 +162,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			AccessPoint: c.AccessPoint,
-			Clients:     c.CloudClients,
-			HostID:      c.HostID,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if c.Limiter == nil {
-		// Use default limiter if nothing is provided. Connection limiting will be disabled.
-		c.Limiter, err = limiter.NewLimiter(limiter.Config{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
-	}
-
-	if c.CloudUsers == nil {
-		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:    c.CloudClients,
-			UpdateMeta: c.CloudMeta.Update,
+			Clients: c.CloudClients,
+			HostID:  c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -280,10 +231,10 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
-func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
+func (m *monitoredDatabases) get() types.ResourcesWithLabels {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append(append(m.static, m.resources...), m.cloud...).AsResources().ToMap()
+	return append(append(m.static, m.resources...), m.cloud...).AsResources()
 }
 
 // New returns a new database server.
@@ -315,9 +266,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
-		// TODO: Remove UserCA in Teleport 11.
-		types.UserCA, types.DatabaseCA)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
 
 	return server, nil
 }
@@ -350,20 +299,11 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	if err := s.startDynamicLabels(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fetchMySQLVersion(ctx, database); err != nil {
-		// Log, but do not fail. We will fetch the version later.
-		s.log.Warnf("Failed to fetch the MySQL version for %s: %v", database.GetName(), err)
-	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
 	if err := s.startHeartbeat(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	// Setup managed users for database.
-	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
-		s.log.WithError(err).Warnf("Failed to setup users for %v.", database.GetName())
-	}
-
 	s.log.Debugf("Started %v.", database)
 	return nil
 }
@@ -567,11 +507,8 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
-	if s.cfg.CloudLabels != nil {
-		s.cfg.CloudLabels.Apply(copy)
-	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	server, err := types.NewDatabaseServerV3(types.Metadata{
+	return types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.DatabaseServerSpecV3{
@@ -580,13 +517,7 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		HostID:   s.cfg.HostID,
 		Rotation: s.getRotationState(),
 		Database: copy,
-		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
@@ -603,14 +534,6 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
-	// Start IAM service that will be configuring IAM auth for databases.
-	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Start cloud users that will be monitoring cloud users.
-	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
-
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -651,8 +574,7 @@ func (s *Server) Close() error {
 	// Stop proxying all databases.
 	for _, database := range s.getProxiedDatabases() {
 		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
-			errors = append(errors, trace.WrapWithMessage(
-				err, "stopping database %v", database.GetName()))
+			errors = append(errors, err)
 		}
 	}
 	// Signal to all goroutines to stop.
@@ -669,10 +591,7 @@ func (s *Server) Close() error {
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
 	<-s.closeContext.Done()
-	if err := s.closeContext.Err(); err != nil && err != context.Canceled {
-		return trace.Wrap(err)
-	}
-	return nil
+	return s.closeContext.Err()
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -700,7 +619,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Make sure to close the upgraded connection, not "conn", otherwise
 	// the other side may not detect that connection has closed.
 	defer tlsConn.Close()
-	// Perform the handshake explicitly, normally it should be performed
+	// Perform the hanshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
 	err := tlsConn.Handshake()
@@ -724,30 +643,20 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) error {
+func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	sessionCtx, err := s.authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
-	cancelCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Create a session tracker so that other services, such as
-	// the session upload completer, can track the session's lifetime.
-	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// Close session stream in a goroutine since depending on session size
-		// it can take a while, and we don't want to block the client.
+		// Closing the stream writer is needed to flush all recorded data
+		// and trigger upload. Do it in a goroutine since depending on
+		// session size it can take a while and we don't want to block
+		// the client.
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
@@ -757,25 +666,15 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
+	engine, err := s.dispatch(sessionCtx, streamWriter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			s.log.Warnf("Recovered while handling DB connection from %v: %v.", clientConn.RemoteAddr(), r)
-			err = trace.BadParameter("failed to handle client connection")
-		}
-		if err != nil {
-			engine.SendError(err)
-		}
-	}()
-
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	clientConn, err = monitorConn(ctx, monitorConnConfig{
-		conn:         clientConn,
+	conn, err = monitorConn(ctx, monitorConnConfig{
+		conn:         conn,
 		lockWatcher:  s.cfg.LockWatcher,
 		lockTargets:  sessionCtx.LockTargets,
 		identity:     sessionCtx.Identity,
@@ -784,7 +683,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		serverID:     s.cfg.HostID,
 		authClient:   s.cfg.AuthClient,
 		teleportUser: sessionCtx.Identity.Username,
-		emitter:      s.cfg.Emitter,
+		emitter:      s.cfg.AuthClient,
 		log:          s.log,
 		ctx:          s.closeContext,
 	})
@@ -792,61 +691,52 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
-	// TODO(jakule): ClientIP should be required starting from 10.0.
-	clientIP := sessionCtx.Identity.ClientIP
-	if clientIP != "" {
-		s.log.Debugf("Real client IP %s", clientIP)
-
-		var release func()
-		release, err = s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer release()
-	} else {
-		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
-	}
-
-	err = engine.HandleConnection(ctx, sessionCtx)
+	err = engine.HandleConnection(ctx, sessionCtx, conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// dispatch creates and initializes an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
+// dispatch returns an appropriate database engine for the session.
+func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	engine, err := s.createEngine(sessionCtx, audit)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return &postgres.Engine{
+			Auth:         s.cfg.Auth,
+			Audit:        audit,
+			Context:      s.closeContext,
+			Clock:        s.cfg.Clock,
+			CloudClients: s.cfg.CloudClients,
+			Log:          sessionCtx.Log,
+		}, nil
+	case defaults.ProtocolMySQL:
+		return &mysql.Engine{
+			Auth:         s.cfg.Auth,
+			Audit:        audit,
+			AuthClient:   s.cfg.AuthClient,
+			Context:      s.closeContext,
+			Clock:        s.cfg.Clock,
+			CloudClients: s.cfg.CloudClients,
+			Log:          sessionCtx.Log,
+		}, nil
+	case defaults.ProtocolMongoDB:
+		return &mongodb.Engine{
+			Auth:    s.cfg.Auth,
+			Audit:   audit,
+			Context: s.closeContext,
+			Clock:   s.cfg.Clock,
+			Log:     sessionCtx.Log,
+		}, nil
 	}
-
-	if err := engine.InitializeConnection(clientConn, sessionCtx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return engine, nil
-}
-
-// createEngine creates a new database engine based on the database protocol.
-// An error is returned when a protocol is not supported.
-func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
-	return common.GetEngine(sessionCtx.Database.GetProtocol(), common.EngineConfig{
-		Auth:         s.cfg.Auth,
-		Audit:        audit,
-		AuthClient:   s.cfg.AuthClient,
-		CloudClients: s.cfg.CloudClients,
-		Context:      s.closeContext,
-		Clock:        s.cfg.Clock,
-		Log:          sessionCtx.Log,
-		Users:        s.cfg.CloudUsers,
-	})
+	return nil, trace.BadParameter("unsupported database protocol %q",
+		sessionCtx.Database.GetProtocol())
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
@@ -879,7 +769,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
-	id := uuid.New().String()
+	id := uuid.New()
 	return &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
@@ -890,90 +780,11 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
+		Statements:        common.NewStatementsCache(),
 		Log: s.log.WithFields(logrus.Fields{
 			"id": id,
 			"db": database.GetName(),
 		}),
 		LockTargets: authContext.LockTargets(),
 	}, nil
-}
-
-// fetchMySQLVersion tries to connect to MySQL instance, read initial handshake package and extract
-// the server version.
-func fetchMySQLVersion(ctx context.Context, database types.Database) error {
-	if database.GetProtocol() != defaults.ProtocolMySQL || database.GetMySQLServerVersion() != "" {
-		return nil
-	}
-
-	// Try to extract the engine version for AWS metadata labels.
-	if database.IsRDS() || database.IsAzure() {
-		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
-		if version != "" {
-			database.SetMySQLServerVersion(version)
-			return nil
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
-	defer cancel()
-
-	version, err := mysql.FetchMySQLVersion(ctx, database)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	database.SetMySQLServerVersion(version)
-
-	return nil
-}
-
-// trackSession creates a new session tracker for the database session.
-// While ctx is open, the session tracker's expiration will be extended
-// on an interval. Once the ctx is closed, the session tracker's state
-// will be updated to terminated.
-func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
-	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID:    sessionCtx.ID,
-		Kind:         string(types.DatabaseSessionKind),
-		State:        types.SessionState_SessionStateRunning,
-		Hostname:     sessionCtx.HostID,
-		DatabaseName: sessionCtx.DatabaseName,
-		ClusterName:  sessionCtx.ClusterName,
-		Login:        sessionCtx.Identity.GetUserMetadata().Login,
-		Participants: []types.Participant{{
-			User: sessionCtx.Identity.Username,
-		}},
-		HostUser: sessionCtx.Identity.Username,
-		Created:  s.cfg.Clock.Now(),
-	}
-
-	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
-	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
-		return nil
-	default: // aka err != nil
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		if err := tracker.Close(s.closeContext); err != nil {
-			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
-		}
-	}()
-
-	return nil
 }

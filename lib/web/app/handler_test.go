@@ -123,21 +123,14 @@ func TestHasName(t *testing.T) {
 			desc:        "OK - adds path",
 			addrs:       []string{"proxy.com"},
 			reqURL:      "https://app1.proxy.com/foo",
-			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2Ffoo",
-			hasName:     true,
-		},
-		{
-			desc:        "OK - adds paths with ampersands",
-			addrs:       []string{"proxy.com"},
-			reqURL:      "https://app1.proxy.com/foo/this&/that",
-			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2Ffoo%2Fthis%26%2Fthat",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com%3Fpath=/foo",
 			hasName:     true,
 		},
 		{
 			desc:        "OK - adds root path",
 			addrs:       []string{"proxy.com"},
 			reqURL:      "https://app1.proxy.com/",
-			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2F",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com%3Fpath=/",
 			hasName:     true,
 		},
 	} {
@@ -184,7 +177,12 @@ func TestMatchApplicationServers(t *testing.T) {
 	}
 
 	// Create a fake remote site and tunnel.
-	fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
+	fakeRemoteSiteConnCh := make(chan net.Conn)
+	fakeRemoteSite := &reversetunnel.FakeRemoteSite{
+		Name:        clusterName,
+		ConnCh:      fakeRemoteSiteConnCh,
+		AccessPoint: authClient,
+	}
 	tunnel := &reversetunnel.FakeServer{
 		Sites: []reversetunnel.RemoteSite{
 			fakeRemoteSite,
@@ -209,7 +207,7 @@ func TestMatchApplicationServers(t *testing.T) {
 
 	// Teardown the remote site and the httptest server.
 	t.Cleanup(func() {
-		require.NoError(t, fakeRemoteSite.Close())
+		close(fakeRemoteSiteConnCh)
 		server.Close()
 	})
 
@@ -345,7 +343,7 @@ type fakeRemoteListener struct {
 }
 
 func (r *fakeRemoteListener) Accept() (net.Conn, error) {
-	conn, ok := <-r.fakeRemote.ProxyConn()
+	conn, ok := <-r.fakeRemote.ConnCh
 	if !ok {
 		return nil, fmt.Errorf("remote closed")
 	}

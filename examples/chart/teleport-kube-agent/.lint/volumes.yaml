@@ -4,7 +4,7 @@ roles: kube
 kubeClusterName: test-kube-cluster
 extraVolumeMounts:
 - name: "my-mount"
-  mountPath: "/path/to/mount"
+  path: "/path/to/mount"
 extraVolumes:
 - name: "my-mount"
   secret:

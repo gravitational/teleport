@@ -18,24 +18,16 @@ package utils
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
 func TestFnCache_New(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		desc      string
 		config    FnCacheConfig
@@ -62,99 +54,8 @@ func TestFnCache_New(t *testing.T) {
 	}
 }
 
-type result struct {
-	val interface{}
-	err error
-}
-
-// TestFnCacheConcurrentReads verifies that many concurrent reads result in exactly one
-// value being actually loaded via loadfn if a reasonably long TTL is used.
-func TestFnCacheConcurrentReads(t *testing.T) {
-	const workers = 100
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// set up a chage that won't ttl out values during the test
-	cache, err := NewFnCache(FnCacheConfig{TTL: time.Hour})
-	require.NoError(t, err)
-
-	results := make(chan result, workers)
-
-	for i := 0; i < workers; i++ {
-		go func(n int) {
-			val, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
-				// return a unique value for each worker so that we can verify whether
-				// the values we get come from the same loadfn or not.
-				return fmt.Sprintf("val-%d", n), nil
-			})
-			results <- result{val, err}
-		}(i)
-	}
-
-	first := <-results
-	require.NoError(t, first.err)
-
-	val := first.val.(string)
-	require.NotZero(t, val)
-
-	for i := 0; i < (workers - 1); i++ {
-		r := <-results
-		require.NoError(t, r.err)
-		require.Equal(t, val, r.val.(string))
-	}
-}
-
-// TestFnCacheExpiry verfies basic expiry.
-func TestFnCacheExpiry(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	clock := clockwork.NewFakeClock()
-
-	cache, err := NewFnCache(FnCacheConfig{TTL: time.Millisecond, Clock: clock})
-	require.NoError(t, err)
-
-	// get is helper for checking if we hit/miss
-	get := func() (load bool) {
-		val, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
-			load = true
-			return "val", nil
-		})
-		require.NoError(t, err)
-		require.Equal(t, "val", val.(string))
-		return
-	}
-
-	// first get runs the loadfn
-	require.True(t, get())
-
-	// subsequent gets use the cached value
-	for i := 0; i < 20; i++ {
-		require.False(t, get())
-	}
-
-	clock.Advance(time.Millisecond * 2)
-
-	// value has ttl'd out, loadfn is run again
-	require.True(t, get())
-
-	// and now we're back to hitting a cached value
-	require.False(t, get())
-}
-
-// TestFnCacheFuzzy runs basic FnCache test cases that rely on fuzzy logic and timing to detect
-// success/failure. This test isn't really suitable for running in our CI env due to its sensitivery
-// to fluxuations in perf, but is arguably a *better* test in that it more accurately simulates real
-// usage. This test should be run locally with TEST_FNCACHE_FUZZY=yes when making changes.
-func TestFnCacheFuzzy(t *testing.T) {
-	if run, _ := apiutils.ParseBool(os.Getenv("TEST_FNCACHE_FUZZY")); !run {
-		t.Skip("Test disabled in CI. Enable it by setting env variable TEST_FNCACHE_FUZZY=yes")
-	}
-
+// TestFnCacheSanity runs basic FnCache test cases.
+func TestFnCacheSanity(t *testing.T) {
 	tts := []struct {
 		ttl   time.Duration
 		delay time.Duration
@@ -167,15 +68,13 @@ func TestFnCacheFuzzy(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		t.Run(tt.desc, func(t *testing.T) {
-			testFnCacheFuzzy(t, tt.ttl, tt.delay)
-		})
+		testFnCacheSimple(t, tt.ttl, tt.delay, "ttl=%s, delay=%s, desc=%q", tt.ttl, tt.delay, tt.desc)
 	}
 }
 
-// testFnCacheFuzzy runs a basic test case which spams concurrent request against a cache
+// testFnCacheSimple runs a basic test case which spams concurrent request against a cache
 // and verifies that the resulting hit/miss numbers roughly match our expectation.
-func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
+func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration, msg ...interface{}) {
 	const rate = int64(20)     // get attempts per worker per ttl period
 	const workers = int64(100) // number of concurrent workers
 	const rounds = int64(10)   // number of full ttl cycles to go through
@@ -224,8 +123,8 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 					val := readCounter.Inc()
 					return val, nil
 				})
-				require.NoError(t, err)
-				require.GreaterOrEqual(t, vi.(int64), lastValue)
+				require.NoError(t, err, msg...)
+				require.GreaterOrEqual(t, vi.(int64), lastValue, msg...)
 				lastValue = vi.(int64)
 				getCounter.Inc()
 			}
@@ -242,63 +141,48 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 	// approxReads is the approximate expected number of reads
 	approxReads := float64(elapsed) / float64(ttl+delay)
 
-	// verify that number of actual reads is within +/- 2 of the number of expected reads.
-	require.InDelta(t, approxReads, readCounter.Load(), 2)
+	// verify that number of actual reads is within +/- 1 of the number of expected reads.
+	require.InDelta(t, approxReads, readCounter.Load(), 1, msg...)
 }
 
 // TestFnCacheCancellation verifies expected cancellation behavior.  Specifically, we expect that
 // in-progress loading continues, and the entry is correctly updated, even if the call to Get
 // which happened to trigger the load needs to be unblocked early.
 func TestFnCacheCancellation(t *testing.T) {
-	t.Parallel()
-
-	const longTimeout = time.Second * 10 // should never be hit
+	const timeout = time.Millisecond * 10
 
 	cache, err := NewFnCache(FnCacheConfig{TTL: time.Minute})
 	require.NoError(t, err)
 
-	// used to artificially block the load function
-	blocker := make(chan struct{})
-
-	// set up a context that we can cancel from within the load function to
-	// simulate a scenario where the calling context is canceled or times out.
-	// if we actually hit the timeout, that is a bug.
-	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	blocker := make(chan struct{})
+
 	v, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
-		cancel()
 		<-blocker
 		return "val", nil
 	})
 
 	require.Nil(t, v)
-	require.Equal(t, context.Canceled, trace.Unwrap(err), "context should have been canceled immediately")
+	require.Equal(t, context.DeadlineExceeded, trace.Unwrap(err))
 
 	// unblock the loading operation which is still in progress
 	close(blocker)
 
-	// since we unblocked the loadfn, we expect the next Get to return almost
-	// immediately.  we still use a fairly long timeout just to ensure that failure
-	// is due to an actual bug and not due to resource constraints in the test env.
-	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	loadFnWasRun := atomic.NewBool(false)
 	v, err = cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
-		loadFnWasRun.Store(true)
+		t.Fatal("this should never run!")
 		return nil, nil
 	})
-
-	require.False(t, loadFnWasRun.Load(), "loadfn should not have been run")
 
 	require.NoError(t, err)
 	require.Equal(t, "val", v.(string))
 }
 
 func TestFnCacheContext(t *testing.T) {
-	t.Parallel()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	cache, err := NewFnCache(FnCacheConfig{
 		TTL:     time.Minute,

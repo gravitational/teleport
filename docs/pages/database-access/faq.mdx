@@ -5,25 +5,13 @@ description: Frequently asked questions about Teleport Database Access.
 
 ## Which database protocols does Teleport Database Access support?
 
-Teleport Database Access currently supports the following protocols:
+Teleport Database Access currently supports PostgreSQL, MySQL, and MongoDB
+protocols.
 
-- MariaDB
-- Microsoft SQL Server
-- MongoDB
-- MySQL
-- PostgreSQL
-- Redis
-- Snowflake
-
-For PostgreSQL and MySQL, the following Cloud-hosted versions are supported in addition to self-hosted deployments:
-
-- Amazon RDS
-- Amazon Aurora (except for Amazon Aurora Serverless, which doesn't support IAM authentication)
-- Amazon Redshift
-- Google Cloud SQL
-- Azure Database
-
-See the available [guides](./guides.mdx) for all supported configurations.
+For PostgreSQL and MySQL, both self-hosted and cloud-hosted versions such as AWS
+RDS, Aurora (except for Serverless version which doesn't support IAM auth),
+Redshift, and GCP Cloud SQL are supported. See available [guides](./guides.mdx)
+for all supported configurations.
 
 ## Which PostgreSQL protocol features are not supported?
 
@@ -74,7 +62,7 @@ should work.
 
 Standard command-line clients such as `psql`, `mysql`, `mongo` or `mongosh` are
 supported. There are also instructions for configuring select
-[graphical clients](../connect-your-client/gui-clients.mdx).
+[graphical clients](./guides/gui-clients.mdx).
 
 ## When will you support X database?
 

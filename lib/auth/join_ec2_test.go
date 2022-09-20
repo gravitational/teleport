@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -157,7 +156,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	_, err = a.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -180,7 +179,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -202,11 +201,11 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance2.account,
 						AWSRegions: []string{instance2.region},
 					},
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -228,7 +227,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{"us-east-1", instance1.region, "us-east-2"},
 					},
@@ -250,7 +249,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 					},
 				},
@@ -271,7 +270,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: "bad account",
 						AWSRegions: []string{instance1.region},
 					},
@@ -293,7 +292,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{"bad region"},
 					},
@@ -315,7 +314,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -337,7 +336,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -358,7 +357,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -380,7 +379,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance2.account,
 						AWSRegions: []string{instance2.region},
 					},
@@ -402,7 +401,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance2.account,
 						AWSRegions: []string{instance2.region},
 					},
@@ -424,7 +423,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -446,7 +445,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -468,7 +467,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -490,7 +489,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -513,7 +512,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					{
+					&types.TokenRule{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -595,7 +594,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleApp,
 			},
 			Allow: []*types.TokenRule{
-				{
+				&types.TokenRule{
 					AWSAccount: instance1.account,
 					AWSRegions: []string{instance1.region},
 				},
@@ -606,7 +605,7 @@ func TestHostUniqueCheck(t *testing.T) {
 	err = a.UpsertToken(context.Background(), token)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -649,26 +648,16 @@ func TestHostUniqueCheck(t *testing.T) {
 		{
 			role: types.RoleKube,
 			upserter: func(name string) {
-
-				kube, err := types.NewKubernetesServerV3(
-					types.Metadata{
+				kube := &types.ServerV2{
+					Kind:    types.KindKubeService,
+					Version: types.V2,
+					Metadata: types.Metadata{
 						Name:      name,
 						Namespace: defaults.Namespace,
 					},
-					types.KubernetesServerSpecV3{
-						HostID:   name,
-						Hostname: "test-kuge",
-						Cluster: &types.KubernetesClusterV3{
-							Metadata: types.Metadata{
-								Name:      name,
-								Namespace: defaults.Namespace,
-							},
-						},
-					})
+				}
+				err := a.UpsertKubeService(context.Background(), kube)
 				require.NoError(t, err)
-				_, err = a.UpsertKubernetesServer(context.Background(), kube)
-				require.NoError(t, err)
-
 			},
 		},
 		{

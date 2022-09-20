@@ -84,25 +84,28 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error
 		return nil, trace.Wrap(err)
 	}
 
-	return filterDatabasesByLabels(rdsDatabases, f.cfg.Labels, f.log), nil
+	var result types.Databases
+	for _, database := range rdsDatabases {
+		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
+		if err != nil {
+			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			result = append(result, database)
+		} else {
+			f.log.Debugf("%v doesn't match selector.", database)
+		}
+	}
+	return result, nil
 }
 
 // getRDSDatabases returns a list of database resources representing RDS instances.
 func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
-	instances, err := getAllDBInstances(ctx, f.cfg.RDS, common.MaxPages)
+	instances, err := getAllDBInstances(ctx, f.cfg.RDS, maxPages)
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
-		if !services.IsRDSInstanceSupported(instance) {
-			f.log.Debugf("RDS instance %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
-				aws.StringValue(instance.DBInstanceIdentifier),
-				aws.StringValue(instance.Engine),
-				aws.StringValue(instance.EngineVersion))
-			continue
-		}
-
 		if !services.IsRDSInstanceAvailable(instance) {
 			f.log.Debugf("The current status of RDS instance %q is %q. Skipping.",
 				aws.StringValue(instance.DBInstanceIdentifier),
@@ -169,12 +172,23 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, er
 		return nil, trace.Wrap(err)
 	}
 
-	return filterDatabasesByLabels(auroraDatabases, f.cfg.Labels, f.log), nil
+	var result types.Databases
+	for _, database := range auroraDatabases {
+		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
+		if err != nil {
+			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			result = append(result, database)
+		} else {
+			f.log.Debugf("%v doesn't match selector.", database)
+		}
+	}
+	return result, nil
 }
 
 // getAuroraDatabases returns a list of database resources representing RDS clusters.
 func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, error) {
-	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, common.MaxPages)
+	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, maxPages)
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
@@ -261,8 +275,7 @@ func rdsFilters() []*rds.Filter {
 		Name: aws.String("engine"),
 		Values: aws.StringSlice([]string{
 			services.RDSEnginePostgres,
-			services.RDSEngineMySQL,
-			services.RDSEngineMariaDB}),
+			services.RDSEngineMySQL}),
 	}}
 }
 
@@ -277,3 +290,6 @@ func auroraFilters() []*rds.Filter {
 			services.RDSEngineAuroraPostgres}),
 	}}
 }
+
+// maxPages is the maximum number of pages to iterate over when fetching databases.
+const maxPages = 10

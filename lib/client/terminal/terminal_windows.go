@@ -137,7 +137,7 @@ func New(stdin io.Reader, stdout, stderr io.Writer) (*Terminal, error) {
 	return &term, nil
 }
 
-// InitRaw puts the terminal into raw output mode. If `input` is set, it also
+// InitRaw puts the terminal into raw output mode. If `input` set set, it also
 // begins capturing raw input events from the Windows API, asynchronously
 // writing them to a Pipe emulating a traditional Unix stdin.
 // Note that some implementations may replace one or more streams (particularly
@@ -165,23 +165,36 @@ func (t *Terminal) InitRaw(input bool) error {
 		cleanup()
 	}()
 
-	// emit resize events
+	// Convert input events into a usable io.Reader.
+	pipeRead, pipeWrite := io.Pipe()
 	t.closeWait.Add(1)
 	go func() {
 		defer t.closeWait.Done()
 
-		ch := tncon.SubcribeResizeEvents()
+		events := tncon.Subscribe()
 		for {
 			select {
-			case <-ch:
-				t.writeEvent(ResizeEvent{})
+			case event := <-events:
+				switch e := event.(type) {
+				case tncon.SequenceEvent:
+					if len(e.Sequence) > 0 {
+						_, err := pipeWrite.Write(e.Sequence)
+						if err != nil {
+							log.Errorf("failed to write input sequence: %+v", err)
+							_ = t.closer.Close()
+							return
+						}
+					}
+				case tncon.ResizeEvent:
+					t.writeEvent(ResizeEvent{})
+				}
 			case <-t.closer.C:
 				return
 			}
 		}
 	}()
 
-	t.stdin = tncon.SequenceReader()
+	t.stdin = pipeRead
 	return nil
 }
 

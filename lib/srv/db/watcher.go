@@ -103,9 +103,8 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
 	watcher, err := watchers.NewWatcher(ctx, watchers.WatcherConfig{
-		AWSMatchers:   s.cfg.AWSMatchers,
-		AzureMatchers: s.cfg.AzureMatchers,
-		Clients:       s.cfg.CloudClients,
+		AWSMatchers: s.cfg.AWSMatchers,
+		Clients:     s.cfg.CloudClients,
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -135,8 +134,11 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 }
 
 // getResources returns proxied databases as resources.
-func (s *Server) getResources() types.ResourcesWithLabelsMap {
-	return s.getProxiedDatabases().AsResources().ToMap()
+func (s *Server) getResources() (resources types.ResourcesWithLabels) {
+	for _, database := range s.getProxiedDatabases() {
+		resources = append(resources, database)
+	}
+	return resources
 }
 
 // onCreate is called by reconciler when a new database is created.

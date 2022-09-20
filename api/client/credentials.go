@@ -19,7 +19,7 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"os"
+	"io/ioutil"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -115,7 +115,7 @@ func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cas, err := os.ReadFile(c.caFile)
+	cas, err := ioutil.ReadFile(c.caFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -364,9 +364,6 @@ func configureTLS(c *tls.Config) *tls.Config {
 	tlsConfig := c.Clone()
 	tlsConfig.NextProtos = utils.Deduplicate(append(tlsConfig.NextProtos, http2.NextProtoTLS))
 
-	// If SNI isn't set, set it to the default name that can be found
-	// on all Teleport issued certificates. This is needed because we
-	// don't always know which host we will be connecting to.
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = constants.APIDomain
 	}

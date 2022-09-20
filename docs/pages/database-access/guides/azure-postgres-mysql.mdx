@@ -20,15 +20,6 @@ This guide will help you to:
 - Set up access to Azure Database for PostgreSQL or Azure Database for MySQL.
 - Connect to the database server through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../img/database-access/guides/azure_selfhosted.png)
-</ScopedBlock>
-
-
-<ScopedBlock scope={["cloud"]}>
-![Teleport Database Access Azure PostgreSQL/MySQL Cloud](../../../img/database-access/guides/azure_cloud.png)
-</ScopedBlock>
-
 <Admonition type="note">
     Teleport uses Azure Active Directory authentication with Azure PostgreSQL
     and MySQL databases which at the moment of this writing is only supported
@@ -37,37 +28,27 @@ This guide will help you to:
 
 ## Prerequisites
 
+- Teleport version >= `8.1`.
 - Deployed Azure Database for PostgreSQL or MySQL server.
 - Azure Active Directory administrative privileges.
-- A host, e.g., an Azure VM instance, where you will run the Teleport Database
-  Service.
-
-(!docs/pages/includes/user-client-prereqs.mdx!)
 
 ## Step 1/4. Install and configure Teleport
 
-### Set up the Teleport Auth and Proxy Services
+### Set up Teleport Auth and Proxy Services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-### Set up the Teleport Database Service
+### Set up Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
-
-(!docs/pages/includes/install-linux.mdx!)
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-Start the Teleport Database Service. Make sure to update `--auth-server` to point to
+Start Teleport Database Service. Make sure to update `--auth-server` to point to
 your Teleport Proxy Service address and `--uri` to the Azure database server
 endpoint.
 
 <Tabs>
 <TabItem label="PostgreSQL">
-
-  ```code
+  ```bash
   $ teleport db start \
     --token=/tmp/token \
     --auth-server=teleport.example.com:3080 \
@@ -76,11 +57,9 @@ endpoint.
     --uri=example.postgres.database.azure.com:5321 \
     --labels=env=dev
   ```
-
 </TabItem>
 <TabItem label="MySQL">
-
-  ```code
+  ```bash
   $ teleport db start \
     --token=/tmp/token \
     --auth-server=teleport.example.com:3080 \
@@ -89,54 +68,15 @@ endpoint.
     --uri=example.mysql.database.azure.com:3306 \
     --labels=env=dev
   ```
-
 </TabItem>
 </Tabs>
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-Start the Teleport Database Service. Make sure to update `--auth-server` to point to
-your Teleport Cloud tenant address and `--uri` to the Azure database server
-endpoint.
-
-<Tabs>
-<TabItem label="PostgreSQL">
-
-  ```code
-  $ teleport db start \
-    --token=/tmp/token \
-    --auth-server=mytenant.teleport.sh:443 \
-    --name=azure-db \
-    --protocol=postgres \
-    --uri=example.postgres.database.azure.com:5321 \
-    --labels=env=dev
-  ```
-
-</TabItem>
-<TabItem label="MySQL">
-
-  ```code
-  $ teleport db start \
-    --token=/tmp/token \
-    --auth-server=mytenant.teleport.sh:443 \
-    --name=azure-db \
-    --protocol=mysql \
-    --uri=example.mysql.database.azure.com:3306 \
-    --labels=env=dev
-  ```
-
-</TabItem>
-</Tabs>
-
-</ScopedBlock>
 
 <Admonition type="tip">
-  You can start the Teleport Database Service using a configuration file instead of
-  CLI flags. See the [YAML reference](../reference/configuration.mdx).
+  You can start Teleport Database Service using a configuration file instead of
+  CLI flags. See [YAML reference](../reference/configuration.mdx).
 </Admonition>
 
-### Create a Teleport user
+### Create Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
@@ -146,11 +86,11 @@ To authenticate with PostgreSQL or MySQL databases, Teleport Database Service
 needs to obtain access tokens from Azure AD. There are a couple of ways to
 achieve that:
 
-- The Database Service can be registered as an Azure AD application (via AD's "App
+- Database Service can be registered as an Azure AD application (via AD's "App
   registrations") and configured with its credentials. This is only recommended
   for development and testing purposes since it requires Azure credentials to
   be present in the Database Service's environment.
-- The Database Service can run on an Azure VM with attached managed identity. This
+- Database Service can run on an Azure VM with attached managed identity. This
   is the recommended way of deploying the Database Service in production since
   it eliminates the need to manage Azure credentials.
 
@@ -202,13 +142,13 @@ achieve that:
 
   ![Registered app secrets](../../../img/database-access/guides/azure/registered-app-secrets@2x.png)
 
-  The Teleport Database Service uses Azure SDK's default credential provider chain to
+  Teleport Database Service uses Azure SDK's default credential provider chain to
   look for credentials. Refer to [Authentication methods](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
   to pick a method suitable for your use-case. For example, to use
-  environment-based authentication with a client secret, the Database Service should
+  environment-based authentication with a client secret, Database Service should
   have the following environment variables set:
 
-  ```code
+  ```bash
   export AZURE_TENANT_ID=
   export AZURE_CLIENT_ID=
   export AZURE_CLIENT_SECRET=
@@ -219,7 +159,7 @@ achieve that:
 ## Step 3/4. Create Azure database users
 
 To let Teleport connect to your Azure database authenticating as a service
-principal, you need to create Azure AD users for that principal in the database.
+principal you need to create Azure AD users for that principal in the database.
 
 ### Assign Azure AD administrator
 
@@ -240,14 +180,14 @@ fetch the access token and use it as a password when connecting to the database:
 
 <Tabs>
 <TabItem label="PostgreSQL">
-  ```code
+  ```bash
   $ az login -u ad@example.com
   $ export PGPASSWORD=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
   $ psql "host=example.postgres.database.azure.com user=ad@example.com@instance-name sslmode=require dbname=postgres"
   ```
 </TabItem>
 <TabItem label="MySQL">
-  ```code
+  ```bash
   $ az login -u ad-admin@example.com
   $ export TOKEN=`az account get-access-token --resource-type oss-rdbms --output tsv --query accessToken`
   $ mysql -h example.mysql.database.azure.com -P 3306 -u ad@example.com@instance-name --enable-cleartext-plugin --password=$TOKEN
@@ -287,10 +227,8 @@ You can create multiple database users for the same service principal.
 
 ## Step 4/4. Connect
 
-Log in to your Teleport cluster. Your Azure database should appear in the list of
+Log into your Teleport cluster. Your Azure database should appear in the list of
 available databases:
-
-<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -300,28 +238,25 @@ $ tsh db ls
 # azure-db                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+Fetch short-lived client certificate for it using `tsh db login` command:
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
-$ tsh db ls
-# Name     Description         Labels
-# -------- ------------------- -------
-# azure-db                     env=dev
+$ tsh db login --db-user=teleport azure-db
 ```
 
-</ScopedBlock>
+<Admonition type="tip">
+  You can be logged into multiple databases simultaneously.
+</Admonition>
 
-To retrieve credentials for a database and connect to it:
+Now connect to the database:
 
 ```code
-$ tsh db connect --db-user=teleport azure-db
+$ tsh db connect azure-db
 ```
 
 <Admonition type="note">
   The appropriate database command-line client (`psql`, `mysql`) should be
-  available in the `PATH` of the machine you're running `tsh db connect` from.
+  available in PATH of the machine you're running `tsh db connect` from.
 </Admonition>
 
 To log out of the database and remove credentials:

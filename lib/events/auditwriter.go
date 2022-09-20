@@ -18,7 +18,6 @@ package events
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
@@ -86,12 +85,6 @@ type AuditWriterConfig struct {
 	// Component is a component used for logging
 	Component string
 
-	// MakeEvents converts bytes written via the io.Writer interface
-	// into AuditEvents that are written to the stream.
-	// For backwards compatibility, AuditWriter will convert bytes to
-	// SessionPrint events when MakeEvents is not provided.
-	MakeEvents func([]byte) []apievents.AuditEvent
-
 	// Streamer is used to create and resume audit streams
 	Streamer Streamer
 
@@ -146,35 +139,7 @@ func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 	if cfg.BackoffDuration == 0 {
 		cfg.BackoffDuration = defaults.NetworkBackoffDuration
 	}
-	if cfg.MakeEvents == nil {
-		cfg.MakeEvents = bytesToSessionPrintEvents
-	}
 	return nil
-}
-
-func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
-	start := time.Now().UTC().Round(time.Millisecond)
-	var result []apievents.AuditEvent
-	for len(b) != 0 {
-		printEvent := &apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: SessionPrintEvent,
-				Time: start,
-			},
-			Data: b,
-		}
-		if printEvent.Size() > MaxProtoMessageSizeBytes {
-			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
-			printEvent.Data = b[:extraBytes]
-			printEvent.Bytes = int64(len(printEvent.Data))
-			b = b[extraBytes:]
-		} else {
-			printEvent.Bytes = int64(len(printEvent.Data))
-			b = nil
-		}
-		result = append(result, printEvent)
-	}
-	return result
 }
 
 // AuditWriter wraps session stream
@@ -229,7 +194,6 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 	if !a.cfg.RecordOutput {
 		return len(data), nil
 	}
-
 	// buffer is copied here to prevent data corruption:
 	// io.Copy allocates single buffer and calls multiple writes in a loop
 	// Write is async, this can lead to cases when the buffer is re-used
@@ -237,14 +201,29 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 
-	events := a.cfg.MakeEvents(dataCopy)
-	for _, event := range events {
-		if err := a.EmitAuditEvent(a.cfg.Context, event); err != nil {
-			a.log.WithError(err).Errorf("failed to emit %T event", event)
+	start := time.Now().UTC().Round(time.Millisecond)
+	for len(dataCopy) != 0 {
+		printEvent := &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: SessionPrintEvent,
+				Time: start,
+			},
+			Data: dataCopy,
+		}
+		if printEvent.Size() > MaxProtoMessageSizeBytes {
+			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
+			printEvent.Data = dataCopy[:extraBytes]
+			printEvent.Bytes = int64(len(printEvent.Data))
+			dataCopy = dataCopy[extraBytes:]
+		} else {
+			printEvent.Bytes = int64(len(printEvent.Data))
+			dataCopy = nil
+		}
+		if err := a.EmitAuditEvent(a.cfg.Context, printEvent); err != nil {
+			a.log.WithError(err).Error("Failed to emit session print event.")
 			return 0, trace.Wrap(err)
 		}
 	}
-
 	return len(data), nil
 }
 
@@ -301,7 +280,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	// in flowcontrol.go, trying to get quota:
 	// https://github.com/grpc/grpc-go/blob/a906ca0441ceb1f7cd4f5c7de30b8e81ce2ff5e8/internal/transport/flowcontrol.go#L60
 
-	// If backoff is in effect, lose event, return right away
+	// If backoff is in effect, loose event, return right away
 	if isBackoff := a.checkAndResetBackoff(a.cfg.Clock.Now()); isBackoff {
 		a.lostEvents.Inc()
 		return nil
@@ -358,7 +337,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		return nil
 	case <-t.C:
 		if setBackoff := a.maybeSetBackoff(a.cfg.Clock.Now().UTC().Add(a.cfg.BackoffDuration)); setBackoff {
-			a.log.Errorf("Audit write timed out after %v. Will be losing events for the next %v.", a.cfg.BackoffTimeout, a.cfg.BackoffDuration)
+			a.log.Errorf("Audit write timed out after %v. Will be loosing events for the next %v.", a.cfg.BackoffTimeout, a.cfg.BackoffDuration)
 		}
 		a.lostEvents.Inc()
 		return nil
@@ -415,8 +394,6 @@ func (a *AuditWriter) Complete(ctx context.Context) error {
 }
 
 func (a *AuditWriter) processEvents() {
-	defer a.cancel()
-
 	for {
 		// From the spec:
 		//
@@ -442,29 +419,22 @@ func (a *AuditWriter) processEvents() {
 		case event := <-a.eventsCh:
 			a.buffer = append(a.buffer, event)
 			err := a.stream.EmitAuditEvent(a.cfg.Context, event)
-			if err != nil {
-				if IsPermanentEmitError(err) {
-					a.log.WithError(err).WithField("event", event).Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
-					continue
-				}
-
-				if isUnrecoverableError(err) {
-					a.log.WithError(err).Debug("Failed to emit audit event.")
-					return
-				}
-
-				a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
-				start := time.Now()
-				if err := a.recoverStream(); err != nil {
-					a.log.WithError(err).Warningf("Failed to recover stream.")
-					return
-				}
-				a.log.Debugf("Recovered stream in %v.", time.Since(start))
+			if err == nil {
+				continue
 			}
+			a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
+			start := time.Now()
+			if err := a.recoverStream(); err != nil {
+				a.log.WithError(err).Warningf("Failed to recover stream.")
+				a.cancel()
+				return
+			}
+			a.log.Debugf("Recovered stream in %v.", time.Since(start))
 		case <-a.stream.Done():
 			a.log.Debugf("Stream was closed by the server, attempting to recover.")
 			if err := a.recoverStream(); err != nil {
 				a.log.WithError(err).Warningf("Failed to recover stream.")
+				a.cancel()
 				return
 			}
 		case <-a.closeCtx.Done():
@@ -472,40 +442,6 @@ func (a *AuditWriter) processEvents() {
 			return
 		}
 	}
-}
-
-// IsPermanentEmitError checks if the error contains underlying BadParameter error.
-func IsPermanentEmitError(err error) bool {
-	var (
-		maxDeep            = 50
-		iter               = 0
-		isPerErrRecurCheck func(error) bool
-	)
-
-	isPerErrRecurCheck = func(err error) bool {
-		defer func() { iter++ }()
-		if iter >= maxDeep {
-			return false
-		}
-
-		if trace.IsBadParameter(err) {
-			return true
-		}
-		if !trace.IsAggregate(err) {
-			return false
-		}
-		agg, ok := trace.Unwrap(err).(trace.Aggregate)
-		if !ok {
-			return false
-		}
-		for _, err := range agg.Errors() {
-			if !isPerErrRecurCheck(err) {
-				return false
-			}
-		}
-		return true
-	}
-	return isPerErrRecurCheck(err)
 }
 
 func (a *AuditWriter) recoverStream() error {
@@ -537,10 +473,7 @@ func (a *AuditWriter) closeStream(stream apievents.Stream) {
 }
 
 func (a *AuditWriter) completeStream(stream apievents.Stream) {
-	// Cannot use the configured context because it's the server's and when the server
-	// is requested to close (and hence the context is canceled), the stream will not be able
-	// to complete
-	ctx, cancel := context.WithTimeout(context.Background(), defaults.NetworkBackoffDuration)
+	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkBackoffDuration)
 	defer cancel()
 	if err := stream.Complete(ctx); err != nil {
 		a.log.WithError(err).Warning("Failed to complete stream.")
@@ -590,11 +523,6 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 				return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 			}
 		}
-
-		if isUnrecoverableError(err) {
-			return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
-		}
-
 		select {
 		case <-retry.After():
 			a.log.WithError(err).Debug("Retrying to resume stream after backoff.")
@@ -658,17 +586,4 @@ func (a *AuditWriter) setupEvent(event apievents.AuditEvent) error {
 	}
 	a.lastPrintEvent = printEvent
 	return nil
-}
-
-func diff(before, after time.Time) int64 {
-	d := int64(after.Sub(before) / time.Millisecond)
-	if d < 0 {
-		return 0
-	}
-	return d
-}
-
-// isUnrecoverableError returns if the provided stream error is unrecoverable.
-func isUnrecoverableError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }

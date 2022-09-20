@@ -3,26 +3,18 @@ title: Database Access
 description: Teleport Database Access introduction, demo and resources.
 ---
 
-Teleport can provide secure connections to you databases while improving both access
-control and visibility.
+# Database Access
+
+Teleport can provide secure access to PostgreSQL, MySQL and MongoDB databases,
+while improving both access control and visibility.
 
 Some of the things you can do with Database Access:
 
 - Users can retrieve short-lived database certificates using single sign-on
   flow thus maintaining their organization-wide identity.
 - Configure role-based access controls for databases and implement custom
-  [Access Request](../access-controls/access-requests.mdx) workflows.
+  [access request](../enterprise/workflow/index.mdx) workflows.
 - Capture database access events as well as query activity in the audit log.
-
-Database Access currently supports the following databases:
-
-- PostgreSQL
-- MySQL
-- MariaDB
-- MongoDB
-- Redis
-- CockroachDB
-- Microsoft SQL Server
 
 ## Demo
 
@@ -53,7 +45,59 @@ with GitHub, execute a few SQL queries and observe them in the audit log:
 
 - [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10 minute guide.
 
-(!docs/pages/includes/database-access/guides.mdx!)
+## Cloud-hosted guides
+
+<TileSet>
+  <Tile icon="cloud" title="AWS RDS & Aurora" href="./guides/rds.mdx">
+    Connect AWS RDS or Aurora PostgreSQL or MySQL database.
+  </Tile>
+  <Tile icon="cloud" title="AWS Redshift" href="./guides/postgres-redshift.mdx">
+    Connect AWS Redshift database.
+  </Tile>
+  <Tile icon="cloud" title="GCP Cloud SQL PostgreSQL" href="./guides/postgres-cloudsql.mdx">
+    Connect GCP Cloud SQL PostgreSQL database.
+  </Tile>
+  <Tile icon="cloud" title="GCP Cloud SQL MySQL" href="./guides/mysql-cloudsql.mdx">
+    Connect GCP Cloud SQL MySQL database.
+  </Tile>
+  <Tile icon="cloud" title="Azure PostgreSQL & MySQL" href="./guides/azure-postgres-mysql.mdx">
+    Connect Azure PostgreSQL or MySQL.
+  </Tile>
+  <Tile icon="cloud" title="MongoDB Atlas" href="./guides/mongodb-atlas.mdx">
+    Connect MongoDB Atlas cluster.
+  </Tile>
+</TileSet>
+
+## Self-hosted guides
+
+<TileSet>
+  <Tile icon="database" title="Self-hosted PostgreSQL" href="./guides/postgres-self-hosted.mdx">
+    Connect self-hosted PostgreSQL database.
+  </Tile>
+  <Tile icon="database" title="Self-hosted MySQL" href="./guides/mysql-self-hosted.mdx">
+    Connect self-hosted MySQL database.
+  </Tile>
+  <Tile icon="database" title="Self-hosted MongoDB" href="./guides/mongodb-self-hosted.mdx">
+    Connect self-hosted MongoDB database.
+  </Tile>
+  <Tile icon="database" title="Self-hosted CockroachDB" href="./guides/cockroachdb-self-hosted.mdx">
+    Connect self-hosted CockroachDB database.
+  </Tile>
+</TileSet>
+
+## General guides
+
+<TileSet>
+  <Tile icon="window" title="GUI clients" href="./guides/gui-clients.mdx">
+    Configure database graphical clients.
+  </Tile>
+  <Tile icon="wrench" title="Dynamic Registration" href="./guides/dynamic-registration.mdx">
+    Register/unregister databases without restarting Teleport.
+  </Tile>
+  <Tile icon="integrations" title="High Availability" href="./guides/ha.mdx">
+    Deploy database access in HA configuration.
+  </Tile>
+</TileSet>
 
 ## Resources
 

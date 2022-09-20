@@ -79,8 +79,6 @@ func (l *Backend) removeExpiredKeys() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer q.Close()
-
 		rows, err := q.QueryContext(l.ctx, now, l.BufferSize)
 		if err != nil {
 			return trace.Wrap(err)
@@ -112,8 +110,6 @@ func (l *Backend) removeOldEvents() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer stmt.Close()
-
 		_, err = stmt.ExecContext(l.ctx, expiryTime)
 		if err != nil {
 			return trace.Wrap(err)
@@ -131,8 +127,6 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			defer q.Close()
-
 			row := q.QueryRow()
 			prevRowID := rowid
 			if err := row.Scan(&rowid); err != nil {
@@ -153,6 +147,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 			return rowid, trace.Wrap(err)
 		}
 		l.Debugf("Initialized event ID iterator to %v", rowid)
+		l.signalWatchStart()
 		l.buf.SetInit()
 	}
 
@@ -164,7 +159,6 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer q.Close()
 		limit := l.BufferSize / 2
 		if limit <= 0 {
 			limit = 1

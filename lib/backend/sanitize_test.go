@@ -88,7 +88,9 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
-type nopBackend struct{}
+type nopBackend struct {
+	NoMigrations
+}
 
 func (n *nopBackend) Get(_ context.Context, _ []byte) (*Item, error) {
 	return &Item{}, nil

@@ -31,14 +31,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// HeartbeatI abstracts over the basic interfact of Heartbeat and HeartbeatV2. This can be removed
-// once we've fully transitioned to HeartbeatV2.
-type HeartbeatI interface {
-	Run() error
-	Close() error
-	ForceSend(timeout time.Duration) error
-}
-
 // KeepAliveState represents state of the heartbeat
 type KeepAliveState int
 
@@ -290,7 +282,7 @@ func (h *Heartbeat) Run() error {
 }
 
 // Close closes all timers and goroutines,
-// note that this function is equivalent of canceling
+// note that this function is equivalent of cancelling
 // of the context passed in configuration and can be
 // used interchangeably
 func (h *Heartbeat) Close() error {
@@ -444,32 +436,19 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		case HeartbeatModeKube:
-			var (
-				keepAlive *types.KeepAlive
-				err       error
-			)
-
-			switch current := h.current.(type) {
-			case types.KubeServer:
-				keepAlive, err = h.Announcer.UpsertKubernetesServer(h.cancelCtx, current)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			default:
-				return trace.BadParameter("expected types.KubeServer, got %#v", h.current)
+			kube, ok := h.current.(types.Server)
+			if !ok {
+				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-
-			h.notifySend()
-			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
+			err := h.Announcer.UpsertKubeService(h.cancelCtx, kube)
 			if err != nil {
-				h.reset(HeartbeatStateInit)
+				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+				h.setState(HeartbeatStateAnnounceWait)
 				return trace.Wrap(err)
 			}
 			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
-			h.nextKeepAlive = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
-			h.keepAlive = keepAlive
-			h.keepAliver = keepAliver
-			h.setState(HeartbeatStateKeepAliveWait)
+			h.notifySend()
+			h.setState(HeartbeatStateAnnounceWait)
 			return nil
 		case HeartbeatModeApp:
 			var keepAlive *types.KeepAlive

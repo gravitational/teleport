@@ -20,11 +20,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Proxy defines an interface a database proxy should implement.
@@ -34,53 +30,18 @@ type Proxy interface {
 	HandleConnection(context.Context, net.Conn) error
 }
 
-// ConnectParams keeps parameters used when connecting to Service.
-type ConnectParams struct {
-	// User is a database username.
-	User string
-	// Database is a database name/schema.
-	Database string
-	// ClientIP is a client real IP. Currently, used for rate limiting.
-	ClientIP string
-}
-
 // Service defines an interface for connecting to a remote database service.
 type Service interface {
-	// Authorize authorizes the provided client TLS connection.
-	Authorize(ctx context.Context, tlsConn utils.TLSConn, params ConnectParams) (*ProxyContext, error)
 	// Connect is used to connect to remote database server over reverse tunnel.
-	Connect(ctx context.Context, proxyCtx *ProxyContext) (net.Conn, error)
+	Connect(ctx context.Context, user, database string) (net.Conn, *auth.Context, error)
 	// Proxy starts proxying between client and service connections.
-	Proxy(ctx context.Context, proxyCtx *ProxyContext, clientConn, serviceConn net.Conn) error
-}
-
-// ProxyContext contains parameters for a database session being proxied.
-type ProxyContext struct {
-	// Identity is the authorized client Identity.
-	Identity tlsca.Identity
-	// Cluster is the remote Cluster running the database server.
-	Cluster reversetunnel.RemoteSite
-	// Servers is a list of database Servers that proxy the requested database.
-	Servers []types.DatabaseServer
-	// AuthContext is a context of authenticated user.
-	AuthContext *auth.Context
+	Proxy(ctx context.Context, authContext *auth.Context, clientConn, serviceConn net.Conn) error
 }
 
 // Engine defines an interface for specific database protocol engine such
 // as Postgres or MySQL.
 type Engine interface {
-	// InitializeConnection initializes the client connection. No DB connection is made at this point, but a message
-	// can be sent to a client in a database format.
-	InitializeConnection(clientConn net.Conn, sessionCtx *Session) error
-	// SendError sends an error to a client in database encoded format.
-	// NOTE: Client connection must be initialized before this function is called.
-	SendError(error)
 	// HandleConnection proxies the connection received from the proxy to
 	// the particular database instance.
-	HandleConnection(context.Context, *Session) error
-}
-
-// Users defines an interface for managing database users.
-type Users interface {
-	GetPassword(ctx context.Context, database types.Database, userName string) (string, error)
+	HandleConnection(context.Context, *Session, net.Conn) error
 }

@@ -18,21 +18,20 @@ package events
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -42,21 +41,18 @@ type UploadCompleterConfig struct {
 	AuditLog IAuditLog
 	// Uploader allows the completer to list and complete uploads
 	Uploader MultipartUploader
-	// SessionTracker is used to discover the current state of a
-	// sesssions with active uploads.
-	SessionTracker services.SessionTrackerService
+	// GracePeriod is the period after which uploads are considered
+	// abandoned and will be completed
+	GracePeriod time.Duration
 	// Component is a component used in logging
 	Component string
 	// CheckPeriod is a period for checking the upload
 	CheckPeriod time.Duration
 	// Clock is used to override clock in tests
 	Clock clockwork.Clock
-	// DELETE IN 11.0.0 in favor of SessionTrackerService
-	// GracePeriod is the period after which an upload's session
-	// tracker will be check to see if it's an abandoned upload.
-	GracePeriod time.Duration
-	// ClusterName identifies the originating teleport cluster
-	ClusterName string
+	// Unstarted does not start automatic goroutine,
+	// is useful when completer is embedded in another function
+	Unstarted bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -64,17 +60,14 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	if cfg.Uploader == nil {
 		return trace.BadParameter("missing parameter Uploader")
 	}
-	if cfg.SessionTracker == nil {
-		return trace.BadParameter("missing parameter SessionTracker")
-	}
-	if cfg.ClusterName == "" {
-		return trace.BadParameter("missing parameter ClusterName")
+	if cfg.GracePeriod == 0 {
+		cfg.GracePeriod = defaults.UploadGracePeriod
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
 	}
 	if cfg.CheckPeriod == 0 {
-		cfg.CheckPeriod = defaults.AbandonedUploadPollingRate
+		cfg.CheckPeriod = defaults.LowResPollingPeriod
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -82,47 +75,37 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewUploadCompleter returns a new UploadCompleter.
+// NewUploadCompleter returns a new instance of the upload completer
+// the completer has to be closed to release resources and goroutines
 func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	u := &UploadCompleter{
 		cfg: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(cfg.Component, "completer"),
 		}),
-		closeC: make(chan struct{}),
+		cancel:   cancel,
+		closeCtx: ctx,
+	}
+	if !cfg.Unstarted {
+		go u.run()
 	}
 	return u, nil
-}
-
-// StartNewUploadCompleter starts an upload completer background process that will
-// will close once the provided ctx is closed.
-func StartNewUploadCompleter(ctx context.Context, cfg UploadCompleterConfig) error {
-	uc, err := NewUploadCompleter(cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go uc.Serve(ctx)
-	return nil
 }
 
 // UploadCompleter periodically scans uploads that have not been completed
 // and completes them
 type UploadCompleter struct {
-	cfg    UploadCompleterConfig
-	log    *log.Entry
-	closeC chan struct{}
+	cfg      UploadCompleterConfig
+	log      *log.Entry
+	cancel   context.CancelFunc
+	closeCtx context.Context
 }
 
-// Close stops the UploadCompleter
-func (u *UploadCompleter) Close() {
-	close(u.closeC)
-}
-
-// Serve runs the upload completer until closed or until ctx is canceled.
-func (u *UploadCompleter) Serve(ctx context.Context) error {
+func (u *UploadCompleter) run() {
 	periodic := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
 		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
@@ -133,58 +116,28 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.checkUploads(ctx); err != nil {
+			if err := u.CheckUploads(u.closeCtx); err != nil {
 				u.log.WithError(err).Warningf("Failed to check uploads.")
 			}
-		case <-u.closeC:
-			return nil
-		case <-ctx.Done():
-			return nil
+		case <-u.closeCtx.Done():
+			return
 		}
 	}
 }
 
-// checkUploads fetches uploads and completes any abandoned uploads
-func (u *UploadCompleter) checkUploads(ctx context.Context) error {
+// CheckUploads fetches uploads, checks if any uploads exceed grace period
+// and completes unfinished uploads
+func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	completed := 0
-	defer func() {
-		if completed > 0 {
-			u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)
-		}
-	}()
-
-	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
-		// DELETE IN 11.0.0
-		// To support v9/v8 versions which do not use SessionTrackerService,
-		// sessions are only considered abandoned after the provided grace period.
-		if u.cfg.GracePeriod != 0 {
-			gracePoint := upload.Initiated.Add(u.cfg.GracePeriod)
-			if gracePoint.After(u.cfg.Clock.Now()) {
-				// uploads are ordered oldest to newest, stop checking
-				// once an upload doesn't exceed the grace point
-				return nil
-			}
+		gracePoint := upload.Initiated.Add(u.cfg.GracePeriod)
+		if !gracePoint.Before(u.cfg.Clock.Now()) {
+			return nil
 		}
-
-		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
-		case err == nil: // session is still in progress, continue to other uploads
-			continue
-		case trace.IsNotFound(err): // upload abandoned, complete upload
-		case trace.IsAccessDenied(err): // upload abandoned, complete upload
-			// Treat access denied errors as not found errors, since we expect
-			// to get them if the auth server is v9.2.3 or earlier, since only
-			// node, proxy, and kube roles had permissions to create trackers.
-			// DELETE IN 11.0.0
-		default: // aka err != nil
-			return trace.Wrap(err)
-		}
-
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -194,7 +147,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		u.log.Debugf("Upload %v was abandoned, trying to complete.", upload.ID)
+		u.log.Debugf("Upload %v grace period is over. Trying to complete.", upload.ID)
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); err != nil {
 			return trace.Wrap(err)
 		}
@@ -226,7 +179,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-u.cfg.Clock.After(2 * time.Minute):
+			case <-time.After(2 * time.Minute):
 				u.log.Debugf("checking for session end event for session %v", upload.SessionID)
 				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
 					u.log.WithError(err).Warningf("failed to ensure session end event for session %v", upload.SessionID)
@@ -235,12 +188,11 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		}()
 		session := &events.SessionUpload{
 			Metadata: events.Metadata{
-				Type:        SessionUploadEvent,
-				Code:        SessionUploadCode,
-				Time:        u.cfg.Clock.Now().UTC(),
-				ID:          uuid.New().String(),
-				Index:       SessionUploadIndex,
-				ClusterName: u.cfg.ClusterName,
+				Type:  SessionUploadEvent,
+				Code:  SessionUploadCode,
+				Time:  u.cfg.Clock.Now().UTC(),
+				ID:    uuid.New(),
+				Index: SessionUploadIndex,
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
@@ -252,105 +204,104 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+	if completed > 0 {
+		u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)
+	}
+	return nil
+}
+
+// Close closes all outstanding operations without waiting
+func (u *UploadCompleter) Close() error {
+	u.cancel()
 	return nil
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
-	// at this point, we don't know whether we'll need to emit a session.end or a
-	// windows.desktop.session.end, but as soon as we see the session start we'll
-	// be able to start filling in the details
-	var sshSessionEnd events.SessionEnd
-	var desktopSessionEnd events.WindowsDesktopSessionEnd
+	var serverID, clusterName, user, login, hostname, namespace, serverAddr string
+	var interactive bool
 
-	// We use the streaming events API to search through the session events, because it works
-	// for both Desktop and SSH sessions, where as the GetSessionEvents API relies on downloading
-	// a copy of the session and using the SSH-specific index to iterate through events.
-	var lastEvent events.AuditEvent
-	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
+	// Get session events to find fields for constructed session end
+	sessionEvents, err := u.cfg.AuditLog.GetSessionEvents(apidefaults.Namespace, uploadData.SessionID, 0, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(sessionEvents) == 0 {
+		return nil
+	}
 
-loop:
-	for {
-		select {
-		case evt, more := <-evts:
-			if !more {
-				break loop
-			}
-
-			lastEvent = evt
-
-			switch e := evt.(type) {
-			// Return if session end event already exists
-			case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
-				return nil
-
-			case *events.WindowsDesktopSessionStart:
-				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
-				desktopSessionEnd.Code = DesktopSessionEndCode
-				desktopSessionEnd.ClusterName = e.ClusterName
-				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.User)
-				desktopSessionEnd.Recorded = true
-				desktopSessionEnd.UserMetadata = e.UserMetadata
-				desktopSessionEnd.SessionMetadata = e.SessionMetadata
-				desktopSessionEnd.WindowsDesktopService = e.WindowsDesktopService
-				desktopSessionEnd.Domain = e.Domain
-				desktopSessionEnd.DesktopAddr = e.DesktopAddr
-				desktopSessionEnd.DesktopLabels = e.DesktopLabels
-				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
-
-			case *events.SessionStart:
-				sshSessionEnd.Type = SessionEndEvent
-				sshSessionEnd.Code = SessionEndCode
-				sshSessionEnd.ClusterName = e.ClusterName
-				sshSessionEnd.StartTime = e.Time
-				sshSessionEnd.UserMetadata = e.UserMetadata
-				sshSessionEnd.SessionMetadata = e.SessionMetadata
-				sshSessionEnd.ServerMetadata = e.ServerMetadata
-				sshSessionEnd.ConnectionMetadata = e.ConnectionMetadata
-				sshSessionEnd.KubernetesClusterMetadata = e.KubernetesClusterMetadata
-				sshSessionEnd.KubernetesPodMetadata = e.KubernetesPodMetadata
-				sshSessionEnd.InitialCommand = e.InitialCommand
-				sshSessionEnd.SessionRecording = e.SessionRecording
-				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
-
-			case *events.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
-			}
-
-		case err := <-errors:
-			return trace.Wrap(err)
-		case <-ctx.Done():
-			return ctx.Err()
+	// Return if session.end event already exists
+	for _, event := range sessionEvents {
+		if event.GetType() == SessionEndEvent {
+			return nil
 		}
 	}
 
-	if lastEvent == nil {
-		return trace.Errorf("could not find any events for session %v", uploadData.SessionID)
+	// Session start event is the first of session events
+	sessionStart := sessionEvents[0]
+	if sessionStart.GetType() != SessionStartEvent {
+		return trace.BadParameter("invalid session, session start is not the first event")
 	}
 
-	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
-	sshSessionEnd.EndTime = lastEvent.GetTime()
-	desktopSessionEnd.EndTime = lastEvent.GetTime()
-
-	var sessionEndEvent events.AuditEvent
-	switch {
-	case sshSessionEnd.Code != "":
-		sessionEndEvent = &sshSessionEnd
-	case desktopSessionEnd.Code != "":
-		sessionEndEvent = &desktopSessionEnd
-	default:
-		return trace.BadParameter("invalid session, could not find session start")
+	// Set variables
+	serverID = sessionStart.GetString(SessionServerHostname)
+	clusterName = sessionStart.GetString(SessionClusterName)
+	hostname = sessionStart.GetString(SessionServerHostname)
+	namespace = sessionStart.GetString(EventNamespace)
+	serverAddr = sessionStart.GetString(SessionServerAddr)
+	user = sessionStart.GetString(EventUser)
+	login = sessionStart.GetString(EventLogin)
+	if terminalSize := sessionStart.GetString(TerminalSize); terminalSize != "" {
+		interactive = true
 	}
 
-	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
+	// Get last event to get session end time
+	lastEvent := sessionEvents[len(sessionEvents)-1]
+
+	participants := getParticipants(sessionEvents)
+
+	sessionEndEvent := &events.SessionEnd{
+		Metadata: events.Metadata{
+			Type:        SessionEndEvent,
+			Code:        SessionEndCode,
+			ClusterName: clusterName,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        serverID,
+			ServerNamespace: namespace,
+			ServerHostname:  hostname,
+			ServerAddr:      serverAddr,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(uploadData.SessionID),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  user,
+			Login: login,
+		},
+		Participants: participants,
+		Interactive:  interactive,
+		StartTime:    sessionStart.GetTime(EventTime),
+		EndTime:      lastEvent.GetTime(EventTime),
+	}
 
 	// Check and set event fields
-	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {
+	if err = checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), clusterName); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
+	if err = u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func getParticipants(sessionEvents []EventFields) []string {
+	var participants []string
+	for _, event := range sessionEvents {
+		if event.GetType() == SessionJoinEvent || event.GetType() == SessionStartEvent {
+			participant := event.GetString(EventUser)
+			participants = append(participants, participant)
+
+		}
+	}
+	return apiutils.Deduplicate(participants)
 }

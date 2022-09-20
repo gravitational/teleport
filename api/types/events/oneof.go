@@ -131,10 +131,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessRequestCreate{
 			AccessRequestCreate: e,
 		}
-	case *AccessRequestResourceSearch:
-		out.Event = &OneOf_AccessRequestResourceSearch{
-			AccessRequestResourceSearch: e,
-		}
 	case *RoleCreate:
 		out.Event = &OneOf_RoleCreate{
 			RoleCreate: e,
@@ -191,10 +187,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionStart{
 			AppSessionStart: e,
 		}
-	case *AppSessionEnd:
-		out.Event = &OneOf_AppSessionEnd{
-			AppSessionEnd: e,
-		}
 	case *AppSessionChunk:
 		out.Event = &OneOf_AppSessionChunk{
 			AppSessionChunk: e,
@@ -238,26 +230,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *DatabaseSessionQuery:
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
-		}
-	case *PostgresParse:
-		out.Event = &OneOf_PostgresParse{
-			PostgresParse: e,
-		}
-	case *PostgresBind:
-		out.Event = &OneOf_PostgresBind{
-			PostgresBind: e,
-		}
-	case *PostgresExecute:
-		out.Event = &OneOf_PostgresExecute{
-			PostgresExecute: e,
-		}
-	case *PostgresClose:
-		out.Event = &OneOf_PostgresClose{
-			PostgresClose: e,
-		}
-	case *PostgresFunctionCall:
-		out.Event = &OneOf_PostgresFunctionCall{
-			PostgresFunctionCall: e,
 		}
 	case *SessionUpload:
 		out.Event = &OneOf_SessionUpload{
@@ -319,101 +291,13 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_CertificateCreate{
 			CertificateCreate: e,
 		}
-	case *DesktopRecording:
-		out.Event = &OneOf_DesktopRecording{
-			DesktopRecording: e,
-		}
-	case *DesktopClipboardReceive:
-		out.Event = &OneOf_DesktopClipboardReceive{
-			DesktopClipboardReceive: e,
-		}
-	case *DesktopClipboardSend:
-		out.Event = &OneOf_DesktopClipboardSend{
-			DesktopClipboardSend: e,
-		}
-	case *MySQLStatementPrepare:
-		out.Event = &OneOf_MySQLStatementPrepare{
-			MySQLStatementPrepare: e,
-		}
-	case *MySQLStatementExecute:
-		out.Event = &OneOf_MySQLStatementExecute{
-			MySQLStatementExecute: e,
-		}
-	case *MySQLStatementSendLongData:
-		out.Event = &OneOf_MySQLStatementSendLongData{
-			MySQLStatementSendLongData: e,
-		}
-	case *MySQLStatementClose:
-		out.Event = &OneOf_MySQLStatementClose{
-			MySQLStatementClose: e,
-		}
-	case *MySQLStatementReset:
-		out.Event = &OneOf_MySQLStatementReset{
-			MySQLStatementReset: e,
-		}
-	case *MySQLStatementFetch:
-		out.Event = &OneOf_MySQLStatementFetch{
-			MySQLStatementFetch: e,
-		}
-	case *MySQLStatementBulkExecute:
-		out.Event = &OneOf_MySQLStatementBulkExecute{
-			MySQLStatementBulkExecute: e,
-		}
-	case *MySQLInitDB:
-		out.Event = &OneOf_MySQLInitDB{
-			MySQLInitDB: e,
-		}
-	case *MySQLCreateDB:
-		out.Event = &OneOf_MySQLCreateDB{
-			MySQLCreateDB: e,
-		}
-	case *MySQLDropDB:
-		out.Event = &OneOf_MySQLDropDB{
-			MySQLDropDB: e,
-		}
-	case *MySQLShutDown:
-		out.Event = &OneOf_MySQLShutDown{
-			MySQLShutDown: e,
-		}
-	case *MySQLProcessKill:
-		out.Event = &OneOf_MySQLProcessKill{
-			MySQLProcessKill: e,
-		}
-	case *MySQLDebug:
-		out.Event = &OneOf_MySQLDebug{
-			MySQLDebug: e,
-		}
-	case *MySQLRefresh:
-		out.Event = &OneOf_MySQLRefresh{
-			MySQLRefresh: e,
-		}
-	case *SQLServerRPCRequest:
-		out.Event = &OneOf_SQLServerRPCRequest{
-			SQLServerRPCRequest: e,
-		}
-	case *DatabaseSessionMalformedPacket:
-		out.Event = &OneOf_DatabaseSessionMalformedPacket{
-			DatabaseSessionMalformedPacket: e,
-		}
-	case *RenewableCertificateGenerationMismatch:
-		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
-			RenewableCertificateGenerationMismatch: e,
-		}
 	case *SFTP:
 		out.Event = &OneOf_SFTP{
 			SFTP: e,
 		}
-	case *UpgradeWindowStartUpdate:
-		out.Event = &OneOf_UpgradeWindowStartUpdate{
-			UpgradeWindowStartUpdate: e,
-		}
 	case *SessionRecordingAccess:
 		out.Event = &OneOf_SessionRecordingAccess{
 			SessionRecordingAccess: e,
-		}
-	case *Unknown:
-		out.Event = &OneOf_Unknown{
-			Unknown: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

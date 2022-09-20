@@ -19,6 +19,8 @@ package ui
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -27,13 +29,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 const clusterName = "bench.example.com"
@@ -74,12 +77,16 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			var err error
 			if tt.memory {
 				bk, err = memory.New(memory.Config{})
-				require.NoError(b, err)
+				assert.NoError(b, err)
 			} else {
-				bk, err = memory.New(memory.Config{
-					Context: ctx,
+				dir, err := ioutil.TempDir("", "teleport")
+				assert.NoError(b, err)
+				defer os.RemoveAll(dir)
+
+				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+					Path: dir,
 				})
-				require.NoError(b, err)
+				assert.NoError(b, err)
 			}
 			defer bk.Close()
 
@@ -106,14 +113,14 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kind string, count int) {
+func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
 	for i := 0; i < count; i++ {
-		name := uuid.New().String()
+		name := uuid.New()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{
 			Kind:    kind,
@@ -138,9 +145,9 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 		case types.KindAuthServer:
 			err = svc.UpsertAuthServer(server)
 		default:
-			b.Errorf("Unexpected server kind: %s", kind)
+			t.Errorf("Unexpected server kind: %s", kind)
 		}
-		require.NoError(b, err)
+		assert.NoError(t, err)
 	}
 }
 
@@ -149,10 +156,10 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 	var err error
 	for i := 0; i < b.N; i++ {
 		cluster, err = GetClusterDetails(ctx, site, opts...)
-		require.NoError(b, err)
+		assert.NoError(b, err)
 	}
-	require.NotNil(b, cluster)
-	require.Equal(b, nodes, cluster.NodeCount)
+	assert.NotNil(b, cluster)
+	assert.Equal(b, nodes, cluster.NodeCount)
 }
 
 type mockRemoteSite struct {
@@ -181,8 +188,8 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	return m.presence.GetNodes(ctx, namespace)
+func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	return m.presence.GetNodes(ctx, namespace, opts...)
 }
 
 func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {

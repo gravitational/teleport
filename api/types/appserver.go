@@ -18,7 +18,6 @@ package types
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api"
@@ -29,8 +28,8 @@ import (
 
 // AppServer represents a single proxied web app.
 type AppServer interface {
-	// ResourceWithLabels provides common resource methods.
-	ResourceWithLabels
+	// Resource provides common resource methods.
+	Resource
 	// GetNamespace returns server namespace.
 	GetNamespace() string
 	// GetTeleportVersion returns the teleport version the server is running on.
@@ -51,8 +50,6 @@ type AppServer interface {
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
-	// ProxiedService provides common methods for a proxied service.
-	ProxiedService
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -256,66 +253,9 @@ func (s *AppServerV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Origin returns the origin value of the resource.
-func (s *AppServerV3) Origin() string {
-	return s.Metadata.Origin()
-}
-
-// SetOrigin sets the origin value of the resource.
-func (s *AppServerV3) SetOrigin(origin string) {
-	s.Metadata.SetOrigin(origin)
-}
-
-// GetProxyID returns a list of proxy ids this server is connected to.
-func (s *AppServerV3) GetProxyIDs() []string {
-	return s.Spec.ProxyIDs
-}
-
-// SetProxyID sets the proxy ids this server is connected to.
-func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
-	s.Spec.ProxyIDs = proxyIDs
-}
-
-// GetAllLabels returns all resource's labels. Considering:
-// * Static labels from `Metadata.Labels` and `Spec.App`.
-// * Dynamic labels from `Spec.App.Spec`.
-func (s *AppServerV3) GetAllLabels() map[string]string {
-	staticLabels := make(map[string]string)
-	for name, value := range s.Metadata.Labels {
-		staticLabels[name] = value
-	}
-
-	var dynamicLabels map[string]CommandLabelV2
-	if s.Spec.App != nil {
-		for name, value := range s.Spec.App.Metadata.Labels {
-			staticLabels[name] = value
-		}
-
-		dynamicLabels = s.Spec.App.Spec.DynamicLabels
-	}
-
-	return CombineLabels(staticLabels, dynamicLabels)
-}
-
-// GetStaticLabels returns the app server static labels.
-func (s *AppServerV3) GetStaticLabels() map[string]string {
-	return s.Metadata.Labels
-}
-
-// SetStaticLabels sets the app server static labels.
-func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
-	s.Metadata.Labels = sl
-}
-
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
 	return proto.Clone(s).(*AppServerV3)
-}
-
-// MatchSearch goes through select field values and tries to
-// match against the list of search values.
-func (s *AppServerV3) MatchSearch(values []string) bool {
-	return MatchSearch(nil, values, nil)
 }
 
 // AppServers represents a list of app servers.
@@ -326,76 +266,8 @@ func (s AppServers) Len() int { return len(s) }
 
 // Less compares app servers by name and host ID.
 func (s AppServers) Less(i, j int) bool {
-	switch {
-	case s[i].GetName() < s[j].GetName():
-		return true
-	case s[i].GetName() > s[j].GetName():
-		return false
-	default:
-		return s[i].GetHostID() < s[j].GetHostID()
-	}
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
 }
 
 // Swap swaps two app servers.
 func (s AppServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-
-// SortByCustom custom sorts by given sort criteria.
-func (s AppServers) SortByCustom(sortBy SortBy) error {
-	if sortBy.Field == "" {
-		return nil
-	}
-
-	// We assume sorting by type AppServer, we are really
-	// wanting to sort its contained resource Application.
-	isDesc := sortBy.IsDesc
-	switch sortBy.Field {
-	case ResourceMetadataName:
-		sort.SliceStable(s, func(i, j int) bool {
-			return stringCompare(s[i].GetApp().GetName(), s[j].GetApp().GetName(), isDesc)
-		})
-	case ResourceSpecDescription:
-		sort.SliceStable(s, func(i, j int) bool {
-			return stringCompare(s[i].GetApp().GetDescription(), s[j].GetApp().GetDescription(), isDesc)
-		})
-	case ResourceSpecPublicAddr:
-		sort.SliceStable(s, func(i, j int) bool {
-			return stringCompare(s[i].GetApp().GetPublicAddr(), s[j].GetApp().GetPublicAddr(), isDesc)
-		})
-	default:
-		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindAppServer)
-	}
-
-	return nil
-}
-
-// AsResources returns app servers as type resources with labels.
-func (s AppServers) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, 0, len(s))
-	for _, server := range s {
-		resources = append(resources, ResourceWithLabels(server))
-	}
-	return resources
-}
-
-// GetFieldVals returns list of select field values.
-func (s AppServers) GetFieldVals(field string) ([]string, error) {
-	vals := make([]string, 0, len(s))
-	switch field {
-	case ResourceMetadataName:
-		for _, server := range s {
-			vals = append(vals, server.GetApp().GetName())
-		}
-	case ResourceSpecDescription:
-		for _, server := range s {
-			vals = append(vals, server.GetApp().GetDescription())
-		}
-	case ResourceSpecPublicAddr:
-		for _, server := range s {
-			vals = append(vals, server.GetApp().GetPublicAddr())
-		}
-	default:
-		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindAppServer)
-	}
-
-	return vals, nil
-}

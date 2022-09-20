@@ -17,7 +17,7 @@ issues.
 In pre 4.3 implementation events were buffered on disk on proxies or nodes.
 This required encryption at rest, and allowed attackers to tamper
 with event data. Session recording was uploaded as a single tarball,
-auth server had to unpack the tarball in memory to validate its contents,
+auth server had to unpack the tarball in memory to validate it's contents,
 causing OOM and other performance issues. Events were not structured, and often
 clients were omitting and sending wrong fields not validated by the server.
 
@@ -84,7 +84,7 @@ type AuditEvent interface {
 Session events embed session metadata:
 
 ```
-// SessionMetadata is a common session event metadata
+// SesssionMetadata is a common session event metadata
 message SessionMetadata {
     // SessionID is a unique UUID of the session.
     string SessionID = 1;
@@ -117,7 +117,7 @@ event classes without casting to specific type:
 
 **Other event types**
 
-Other event types, such as events dealing with connections embed other metadata,
+Other event types, such as events dealing with connections embed other  metadata,
 for example connection metadata events:
 
 ```go
@@ -184,7 +184,7 @@ type MultipartUploader interface {
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
 	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
-	// ListUploads lists uploads that have been initiated but not completed with
+	// ListUploads lists uploads that have been initated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
 }

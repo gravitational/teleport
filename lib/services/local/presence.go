@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -46,15 +46,37 @@ type PresenceService struct {
 
 // backendItemToResourceFunc defines a function that unmarshals a
 // `backend.Item` into the implementation of `types.Resource`.
-type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels, error)
+type backendItemToResourceFunc func(item backend.Item) (types.Resource, error)
 
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
 		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
-		jitter:  utils.NewFullJitter(),
+		jitter:  utils.NewJitter(),
 		Backend: b,
 	}
+}
+
+const (
+	valPrefix = "val"
+)
+
+// UpsertLocalClusterName upserts local cluster name
+func (s *PresenceService) UpsertLocalClusterName(name string) error {
+	_, err := s.Put(context.TODO(), backend.Item{
+		Key:   backend.Key(localClusterPrefix, valPrefix),
+		Value: []byte(name),
+	})
+	return trace.Wrap(err)
+}
+
+// GetLocalClusterName upserts local domain
+func (s *PresenceService) GetLocalClusterName() (string, error) {
+	item, err := s.Get(context.TODO(), backend.Key(localClusterPrefix, valPrefix))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(item.Value), nil
 }
 
 // DeleteAllNamespaces deletes all namespaces
@@ -206,7 +228,7 @@ func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (
 }
 
 // GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+func (s *PresenceService) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
@@ -223,11 +245,9 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 		server, err := services.UnmarshalServer(
 			item.Value,
 			types.KindNode,
-			[]services.MarshalOption{
+			services.AddOptions(opts,
 				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires),
-			}...,
-		)
+				services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -235,6 +255,57 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 	}
 
 	return servers, nil
+}
+
+// ListNodes returns a paginated list of registered servers.
+// StartKey is a resource name, which is the suffix of its key.
+func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequest) (page []types.Server, nextKey string, err error) {
+	// NOTE: changes to the outward behavior of this method may require updating cache.Cache.ListNodes, since that method
+	// emulates this one but relies on a different implementation internally.
+	if req.Namespace == "" {
+		return nil, "", trace.BadParameter("missing namespace value")
+	}
+	limit := int(req.Limit)
+	if limit <= 0 {
+		return nil, "", trace.BadParameter("nonpositive limit value")
+	}
+
+	// Get all items in the bucket within the given range.
+	rangeStart := backend.Key(nodesPrefix, req.Namespace, req.StartKey)
+	keyPrefix := backend.Key(nodesPrefix, req.Namespace)
+	rangeEnd := backend.RangeEnd(keyPrefix)
+
+	var servers []types.Server
+	err = backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(servers) == limit {
+				break
+			}
+			server, err := services.UnmarshalServer(
+				item.Value,
+				types.KindNode,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires),
+			)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if server.MatchAgainst(req.Labels) {
+				servers = append(servers, server)
+			}
+		}
+		return len(servers) == limit, nil
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	// If a full page was filled, set nextKey using the last node.
+	if len(servers) == limit {
+		nextKey = backend.NextPaginationKey(servers[len(servers)-1])
+	}
+
+	return servers, nextKey, nil
 }
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
@@ -280,6 +351,43 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h types.KeepAlive) 
 		Key: backend.Key(nodesPrefix, h.Namespace, h.Name),
 	}, h.Expires)
 	return trace.Wrap(err)
+}
+
+// UpsertNodes is used for bulk insertion of nodes.
+func (s *PresenceService) UpsertNodes(namespace string, servers []types.Server) error {
+	batch, ok := s.Backend.(backend.Batch)
+	if !ok {
+		return trace.BadParameter("backend does not support batch interface")
+	}
+	if namespace == "" {
+		return trace.BadParameter("missing node namespace")
+	}
+
+	start := time.Now()
+
+	items := make([]backend.Item, len(servers))
+	for i, server := range servers {
+		value, err := services.MarshalServer(server)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		items[i] = backend.Item{
+			Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
+			Value:   value,
+			Expires: server.Expiry(),
+			ID:      server.GetResourceID(),
+		}
+	}
+
+	err := batch.PutRange(context.TODO(), items)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Debugf("UpsertNodes(%v) in %v", len(servers), time.Since(start))
+
+	return nil
 }
 
 // GetAuthServers returns a list of registered servers
@@ -689,10 +797,10 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 }
 
 // this combination of backoff parameters leads to worst-case total time spent
-// in backoff between 1ms and 2000ms depending on jitter.  tests are in
+// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
 // place to verify that this is sufficient to resolve a 20-lease contention
 // event, which is worse than should ever occur in practice.
-const baseBackoff = time.Millisecond * 400
+const baseBackoff = time.Millisecond * 300
 const leaseRetryAttempts int64 = 6
 
 // AcquireSemaphore attempts to acquire the specified semaphore.  AcquireSemaphore will automatically handle
@@ -710,7 +818,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 		return nil, trace.BadParameter("cannot acquire expired semaphore lease")
 	}
 
-	leaseID := uuid.New().String()
+	leaseID := uuid.New()
 
 	// key is not modified, so allocate it once
 	key := backend.Key(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
@@ -996,40 +1104,10 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 }
 
 // UpsertKubeService registers kubernetes service presence.
-// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2.
 func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Server) error {
 	// TODO(awly): verify that no other KubeService has the same kubernetes
 	// cluster names with different labels to avoid RBAC check confusion.
 	return s.upsertServer(ctx, kubeServicesPrefix, server)
-}
-
-// UpsertKubeServiceV2 registers kubernetes service presence.
-func (s *PresenceService) UpsertKubeServiceV2(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	value, err := services.MarshalServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lease, err := s.Put(ctx, backend.Item{
-		Key: backend.Key(kubeServicesPrefix,
-			server.GetName()),
-		Value:   value,
-		Expires: server.Expiry(),
-		ID:      server.GetResourceID(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if server.Expiry().IsZero() {
-		return &types.KeepAlive{}, nil
-	}
-	return &types.KeepAlive{
-		Type:    types.KeepAlive_KUBERNETES,
-		LeaseID: lease.ID,
-		Name:    server.GetName(),
-	}, nil
 }
 
 // GetKubeServices returns a list of registered kubernetes services.
@@ -1038,7 +1116,6 @@ func (s *PresenceService) GetKubeServices(ctx context.Context) ([]types.Server, 
 }
 
 // DeleteKubeService deletes a named kubernetes service.
-// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer.
 func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("no name specified for kubernetes service deletion")
@@ -1047,121 +1124,12 @@ func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) er
 }
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
-// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers.
 func (s *PresenceService) DeleteAllKubeServices(ctx context.Context) error {
 	return trace.Wrap(s.DeleteRange(
 		ctx,
 		backend.Key(kubeServicesPrefix),
 		backend.RangeEnd(backend.Key(kubeServicesPrefix)),
 	))
-}
-
-// UpsertKubernetesServer registers an kubernetes server.
-func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	value, err := services.MarshalKubeServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Since a kube server represents a single proxied cluster, there may
-	// be multiple kubernetes servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /kubeServers/<host-uuid>/<name>
-	lease, err := s.Put(ctx, backend.Item{
-		Key: backend.Key(kubeServersPrefix,
-			server.GetHostID(),
-			server.GetName()),
-		Value:   value,
-		Expires: server.Expiry(),
-		ID:      server.GetResourceID(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if server.Expiry().IsZero() {
-		return &types.KeepAlive{}, nil
-	}
-	return &types.KeepAlive{
-		Type:      types.KeepAlive_KUBERNETES,
-		LeaseID:   lease.ID,
-		Name:      server.GetName(),
-		Namespace: server.GetNamespace(),
-		HostID:    server.GetHostID(),
-		Expires:   server.Expiry(),
-	}, nil
-}
-
-// DeleteKubernetesServer removes specified kubernetes server.
-func (s *PresenceService) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	if name == "" {
-		return trace.BadParameter("no name specified for kubernetes server deletion")
-	}
-	if hostID == "" {
-		return trace.BadParameter("no hostID specified for kubernetes server deletion")
-	}
-	key := backend.Key(kubeServersPrefix, hostID, name)
-	return s.Delete(ctx, key)
-}
-
-// DeleteAllKubernetesServers removes all registered kubernetes servers.
-func (s *PresenceService) DeleteAllKubernetesServers(ctx context.Context) error {
-	startKey := backend.Key(kubeServersPrefix)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-}
-
-// GetKubernetesServers returns all registered kubernetes servers.
-func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	servers, err := s.getKubernetesServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	legacyServers, err := s.getKubernetesServersLegacy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return append(servers, legacyServers...), nil
-}
-
-func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	startKey := backend.Key(kubeServersPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]types.KubeServer, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalKubeServer(
-			item.Value,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-	return servers, nil
-}
-
-// getKubernetesServersLegacy fetches legacy kubernetes servers that are
-// represented by types.Server and adapts them to the types.KubeServer type.
-//
-// DELETE IN 13.0.
-func (s *PresenceService) getKubernetesServersLegacy(ctx context.Context) ([]types.KubeServer, error) {
-	legacyServers, err := s.GetKubeServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var servers []types.KubeServer
-	for _, legacyServer := range legacyServers {
-		kubeServers, err := types.NewKubeServersV3FromServer(legacyServer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers = append(servers, kubeServers...)
-	}
-	return servers, nil
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -1457,12 +1425,6 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		key = backend.Key(dbServersPrefix, h.Namespace, h.HostID, h.Name)
 	case constants.KeepAliveWindowsDesktopService:
 		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
-	case constants.KeepAliveKube:
-		if h.HostID != "" {
-			key = backend.Key(kubeServersPrefix, h.HostID, h.Name)
-		} else { // DELETE IN 13.0. Legacy kube server is heartbeating back.
-			key = backend.Key(kubeServicesPrefix, h.Name)
-		}
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
@@ -1553,52 +1515,13 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 
 // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopServicesPrefix, "")
+	startKey := backend.Key(windowsDesktopServicesPrefix)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
-// UpsertHostUserInteractionTime upserts a unix user's interaction time
-func (s *PresenceService) UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error {
-	val, err := utils.FastMarshal(loginTime.UTC())
-	if err != nil {
-		return err
-	}
-	_, err = s.Put(ctx, backend.Item{
-		Key:   backend.Key(loginTimePrefix, name),
-		Value: val,
-	})
-	return trace.Wrap(err)
-}
-
-// GetHostUserInteractionTime retrieves a unix user's interaction time
-func (s *PresenceService) GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error) {
-	item, err := s.Get(ctx, backend.Key(loginTimePrefix, name))
-	if err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	var t time.Time
-	if err := utils.FastUnmarshal(item.Value, &t); err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	return t, nil
-}
-
 // ListResources returns a paginated list of resources.
-// It implements various filtering for scenarios where the call comes directly
-// here (without passing through the RBAC).
-func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	switch {
-	case req.RequiresFakePagination():
-		return s.listResourcesWithSort(ctx, req)
-	default:
-		return s.listResources(ctx, req)
-	}
-}
-
-func (s *PresenceService) listResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (s *PresenceService) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.Resource, string, error) {
+	limit := int(req.Limit)
 
 	var keyPrefix []string
 	var unmarshalItemFunc backendItemToResourceFunc
@@ -1610,212 +1533,43 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindAppServer:
 		keyPrefix = []string{appServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToApplicationServer
-	case types.KindNode:
-		keyPrefix = []string{nodesPrefix, req.Namespace}
-		unmarshalItemFunc = backendItemToServer(types.KindNode)
-	case types.KindKubeService:
-		keyPrefix = []string{kubeServicesPrefix}
-		unmarshalItemFunc = backendItemToServer(types.KindKubeService)
-	case types.KindKubeServer:
-		keyPrefix = []string{kubeServersPrefix}
-		unmarshalItemFunc = backendItemToKubernetesServer
 	default:
-		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
+		return nil, "", trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
 
 	rangeStart := backend.Key(append(keyPrefix, req.StartKey)...)
 	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
-	filter := services.MatchResourceFilter{
-		ResourceKind:        req.ResourceType,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	// Get most limit+1 results to determine if there will be a next key.
-	reqLimit := int(req.Limit)
-	maxLimit := reqLimit + 1
-	var resources []types.ResourceWithLabels
-	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(resources) == maxLimit {
-				break
-			}
-
-			resource, err := unmarshalItemFunc(item)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-
-			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
-			case err != nil:
-				return false, trace.Wrap(err)
-			case match:
-				resources = append(resources, resource)
-			}
+	var resources []types.Resource
+	for _, item := range result.Items {
+		if len(resources) == limit {
+			break
 		}
 
-		return len(resources) == maxLimit, nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
+		resource, err := unmarshalItemFunc(item)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		resources = append(resources, resource)
 	}
 
 	var nextKey string
-	if len(resources) > reqLimit {
-		nextKey = backend.GetPaginationKey(resources[len(resources)-1])
-		// Truncate the last item that was used to determine next row existence.
-		resources = resources[:reqLimit]
+	if len(resources) == limit {
+		nextKey = backend.NextPaginationKey(resources[len(resources)-1])
 	}
 
-	return &types.ListResourcesResponse{
-		Resources: resources,
-		NextKey:   nextKey,
-	}, nil
-}
-
-// listResourcesWithSort supports sorting by falling back to retrieving all resources
-// with GetXXXs, filter, and then fake pagination.
-func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var resources []types.ResourceWithLabels
-	switch req.ResourceType {
-	case types.KindNode:
-		nodes, err := s.GetNodes(ctx, req.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		servers := types.Servers(nodes)
-		if err := servers.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = servers.AsResources()
-
-	case types.KindAppServer:
-		appservers, err := s.GetApplicationServers(ctx, req.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		servers := types.AppServers(appservers)
-		if err := servers.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = servers.AsResources()
-
-	case types.KindDatabaseServer:
-		dbservers, err := s.GetDatabaseServers(ctx, req.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		servers := types.DatabaseServers(dbservers)
-		if err := servers.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = servers.AsResources()
-
-	case types.KindKubernetesCluster:
-		// GetKubernetesServers returns KubernetesServersV3 and legacy kubernetes services of type ServerV2
-		kubeServers, err := s.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Extract kube clusters into its own list.
-		var clusters []types.KubeCluster
-		for _, svc := range kubeServers {
-			clusters = append(clusters, svc.GetCluster())
-		}
-
-		sortedClusters := types.KubeClusters(clusters)
-		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = sortedClusters.AsResources()
-	case types.KindKubeServer:
-		servers, err := s.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		kubeServers := types.KubeServers(servers)
-		if err := kubeServers.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = kubeServers.AsResources()
-
-	default:
-		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
-	}
-
-	return FakePaginate(resources, req)
-}
-
-// FakePaginate is used when we are working with an entire list of resources upfront but still requires pagination.
-// While applying filters, it will also deduplicate matches found.
-func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	limit := int(req.Limit)
-	var filtered []types.ResourceWithLabels
-	filter := services.MatchResourceFilter{
-		ResourceKind:        req.ResourceType,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
-	}
-
-	// Iterate and filter every resource, deduplicating while matching.
-	seenResourceMap := make(map[services.ResourceSeenKey]struct{})
-	for _, resource := range resources {
-		switch match, err := services.MatchResourceByFilters(resource, filter, seenResourceMap); {
-		case err != nil:
-			return nil, trace.Wrap(err)
-		case !match:
-			continue
-		}
-
-		filtered = append(filtered, resource)
-	}
-
-	totalCount := len(filtered)
-	pageStart := 0
-	pageEnd := limit
-
-	// Trim resources that precede start key.
-	if req.StartKey != "" {
-		for i, resource := range filtered {
-			if backend.GetPaginationKey(resource) == req.StartKey {
-				pageStart = i
-				break
-			}
-		}
-		pageEnd = limit + pageStart
-	}
-
-	var nextKey string
-	if pageEnd >= len(filtered) {
-		pageEnd = len(filtered)
-	} else {
-		nextKey = backend.GetPaginationKey(filtered[pageEnd])
-	}
-
-	return &types.ListResourcesResponse{
-		Resources:  filtered[pageStart:pageEnd],
-		NextKey:    nextKey,
-		TotalCount: totalCount,
-	}, nil
+	return resources, nextKey, nil
 }
 
 // backendItemToDatabaseServer unmarshals `backend.Item` into a
 // `types.DatabaseServer`, returning it as a `types.Resource`.
-func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, error) {
+func backendItemToDatabaseServer(item backend.Item) (types.Resource, error) {
 	return services.UnmarshalDatabaseServer(
 		item.Value,
 		services.WithResourceID(item.ID),
@@ -1825,7 +1579,7 @@ func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, e
 
 // backendItemToApplicationServer unmarshals `backend.Item` into a
 // `types.AppServer`, returning it as a `types.Resource`.
-func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
+func backendItemToApplicationServer(item backend.Item) (types.Resource, error) {
 	return services.UnmarshalAppServer(
 		item.Value,
 		services.WithResourceID(item.ID),
@@ -1833,46 +1587,21 @@ func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels
 	)
 }
 
-// backendItemToKubernetesServer unmarshals `backend.Item` into a
-// `types.KubeServer`, returning it as a `types.Resource`.
-func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels, error) {
-	return services.UnmarshalKubeServer(
-		item.Value,
-		services.WithResourceID(item.ID),
-		services.WithExpires(item.Expires),
-	)
-}
-
-// backendItemToServer returns `backendItemToResourceFunc` to unmarshal a
-// `backend.Item` into a `types.ServerV2` with a specific `kind`, returning it
-// as a `types.Resource`.
-func backendItemToServer(kind string) backendItemToResourceFunc {
-	return func(item backend.Item) (types.ResourceWithLabels, error) {
-		return services.UnmarshalServer(
-			item.Value, kind,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires),
-		)
-	}
-}
-
 const (
+	localClusterPrefix           = "localCluster"
 	reverseTunnelsPrefix         = "reverseTunnels"
 	tunnelConnectionsPrefix      = "tunnelConnections"
 	trustedClustersPrefix        = "trustedclusters"
 	remoteClustersPrefix         = "remoteClusters"
 	nodesPrefix                  = "nodes"
 	appsPrefix                   = "apps"
-	snowflakePrefix              = "snowflake"
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
 	appServersPrefix             = "appServers"
-	kubeServersPrefix            = "kubeServers"
 	namespacesPrefix             = "namespaces"
 	authServersPrefix            = "authservers"
 	proxiesPrefix                = "proxies"
 	semaphoresPrefix             = "semaphores"
 	kubeServicesPrefix           = "kubeServices"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
-	loginTimePrefix              = "hostuser_interaction_time"
 )

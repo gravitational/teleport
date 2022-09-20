@@ -22,54 +22,62 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/transport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
 )
 
-func TestCheckImpersonationPermissions(t *testing.T) {
+type AuthSuite struct{}
+
+var _ = check.Suite(AuthSuite{})
+
+func (s AuthSuite) TestCheckImpersonationPermissions(c *check.C) {
 	tests := []struct {
 		desc             string
 		sarErr           error
 		allowedVerbs     []string
 		allowedResources []string
-		errAssertion     require.ErrorAssertionFunc
+
+		wantErr bool
 	}{
 		{
-			desc:         "request failure",
-			sarErr:       errors.New("uh oh"),
-			errAssertion: require.Error,
+			desc:    "request failure",
+			sarErr:  errors.New("uh oh"),
+			wantErr: true,
 		},
 		{
 			desc:             "all permissions granted",
 			allowedVerbs:     []string{"impersonate"},
 			allowedResources: []string{"users", "groups", "serviceaccounts"},
-			errAssertion:     require.NoError,
+			wantErr:          false,
 		},
 		{
 			desc:             "missing some permissions",
 			allowedVerbs:     []string{"impersonate"},
 			allowedResources: []string{"users"},
-			errAssertion:     require.Error,
+			wantErr:          true,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Log(tt.desc)
+		c.Log(tt.desc)
 		mock := &mockSARClient{
 			err:              tt.sarErr,
 			allowedVerbs:     tt.allowedVerbs,
 			allowedResources: tt.allowedResources,
 		}
 		err := checkImpersonationPermissions(context.Background(), "test", mock)
-		tt.errAssertion(t, err)
+		if tt.wantErr {
+			c.Assert(err, check.NotNil)
+		} else {
+			c.Assert(err, check.IsNil)
+		}
 	}
 }
 

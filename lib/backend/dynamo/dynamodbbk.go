@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -38,9 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
-	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -125,10 +122,15 @@ func (cfg *Config) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	Config
-	svc     dynamodbiface.DynamoDBAPI
-	streams dynamodbstreamsiface.DynamoDBStreamsAPI
-	clock   clockwork.Clock
-	buf     *backend.CircularBuffer
+	backend.NoMigrations
+	svc              *dynamodb.DynamoDB
+	streams          *dynamodbstreams.DynamoDBStreams
+	clock            clockwork.Clock
+	buf              *backend.CircularBuffer
+	ctx              context.Context
+	cancel           context.CancelFunc
+	watchStarted     context.Context
+	signalWatchStart context.CancelFunc
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
 
@@ -202,22 +204,28 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
 
+	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
+
 	defer l.Debug("AWS session is created.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
-
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
 	)
+	closeCtx, cancel := context.WithCancel(ctx)
+	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
-		Entry:  l,
-		Config: *cfg,
-		clock:  clockwork.NewRealClock(),
-		buf:    buf,
+		Entry:            l,
+		Config:           *cfg,
+		clock:            clockwork.NewRealClock(),
+		buf:              buf,
+		ctx:              closeCtx,
+		cancel:           cancel,
+		watchStarted:     watchStarted,
+		signalWatchStart: signalWatchStart,
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -250,16 +258,8 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	b.session.Config.HTTPClient = httpClient
 
 	// create DynamoDB service:
-	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b.svc = svc
-	streams, err := dynamometrics.NewStreamsMetricsAPI(dynamometrics.Backend, dynamodbstreams.New(b.session))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b.streams = streams
+	b.svc = dynamodb.New(b.session)
+	b.streams = dynamodbstreams.New(b.session)
 
 	// check if the table exists?
 	ts, err := b.getTableStatus(ctx, b.TableName)
@@ -279,13 +279,13 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// Enable TTL on table.
-	err = TurnOnTimeToLive(ctx, b.svc, b.TableName, ttlKey)
+	err = b.turnOnTimeToLive(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Turn on DynamoDB streams, needed to implement events.
-	err = TurnOnStreams(ctx, b.svc, b.TableName)
+	err = b.turnOnStreams(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -510,7 +510,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		"#v": aws.String("Value"),
 	})
 	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
-		":prev": {
+		":prev": &dynamodb.AttributeValue{
 			B: expected.Value,
 		},
 	})
@@ -591,6 +591,7 @@ func (b *Backend) setClosed() {
 // and releases associated resources
 func (b *Backend) Close() error {
 	b.setClosed()
+	b.cancel()
 	return b.buf.Close()
 }
 

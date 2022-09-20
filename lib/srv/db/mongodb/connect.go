@@ -98,7 +98,7 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 			return connString
 		}),
 		topology.WithServerSelectionTimeout(func(time.Duration) time.Duration {
-			return common.DefaultMongoDBServerSelectionTimeout
+			return serverSelectionTimeout
 		}),
 		topology.WithServerOptions(func(so ...topology.ServerOption) []topology.ServerOption {
 			return serverOptions
@@ -202,3 +202,9 @@ func (h *handshaker) GetHandshakeInformation(context.Context, address.Address, d
 func (h *handshaker) FinishHandshake(context.Context, driver.Connection) error {
 	return nil
 }
+
+const (
+	// serverSelectionTimeout is the timeout for selecting a MongoDB server
+	// to connect to.
+	serverSelectionTimeout = 5 * time.Second
+)

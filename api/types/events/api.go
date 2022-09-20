@@ -49,7 +49,7 @@ type AuditEvent interface {
 
 	// GetType returns event type
 	GetType() string
-	// SetType sets unique type
+	// SetCode sets unique type
 	SetType(string)
 
 	// GetTime returns event time
@@ -73,7 +73,7 @@ type AuditEvent interface {
 
 // Emitter creates and manages audit log streams
 type Emitter interface {
-	// EmitAuditEvent emits a single audit event.
+	// Emit emits a single audit event
 	EmitAuditEvent(context.Context, AuditEvent) error
 }
 

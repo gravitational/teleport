@@ -22,10 +22,7 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jackc/pgproto3/v2"
 
@@ -46,8 +43,6 @@ type Proxy struct {
 	Service common.Service
 	// Log is used for logging.
 	Log logrus.FieldLogger
-	// Limiter limits the number of active connections per client IP.
-	Limiter *limiter.Limiter
 }
 
 // HandleConnection accepts connection from a Postgres client, authenticates
@@ -64,27 +59,11 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 			}
 		}
 	}()
-
-	clientIP, err := utils.ClientIPFromConn(clientConn)
+	ctx, err = p.Middleware.WrapContextWithUser(ctx, tlsConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Apply connection and rate limiting.
-	releaseConn, err := p.Limiter.RegisterRequestAndConnection(clientIP)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer releaseConn()
-
-	proxyCtx, err := p.Service.Authorize(ctx, tlsConn, common.ConnectParams{
-		ClientIP: clientIP,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
+	serviceConn, authContext, err := p.Service.Connect(ctx, "", "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -96,7 +75,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = p.Service.Proxy(ctx, proxyCtx, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, authContext, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -108,7 +87,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 //
 // Returns the startup message that contains initial connect parameters and
 // the upgraded TLS connection.
-func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgproto3.StartupMessage, utils.TLSConn, *pgproto3.Backend, error) {
+func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgproto3.StartupMessage, *tls.Conn, *pgproto3.Backend, error) {
 	// Backend acts as a server for the Postgres wire protocol.
 	backend := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 	startupMessage, err := backend.ReceiveStartupMessage()
@@ -126,36 +105,24 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 	// https://www.postgresql.org/docs/13/protocol-flow.html#id-1.10.5.7.11
 	switch m := startupMessage.(type) {
 	case *pgproto3.SSLRequest:
-		if p.TLSConfig == nil {
-			// Send 'N' back to make the client connect without TLS. Happens
-			// when client connects through the local TLS proxy.
-			_, err := clientConn.Write([]byte("N"))
-			if err != nil {
-				return nil, nil, nil, trace.Wrap(err)
-			}
-		} else {
-			// Send 'S' back to indicate TLS support to the client.
-			_, err := clientConn.Write([]byte("S"))
-			if err != nil {
-				return nil, nil, nil, trace.Wrap(err)
-			}
-			// Upgrade the connection to TLS and wait for the next message
-			// which should be of the StartupMessage type.
-			clientConn = tls.Server(clientConn, p.TLSConfig)
+		// Send 'S' back to indicate TLS support to the client.
+		_, err := clientConn.Write([]byte("S"))
+		if err != nil {
+			return nil, nil, nil, trace.Wrap(err)
 		}
+		// Upgrade the connection to TLS and wait for the next message
+		// which should be of the StartupMessage type.
+		clientConn = tls.Server(clientConn, p.TLSConfig)
 		return p.handleStartup(ctx, clientConn)
 	case *pgproto3.StartupMessage:
 		// TLS connection between the client and this proxy has been
 		// established, just return the startup message.
-		switch tlsConn := clientConn.(type) {
-		case *tls.Conn:
-			return m, tlsConn, backend, nil
-		case *alpnproxy.PingConn:
-			return m, tlsConn, backend, nil
-		default:
+		tlsConn, ok := clientConn.(*tls.Conn)
+		if !ok {
 			return nil, nil, nil, trace.BadParameter(
 				"expected tls connection, got %T", clientConn)
 		}
+		return m, tlsConn, backend, nil
 	}
 	return nil, nil, nil, trace.BadParameter(
 		"unsupported startup message: %#v", startupMessage)

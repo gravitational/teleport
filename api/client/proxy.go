@@ -19,47 +19,35 @@ package client
 import (
 	"bufio"
 	"context"
-	"encoding/base64"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
-func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, error) {
-	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
+func DialProxy(ctx context.Context, proxyAddr, addr string) (net.Conn, error) {
+	return DialProxyWithDialer(ctx, proxyAddr, addr, &net.Dialer{})
 }
 
 // DialProxyWithDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
-func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, dialer ContextDialer) (net.Conn, error) {
-	if proxyURL == nil {
-		return nil, trace.BadParameter("missing proxy url")
-	}
-	conn, err := dialer.DialContext(ctx, "tcp", proxyURL.Host)
+func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
+	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
 	if err != nil {
-		log.Warnf("Unable to dial to proxy: %v: %v.", proxyURL.Host, err)
+		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr, err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	header := make(http.Header)
-	if proxyURL.User != nil {
-		// dont use User.String() because it performs url encoding (rfc 1738),
-		// which we don't want in our header
-		password, _ := proxyURL.User.Password()
-		// empty user/pass is permitted by the spec. The minimum required is a single colon.
-		// see: https://datatracker.ietf.org/doc/html/rfc1945#section-11
-		creds := proxyURL.User.Username() + ":" + password
-		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(creds))
-		header.Add("Proxy-Authorization", basicAuth)
-	}
 	connectReq := &http.Request{
 		Method: http.MethodConnect,
 		URL:    &url.URL{Opaque: addr},
 		Host:   addr,
-		Header: header,
+		Header: make(http.Header),
 	}
 
 	if err := connectReq.Write(conn); err != nil {
@@ -98,6 +86,37 @@ func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, di
 	}, nil
 }
 
+// GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
+func GetProxyAddress(addr string) string {
+	envs := []string{
+		constants.HTTPSProxy,
+		strings.ToLower(constants.HTTPSProxy),
+		constants.HTTPProxy,
+		strings.ToLower(constants.HTTPProxy),
+	}
+
+	for _, v := range envs {
+		envAddr := os.Getenv(v)
+		if envAddr == "" {
+			continue
+		}
+		proxyAddr, err := parse(envAddr)
+		if err != nil {
+			log.Debugf("Unable to parse environment variable %q: %q.", v, envAddr)
+			continue
+		}
+		log.Debugf("Successfully parsed environment variable %q: %q to %q.", v, envAddr, proxyAddr)
+		if !useProxy(addr) {
+			log.Debugf("Matched NO_PROXY override for %q: %q, going to ignore proxy variable.", v, envAddr)
+			return ""
+		}
+		return proxyAddr
+	}
+
+	log.Debugf("No valid environment variables found.")
+	return ""
+}
+
 // bufferedConn is used when part of the data on a connection has already been
 // read by a *bufio.Reader. Reads will first try and read from the
 // *bufio.Reader and when everything has been read, reads will go to the
@@ -114,4 +133,18 @@ func (bc *bufferedConn) Read(b []byte) (n int, err error) {
 		return bc.reader.Read(b)
 	}
 	return bc.Conn.Read(b)
+}
+
+// parse will extract the host:port of the proxy to dial to. If the
+// value is not prefixed by "http", then it will prepend "http" and try.
+func parse(addr string) (string, error) {
+	proxyurl, err := url.Parse(addr)
+	if err != nil || !strings.HasPrefix(proxyurl.Scheme, "http") {
+		proxyurl, err = url.Parse("http://" + addr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	return proxyurl.Host, nil
 }

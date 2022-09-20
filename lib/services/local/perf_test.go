@@ -19,6 +19,8 @@ package local
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -28,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
@@ -66,14 +68,16 @@ func BenchmarkGetNodes(b *testing.B) {
 			var err error
 			if tt.memory {
 				bk, err = memory.New(memory.Config{})
-				require.NoError(b, err)
+				assert.NoError(b, err)
 			} else {
-				dir := b.TempDir()
+				dir, err := ioutil.TempDir("", "teleport")
+				assert.NoError(b, err)
+				defer os.RemoveAll(dir)
 
 				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
 					Path: dir,
 				})
-				require.NoError(b, err)
+				assert.NoError(b, err)
 			}
 			defer bk.Close()
 
@@ -91,7 +95,7 @@ func BenchmarkGetNodes(b *testing.B) {
 }
 
 // insertNodes inserts a collection of test nodes into a backend.
-func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
+func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -113,20 +117,20 @@ func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeC
 			},
 		}
 		_, err := svc.UpsertNode(ctx, node)
-		require.NoError(b, err)
+		assert.NoError(t, err)
 	}
 }
 
 // benchmarkGetNodes runs GetNodes b.N times.
-func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
+func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int, opts ...services.MarshalOption) {
 	var nodes []types.Server
 	var err error
 	for i := 0; i < b.N; i++ {
-		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(b, err)
+		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace, opts...)
+		assert.NoError(b, err)
 	}
 	// do *something* with the loop result.  probably unnecessary since the loop
 	// contains I/O, but I don't know enough about the optimizer to be 100% certain
 	// about that.
-	require.Equal(b, nodeCount, len(nodes))
+	assert.Equal(b, nodeCount, len(nodes))
 }

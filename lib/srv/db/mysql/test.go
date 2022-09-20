@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/go-mysql-org/go-mysql/client"
@@ -55,30 +54,15 @@ func MakeTestClient(config common.TestClientConfig) (*client.Conn, error) {
 	return conn, nil
 }
 
-// MakeTestClientWithoutTLS returns a MySQL client connection without setting
-// TLS config to the MySQL client.
-func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase) (*client.Conn, error) {
-	conn, err := client.Connect(addr,
-		routeToDatabase.Username,
-		"",
-		routeToDatabase.Database,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conn, nil
-}
-
 // TestServer is a test MySQL server used in functional database
 // access tests.
 type TestServer struct {
-	cfg           common.TestServerConfig
-	listener      net.Listener
-	port          string
-	tlsConfig     *tls.Config
-	log           logrus.FieldLogger
-	handler       *testHandler
-	serverVersion string
+	cfg       common.TestServerConfig
+	listener  net.Listener
+	port      string
+	tlsConfig *tls.Config
+	log       logrus.FieldLogger
+	handler   *testHandler
 
 	// serverConnsMtx is a mutex that guards serverConns.
 	serverConnsMtx sync.Mutex
@@ -86,39 +70,29 @@ type TestServer struct {
 	serverConns []*server.Conn
 }
 
-// TestServerOption allows to set test server options.
-type TestServerOption func(*TestServer)
-
-// WithServerVersion sets the test MySQL server version.
-func WithServerVersion(serverVersion string) TestServerOption {
-	return func(ts *TestServer) {
-		ts.serverVersion = serverVersion
-	}
-}
-
 // NewTestServer returns a new instance of a test MySQL server.
-func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (svr *TestServer, err error) {
-	err = config.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
+	address := "localhost:0"
+	if config.Address != "" {
+		address = config.Address
 	}
-	defer config.CloseOnError(&err)
-
-	port, err := config.Port()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	listener := config.Listener
+	var listener net.Listener
 	if config.ListenTLS {
-		listener = tls.NewListener(listener, tlsConfig)
+		listener, err = tls.Listen("tcp", address, tlsConfig)
+	} else {
+		listener, err = net.Listen("tcp", address)
 	}
-
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: defaults.ProtocolMySQL,
 		"name":          config.Name,
@@ -130,13 +104,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		log:      log,
 		handler:  &testHandler{log: log},
 	}
-
 	if !config.ListenTLS {
 		server.tlsConfig = tlsConfig
-	}
-
-	for _, o := range opts {
-		o(server)
 	}
 	return server, nil
 }
@@ -179,7 +148,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	serverConn, err := server.NewCustomizedConn(
 		conn,
 		server.NewServer(
-			s.serverVersion,
+			serverVersion,
 			mysql.DEFAULT_COLLATION_ID,
 			mysql.AUTH_NATIVE_PASSWORD,
 			nil,

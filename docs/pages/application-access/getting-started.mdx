@@ -12,15 +12,6 @@ Let's connect to Grafana using Teleport Application Access in three steps:
 - Install the Teleport Application Service on a node and configure it to proxy Grafana.
 - Access Grafana through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Application Access Grafana Self-Hosted](../../img/application-access/grafana_selfhosted.png)
-</ScopedBlock>
-
-
-<ScopedBlock scope={["cloud"]}>
-![Teleport Database Access CockroachDB Cloud](../../img/application-access/grafana_cloud.png)
-</ScopedBlock>
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -31,7 +22,7 @@ Let's connect to Grafana using Teleport Application Access in three steps:
 - A host where you will run the Teleport Application Service.
 
 <Admonition type="tip" title="Not yet a Teleport user?">
-If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../getting-started.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon). 
+If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../getting-started.mdx).
 </Admonition>
 
 We will assume your Teleport cluster is accessible at `teleport.example.com` and `*.teleport.example.com`. You can substitute the address of your Teleport Proxy Service. (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
@@ -74,10 +65,8 @@ $ tctl tokens add \
 
 ### Start Teleport
 
-
-Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
-
-(!docs/pages/includes/install-linux.mdx!)
+On the host where you will run the Teleport Application Service, download the latest version of Teleport for your platform from our
+[downloads page](https://goteleport.com/teleport/download).
 
 Now start Teleport and point it to the application endpoint:
 
@@ -89,7 +78,7 @@ $ sudo teleport app start \
   --auth-server=https://teleport.example.com:3080
 ```
 
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
+Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud cluster, use your tenant's subdomain, e.g., `mytenant.teleport.sh`. 
 
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
 
@@ -126,7 +115,7 @@ Alternatively, log in to the Teleport Web Interface at `https://teleport.example
 Dive deeper into the topics relevant to your Application Access use-case:
 
 - Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
-- Learn about integrating with [JWT tokens](./jwt/introduction.mdx) for auth.
+- Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
 - Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
 - See full configuration and CLI [reference](./reference.mdx).
 - Read about how Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/).

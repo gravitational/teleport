@@ -18,11 +18,9 @@ package srv
 
 import (
 	"context"
-	"encoding/json"
-
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -50,9 +48,9 @@ func (t *TermHandlers) HandleExec(ctx context.Context, ch ssh.Channel, req *ssh.
 	// If a terminal was previously allocated for this command, run command in
 	// an interactive session. Otherwise run it in an exec session.
 	if scx.GetTerm() != nil {
-		return t.SessionRegistry.OpenSession(ctx, ch, scx)
+		return t.SessionRegistry.OpenSession(ctx, ch, req, scx)
 	}
-	return t.SessionRegistry.OpenExecSession(ctx, ch, scx)
+	return t.SessionRegistry.OpenExecSession(ctx, ch, req, scx)
 }
 
 // HandlePTYReq handles requests of type "pty-req" which allocate a TTY for
@@ -86,9 +84,6 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		}
 		scx.SetTerm(term)
 		scx.termAllocated = true
-		if term.TTY() != nil {
-			scx.ttyName = term.TTY().Name()
-		}
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
 		scx.Errorf("Failed setting window size: %v", err)
@@ -117,7 +112,7 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := t.SessionRegistry.OpenSession(ctx, ch, scx); err != nil {
+	if err := t.SessionRegistry.OpenSession(ctx, ch, req, scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -140,27 +135,6 @@ func (t *TermHandlers) HandleWinChange(ctx context.Context, ch ssh.Channel, req 
 		return trace.Wrap(err)
 	}
 
-	return nil
-}
-
-func (t *TermHandlers) HandleForceTerminate(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
-	err := t.SessionRegistry.ForceTerminate(ctx)
-	return trace.Wrap(err)
-}
-
-func (t *TermHandlers) HandleTerminalSize(req *ssh.Request) error {
-	sessionID := string(req.Payload)
-	size, err := t.SessionRegistry.GetTerminalSize(sessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	payload, err := json.Marshal(size)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	req.Reply(true, payload)
 	return nil
 }
 

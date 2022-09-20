@@ -1,6 +1,6 @@
 ---
 authors: Andrej Tokarčík (andrej@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 9 - Locking
@@ -56,7 +56,7 @@ message LockTarget {
     // A matching node is also prevented from heartbeating to the auth server.
     string Node;
 
-    // MFADevice specifies the UUID of a user MFA device.
+    // MFADevice specifies the ID of an MFA device recorded in a user certificate.
     string MFADevice;
 }
 ```
@@ -69,11 +69,17 @@ Note that `Lock` is not a singleton resource: when there are multiple
 `Lock`s stored (and in force), it suffices for an interaction to be matched
 by any one of the locks to be terminated/disabled.
 
-#### Relation to `User.Status` and `LoginStatus`
+#### Relation to `User.Status`
 
-There already exists a field of `User` resource that is used to represent a user lock in connection with failed Web UI login attempts. This `Status` field and its `LoginStatus` definition deal with limiting _authentication_ attempts.
+There already exists a field of `User` resource that is used to
+capture a user lock in connection with failed Web UI login attempts.
 
-The locks discussed in this RFD, however, implement a wide-ranging _authorization_ mechanism. It is not reasonable to impose a `Lock` in this sense (thus blocking the totality of a user's interactions, impacting even those already established based on successful authentication) in response to failed logins, even temporarily. Therefore, the two "locking" schemes should both be retained as they act on different levels (authn v. authz) and address complementary needs.
+This `Status` field and its `LoginStatus` definition are superseded by
+`Lock`.  All of its use cases should be converted to `Lock`.
+
+The `Lock` approach allows to specify locks for entities that are only
+yet to exist or exist merely transiently (such as SSO user objects).  It could
+also help with alleviating the load associated with caching `User` resources.
 
 #### `tctl` support
 
@@ -85,17 +91,17 @@ of new `Lock`s, see Scenarios below.
 
 ### Propagation within a Teleport cluster
 
-Instead of relying on the main cache system for lock propagation, every cluster component (Teleport process) will be initialized with its own local lock-specific watcher.
+Instead of relying on the main cache system for lock propagation, every cluster component (Teleport process) will be initialized with its own local lock-specific watcher. Such a `LockWatcher` will be used to report connection/staleness issues to the caller while attempting to reestablishing a connection to the auth server in the background (similar to as already performed by `services.ProxyWatcher`).
 
-Such a `LockWatcher` will keep a single connection to the auth server for the purpose of monitoring the `Lock` resources. It will in turn allow derived watchers ("lock watcher subscriptions") which can be configured by a list of `LockTarget`s. It will internally record any connection/staleness issues while attempting to reestablish the connection to the auth server in the background.
+It will be parametrized by a duration that defines the maximum failure period after which the data are to be considered stale. If this tolerance interval is exceeded while performing such reloads, the fallback mode described below is employed until a healthy connection is reestablished.
 
-`LockWatcher` will be parametrized by a duration that defines the maximum failure period after which the data are to be considered stale (defaulting to 5 minutes). If this tolerance interval is exceeded, interactions may be locked out preventively in accordance with the fallback mode described below.
+`LockWatcher` will keep a single connection to the auth server for the purpose of monitoring the `Lock` resources. It will in turn allow derived watchers ("lock watcher subscriptions") which can be configured by a list of `LockTarget`s.
 
 ### Fallback mode
 
-If a local lock view becomes stale, there is a decision to be made about whether to rely on the last known locks. This decision strategy is encoded as a "locking mode".
+If `LockWatcher` returns an error indicating stale data, there is a decision to be made about whether to rely on the last known locks. There will be two levels on which to determine this decision.
 
-When a transaction involves a user, the mode is inferred from the following option of the user's roles:
+1. If a lockable transaction involves a user and the user's certificate has an extension named `teleport-lock-fallback`, the transaction is locked out based on the extension's value which comes from the user's RBAC role:
 
 ```
 spec:
@@ -105,9 +111,7 @@ spec:
        lock: [strict|best_effort]
 ```
 
-When none of the user's roles specify the mode or when there is no user involved, the mode is supplied from `AuthPreference.LockingMode` which configures a cluster-wide locking mode default. It defaults to `best_effort` to retain backward compatibility with HA deployments.
-
-Note that if at least one of the inputs considered for the locking mode (user's roles, the cluster-wide default) is set to `strict`, the overall result is also `strict`. In this sense a single `strict` overrides any other occurrences of `best_effort`.
+2. A `LockFallback` field is added to the `ClusterAuthPreference` resource. The new field configures the cluster-wide fallback mode that applies when a more specific hint is not available. It defaults to `best_effort` to retain backward compatibility with HA deployments.
 
 ### Disable generating new certificates
 
@@ -157,7 +161,7 @@ a separate backend key namespace:
 
 ```
 $ tctl lock --user=foo@example.com --message="Suspicious activity."
-Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+Created a lock with ID "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
 ```
 
 This locks out `foo@example.com` without automatic expiration.
@@ -182,8 +186,8 @@ The showed YAML would also correspond to the output of `tctl get lock/dc7cee9d-f
 #### Creating a lock with expiry
 
 ```
-$ tctl lock --role=developers --message="Cluster maintenance." --ttl=10h
-Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+$ tctl lock --role=developers --message="Cluster maintenance." --expires-in=10h
+Created a lock with ID "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
 ```
 
 This locks out users with the role `developers` for the next 10 hours.
@@ -215,7 +219,7 @@ while a lock targeting role `developers` is in force will result in the
 following error:
 
 ```
-ERROR: lock targeting Role:"developers" is in force: Cluster maintenance.
+ERROR: lock targeting Role:"developers" is in force (Cluster maintenance.)
 ```
 
 #### SSH session with an already issued certificate prohibited

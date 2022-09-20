@@ -18,32 +18,25 @@ package service
 import (
 	"context"
 	"fmt"
-	"net"
+	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -93,15 +86,18 @@ func TestMonitor(t *testing.T) {
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir, err = ioutil.TempDir("", "teleport")
+	require.NoError(t, err)
+	defer os.RemoveAll(cfg.DataDir)
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.StorageConfig.Params["path"], err = ioutil.TempDir("", "teleport")
+	require.NoError(t, err)
+	defer os.RemoveAll(cfg.DataDir)
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -290,6 +286,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
+
 			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
 			if tt.isErr {
 				require.Error(t, err)
@@ -495,51 +492,27 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"h2",
 				"http/1.1",
 				"acme-tls/1",
-				"teleport-postgres-ping",
-				"teleport-mysql-ping",
-				"teleport-mongodb-ping",
-				"teleport-redis-ping",
-				"teleport-sqlserver-ping",
-				"teleport-snowflake-ping",
-				"teleport-elasticsearch-ping",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
-				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
-				"teleport-redis",
-				"teleport-sqlserver",
-				"teleport-snowflake",
-				"teleport-elasticsearch",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
 			},
 		},
 		{
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
-				"teleport-postgres-ping",
-				"teleport-mysql-ping",
-				"teleport-mongodb-ping",
-				"teleport-redis-ping",
-				"teleport-sqlserver-ping",
-				"teleport-snowflake-ping",
-				"teleport-elasticsearch-ping",
 				// Ensure h2 has precedence over http/1.1.
 				"h2",
 				"http/1.1",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
-				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
-				"teleport-redis",
-				"teleport-sqlserver",
-				"teleport-snowflake",
-				"teleport-elasticsearch",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
 			},
 		},
 	}
@@ -547,7 +520,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := MakeDefaultConfig()
-			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = t.TempDir()
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
@@ -587,7 +559,6 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.ConnectFailureC = make(chan time.Duration, 5)
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -626,107 +597,4 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	require.True(t, ok)
 	supervisor.signalExit()
 	wg.Wait()
-}
-
-func TestTeleportProcessAuthVersionCheck(t *testing.T) {
-	t.Parallel()
-
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
-	authAddr, err := getFreePort()
-	require.NoError(t, err)
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
-	token := "join-token"
-
-	// Create Node process.
-	nodeCfg := MakeDefaultConfig()
-	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
-	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(token)
-	nodeCfg.Auth.Enabled = false
-	nodeCfg.Proxy.Enabled = false
-	nodeCfg.SSH.Enabled = true
-
-	// Set the Node's major version to be greater than the Auth Service's,
-	// which should make the version check fail.
-	currentVersion, err := semver.NewVersion(teleport.Version)
-	require.NoError(t, err)
-	currentVersion.Major++
-	nodeCfg.TeleportVersion = currentVersion.String()
-
-	// Create Auth Service process.
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{
-			{
-				Roles: []types.SystemRole{
-					types.RoleNode,
-				},
-				Token: token,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	authCfg := MakeDefaultConfig()
-	authCfg.AuthServers = []utils.NetAddr{listenAddr}
-	authCfg.DataDir = t.TempDir()
-	authCfg.Auth.Enabled = true
-	authCfg.Auth.StaticTokens = staticTokens
-	authCfg.Auth.StorageConfig.Type = lite.GetName()
-	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authCfg.DataDir, defaults.BackendDir)}
-	authCfg.Auth.ListenAddr = listenAddr
-	authCfg.Proxy.Enabled = false
-	authCfg.SSH.Enabled = false
-
-	authProc, err := NewTeleport(authCfg)
-	require.NoError(t, err)
-
-	err = authProc.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		authProc.Close()
-	})
-
-	t.Run("with version check", func(t *testing.T) {
-		testVersionCheck(t, nodeCfg, false)
-	})
-
-	t.Run("without version check", func(t *testing.T) {
-		testVersionCheck(t, nodeCfg, true)
-	})
-}
-
-func testVersionCheck(t *testing.T, nodeCfg *Config, skipVersionCheck bool) {
-	nodeCfg.SkipVersionCheck = skipVersionCheck
-
-	nodeProc, err := NewTeleport(nodeCfg)
-	require.NoError(t, err)
-
-	c, err := nodeProc.reconnectToAuthService(types.RoleNode)
-	if skipVersionCheck {
-		require.NoError(t, err)
-		require.NotNil(t, c)
-	} else {
-		require.True(t, trace.IsNotImplemented(err))
-		require.Nil(t, c)
-	}
-
-	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
-	require.True(t, ok)
-	supervisor.signalExit()
-}
-
-func getFreePort() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer l.Close()
-
-	return l.Addr().(*net.TCPAddr).String(), nil
 }

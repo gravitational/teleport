@@ -18,75 +18,76 @@ package web
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
-	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestLocalFS(t *testing.T) {
-	t.Parallel()
-
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
-	require.NoError(t, err)
-	require.NotNil(t, fs)
-
-	f, err := fs.Open("/index.html")
-	require.NoError(t, err)
-	bytes, err := io.ReadAll(f)
-	require.NoError(t, err)
-
-	html := string(bytes[:])
-	require.NoError(t, f.Close())
-	require.Equal(t, strings.Contains(html, `<script src="/web/config.js"></script>`), true)
-	require.Equal(t, strings.Contains(html, `content="{{ .XCSRF }}"`), true)
+type StaticSuite struct {
 }
 
-func TestZipFS(t *testing.T) {
-	t.Parallel()
+var _ = check.Suite(&StaticSuite{})
 
+func (s *StaticSuite) TestLocalFS(c *check.C) {
+	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	c.Assert(err, check.IsNil)
+	c.Assert(fs, check.NotNil)
+
+	f, err := fs.Open("/index.html")
+	c.Assert(err, check.IsNil)
+	bytes, err := ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+
+	html := string(bytes[:])
+	c.Assert(f.Close(), check.IsNil)
+	c.Assert(strings.Contains(html, `<script src="/web/config.js"></script>`), check.Equals, true)
+	c.Assert(strings.Contains(html, `content="{{ .XCSRF }}"`), check.Equals, true)
+}
+
+func (s *StaticSuite) TestZipFS(c *check.C) {
 	fs, err := readZipArchiveAt("../../fixtures/assets.zip")
-	require.NoError(t, err)
-	require.NotNil(t, fs)
+	c.Assert(err, check.IsNil)
+	c.Assert(fs, check.NotNil)
 
 	// test simple full read:
 	f, err := fs.Open("/index.html")
-	require.NoError(t, err)
-	bytes, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, len(bytes), 813)
-	require.NoError(t, f.Close())
+	c.Assert(err, check.IsNil)
+	bytes, err := ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(bytes), check.Equals, 813)
+	c.Assert(f.Close(), check.IsNil)
 
 	// seek + read
 	f, err = fs.Open("/index.html")
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer f.Close()
 
 	n, err := f.Seek(10, io.SeekStart)
-	require.NoError(t, err)
-	require.Equal(t, n, int64(10))
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, int64(10))
 
-	bytes, err = io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, len(bytes), 803)
+	bytes, err = ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(bytes), check.Equals, 803)
 
 	n, err = f.Seek(-50, io.SeekEnd)
-	require.NoError(t, err)
-	require.Equal(t, n, int64(763))
-	bytes, err = io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, len(bytes), 50)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, int64(763))
+	bytes, err = ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(bytes), check.Equals, 50)
 
 	_, err = f.Seek(-50, io.SeekEnd)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	n, err = f.Seek(-50, io.SeekCurrent)
-	require.NoError(t, err)
-	require.Equal(t, n, int64(713))
-	bytes, err = io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, len(bytes), 100)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, int64(713))
+	bytes, err = ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(bytes), check.Equals, 100)
 }
 
 func readZipArchiveAt(path string) (ResourceMap, error) {

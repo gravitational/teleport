@@ -24,7 +24,6 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
-	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -40,15 +39,16 @@ func NewInsecureWebClient() *http.Client {
 	// Because Teleport clients can't be configured (yet), they take the default
 	// list of cipher suites from Go.
 	tlsConfig := utils.TLSConfig(nil)
-	transport := http.Transport{
-		TLSClientConfig: tlsConfig,
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		},
-	}
+	tlsConfig.InsecureSkipVerify = true
+
 	return &http.Client{
 		Transport: otelhttp.NewTransport(
-			apiproxy.NewHTTPFallbackRoundTripper(&transport, true /* insecure */),
+			&http.Transport{
+				TLSClientConfig: tlsConfig,
+				Proxy: func(req *http.Request) (*url.URL, error) {
+					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+				},
+			},
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
 		),
 	}
@@ -90,11 +90,11 @@ type WebClient struct {
 
 // PostJSONWithFallback serializes an object to JSON and attempts to execute a POST
 // using HTTPS, and then fall back to plain HTTP under certain, very specific circumstances.
-//  * The caller must specifically allow it via the allowHTTPFallback parameter, and
-//  * The target host must resolve to the loopback address.
+//   - The caller must specifically allow it via the allowHTTPFallback parameter, and
+//   - The target host must resolve to the loopback address.
+//
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
-//
 func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val interface{}, allowHTTPFallback bool) (*roundtrip.Response, error) {
 	// First try HTTPS and see how that goes
 	log.Debugf("Attempting %s", endpoint)

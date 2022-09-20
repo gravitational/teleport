@@ -40,7 +40,7 @@ func GetName() string {
 }
 
 const (
-	// defaultBTreeDegree is a default degree of a B-Tree
+	// defaultBTreeDegreee is a default degree of a B-Tree
 	defaultBTreeDegree = 8
 )
 
@@ -113,13 +113,10 @@ func New(cfg Config) (*Memory, error) {
 
 // Memory is a memory B-Tree based backend
 type Memory struct {
-	// nextID is a next record ID
-	// intentionally placed first to ensure 64-bit alignment
-	nextID int64
-
 	*sync.Mutex
 	*log.Entry
 	Config
+	backend.NoMigrations
 	// tree is a BTree with items
 	tree *btree.BTree
 	// heap is a min heap with expiry records
@@ -127,9 +124,11 @@ type Memory struct {
 	// cancel is a function that cancels
 	// all operations
 	cancel context.CancelFunc
-	// ctx is a context signaling close
+	// ctx is a context signalling close
 	ctx context.Context
 	buf *backend.CircularBuffer
+	//  nextID is a next record ID
+	nextID int64
 }
 
 // Close closes memory backend

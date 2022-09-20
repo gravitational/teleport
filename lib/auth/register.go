@@ -19,15 +19,14 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -43,8 +42,8 @@ import (
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
+	priv, pub, err := authServer.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,7 +69,6 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 			NoCache:              true,
 			PublicSSHKey:         pub,
 			PublicTLSKey:         tlsPub,
-			SystemRoles:          systemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,6 +95,8 @@ type RegisterParams struct {
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
 	DNSNames []string
+	// PrivateKey is a PEM encoded private key (not passed to auth servers)
+	PrivateKey []byte
 	// PublicTLSKey is a server's public key to sign
 	PublicTLSKey []byte
 	// PublicSSHKey is a server's public SSH key to sign
@@ -113,13 +113,13 @@ type RegisterParams struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
+	// EC2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	EC2IdentityDocument []byte
 	// JoinMethod is the joining method used for this register request.
 	JoinMethod types.JoinMethod
-	// ec2IdentityDocument is used for Simplified Node Joining to prove the
-	// identity of a joining EC2 instance.
-	ec2IdentityDocument []byte
-	// CircuitBreakerConfig defines how the circuit breaker should behave.
-	CircuitBreakerConfig breaker.Config
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -137,34 +137,19 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // different hosts than the auth server. This method requires provisioning
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
-func Register(params RegisterParams) (*proto.Certs, error) {
+func Register(params RegisterParams) (*Identity, error) {
 	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
-	token, err := utils.TryReadValueAsFile(params.Token)
+	token, err := utils.ReadToken(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// add EC2 Identity Document to params if required for given join method
-	if params.JoinMethod == types.JoinMethodEC2 {
-		if !utils.IsEC2NodeID(params.ID.HostUUID) {
-			return nil, trace.BadParameter(
-				`Host ID %q is not valid when using the EC2 join method, `+
-					`try removing the "host_uuid" file in your teleport data dir `+
-					`(e.g. /var/lib/teleport/host_uuid)`,
-				params.ID.HostUUID)
-		}
-		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
 
 	type registerMethod struct {
-		call func(token string, params RegisterParams) (*proto.Certs, error)
+		call func(token string, params RegisterParams) (*Identity, error)
 		desc string
 	}
 	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
@@ -182,14 +167,14 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	var collectedErrs []error
 	for _, method := range registerMethods {
 		log.Infof("Attempting registration %s.", method.desc)
-		certs, err := method.call(token, params)
+		ident, err := method.call(token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
 			log.WithError(err).Debugf("Registration %s failed.", method.desc)
 			continue
 		}
 		log.Infof("Successfully registered %s.", method.desc)
-		return certs, nil
+		return ident, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
 }
@@ -205,7 +190,7 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 }
 
 // registerThroughProxy is used to register through the proxy server.
-func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
+func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
 	if len(params.Servers) == 0 {
 		return nil, trace.BadParameter("no auth servers set")
 	}
@@ -237,17 +222,18 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.ec2IdentityDocument,
+				EC2IdentityDocument:  params.EC2IdentityDocument,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return certs, nil
+
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }
 
 // registerThroughAuth is used to register through the auth server.
-func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, error) {
+func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
 	var client *Client
 	var err error
 
@@ -283,10 +269,14 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.ec2IdentityDocument,
+				EC2IdentityDocument:  params.EC2IdentityDocument,
 			})
 	}
-	return certs, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }
 
 // proxyJoinServiceClient attempts to connect to the join service running on the
@@ -355,7 +345,6 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -394,7 +383,6 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -403,7 +391,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	localCA, err := authClient.GetClusterCACert(context.TODO())
+	localCA, err := authClient.GetClusterCACert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -445,7 +433,6 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -470,22 +457,31 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 	var errs []error
 	for _, s := range []struct {
 		desc string
-		opt  stsEndpointOption
+		opts []stsIdentityRequestOption
 	}{
 		{
 			desc: "regional",
-			opt:  stsEndpointOptionRegional,
+			opts: []stsIdentityRequestOption{
+				withFIPSEndpoint(params.FIPS),
+				withRegionalEndpoint(true),
+			},
 		},
 		{
 			desc: "global",
-			opt:  stsEndpointOptionGlobal,
+			opts: []stsIdentityRequestOption{
+				// Global endpoint does not support FIPS, this is a fallback
+				// when joining a cluster with an auth server on an older
+				// version which does not yet support regional endpoints.
+				withFIPSEndpoint(false),
+				withRegionalEndpoint(false),
+			},
 		},
 	} {
 		log.Infof("Attempting to register %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
 		// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 		certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 			// create the signed sts:GetCallerIdentity request and include the challenge
-			signedRequest, err := createSignedSTSIdentityRequest(ctx, s.opt, challenge)
+			signedRequest, err := createSignedSTSIdentityRequest(ctx, challenge, s.opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -536,31 +532,64 @@ type ReRegisterParams struct {
 	PublicSSHKey []byte
 	// Rotation is the rotation state of the certificate authority
 	Rotation types.Rotation
-	// SystemRoles is a set of additional system roles held by the instance.
-	SystemRoles []types.SystemRole
-	// Used by older instances to requisition a multi-role cert by individually
-	// proving which system roles are held.
-	UnstableSystemRoleAssertionID string
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
 func ReRegister(params ReRegisterParams) (*Identity, error) {
+	hostID, err := params.ID.HostID()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
-			HostID:                        params.ID.HostID(),
-			NodeName:                      params.ID.NodeName,
-			Role:                          params.ID.Role,
-			AdditionalPrincipals:          params.AdditionalPrincipals,
-			DNSNames:                      params.DNSNames,
-			PublicTLSKey:                  params.PublicTLSKey,
-			PublicSSHKey:                  params.PublicSSHKey,
-			Rotation:                      &params.Rotation,
-			SystemRoles:                   params.SystemRoles,
-			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
+			HostID:               hostID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             &params.Rotation,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
+}
+
+// LegacyCerts is equivalent to proto.Certs, but uses
+// JSON keys expected by old clients (7.x and earlier)
+// DELETE in 9.0.0 (Joerger/zmb3)
+type LegacyCerts struct {
+	SSHCert    []byte   `json:"cert"`
+	TLSCert    []byte   `json:"tls_cert"`
+	TLSCACerts [][]byte `json:"tls_ca_certs"`
+	SSHCACerts [][]byte `json:"ssh_ca_certs"`
+}
+
+// LegacyCertsFromProto converts proto.Certs to LegacyCerts.
+// DELETE in 9.0.0 (Joerger/zmb3)
+func LegacyCertsFromProto(c *proto.Certs) *LegacyCerts {
+	return &LegacyCerts{
+		SSHCert:    c.SSH,
+		TLSCert:    c.TLS,
+		SSHCACerts: c.SSHCACerts,
+		TLSCACerts: c.TLSCACerts,
+	}
+}
+
+// UnmarshalLegacyCerts unmarshals the a legacy certs response as proto.Certs.
+// DELETE in 9.0.0 (Joerger/zmb3)
+func UnmarshalLegacyCerts(bytes []byte) (*proto.Certs, error) {
+	var lc LegacyCerts
+	if err := json.Unmarshal(bytes, &lc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.Certs{
+		SSH:        lc.SSHCert,
+		TLS:        lc.TLSCert,
+		TLSCACerts: lc.TLSCACerts,
+		SSHCACerts: lc.SSHCACerts,
+	}, nil
 }

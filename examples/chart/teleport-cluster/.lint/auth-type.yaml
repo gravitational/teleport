@@ -1,3 +1,0 @@
-clusterName: helm-lint
-authentication:
-  type: "github"

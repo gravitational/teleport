@@ -33,12 +33,11 @@ type TestProxy struct {
 	target   string
 	closeCh  chan (struct{})
 	log      logrus.FieldLogger
-	v2       bool
 }
 
 // NewTestProxy creates a new test proxy that sends a proxy-line when
 // proxying connections to the provided target address.
-func NewTestProxy(target string, v2 bool) (*TestProxy, error) {
+func NewTestProxy(target string) (*TestProxy, error) {
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -48,7 +47,6 @@ func NewTestProxy(target string, v2 bool) (*TestProxy, error) {
 		target:   target,
 		closeCh:  make(chan struct{}),
 		log:      logrus.WithField(trace.Component, "test:proxy"),
-		v2:       v2,
 	}, nil
 }
 
@@ -130,11 +128,7 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 		Destination: net.TCPAddr{IP: net.ParseIP(serverAddr.Host()), Port: serverAddr.Port(0)},
 	}
 	p.log.Debugf("Sending %v to %v.", proxyLine.String(), serverConn.RemoteAddr().String())
-	if p.v2 {
-		_, err = serverConn.Write(proxyLine.Bytes())
-	} else {
-		_, err = serverConn.Write([]byte(proxyLine.String()))
-	}
+	_, err = serverConn.Write([]byte(proxyLine.String()))
 	if err != nil {
 		return trace.Wrap(err)
 	}

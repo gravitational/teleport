@@ -1,6 +1,6 @@
 # The base image (buildbox:latest) is built by running `make -C build.assets`
 # from the base repo directory $GOPATH/gravitational.com/teleport
-FROM public.ecr.aws/gravitational/teleport-buildbox:teleport11
+FROM public.ecr.aws/gravitational/teleport-buildbox:teleport8
 
 # DEBUG=1 is needed for the Web UI to be loaded from static assets instead
 # of the binary
@@ -17,8 +17,8 @@ RUN apt-get install -y ansible ssh inetutils-syslogd
 RUN mkdir /run/sshd
 
 VOLUME ["/teleport", "/var/lib/teleport"]
-COPY ./sshd/.bashrc /root/.bashrc
-COPY ./sshd/.screenrc /root/.screenrc
+COPY ./sshd/bashrc /root/.bashrc
+COPY ./sshd/screenrc /root/.screenrc
 COPY ./sshd/scripts/start-sshd.sh /usr/bin/start-sshd.sh
 
 # expose only proxy ports (SSH and HTTPS)

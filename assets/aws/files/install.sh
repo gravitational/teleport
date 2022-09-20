@@ -1,7 +1,5 @@
 #!/bin/bash
-if [[ "${DEBUG:-false}" == "true" ]]; then
-    set -x
-fi
+set -x
 
 # Update packages
 yum -y update
@@ -10,31 +8,31 @@ yum -y update
 yum install -y uuid libffi-devel gcc openssl-devel adduser libfontconfig
 
 # Install nginx
-amazon-linux-extras install nginx1
+amazon-linux-extras install nginx1.12
 
 # Set some curl options so that temporary failures get retried
 # More info: https://ec.haxx.se/usingcurl-timeouts.html
 CURL_OPTS="-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 300"
 
 # Install telegraf to collect stats from influx
-curl ${CURL_OPTS} -o /tmp/telegraf.rpm "https://dl.influxdata.com/telegraf/releases/telegraf-${TELEGRAF_VERSION}-1.x86_64.rpm"
+curl ${CURL_OPTS} -o /tmp/telegraf.rpm https://dl.influxdata.com/telegraf/releases/telegraf-${TELEGRAF_VERSION}-1.x86_64.rpm
 yum install -y /tmp/telegraf.rpm
 rm -f /tmp/telegraf.rpm
 
 # Install grafana
-curl ${CURL_OPTS} -o /tmp/grafana.rpm "https://dl.grafana.com/oss/release/grafana-${GRAFANA_VERSION}-1.x86_64.rpm"
+curl ${CURL_OPTS} -o /tmp/grafana.rpm https://s3-us-west-2.amazonaws.com/grafana-releases/release/grafana-${GRAFANA_VERSION}-1.x86_64.rpm
 yum install -y /tmp/grafana.rpm
 rm -f /tmp/grafana.rpm
 
 # Install InfluxDB
-curl $CURL_OPTS -o /tmp/influxdb.rpm "https://dl.influxdata.com/influxdb/releases/influxdb-${INFLUXDB_VERSION}.x86_64.rpm"
+curl $CURL_OPTS -o /tmp/influxdb.rpm https://dl.influxdata.com/influxdb/releases/influxdb-${INFLUXDB_VERSION}.x86_64.rpm
 yum install -y /tmp/influxdb.rpm
 rm -f /tmp/influxdb.rpm
 
 # Install certbot to rotate certificates
 # Certbot is a tool to request letsencrypt certificates,
 # remove it if you don't need letsencrypt.
-yum -y install python3 python3-pip
+sudo yum -y install python3 python3-pip
 # pip needs to be upgraded to work around issues with the 'cryptography' package
 pip3 install --upgrade pip
 # add new pip3 install location to PATH temporarily

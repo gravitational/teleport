@@ -71,7 +71,11 @@ func (c *Conn) Protocol() Protocol {
 
 // Detect detects the connection protocol by peeking into the first few bytes.
 func (c *Conn) Detect() (Protocol, error) {
-	proto, err := detectProto(c.reader)
+	bytes, err := c.reader.Peek(8)
+	if err != nil {
+		return ProtoUnknown, trace.Wrap(err)
+	}
+	proto, err := detectProto(bytes)
 	if err != nil && !trace.IsBadParameter(err) {
 		return ProtoUnknown, trace.Wrap(err)
 	}
@@ -80,16 +84,7 @@ func (c *Conn) Detect() (Protocol, error) {
 
 // ReadProxyLine reads proxy-line from the connection.
 func (c *Conn) ReadProxyLine() (*ProxyLine, error) {
-	var proxyLine *ProxyLine
-	protocol, err := c.Detect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if protocol == ProtoProxyV2 {
-		proxyLine, err = ReadProxyLineV2(c.reader)
-	} else {
-		proxyLine, err = ReadProxyLine(c.reader)
-	}
+	proxyLine, err := ReadProxyLine(c.reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

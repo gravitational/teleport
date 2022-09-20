@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 
 	"github.com/ThalesIgnite/crypto11"
@@ -225,6 +226,7 @@ func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sshSigner = sshutils.AlgSigner(sshSigner, sshutils.GetSigningAlgName(ca))
 	return sshSigner, nil
 }
 
@@ -391,9 +393,7 @@ func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 			continue
 		}
 		if err := signer.Delete(); err != nil {
-			// Key deletion is best-effort, log a warning on errors. Errors have
-			// been observed when FindKeyPairs returns duplicate keys.
-			c.log.Warnf("failed deleting unused key from HSM: %v", err)
+			return trace.Wrap(err)
 		}
 	}
 	return nil
@@ -415,6 +415,7 @@ func (c *hsmKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sshSigner = sshutils.AlgSigner(sshSigner, sshutils.GetSigningAlgName(ca))
 	return sshSigner, nil
 }
 

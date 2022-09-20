@@ -160,17 +160,6 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	if err != nil {
 		return trace.BadParameter(err.Error())
 	}
-
-	// Verifies the request is signed by the expected access key ID.
-	credValue, err := credentials.Get()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if sigV4.KeyID != credValue.AccessKeyID {
-		return trace.AccessDenied("AccessKeyID does not match")
-	}
-
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again
 	// by HTTP Transport.
 	payload, err := GetAndReplaceReqBody(req)
@@ -258,7 +247,7 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 		if numParts < 2 || parts[0] != "role" {
 			continue
 		}
-		result = append(result, Role{
+		result = append(result, AWSRole{
 			Name:    strings.Join(parts[1:], "/"),
 			Display: parts[numParts-1],
 			ARN:     roleARN,
@@ -267,8 +256,8 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 	return result
 }
 
-// Role describes an AWS IAM role for AWS console access.
-type Role struct {
+// AWSRole describes an AWS IAM role for AWS console access.
+type AWSRole struct {
 	// Name is the full role name with the entire path.
 	Name string `json:"name"`
 	// Display is the role display name.
@@ -278,7 +267,7 @@ type Role struct {
 }
 
 // Roles is a slice of roles.
-type Roles []Role
+type Roles []AWSRole
 
 // Sort sorts the roles by their display names.
 func (roles Roles) Sort() {
@@ -288,13 +277,13 @@ func (roles Roles) Sort() {
 }
 
 // FindRoleByARN finds the role with the provided ARN.
-func (roles Roles) FindRoleByARN(arn string) (Role, bool) {
+func (roles Roles) FindRoleByARN(arn string) (AWSRole, bool) {
 	for _, role := range roles {
 		if role.ARN == arn {
 			return role, true
 		}
 	}
-	return Role{}, false
+	return AWSRole{}, false
 }
 
 // FindRolesByName finds all roles matching the provided name.

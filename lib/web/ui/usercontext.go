@@ -36,7 +36,7 @@ type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
 	Type types.RequestStrategy `json:"type"`
-	// Prompt is the optional dialog shown to user,
+	// Prompt is the optional dialogue shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
 }
@@ -50,10 +50,8 @@ type AccessCapabilities struct {
 }
 
 type userACL struct {
-	// RecordedSessions defines access to recorded sessions.
-	RecordedSessions access `json:"recordedSessions"`
-	// ActiveSessions defines access to active sessions.
-	ActiveSessions access `json:"activeSessions"`
+	// Sessions defines access to recorded sessions.
+	Sessions access `json:"sessions"`
 	// AuthConnectors defines access to auth.connectors.
 	AuthConnectors access `json:"authConnectors"`
 	// Roles defines access to roles.
@@ -76,20 +74,14 @@ type userACL struct {
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
 	Desktops access `json:"desktops"`
+	// SSHLogins defines access to servers.
+	SSHLogins []string `json:"sshLogins"`
 	// WindowsLogins defines access to logins on windows desktop servers.
 	WindowsLogins []string `json:"windowsLogins"`
 	// AccessRequests defines access to access requests.
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
 	Billing access `json:"billing"`
-	// ConnectionDiagnostic defines access to connection diagnostics.
-	ConnectionDiagnostic access `json:"connectionDiagnostic"`
-	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
-	Clipboard bool `json:"clipboard"`
-	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
-	DesktopSessionRecording bool `json:"desktopSessionRecording"`
-	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
-	DirectorySharing bool `json:"directorySharing"`
 }
 
 type authType string
@@ -113,9 +105,26 @@ type UserContext struct {
 	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// AccessCapabilities defines allowable access request rules defined in a user's roles.
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
-	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
-	// obtained
-	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
+}
+
+func getLogins(roleSet services.RoleSet) []string {
+	allowed := []string{}
+	denied := []string{}
+	for _, role := range roleSet {
+		denied = append(denied, role.GetLogins(types.Deny)...)
+		allowed = append(allowed, role.GetLogins(types.Allow)...)
+	}
+
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
+	userLogins := []string{}
+	for _, login := range allowed {
+		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
+			userLogins = append(userLogins, login)
+		}
+	}
+
+	return userLogins
 }
 
 func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
@@ -184,10 +193,9 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
+func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
 	ctx := &services.Context{User: user}
-	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
-	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
+	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
 	roleAccess := newAccess(userRoles, ctx, types.KindRole)
 	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
 	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
@@ -197,43 +205,36 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
-	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
-	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
+	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
-	clipboard := userRoles.DesktopClipboard()
-	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
-	directorySharing := userRoles.DesktopDirectorySharing()
 
 	acl := userACL{
-		AccessRequests:          requestAccess,
-		AppServers:              appServerAccess,
-		DBServers:               dbServerAccess,
-		KubeServers:             kubeServerAccess,
-		Desktops:                desktopAccess,
-		AuthConnectors:          authConnectors,
-		TrustedClusters:         trustedClusterAccess,
-		RecordedSessions:        recordedSessionAccess,
-		ActiveSessions:          activeSessionAccess,
-		Roles:                   roleAccess,
-		Events:                  eventAccess,
-		WindowsLogins:           windowsLogins,
-		Users:                   userAccess,
-		Tokens:                  tokenAccess,
-		Nodes:                   nodeAccess,
-		Billing:                 billingAccess,
-		ConnectionDiagnostic:    cnDiagnosticAccess,
-		Clipboard:               clipboard,
-		DesktopSessionRecording: desktopSessionRecording,
-		DirectorySharing:        directorySharing,
+		AccessRequests:  requestAccess,
+		AppServers:      appServerAccess,
+		DBServers:       dbServerAccess,
+		KubeServers:     kubeServerAccess,
+		Desktops:        desktopAccess,
+		AuthConnectors:  authConnectors,
+		TrustedClusters: trustedClusterAccess,
+		Sessions:        sessionAccess,
+		Roles:           roleAccess,
+		Events:          eventAccess,
+		SSHLogins:       logins,
+		WindowsLogins:   windowsLogins,
+		Users:           userAccess,
+		Tokens:          tokenAccess,
+		Nodes:           nodeAccess,
+		Billing:         billingAccess,
 	}
 
 	// local user

@@ -18,7 +18,6 @@ package utils
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -98,23 +97,4 @@ func CopyStrings(in []string) []string {
 	copy(out, in)
 
 	return out
-}
-
-// MapToStrings collects keys and values of a map into a slice of strings.
-func MapToStrings(m map[string]string) []string {
-	s := make([]string, 0, len(m)*2)
-	for key, value := range m {
-		s = append(s, key, value)
-	}
-	return s
-}
-
-// ToLowerStrings lower cases each string in a slice.
-func ToLowerStrings(strs []string) []string {
-	lowerCasedStrs := make([]string, len(strs))
-	for i, s := range strs {
-		lowerCasedStrs[i] = strings.ToLower(s)
-	}
-
-	return lowerCasedStrs
 }

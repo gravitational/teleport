@@ -1,17 +1,10 @@
 ## Enable default SAML authentication
 
 Configure Teleport to use SAML authentication as the default instead of the local
-user database.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-You can either edit your Teleport configuration file or create a dynamic
-resource.
-
-</ScopedBlock> 
+user database. You can use Dynamic Resources for Teleport Cloud as well as self-hosted deployments.
 
 <Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+  <TabItem label="Static Config (Self-Hosted)">
  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
   ```yaml
   auth_service:
@@ -33,7 +26,7 @@ resource.
 
   Create a resource:
 
-  ```code
+  ```bash
   $ tctl create -f cap.yaml
   ```
   </TabItem>

@@ -90,37 +90,17 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
-	// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
-	GetRequestedResourceIDs() []ResourceID
-	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
-	SetRequestedResourceIDs([]ResourceID)
-	// GetLoginHint gets the requested login hint.
-	GetLoginHint() string
-	// SetLoginHint sets the requested login hint.
-	SetLoginHint(string)
-	// GetDryRun returns true if this request should not be created and is only
-	// a dry run to validate request capabilities.
-	GetDryRun() bool
-	// SetDryRun sets the dry run flag on the request.
-	SetDryRun(bool)
 }
 
-// NewAccessRequest assembles an AccessRequest resource.
+// NewAccessRequest assembled an AccessRequest resource.
 func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
-	return NewAccessRequestWithResources(name, user, roles, []ResourceID{})
-}
-
-// NewAccessRequestWithResources assembles an AccessRequest resource with
-// requested resources.
-func NewAccessRequestWithResources(name string, user string, roles []string, resourceIDs []ResourceID) (AccessRequest, error) {
 	req := AccessRequestV3{
 		Metadata: Metadata{
 			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
-			User:                 user,
-			Roles:                utils.CopyStrings(roles),
-			RequestedResourceIDs: append([]ResourceID{}, resourceIDs...),
+			User:  user,
+			Roles: roles,
 		},
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -308,15 +288,8 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if r.GetUser() == "" {
 		return trace.BadParameter("access request user name not set")
 	}
-
-	if r.Spec.Roles == nil {
-		r.Spec.Roles = []string{}
-	}
-	if r.Spec.RequestedResourceIDs == nil {
-		r.Spec.RequestedResourceIDs = []ResourceID{}
-	}
-	if len(r.GetRoles()) == 0 && len(r.GetRequestedResourceIDs()) == 0 {
-		return trace.BadParameter("access request does not specify any roles or resources")
+	if len(r.GetRoles()) < 1 {
+		return trace.BadParameter("access request does not specify any roles")
 	}
 
 	// dedupe and sort roles to simplify comparing role lists
@@ -379,37 +352,6 @@ func (r *AccessRequestV3) GetResourceID() int64 {
 // SetResourceID sets ResourceID
 func (r *AccessRequestV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
-}
-
-// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
-func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
-	return append([]ResourceID{}, r.Spec.RequestedResourceIDs...)
-}
-
-// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
-func (r *AccessRequestV3) SetRequestedResourceIDs(ids []ResourceID) {
-	r.Spec.RequestedResourceIDs = append([]ResourceID{}, ids...)
-}
-
-// GetLoginHint gets the requested login hint.
-func (r *AccessRequestV3) GetLoginHint() string {
-	return r.Spec.LoginHint
-}
-
-// SetLoginHint sets the requested login hint.
-func (r *AccessRequestV3) SetLoginHint(login string) {
-	r.Spec.LoginHint = login
-}
-
-// GetDryRun returns true if this request should not be created and is only
-// a dry run to validate request capabilities.
-func (r *AccessRequestV3) GetDryRun() bool {
-	return r.Spec.DryRun
-}
-
-// SetDryRun sets the dry run flag on the request.
-func (r *AccessRequestV3) SetDryRun(dryRun bool) {
-	r.Spec.DryRun = dryRun
 }
 
 // String returns a text representation of this AccessRequest

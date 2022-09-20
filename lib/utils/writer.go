@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2018 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,38 +16,34 @@ limitations under the License.
 
 package utils
 
-// CaptureNBytesWriter is an io.Writer thats captures up to first n bytes
-// of the incoming data in memory, and then it ignores the rest of the incoming
-// data.
-type CaptureNBytesWriter struct {
-	capture      []byte
-	maxRemaining int
-}
+import (
+	"io"
+)
 
-// NewCaptureNBytesWriter creates a new CaptureNBytesWriter.
-func NewCaptureNBytesWriter(max int) *CaptureNBytesWriter {
-	return &CaptureNBytesWriter{
-		maxRemaining: max,
+// NewBroadcastWriter returns new broadcast writer
+func NewBroadcastWriter(writers ...io.Writer) *BroadcastWriter {
+	return &BroadcastWriter{
+		writers: writers,
 	}
 }
 
-// Write implements io.Writer.
-func (w *CaptureNBytesWriter) Write(p []byte) (int, error) {
-	if w.maxRemaining > 0 {
-		capture := p[:]
-		if len(capture) > w.maxRemaining {
-			capture = capture[:w.maxRemaining]
+// BroadcastWriter broadcasts all writes to all writers
+type BroadcastWriter struct {
+	writers []io.Writer
+}
+
+// Write multiplexes the input to multiple sub-writers. If any of the write
+// fails, it won't attempt to write to other writers
+func (w *BroadcastWriter) Write(p []byte) (n int, err error) {
+	for _, writer := range w.writers {
+		n, err = writer.Write(p)
+		if err != nil {
+			return
 		}
-
-		w.capture = append(w.capture, capture...)
-		w.maxRemaining -= len(capture)
+		if n != len(p) {
+			err = io.ErrShortWrite
+			return
+		}
 	}
-
-	// Always pretend to be successful.
 	return len(p), nil
-}
-
-// Bytes returns all captured bytes.
-func (w CaptureNBytesWriter) Bytes() []byte {
-	return w.capture
 }

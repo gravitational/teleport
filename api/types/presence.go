@@ -53,8 +53,6 @@ func (s *KeepAlive) GetType() string {
 		return constants.KeepAliveDatabase
 	case KeepAlive_WINDOWS_DESKTOP:
 		return constants.KeepAliveWindowsDesktopService
-	case KeepAlive_KUBERNETES:
-		return constants.KeepAliveKube
 	default:
 		return constants.KeepAliveNode
 	}
@@ -76,7 +74,7 @@ type KeepAliver interface {
 	// KeepAlives allows to receive keep alives
 	KeepAlives() chan<- KeepAlive
 
-	// Done returns the channel signaling the closure
+	// Done returns the channel signalling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases

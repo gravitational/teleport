@@ -40,27 +40,25 @@ import (
 
 // Add updates database connection profile file.
 func Add(ctx context.Context, tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus) error {
-	if !IsSupported(db) {
+	// Out of supported databases, only Postgres and MySQL have a concept
+	// of the connection options file.
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
+	default:
 		return nil
 	}
 	profileFile, err := load(db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	rootClusterName, err := tc.RootClusterName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = add(tc, db, clientProfile, profileFile, rootClusterName)
+	_, err = add(tc, db, clientProfile, profileFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, profileFile profile.ConnectProfileFile, rootCluster string) (*profile.ConnectProfile, error) {
+func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, profileFile profile.ConnectProfileFile) (*profile.ConnectProfile, error) {
 	var host string
 	var port int
 	switch db.Protocol {
@@ -71,24 +69,24 @@ func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	default:
 		return nil, trace.BadParameter("unknown database protocol: %q", db)
 	}
-	connectProfile := New(tc, db, clientProfile, rootCluster, host, port)
-	err := profileFile.Upsert(*connectProfile)
+	connectProfile := New(tc, db, clientProfile, host, port)
+	err := profileFile.Upsert(connectProfile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return connectProfile, nil
+	return &connectProfile, nil
 }
 
 // New makes a new database connection profile.
-func New(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, rootCluster string, host string, port int) *profile.ConnectProfile {
-	return &profile.ConnectProfile{
+func New(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, host string, port int) profile.ConnectProfile {
+	return profile.ConnectProfile{
 		Name:       profileName(tc.SiteName, db.ServiceName),
 		Host:       host,
 		Port:       port,
 		User:       db.Username,
 		Database:   db.Database,
 		Insecure:   tc.InsecureSkipVerify,
-		CACertPath: clientProfile.CACertPathForCluster(rootCluster),
+		CACertPath: clientProfile.CACertPath(),
 		CertPath:   clientProfile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 		KeyPath:    clientProfile.KeyPath(),
 	}
@@ -109,7 +107,11 @@ func Env(tc *client.TeleportClient, db tlsca.RouteToDatabase) (map[string]string
 
 // Delete removes the specified database connection profile.
 func Delete(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
-	if !IsSupported(db) {
+	// Out of supported databases, only Postgres and MySQL have a concept
+	// of the connection options file.
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
+	default:
 		return nil
 	}
 	profileFile, err := load(db)
@@ -121,18 +123,6 @@ func Delete(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// IsSupported checks if provided database is supported.
-func IsSupported(db tlsca.RouteToDatabase) bool {
-	// Out of supported databases, only Postgres and MySQL have a concept
-	// of the connection options file.
-	switch db.Protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
-		return true
-	default:
-		return false
-	}
 }
 
 // load loads the appropriate database connection profile.

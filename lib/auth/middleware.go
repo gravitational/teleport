@@ -26,13 +26,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -136,8 +136,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	// sets up grpc metrics interceptor
-	grpcMetrics := metrics.CreateGRPCServerMetrics(cfg.Metrics.GRPCServerLatency, prometheus.Labels{teleport.TagServer: "teleport-auth"})
-	err = metrics.RegisterPrometheusCollectors(grpcMetrics)
+	grpcMetrics := utils.CreateGRPCServerMetrics(cfg.Metrics.GRPCServerLatency, prometheus.Labels{teleport.TagServer: "teleport-auth"})
+	err = utils.RegisterPrometheusCollectors(grpcMetrics)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,7 +166,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           limiter,
+			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
@@ -265,6 +265,12 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	switch info.ServerName {
 	case "":
 		// Client does not use SNI, will validate against all known CAs.
+	case constants.APIDomain:
+		// REMOVE IN 4.4: all 4.3+ clients must specify the correct cluster name.
+		//
+		// Instead, this case should either default to current cluster CAs or
+		// return an error.
+		t.log.Debugf("Client %q sent %q in SNI, which causes this auth server to send all known CAs in TLS handshake. If this client is version 4.2 or older, this is expected; if this client is version 4.3 or above, please let us know at https://github.com/gravitational/teleport/issues/new", info.Conn.RemoteAddr(), info.ServerName)
 	default:
 		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 		if err != nil {
@@ -279,7 +285,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// certificate authorities.
 	// TODO(klizhentas) drop connections of the TLS cert authorities
 	// that are not trusted
-	pool, totalSubjectsLen, err := DefaultClientCertPool(t.cfg.AccessPoint, clusterName)
+	pool, err := ClientCertPool(t.cfg.AccessPoint, clusterName)
 	if err != nil {
 		var ourClusterName string
 		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
@@ -300,8 +306,14 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// This may happen with a very large (>500) number of trusted clusters, if
 	// the client doesn't send the correct ServerName in its ClientHelloInfo
 	// (see the switch at the top of this func).
+	var totalSubjectsLen int64
+	for _, s := range pool.Subjects() {
+		// Each subject in the list gets a separate 2-byte length prefix.
+		totalSubjectsLen += 2
+		totalSubjectsLen += int64(len(s))
+	}
 	if totalSubjectsLen >= int64(math.MaxUint16) {
-		return nil, trace.BadParameter("number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters")
+		return nil, trace.BadParameter("number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters", len(pool.Subjects()))
 	}
 
 	tlsCopy := t.cfg.TLS.Clone()
@@ -338,7 +350,6 @@ func (a *Middleware) Wrap(h http.Handler) {
 
 func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
-	// Account recovery RPCs.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
 		"/proto.AuthService/GetAccountRecoveryToken",
@@ -351,18 +362,8 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 			return nil
 		}
 		return rates
-	// Passwordless RPCs (potential unauthenticated challenge generation).
-	case "/proto.AuthService/CreateAuthenticateChallenge":
-		const period = defaults.LimiterPasswordlessPeriod
-		const average = defaults.LimiterPasswordlessAverage
-		const burst = defaults.LimiterPasswordlessBurst
-		rates := ratelimit.NewRateSet()
-		if err := rates.Add(period, average, burst); err != nil {
-			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
-			return nil
-		}
-		return rates
 	}
+
 	return nil
 }
 
@@ -414,12 +415,12 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainUnaryServerInterceptors(
 			om.UnaryServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerUnaryErrorInterceptor,
+			utils.ErrorConvertUnaryInterceptor,
 			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 			a.withAuthenticatedUserUnaryInterceptor)
 	}
 	return utils.ChainUnaryServerInterceptors(
-		utils.GRPCServerUnaryErrorInterceptor,
+		utils.ErrorConvertUnaryInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor)
 }
@@ -431,12 +432,12 @@ func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainStreamServerInterceptors(
 			om.StreamServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerStreamErrorInterceptor,
+			utils.ErrorConvertStreamInterceptor,
 			a.Limiter.StreamServerInterceptor,
 			a.withAuthenticatedUserStreamInterceptor)
 	}
 	return utils.ChainStreamServerInterceptors(
-		utils.GRPCServerStreamErrorInterceptor,
+		utils.ErrorConvertStreamInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor)
 }
@@ -519,7 +520,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		// the local auth server can not truste remote servers
 		// to issue certificates with system roles (e.g. Admin),
 		// to get unrestricted access to the local cluster
-		systemRole := findPrimarySystemRole(identity.Groups)
+		systemRole := findSystemRole(identity.Groups)
 		if systemRole != nil {
 			return RemoteBuiltinRole{
 				Role:        *systemRole,
@@ -543,16 +544,15 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
 	// checks for presence of system roles issued in certificate identity
-	systemRole := findPrimarySystemRole(identity.Groups)
+	systemRole := findSystemRole(identity.Groups)
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			Role:                  *systemRole,
-			AdditionalSystemRoles: extractAdditionalSystemRoles(identity.SystemRoles),
-			Username:              identity.Username,
-			ClusterName:           localClusterName.GetClusterName(),
-			Identity:              *identity,
+			Role:        *systemRole,
+			Username:    identity.Username,
+			ClusterName: localClusterName.GetClusterName(),
+			Identity:    *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles
@@ -563,7 +563,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	}, nil
 }
 
-func findPrimarySystemRole(roles []string) *types.SystemRole {
+func findSystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
 		err := systemRole.Check()
@@ -572,22 +572,6 @@ func findPrimarySystemRole(roles []string) *types.SystemRole {
 		}
 	}
 	return nil
-}
-
-func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
-	var systemRoles types.SystemRoles
-	for _, role := range roles {
-		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err != nil {
-			// ignore unknown system roles rather than rejecting them, since new unknown system
-			// roles may be present on certs if we rolled back from a newer version.
-			log.Warnf("Ignoring unknown system role: %q", role)
-			continue
-		}
-		systemRoles = append(systemRoles, systemRole)
-	}
-	return systemRoles
 }
 
 // ServeHTTP serves HTTP requests
@@ -613,11 +597,11 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // WrapContextWithUser enriches the provided context with the identity information
 // extracted from the provided TLS connection.
-func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn) (context.Context, error) {
+func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (context.Context, error) {
 	// Perform the handshake if it hasn't been already. Before the handshake we
 	// won't have client certs available.
 	if !conn.ConnectionState().HandshakeComplete {
-		if err := conn.HandshakeContext(ctx); err != nil {
+		if err := conn.Handshake(); err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
@@ -629,59 +613,50 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn
 	return requestWithContext, nil
 }
 
-// ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.
-// In addition, it returns the total length of all subjects added to the cert pool, allowing
-// the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before
-// using it.
-func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
-	if len(caTypes) == 0 {
-		return nil, 0, trace.BadParameter("at least one CA type is required")
-	}
-
+// ClientCertPool returns trusted x509 cerificate authority pool
+func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
 	ctx := context.TODO()
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
 	if clusterName == "" {
-		for _, caType := range caTypes {
-			cas, err := client.GetCertAuthorities(ctx, caType, false)
-			if err != nil {
-				return nil, 0, trace.Wrap(err)
-			}
-			authorities = append(authorities, cas...)
+		hostCAs, err := client.GetCertAuthorities(ctx, types.HostCA, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		userCAs, err := client.GetCertAuthorities(ctx, types.UserCA, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, hostCAs...)
+		authorities = append(authorities, userCAs...)
 	} else {
-		for _, caType := range caTypes {
-			ca, err := client.GetCertAuthority(
-				ctx,
-				types.CertAuthID{Type: caType, DomainName: clusterName},
-				false)
-			if err != nil {
-				return nil, 0, trace.Wrap(err)
-			}
-
-			authorities = append(authorities, ca)
+		hostCA, err := client.GetCertAuthority(
+			ctx,
+			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
+			false)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		userCA, err := client.GetCertAuthority(
+			ctx,
+			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+			false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, hostCA)
+		authorities = append(authorities, userCA)
 	}
 
-	var totalSubjectsLen int64
 	for _, auth := range authorities {
 		for _, keyPair := range auth.GetTrustedTLSKeyPairs() {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
-				return nil, 0, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			log.Debugf("ClientCertPool -> %v", CertInfo(cert))
 			pool.AddCert(cert)
-
-			// Each subject in the list gets a separate 2-byte length prefix.
-			totalSubjectsLen += 2
-			totalSubjectsLen += int64(len(cert.RawSubject))
 		}
 	}
-	return pool, totalSubjectsLen, nil
-}
-
-// DefaultClientCertPool returns default trusted x509 certificate authority pool.
-func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
-	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
+	return pool, nil
 }

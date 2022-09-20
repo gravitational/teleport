@@ -21,10 +21,9 @@ package bpf
 
 import (
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/gravitational/teleport/lib/observability/metrics"
 
 	"github.com/gravitational/teleport"
 
@@ -105,7 +104,7 @@ type conn struct {
 }
 
 func startConn(bufferSize int) (*conn, error) {
-	err := metrics.RegisterPrometheusCollectors(lostNetworkEvents)
+	err := utils.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

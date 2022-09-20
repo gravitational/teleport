@@ -19,15 +19,13 @@ package web
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/trace"
@@ -36,7 +34,7 @@ import (
 func TestCreateNodeJoinToken(t *testing.T) {
 	t.Parallel()
 	m := &mockedNodeAPIGetter{}
-	m.mockGenerateToken = func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	m.mockGenerateToken = func(ctx context.Context, req auth.GenerateTokenRequest) (string, error) {
 		return "some-token-id", nil
 	}
 
@@ -288,7 +286,6 @@ func toHex(s string) string { return hex.EncodeToString([]byte(s)) }
 func TestGetNodeJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
 	validIAMToken := "valid-iam-token"
-	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
@@ -297,20 +294,15 @@ func TestGetNodeJoinScript(t *testing.T) {
 
 			return []types.Server{&s}, nil
 		},
-		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+		mockGetClusterCACert: func() (*auth.LocalCAResponse, error) {
 			fakeBytes := []byte(fixtures.SigningCertPEM)
-			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+			return &auth.LocalCAResponse{TLSCA: fakeBytes}, nil
 		},
 		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
 			if token == validToken || token == validIAMToken {
 				return &types.ProvisionTokenV2{
 					Metadata: types.Metadata{
 						Name: token,
-					},
-					Spec: types.ProvisionTokenSpecV2{
-						SuggestedLabels: types.Labels{
-							types.InternalResourceIDLabel: utils.Strings{internalResourceID},
-						},
 					},
 				}, nil
 			}
@@ -370,15 +362,6 @@ func TestGetNodeJoinScript(t *testing.T) {
 				require.Contains(t, script, "JOIN_METHOD='iam'")
 			},
 		},
-		{
-			desc:      "internal resourceid label",
-			settings:  scriptSettings{token: validToken},
-			errAssert: require.NoError,
-			extraAssertions: func(script string) {
-				require.Contains(t, script, "--labels ")
-				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
-			},
-		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			script, err := getJoinScript(context.Background(), test.settings, m)
@@ -413,9 +396,9 @@ func TestGetAppJoinScript(t *testing.T) {
 
 			return []types.Server{&s}, nil
 		},
-		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+		mockGetClusterCACert: func() (*auth.LocalCAResponse, error) {
 			fakeBytes := []byte(fixtures.SigningCertPEM)
-			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+			return &auth.LocalCAResponse{TLSCA: fakeBytes}, nil
 		},
 	}
 	badAppName := scriptSettings{
@@ -685,13 +668,13 @@ func TestIsSameRuleSet(t *testing.T) {
 }
 
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
+	mockGenerateToken    func(ctx context.Context, req auth.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
-	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
+	mockGetClusterCACert func() (*auth.LocalCAResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
 }
 
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req auth.GenerateTokenRequest) (string, error) {
 	if m.mockGenerateToken != nil {
 		return m.mockGenerateToken(ctx, req)
 	}
@@ -707,9 +690,9 @@ func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {
 	return nil, trace.NotImplemented("mockGetProxyServers not implemented")
 }
 
-func (m *mockedNodeAPIGetter) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
+func (m *mockedNodeAPIGetter) GetClusterCACert() (*auth.LocalCAResponse, error) {
 	if m.mockGetClusterCACert != nil {
-		return m.mockGetClusterCACert(ctx)
+		return m.mockGetClusterCACert()
 	}
 
 	return nil, trace.NotImplemented("mockGetClusterCACert not implemented")

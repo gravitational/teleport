@@ -3,20 +3,19 @@
 ## update-teleport-webassets.sh
 
 This script:
-
-- clones the `teleport` repo
+- clones the webapps repo
 - checks out the provided named branch (after checking that it exists)
-- raises a PR against the `teleport` repo to update the submodule commit references
-
-The `webassets` repo is automatically updated for each commit merged to `webapps`.
+- builds the `dist` directory
+- clones and pushes updates to `webassets` and `webassets.e`
+- raises a PR against the Teleport repo to update the submodule commit references
 
 Run using a command like:
 
-`./update-teleport-webassets.sh -w teleport-v10 -t branch/v10`
+`./update-teleport-webassets.sh -w gus/webassets-branch -t gus/teleport-branch`
 
 | Argument | Description |
 | - | - |
-| `-w` | `webassets` source branch name to pull `webassets` from (often `master`) |
+| `-w` | `webapps` source branch name to build `webassets` from (often `master`) |
 | `-t` | `teleport` target branch name to raise a PR against (often `master`) |
 
 ### Extra notes

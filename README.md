@@ -1,11 +1,11 @@
 <div align="center">
-   <img src="./assets/img/readme-header.png" width=750/>
+   <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
    <div align="center" style="padding: 25px">
-      <a href="https://goteleport.com/teleport/download">
-      <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
+      <a href="https://goteleport.com/docs/">
+      <img src="https://img.shields.io/badge/Teleport-7.0-651FFF.svg" />
       </a>
       <a href="https://golang.org/">
-      <img src="https://img.shields.io/github/go-mod/go-version/gravitational/teleport?color=7fd5ea" />
+      <img src="https://img.shields.io/badge/Go-1.16-7fd5ea.svg" />
       </a>
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
@@ -27,7 +27,7 @@
 1. [Installing and Running](#installing-and-running)
 1. [Docker](#docker)
 1. [Building Teleport](#building-teleport)
-1. [Why Did We Build Teleport?](#why-did-we-build-teleport)
+1. [Why did We Build Teleport?](#why-did-we-build-teleport)
 1. [More Information](#more-information)
 1. [Support and Contributing](#support-and-contributing)
 1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
@@ -35,18 +35,16 @@
 
 ## Introduction
 
-Teleport is the easiest, most secure way to access all your infrastructure.
 Teleport is an identity-aware, multi-protocol access proxy which understands
-SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire protocols.
+SSH, HTTPS, Kubernetes API, MySQL, and PostgreSQL wire protocols.
 
 On the server-side, Teleport is a single binary which enables convenient secure
 access to behind-NAT resources such as:
 
 * [SSH nodes](https://goteleport.com/docs/getting-started/) - SSH works in browsers too!
 * [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
+* [PostgreSQL and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
 * [Internal Web apps](https://goteleport.com/docs/application-access/introduction/)
-* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/)
 * [Networked servers](https://goteleport.com/docs/server-access/introduction/)
 
 Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
@@ -56,7 +54,7 @@ replacing legacy `sshd`-based setups at organizations who need:
   across many environments and cloud providers.
 * Audit log with session recording/replay for multiple protocols
 * Easily manage trust between teams, organizations and data centers.
-* Role-based access control (RBAC) and flexible access workflows (one-time [access requests](https://goteleport.com/features/access-requests/))
+* Role-based access control (RBAC) and flexible access workflows (one-time [access requests](https://goteleport.com/features/access-requests/)
 
 In addition to its hallmark features, Teleport is interesting for smaller teams
 because it facilitates easy adoption of the best infrastructure security
@@ -74,14 +72,16 @@ implementation. It is _fully compatible with OpenSSH_,
 
 |Project Links| Description
 |---|----
-| [Teleport Website](https://goteleport.com/) | The official website of the project. |
-| [Documentation](https://goteleport.com/docs/) | Admin guide, user manual and more. |
-| [Demo Video](https://www.youtube.com/watch?v=b1WHFW0NIoM) | 3-minute video overview of Teleport. |
+| [Teleport Website](https://goteleport.com/teleport) | The official website of the project. |
+| [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more. |
+| [Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM) | 5-minute video overview of the UI. |
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
-| [Cloud-hosted](https://goteleport.com/pricing) | We offer Enterprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
+| [Cloud-hosted](https://goteleport.com/pricing) | We offer Teleport Pro and Enteprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
 
+
+[Teleport 6.0 - 4:00m Demo Video](https://www.youtube.com/watch?v=0HlyGk8dihM)
 
 ## Installing and Running
 
@@ -94,7 +94,7 @@ unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries in
 Then you can run Teleport as a single-node cluster:
 
 ```bash
-sudo teleport start
+$ sudo teleport start
 ```
 
 In a production environment, Teleport must run as `root`. For testing or non-production environments, run it as the `$USER`:
@@ -120,105 +120,29 @@ View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
-To run a full test suite locally, see [the test dependecies list](BUILD_macos.md#local-tests-dependencies) 
-
 ## Building Teleport
 
-The `teleport` repository contains the Teleport daemon binary (written in Go)
-and a web UI written in Javascript (a git submodule located in the `webassets/`
-directory).
+The Teleport source code contains the Teleport daemon binary written in Golang and a web UI written in Javascript (a git submodule located in the `/webassets` directory).
 
-If your intention is to build and deploy for use in a production infrastructure
-a released tag should be used.  The default branch, `master`, is the current
-development branch for an upcoming major version.  Get the latest release tags
-listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v9.1.2` gets release v9.1.2.
+Make sure you have Golang `v1.16` or newer, then run:
 
-### Dockerized Build
+```bash
+# get the source & build:
+$ git clone https://github.com/gravitational/teleport.git
+$ cd teleport
+$ make full
 
-It is often easiest to build with Docker, which ensures that all required
-tooling is available for the build. To execute a dockerized build, ensure
-that docker is installed and running, and execute:
-
-```
-make -C build.assets build-binaries
+# create the default data directory before starting:
+$ sudo mkdir -p -m0700 /var/lib/teleport
+$ sudo chown $USER /var/lib/teleport
 ```
 
-### Local Build
+If the build succeeds, the installer places the binaries in the following directory:
+`$GOPATH/src/github.com/gravitational/teleport/build`
 
-#### Dependencies
-
-Ensure you have installed correct versions of necessary dependencies:
-* `Go` version from
-  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
-* If you wish to build the Rust-powered features like Desktop Access, see the
-  `Rust` and `Cargo` version in
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
-  (search for `RUST_VERSION`)
-* For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
-
-For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md). 
-
-#### Perform a build
-
->**Important**
->
->* The Go compiler is somewhat sensitive to the amount of memory: you will need
-   **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
-   without swap will **not** work.
->* This will build the latest version of Teleport, **regardless** of whether it
-   is stable. If you want to build the latest stable release, run `git checkout`
-   and `git submodule update --recursive` to the corresponding tag (for example, 
->* run `git checkout v8.0.0`) **before** performing a build.
-
-Get the source
-
-```shell
-git clone https://github.com/gravitational/teleport.git
-cd teleport
-```
-
-To perform a build 
-
-```shell
-make full
-```
-
-To build `tsh` with Apple TouchID support enabled:
-
-> **Important**
-> 
->`tsh` binaries with Touch ID support are only functional using binaries signed
-with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
-maintainer, ask the team for access.
-
-```shell
-make build/tsh TOUCHID=yes
-```
-
-To build `tsh` with `libfido`:
-
-  ```shell
-  make build/tsh FIDO2=dynamic
-  ```
-
-  * On a Mac, with `libfido` and `openssl 1.1` installed via `homebrew`
-
-    ```shell
-    export PKG_CONFIG_PATH="$(brew --prefix openssl@1.1)/lib/pkgconfig"
-    make build/tsh FIDO2=dynamic
-    ```
-
-#### Build output and running locally
-
-If the build succeeds, the installer will place the binaries in the `build` directory.
-
-Before starting, create default data directories:
-
-```shell
-sudo mkdir -p -m0700 /var/lib/teleport
-sudo chown $USER /var/lib/teleport
-```
+**Important:**
+* The Go compiler is somewhat sensitive to the amount of memory: you will need **at least** 1GB of virtual memory to compile Teleport. A 512MB instance without swap will **not** work.
+* This will build the latest version of Teleport, **regardless** of whether it is stable. If you want to build the latest stable release, run `git checkout` to the corresponding tag (for example, run `git checkout v6.0.0`) **before** running `make full`.
 
 ### Web UI
 
@@ -229,9 +153,9 @@ The Teleport Web UI resides in the [Gravitational Webapps](https://github.com/gr
 To clone this repository and rebuild the Teleport UI package, run the following commands:
 
 ```bash
-git clone git@github.com:gravitational/webapps.git
-cd webapps
-make build-teleport
+$ git clone git@github.com:gravitational/webapps.git
+$ cd webapps
+$ make build-teleport
 ```
 
 Then you can replace Teleport Web UI files with the files from the newly-generated `/dist` folder.
@@ -244,11 +168,11 @@ To enable this behavior, set the environment variable `DEBUG=1` and rebuild with
 
 ```bash
 # Run Teleport as a single-node cluster in development mode:
-DEBUG=1 ./build/teleport start -d
+$ DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md) file.
+For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md.) file.
 
 #### Updating Web UI assets
 
@@ -262,6 +186,17 @@ Run `make update-webassets` to update the `webassets` repo and create a PR for
 You will need to have the `gh` utility installed on your system for the script
 to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
 
+### Updating Documentation
+
+TL;DR version:
+
+```bash
+make docs
+make run-docs
+```
+
+For more details, read the [docs/README](docs/README.md) file.
+
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
@@ -274,27 +209,43 @@ Latest version:
 go get github.com/new/dependency
 ```
 
-and update the source to use this dependency.
+Update the source to use this dependency, then run:
 
+```bash
+make update-vendor
+```
 
-To get a specific version, use `go get github.com/new/dependency@version` instead.
+Specific version:
+
+```bash
+go get github.com/new/dependency@version
+```
+
+Update the source to use this dependency, then run:
+
+```bash
+make update-vendor
+```
 
 #### Set dependency to a specific version
 
 ```bash
 go get github.com/new/dependency@version
+make update-vendor
 ```
 
 #### Update dependency to the latest version
 
 ```bash
 go get -u github.com/new/dependency
+make update-vendor
 ```
 
 #### Update all dependencies
 
 ```bash
 go get -u all
+make update-vendor
 ```
 
 #### Debugging dependencies
@@ -319,10 +270,11 @@ We had a choice, either start a security consulting business or build a solution
 
 ## More Information
 
-* [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
+* [Quick Start Guide](https://goteleport.com/teleport/docs/quickstart)
 * [Teleport Architecture](https://goteleport.com/teleport/docs/architecture)
-* [Reference](https://goteleport.com/docs/setup/reference/)
-* [FAQ](https://goteleport.com/docs/faq)
+* [Admin Manual](https://goteleport.com/teleport/docs/admin-guide)
+* [User Manual](https://goteleport.com/teleport/docs/user-manual)
+* [FAQ](https://goteleport.com/teleport/docs/faq)
 
 ## Support and Contributing
 
@@ -330,21 +282,31 @@ We offer a few different options for support. First of all, we try to provide cl
 
 * Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
 * If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in Github.
-* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
+* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/teleport/) to arrange for a POC.
 
 ## Is Teleport Secure and Production Ready?
 
-Teleport is used by leading companies to enable engineers to quickly access any
-computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some our audits public, view our latest [audit reports.](https://goteleport.com/resources/audits/).
+Teleport has completed several security audits from the nationally recognized
+technology security companies. [Some](https://goteleport.com/blog/teleport-release-2-2/) of
+[them](https://goteleport.com/blog/teleport-security-audit/) have been made public.
 We are comfortable with the use of Teleport from a security perspective.
 
 You can see the list of companies who use Teleport in production on the Teleport
 [product page](https://goteleport.com/case-study/).
+
+However, Teleport is still a relatively young product, so you may experience usability issues.  We actively support Teleport and address any issues that users submit to this repo. Ask questions, send pull requests,
+report issues, and don't be shy! :)
 
 You can find the latest stable Teleport build on our [Releases](https://goteleport.com/teleport/download) page.
 
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://goteleport.com). We have
-built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
-about Teleport and our history](https://goteleport.com/about/).
+built Teleport by borrowing from our previous experiences at Rackspace. It has
+been extracted from [Gravity](https://goteleport.com/gravity), our
+Kubernetes distribution optimized for deploying and remotely controlling complex
+applications into multiple environments _at the same time_:
+
+* Multiple cloud regions
+* Colocation
+* Private enterprise clouds located behind firewalls

@@ -26,17 +26,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -100,7 +98,7 @@ type server struct {
 	// cancel function will cancel the
 	cancel context.CancelFunc
 
-	// ctx is a context used for signaling and broadcast
+	// ctx is a context used for signalling and broadcast
 	ctx context.Context
 
 	// log specifies the logger
@@ -137,10 +135,13 @@ type Config struct {
 	// AccessPoint caches values and can still return results during connection
 	// problems.
 	LocalAccessPoint auth.ProxyAccessPoint
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
-	// Context is a signaling context
+	// Context is a signalling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
 	// wall clock if not set
@@ -189,9 +190,6 @@ type Config struct {
 	// and above.
 	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
-	// PeerClient is a client to peer proxy servers.
-	PeerClient *proxy.Client
-
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 
@@ -200,13 +198,6 @@ type Config struct {
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
-
-	// CircuitBreakerConfig configures the auth client circuit breaker
-	CircuitBreakerConfig breaker.Config
-
-	// LocalAuthAddresses is a list of auth servers to use when dialing back to
-	// the local cluster.
-	LocalAuthAddresses []string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -270,7 +261,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
 func NewServer(cfg Config) (Server, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -580,24 +571,22 @@ func (s *server) DrainConnections(ctx context.Context) error {
 	s.srv.Wait(ctx)
 
 	s.RLock()
+	defer s.RUnlock()
 	s.log.Debugf("Advising reconnect to local site: %s", s.localSite.GetName())
-	go s.localSite.adviseReconnect(ctx)
+	s.localSite.adviseReconnect()
 
 	for _, site := range s.remoteSites {
 		s.log.Debugf("Advising reconnect to remote site: %s", site.GetName())
-		go site.adviseReconnect(ctx)
+		site.adviseReconnect()
 	}
-	s.RUnlock()
 
 	return trace.Wrap(err)
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
-
 	s.proxyWatcher.Close()
 	s.cancel()
-
 	return trace.Wrap(err)
 }
 
@@ -651,7 +640,6 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
 		localClusterName: s.ClusterName,
-		emitter:          s.Emitter,
 	}
 	go t.start()
 }
@@ -953,12 +941,12 @@ func (s *server) getRemoteClusters() []*remoteSite {
 }
 
 // GetSite returns a RemoteSite. The first attempt is to find and return a
-// remote site and that is what is returned if a remote agent has
+// remote site and that is what is returned if a remote remote agent has
 // connected to this proxy. Next we loop over local sites and try and try and
 // return a local site. If that fails, we return a cluster peer. This happens
 // when you hit proxy that has never had an agent connect to it. If you end up
 // with a cluster peer your best bet is to wait until the agent has discovered
-// all proxies behind a load balancer. Note, the cluster peer is a
+// all proxies behind a the load balancer. Note, the cluster peer is a
 // services.TunnelConnection that was created by another proxy.
 func (s *server) GetSite(name string) (RemoteSite, error) {
 	s.RLock()
@@ -977,11 +965,6 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 		}
 	}
 	return nil, trace.NotFound("cluster %q is not found", name)
-}
-
-// GetProxyPeerClient returns the proxy peer client
-func (s *server) GetProxyPeerClient() *proxy.Client {
-	return s.PeerClient
 }
 
 // alwaysClose forces onSiteTunnelClose to remove and close

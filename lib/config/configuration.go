@@ -22,18 +22,20 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/x509"
 	"io"
-	stdlog "log"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 	"unicode"
+
+	stdlog "log"
 
 	"golang.org/x/crypto/ssh"
 
@@ -48,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -111,10 +112,6 @@ type CommandLineFlags struct {
 	// configuration.
 	FIPS bool
 
-	// SkipVersionCheck allows Teleport to connect to auth servers that
-	// have an earlier major version number.
-	SkipVersionCheck bool
-
 	// AppName is the name of the application to proxy.
 	AppName string
 
@@ -138,7 +135,7 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
-	// DatabaseAWSRDSInstanceID is RDS instance identifier.
+	// DatabaseAWSRDSClusterID is RDS instance identifier.
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
@@ -146,17 +143,6 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
-	// DatabaseADKeytabFile is the path to Kerberos keytab file.
-	DatabaseADKeytabFile string
-	// DatabaseADKrb5File is the path to krb5.conf file.
-	DatabaseADKrb5File string
-	// DatabaseADDomain is the Active Directory domain for authentication.
-	DatabaseADDomain string
-	// DatabaseADSPN is the database Service Principal Name.
-	DatabaseADSPN string
-	// DatabaseMySQLServerVersion is the MySQL server version reported to a client
-	// if the value cannot be obtained from the database.
-	DatabaseMySQLServerVersion string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -283,13 +269,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
-		// If the alternative name "cockroachdb" is given, update it to "postgres".
-		if fc.Storage.Type == postgres.AlternativeName {
-			fc.Storage.Type = postgres.GetName()
-		}
-
-		// Fix yamlv2 issue with nested storage sections.
-		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -346,13 +325,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		log.Warn("ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512.")
+		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
 	// conf should indicate no pins.
-	if err = cfg.ApplyCAPins(fc.CAPin); err != nil {
-		return trace.Wrap(err)
+	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
+		cfg.CAPins = fc.CAPin
 	}
 
 	// Set diagnostic address
@@ -370,7 +349,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
-		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
 	}
@@ -490,7 +468,7 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		formatter := &utils.TextFormatter{
+		formatter := &textFormatter{
 			ExtraFields:  loggerConfig.Format.ExtraFields,
 			EnableColors: trace.IsTerminal(os.Stderr),
 		}
@@ -501,8 +479,8 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 
 		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &utils.JSONFormatter{
-			ExtraFields: loggerConfig.Format.ExtraFields,
+		formatter := &jsonFormatter{
+			extraFields: loggerConfig.Format.ExtraFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -538,7 +516,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.ListenAddr = *addr
+		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
@@ -612,23 +590,18 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
-		TunnelStrategy:           fc.Auth.TunnelStrategy,
-		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Only override session recording configuration if either field is
-	// specified in file configuration.
-	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
-		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-			Mode:                fc.Auth.SessionRecording,
-			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Set session recording configuration from file configuration.
+	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode:                fc.Auth.SessionRecording,
+		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := applyKeyStoreConfig(fc, cfg); err != nil {
@@ -652,46 +625,14 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
-
-	if fc.Auth.CAKeyParams.PKCS11.ModulePath != "" {
-		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.ModulePath)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		const worldWritableBits = 0o002
-		if fi.Mode().Perm()&worldWritableBits != 0 {
-			return trace.Errorf(
-				"PKCS11 library (%s) must not be world-writable",
-				fc.Auth.CAKeyParams.PKCS11.ModulePath,
-			)
-		}
-
-		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
-	}
-
+	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
 	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
 	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
-
 	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
-
-		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		const worldReadableBits = 0o004
-		if fi.Mode().Perm()&worldReadableBits != 0 {
-			return trace.Errorf(
-				"HSM pin file (%s) must not be world-readable",
-				fc.Auth.CAKeyParams.PKCS11.PinPath,
-			)
-		}
-
 		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -711,53 +652,46 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	if fc.Proxy.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHAddr = *addr
 	}
 	if fc.Proxy.WebAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, defaults.HTTPListenPort)
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, int(defaults.HTTPListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.WebAddr = *addr
 	}
 	if fc.Proxy.TunAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, defaults.SSHProxyTunnelListenPort)
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, int(defaults.SSHProxyTunnelListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 	if fc.Proxy.MySQLAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, defaults.MySQLListenPort)
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MySQLAddr = *addr
 	}
 	if fc.Proxy.PostgresAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, defaults.PostgresListenPort)
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, int(defaults.PostgresListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PostgresAddr = *addr
 	}
 	if fc.Proxy.MongoAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, defaults.MongoListenPort)
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, int(defaults.MongoListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoAddr = *addr
-	}
-	if fc.Proxy.PeerAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerAddr, int(defaults.ProxyPeeringListenPort))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.PeerAddr = *addr
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -783,7 +717,11 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// was passed. If the certificate is not self-signed, verify the certificate
 		// chain from leaf to root with the trust store on the computer so browsers
 		// don't complain.
-		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -858,7 +796,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -908,16 +846,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoPublicAddrs = addrs
-	}
-	if fc.Proxy.PeerPublicAddr != "" {
-		if fc.Proxy.PeerAddr == "" {
-			return trace.BadParameter("peer_listen_addr must be set when peer_public_addr is set")
-		}
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerPublicAddr, int(defaults.ProxyPeeringListenPort))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.PeerPublicAddr = *addr
 	}
 
 	acme, err := fc.Proxy.ACME.Parse()
@@ -1002,12 +930,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
-	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
-		cfg.SSH.DisableCreateHostUser = true
-		if runtime.GOOS != constants.LinuxOS {
-			log.Debugln("Disabling host user creation as this feature is only available on Linux")
-		}
-	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
 
@@ -1052,23 +974,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
-
-	for _, matcher := range fc.SSH.AWSMatchers {
-		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
-			services.AWSMatcher{
-				Types:   matcher.Matcher.Types,
-				Regions: matcher.Matcher.Regions,
-				Tags:    matcher.Matcher.Tags,
-				Params: services.InstallerParams{
-					JoinMethod: matcher.InstallParams.JoinParams.Method,
-					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
-					ScriptName: matcher.InstallParams.ScriptName,
-				},
-				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
-			})
 	}
 
 	return nil
@@ -1139,16 +1044,6 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Tags:    matcher.Tags,
 			})
 	}
-	for _, matcher := range fc.Databases.AzureMatchers {
-		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
-			services.AzureMatcher{
-				Subscriptions:  matcher.Subscriptions,
-				ResourceGroups: matcher.ResourceGroups,
-				Types:          matcher.Types,
-				Regions:        matcher.Regions,
-				ResourceTags:   matcher.ResourceTags,
-			})
-	}
 	for _, database := range fc.Databases.Databases {
 		staticLabels := make(map[string]string)
 		if database.StaticLabels != nil {
@@ -1177,9 +1072,6 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			MySQL: service.MySQLOptions{
-				ServerVersion: database.MySQL.ServerVersion,
-			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
 				ServerName: database.TLS.ServerName,
@@ -1194,26 +1086,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
 				},
-				ElastiCache: service.DatabaseAWSElastiCache{
-					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
-				},
-				MemoryDB: service.DatabaseAWSMemoryDB{
-					ClusterName: database.AWS.MemoryDB.ClusterName,
-				},
-				SecretStore: service.DatabaseAWSSecretStore{
-					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
-					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
-				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
-			},
-			AD: service.DatabaseAD{
-				KeytabFile: database.AD.KeytabFile,
-				Krb5File:   database.AD.Krb5File,
-				Domain:     database.AD.Domain,
-				SPN:        database.AD.SPN,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1368,7 +1244,11 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
 		}
 
-		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1416,13 +1296,6 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
-
-	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
-		if !types.IsValidLabelKey(attributeName) {
-			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
-		}
-	}
-
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
@@ -1433,6 +1306,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	ldapPassword, err := os.ReadFile(fc.WindowsDesktop.LDAP.PasswordFile)
+	if err != nil {
+		return trace.WrapWithMessage(err, "loading the LDAP password from file %v",
+			fc.WindowsDesktop.LDAP.PasswordFile)
+	}
+
+	// If a CA file is provided but InsecureSkipVerify is also set to true, throw an
+	// error to make sure the user isn't making a critical security mistake (i.e. thinking
+	// that their LDAPS connection is being verified to be with the CA provided, but it isn't
+	// due to InsecureSkipVerify == true ).
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.InsecureSkipVerify {
+		return trace.BadParameter("a CA file was provided but insecure_skip_verify was also set to true; confirm that you really want CA verification to be skipped by deleting or commenting-out the der_ca_file configuration value")
 	}
 
 	var cert *x509.Certificate
@@ -1449,9 +1335,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
-		Addr:               fc.WindowsDesktop.LDAP.Addr,
-		Username:           fc.WindowsDesktop.LDAP.Username,
-		Domain:             fc.WindowsDesktop.LDAP.Domain,
+		Addr:     fc.WindowsDesktop.LDAP.Addr,
+		Username: fc.WindowsDesktop.LDAP.Username,
+		Domain:   fc.WindowsDesktop.LDAP.Domain,
+
+		// trim whitespace to protect against things like
+		// a leading tab character or trailing newline
+		Password:           string(bytes.TrimSpace(ldapPassword)),
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		CA:                 cert,
 	}
@@ -1548,6 +1438,8 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
 			}},
 		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1819,14 +1711,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			}
 		}
 		db := service.Database{
-			Name:         clf.DatabaseName,
-			Description:  clf.DatabaseDescription,
-			Protocol:     clf.DatabaseProtocol,
-			URI:          clf.DatabaseURI,
-			StaticLabels: staticLabels,
-			MySQL: service.MySQLOptions{
-				ServerVersion: clf.DatabaseMySQLServerVersion,
-			},
+			Name:          clf.DatabaseName,
+			Description:   clf.DatabaseDescription,
+			Protocol:      clf.DatabaseProtocol,
+			URI:           clf.DatabaseURI,
+			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{
 				CACert: caBytes,
@@ -1844,12 +1733,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			GCP: service.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
-			},
-			AD: service.DatabaseAD{
-				KeytabFile: clf.DatabaseADKeytabFile,
-				Krb5File:   clf.DatabaseADKrb5File,
-				Domain:     clf.DatabaseADDomain,
-				SPN:        clf.DatabaseADSPN,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1902,11 +1785,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
-	// apply --skip-version-check flag.
-	if clf.SkipVersionCheck {
-		cfg.SkipVersionCheck = clf.SkipVersionCheck
-	}
-
 	// Apply diagnostic address flag.
 	if clf.DiagnosticAddr != "" {
 		addr, err := utils.ParseAddr(clf.DiagnosticAddr)
@@ -1923,7 +1801,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = io.Discard
+		cfg.Console = ioutil.Discard
 		cfg.Debug = clf.Debug
 	}
 
@@ -1965,14 +1843,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.PIDFile = clf.PIDFile
 	}
 
-	if clf.AuthToken != "" {
-		// store the value of the --token flag:
-		cfg.SetToken(clf.AuthToken)
+	// apply --token flag:
+	if _, err := cfg.ApplyToken(clf.AuthToken); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
-		return trace.Wrap(err)
+	if len(clf.CAPins) != 0 {
+		cfg.CAPins = clf.CAPins
 	}
 
 	// apply --listen-ip flag:
@@ -2000,7 +1878,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
+		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
 	}
 
 	// add data_dir to the backend config:
@@ -2107,8 +1985,8 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 // a given IP
 func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
-		&cfg.Auth.ListenAddr,
-		&cfg.Auth.ListenAddr,
+		&cfg.Auth.SSHAddr,
+		&cfg.Auth.SSHAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
@@ -2155,23 +2033,20 @@ func splitRoles(roles string) []string {
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		cfg.JoinMethod = types.JoinMethodToken
-		cfg.SetToken(fc.AuthToken)
+		_, err := cfg.ApplyToken(fc.AuthToken)
+		return trace.Wrap(err)
 	}
-
 	if fc.JoinParams != (JoinParams{}) {
-		if cfg.HasToken() {
+		if cfg.Token != "" {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-
-		cfg.SetToken(fc.JoinParams.TokenName)
-
+		cfg.Token = fc.JoinParams.TokenName
 		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
+		case types.JoinMethodEC2, types.JoinMethodIAM:
 			cfg.JoinMethod = fc.JoinParams.Method
 		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
 		}
 	}
-
 	return nil
 }

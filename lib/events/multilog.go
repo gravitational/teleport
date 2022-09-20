@@ -51,11 +51,47 @@ type MultiLog struct {
 	*MultiEmitter
 }
 
+// WaitForDelivery waits for resources to be released and outstanding requests to
+// complete after calling Close method
+func (m *MultiLog) WaitForDelivery(ctx context.Context) error {
+	return nil
+}
+
 // Close releases connections and resources associated with logs if any
 func (m *MultiLog) Close() error {
 	var errors []error
 	for _, log := range m.loggers {
 		errors = append(errors, log.Close())
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// EmitAuditEventLegacy emits audit event
+func (m *MultiLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
+	var errors []error
+	for _, log := range m.loggers {
+		errors = append(errors, log.EmitAuditEventLegacy(event, fields))
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// UploadSessionRecording uploads session recording to the audit server
+func (m *MultiLog) UploadSessionRecording(rec SessionRecording) error {
+	var errors []error
+	for _, log := range m.loggers {
+		errors = append(errors, log.UploadSessionRecording(rec))
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// DELETE IN: 2.7.0
+// This method is no longer necessary as nodes and proxies >= 2.7.0
+// use UploadSessionRecording method.
+// PostSessionSlice sends chunks of recorded session to the event log
+func (m *MultiLog) PostSessionSlice(slice SessionSlice) error {
+	var errors []error
+	for _, log := range m.loggers {
+		errors = append(errors, log.PostSessionSlice(slice))
 	}
 	return trace.NewAggregate(errors...)
 }
@@ -111,14 +147,14 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 }
 
 // SearchSessionEvents is a flexible way to find session events.
-// Only session.end and windows.desktop.session.end events are returned by this function.
+// Only session.end events are returned by this function.
 // This is used to find completed sessions.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
 		if !trace.IsNotImplemented(err) {
 			return events, lastKey, err
 		}
@@ -127,7 +163,7 @@ func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
+// channel if one is encountered. Otherwise it is simply closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (m *MultiLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)

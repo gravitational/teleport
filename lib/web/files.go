@@ -79,9 +79,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	// We must return nil so that we don't write anything to
-	// the response, which would corrupt the downloaded file.
-	return nil, nil
+	return OK(), nil
 }
 
 type fileTransfer struct {

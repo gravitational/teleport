@@ -34,8 +34,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -936,11 +936,7 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 		}(i)
 	}
 
-	// Give the database some time to update. A single-node in-memory database
-	// will finish faster than a 3-node cluster. Some latency is expected
-	// since this test intentionally creates conflict on the same key. Most tests
-	// should complete in less than a few seconds.
-	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 10*time.Second)
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer timeoutCancel()
 	requireWaitGroupToFinish(timeoutCtx, t, &asyncOps)
 
@@ -1065,7 +1061,7 @@ func requireWaitGroupToFinish(ctx context.Context, t *testing.T, waitGroup *sync
 // MakePrefix returns function that appends unique prefix
 // to any key, used to make test suite concurrent-run proof
 func MakePrefix() func(k string) []byte {
-	id := "/" + uuid.New().String()
+	id := "/" + uuid.New()
 	return func(k string) []byte {
 		return []byte(id + k)
 	}

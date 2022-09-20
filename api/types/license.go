@@ -66,31 +66,6 @@ type License interface {
 	// SetSupportsDatabaseAccess sets database access support flag
 	SetSupportsDatabaseAccess(Bool)
 
-	// GetSupportsDesktopAccess returns desktop access support flag
-	GetSupportsDesktopAccess() Bool
-	// SetSupportsDesktopAccess sets desktop access support flag
-	SetSupportsDesktopAccess(Bool)
-
-	// GetSupportsModeratedSessions returns moderated sessions support flag
-	GetSupportsModeratedSessions() Bool
-	// SetSupportsModeratedSessions sets moderated sessions support flag
-	SetSupportsModeratedSessions(Bool)
-
-	// GetSupportsMachineID returns MachineID support flag
-	GetSupportsMachineID() Bool
-	// SetSupportsMachineID sets MachineID support flag
-	SetSupportsMachineID(Bool)
-
-	// GetSupportsResourceAccessRequests returns resource access requests support flag
-	GetSupportsResourceAccessRequests() Bool
-	// SetSupportsResourceAccessRequests sets resource access requests support flag
-	SetSupportsResourceAccessRequests(Bool)
-
-	// GetTrial returns the trial flag
-	GetTrial() Bool
-	// SetTrial sets the trial flag
-	SetTrial(Bool)
-
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
@@ -294,64 +269,11 @@ func (c *LicenseV3) SetSupportsDatabaseAccess(value Bool) {
 	c.Spec.SupportsDatabaseAccess = value
 }
 
-// GetSupportsDesktopAccess returns desktop access support flag
-func (c *LicenseV3) GetSupportsDesktopAccess() Bool {
-	return c.Spec.SupportsDesktopAccess
-}
-
-// SetSupportsDesktopAccess sets desktop access support flag
-func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
-	c.Spec.SupportsDesktopAccess = value
-}
-
-// GetSupportsModeratedSessions returns moderated sessions support flag
-func (c *LicenseV3) GetSupportsModeratedSessions() Bool {
-	return c.Spec.SupportsModeratedSessions
-}
-
-// SetSupportsModeratedSessions sets moderated sessions support flag
-func (c *LicenseV3) SetSupportsModeratedSessions(value Bool) {
-	c.Spec.SupportsModeratedSessions = value
-}
-
-// GetSupportsMachineID returns MachineID support flag
-func (c *LicenseV3) GetSupportsMachineID() Bool {
-	return c.Spec.SupportsMachineID
-}
-
-// SetSupportsMachineID sets MachineID support flag
-func (c *LicenseV3) SetSupportsMachineID(value Bool) {
-	c.Spec.SupportsMachineID = value
-}
-
-// GetSupportsResourceAccessRequests returns resource access requests support flag
-func (c *LicenseV3) GetSupportsResourceAccessRequests() Bool {
-	return c.Spec.SupportsResourceAccessRequests
-}
-
-// SetSupportsResourceAccessRequests sets resource access requests support flag
-func (c *LicenseV3) SetSupportsResourceAccessRequests(value Bool) {
-	c.Spec.SupportsResourceAccessRequests = value
-}
-
-// GetTrial returns the trial flag
-func (c *LicenseV3) GetTrial() Bool {
-	return c.Spec.Trial
-}
-
-// SetTrial sets the trial flag
-func (c *LicenseV3) SetTrial(value Bool) {
-	c.Spec.Trial = value
-}
-
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
 	if !c.Expiry().IsZero() {
 		features = append(features, fmt.Sprintf("expires at %v", c.Expiry()))
-	}
-	if c.GetTrial() {
-		features = append(features, "is trial")
 	}
 	if c.GetReportsUsage() {
 		features = append(features, "reports usage")
@@ -364,18 +286,6 @@ func (c *LicenseV3) String() string {
 	}
 	if c.GetSupportsDatabaseAccess() {
 		features = append(features, "supports database access")
-	}
-	if c.GetSupportsDesktopAccess() {
-		features = append(features, "supports desktop access")
-	}
-	if c.GetSupportsModeratedSessions() {
-		features = append(features, "supports moderated sessions")
-	}
-	if c.GetSupportsMachineID() {
-		features = append(features, "supports Machine ID")
-	}
-	if c.GetSupportsResourceAccessRequests() {
-		features = append(features, "supports resource access requests")
 	}
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
@@ -407,18 +317,8 @@ type LicenseSpecV3 struct {
 	SupportsApplicationAccess *Bool `json:"app,omitempty"`
 	// SupportsDatabaseAccess turns database access on or off
 	SupportsDatabaseAccess Bool `json:"db,omitempty"`
-	// SupportsDesktopAccess turns desktop access on or off
-	SupportsDesktopAccess Bool `json:"desktop,omitempty"`
 	// ReportsUsage turns usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
-	// SupportsModeratedSessions turns on moderated sessions
-	SupportsModeratedSessions Bool `json:"moderated_sessions,omitempty"`
-	// SupportsMachineID turns MachineID support on or off
-	SupportsMachineID Bool `json:"machine_id,omitempty"`
-	// SupportsResourceAccessRequests turns resource access request support on or off
-	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
-	// Trial is true for trial licenses
-	Trial Bool `json:"trial,omitempty"`
 }

@@ -21,23 +21,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
-	"github.com/coreos/go-semver/semver"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud/azure"
+
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/rds"
+
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -54,7 +49,7 @@ type Databases interface {
 	DatabaseGetter
 	// CreateDatabase creates a new database resource.
 	CreateDatabase(context.Context, types.Database) error
-	// UpdateDatabase updates an existing database resource.
+	// UpdateDatabse updates an existing database resource.
 	UpdateDatabase(context.Context, types.Database) error
 	// DeleteDatabase removes the specified database resource.
 	DeleteDatabase(ctx context.Context, name string) error
@@ -135,34 +130,6 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 	return meta
 }
 
-// NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
-func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) {
-	fqdn := server.Properties.FullyQualifiedDomainName
-	if fqdn == "" {
-		return nil, trace.BadParameter("empty FQDN")
-	}
-	labels, err := labelsFromAzureServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return types.NewDatabaseV3(
-		setDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure %v server in %v",
-				defaults.ReadableDatabaseProtocol(server.Protocol),
-				server.Location),
-			Labels: labels,
-		}, server.Name),
-		types.DatabaseSpecV3{
-			Protocol: server.Protocol,
-			URI:      fmt.Sprintf("%v:%v", fqdn, server.Port),
-			Azure: types.Azure{
-				Name:       server.Name,
-				ResourceID: server.ID,
-			},
-		})
-}
-
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
 func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error) {
 	endpoint := instance.Endpoint
@@ -232,9 +199,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	var errors []error
 	var databases types.Databases
 	for _, endpoint := range cluster.CustomEndpoints {
-		// RDS custom endpoint format:
-		// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
-		endpointName, _, err := awsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
+		endpointName, err := parseRDSCustomEndpoint(aws.StringValue(endpoint))
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -265,109 +230,6 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	}
 
 	return databases, trace.NewAggregate(errors...)
-}
-
-// NewDatabaseFromRedshiftCluster creates a database resource from a Redshift cluster.
-func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, error) {
-	// Endpoint can be nil while the cluster is being created. Return an error
-	// until the Endpoint is available.
-	if cluster.Endpoint == nil {
-		return nil, trace.BadParameter("missing endpoint in Redshift cluster %v", aws.StringValue(cluster.ClusterIdentifier))
-	}
-
-	metadata, err := MetadataFromRedshiftCluster(cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return types.NewDatabaseV3(
-		setDBName(types.Metadata{
-			Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
-			Labels:      labelsFromRedshiftCluster(cluster, metadata),
-		}, aws.StringValue(cluster.ClusterIdentifier)),
-		types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
-			AWS:      *metadata,
-		})
-}
-
-// NewDatabaseFromElastiCacheConfigurationEndpoint creates a database resource
-// from ElastiCache configuration endpoint.
-func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Database, error) {
-	if cluster.ConfigurationEndpoint == nil {
-		return nil, trace.BadParameter("missing configuration endpoint")
-	}
-
-	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, awsutils.ElastiCacheConfigurationEndpoint, extraLabels)
-}
-
-// NewDatabasesFromElastiCacheNodeGroups creates database resources from
-// ElastiCache node groups.
-func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
-	var databases types.Databases
-	for _, nodeGroup := range cluster.NodeGroups {
-		if nodeGroup.PrimaryEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, awsutils.ElastiCachePrimaryEndpoint, extraLabels)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			databases = append(databases, database)
-		}
-
-		if nodeGroup.ReaderEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, awsutils.ElastiCacheReaderEndpoint, extraLabels)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			databases = append(databases, database)
-		}
-	}
-	return databases, nil
-}
-
-// newElastiCacheDatabase returns a new ElastiCache database.
-func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint, endpointType string, extraLabels map[string]string) (types.Database, error) {
-	metadata, err := MetadataFromElastiCacheCluster(cluster, endpointType)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	suffix := make([]string, 0)
-	if endpointType == awsutils.ElastiCacheReaderEndpoint {
-		suffix = []string{endpointType}
-	}
-
-	return types.NewDatabaseV3(setDBName(types.Metadata{
-		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
-		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
-	}, aws.StringValue(cluster.ReplicationGroupId), suffix...), types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolRedis,
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
-		AWS:      *metadata,
-	})
-}
-
-// NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
-// cluster.
-func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
-	endpointType := awsutils.MemoryDBClusterEndpoint
-
-	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return types.NewDatabaseV3(
-		setDBName(types.Metadata{
-			Description: fmt.Sprintf("MemoryDB cluster in %v", metadata.Region),
-			Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
-		}, aws.StringValue(cluster.Name)),
-		types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolRedis,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ClusterEndpoint.Address), aws.Int64Value(cluster.ClusterEndpoint.Port)),
-			AWS:      *metadata,
-		})
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
@@ -405,157 +267,30 @@ func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
 	}, nil
 }
 
-// MetadataFromRedshiftCluster creates AWS metadata from the provided Redshift cluster.
-func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.ClusterNamespaceArn))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		Redshift: types.Redshift{
-			ClusterID: aws.StringValue(cluster.ClusterIdentifier),
-		},
-	}, nil
-}
-
-// MetadataFromElastiCacheCluster creates AWS metadata for the provided
-// ElastiCache cluster.
-func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpointType string) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		ElastiCache: types.ElastiCache{
-			ReplicationGroupID:       aws.StringValue(cluster.ReplicationGroupId),
-			UserGroupIDs:             aws.StringValueSlice(cluster.UserGroupIds),
-			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
-			EndpointType:             endpointType,
-		},
-	}, nil
-}
-
-// MetadataFromMemoryDBCluster creates AWS metadata for the providec MemoryDB
-// cluster.
-func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		MemoryDB: types.MemoryDB{
-			ClusterName:  aws.StringValue(cluster.Name),
-			ACLName:      aws.StringValue(cluster.ACLName),
-			TLSEnabled:   aws.BoolValue(cluster.TLSEnabled),
-			EndpointType: endpointType,
-		},
-	}, nil
-}
-
-// ExtraElastiCacheLabels returns a list of extra labels for provided
-// ElastiCache cluster.
-func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elasticache.Tag, allNodes []*elasticache.CacheCluster, allSubnetGroups []*elasticache.CacheSubnetGroup) map[string]string {
-	replicationGroupID := aws.StringValue(cluster.ReplicationGroupId)
-	subnetGroupName := ""
-	labels := make(map[string]string)
-
-	// Add AWS resource tags.
-	for _, tag := range tags {
-		key := aws.StringValue(tag.Key)
-		if types.IsValidLabelKey(key) {
-			labels[key] = aws.StringValue(tag.Value)
-		} else {
-			log.Debugf("Skipping ElastiCache tag %q, not a valid label key.", key)
-		}
-	}
-
-	// Find any node belongs to this cluster and set engine version label.
-	for _, node := range allNodes {
-		if aws.StringValue(node.ReplicationGroupId) == replicationGroupID {
-			subnetGroupName = aws.StringValue(node.CacheSubnetGroupName)
-			labels[labelEngineVersion] = aws.StringValue(node.EngineVersion)
-			break
-		}
-	}
-
-	// Find the subnet group used by this cluster and set VPC ID label.
-	//
-	// ElastiCache servers do not have public IPs so they are usually only
-	// accessible within the same VPC. Having a VPC ID label can be very useful
-	// for filtering.
-	for _, subnetGroup := range allSubnetGroups {
-		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
-			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
-			break
-		}
-	}
-
-	return labels
-}
-
-// ExtraMemoryDBLabels returns a list of extra labels for provided MemoryDB
-// cluster.
-func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSubnetGroups []*memorydb.SubnetGroup) map[string]string {
-	labels := make(map[string]string)
-
-	// Add AWS resource tags.
-	for _, tag := range tags {
-		key := aws.StringValue(tag.Key)
-		if types.IsValidLabelKey(key) {
-			labels[key] = aws.StringValue(tag.Value)
-		} else {
-			log.Debugf("Skipping MemoryDB tag %q, not a valid label key.", key)
-		}
-	}
-
-	// Engine version.
-	labels[labelEngineVersion] = aws.StringValue(cluster.EngineVersion)
-
-	// VPC ID.
-	for _, subnetGroup := range allSubnetGroups {
-		if aws.StringValue(subnetGroup.Name) == aws.StringValue(cluster.SubnetGroupName) {
-			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
-			break
-		}
-	}
-
-	return labels
-}
-
 // engineToProtocol converts RDS instance engine to the database protocol.
 func engineToProtocol(engine string) string {
 	switch engine {
 	case RDSEnginePostgres, RDSEngineAuroraPostgres:
 		return defaults.ProtocolPostgres
-	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL, RDSEngineMariaDB:
+	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL:
 		return defaults.ProtocolMySQL
 	}
 	return ""
 }
 
-// labelsFromAzureServer creates database labels for the provided Azure DB server.
-func labelsFromAzureServer(server *azure.DBServer) (map[string]string, error) {
-	labels := azureTagsToLabels(server.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelRegion] = server.Location
-	labels[labelEngineVersion] = server.Properties.Version
-
-	rid, err := arm.ParseResourceID(server.ID)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// parseRDSCustomEndpoint endpoint name from the provided RDS custom endpoint.
+func parseRDSCustomEndpoint(endpoint string) (name string, err error) {
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Custom
+	//
+	// RDS custom endpoint format:
+	// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
+	//
+	// Note that endpoint name can only contain letters, numbers, and hyphens, so it's safe to to split on ".".
+	parts := strings.Split(endpoint, ".")
+	if !strings.HasSuffix(endpoint, rdsEndpointSuffix) || len(parts) != 6 {
+		return "", trace.BadParameter("failed to parse %v as RDS custom endpoint", endpoint)
 	}
-	labels[labelEngine] = rid.ResourceType.String()
-	labels[labelResourceGroup] = rid.ResourceGroupName
-	labels[labelSubscriptionID] = rid.SubscriptionID
-	return labels, nil
+	return parts[0], nil
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
@@ -582,49 +317,6 @@ func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointTy
 	return labels
 }
 
-// labelsFromRedshiftCluster creates database labels for the provided Redshift cluster.
-func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[string]string {
-	labels := make(map[string]string)
-	for _, tag := range cluster.Tags {
-		key := aws.StringValue(tag.Key)
-		if types.IsValidLabelKey(key) {
-			labels[key] = aws.StringValue(tag.Value)
-		} else {
-			log.Debugf("Skipping Redshift tag %q, not a valid label key.", key)
-		}
-	}
-	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelAccountID] = meta.AccountID
-	labels[labelRegion] = meta.Region
-	return labels
-}
-
-// labelsFromMetaAndEndpointType creates database labels from provided AWS meta and endpoint type.
-func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
-	labels := make(map[string]string)
-	for key, value := range extraLabels {
-		labels[key] = value
-	}
-	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelAccountID] = meta.AccountID
-	labels[labelRegion] = meta.Region
-	labels[labelEndpointType] = endpointType
-	return labels
-}
-
-// azureTagsToLabels converts Azure tags to a labels map.
-func azureTagsToLabels(tags map[string]string) map[string]string {
-	labels := make(map[string]string)
-	for key, val := range tags {
-		if types.IsValidLabelKey(key) {
-			labels[key] = val
-		} else {
-			log.Debugf("Skipping Azure tag %q, not a valid label key.", key)
-		}
-	}
-	return labels
-}
-
 // rdsTagsToLabels converts RDS tags to a labels map.
 func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 	labels := make(map[string]string)
@@ -644,28 +336,8 @@ func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 	return labels
 }
 
-// IsRDSInstanceSupported returns true if database supports IAM authentication.
-// Currently, only MariaDB is being checked.
-func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
-	// TODO(jakule): Check other engines.
-	if aws.StringValue(instance.Engine) != RDSEngineMariaDB {
-		return true
-	}
-
-	// MariaDB follows semver schema: https://mariadb.org/about/
-	ver, err := semver.NewVersion(aws.StringValue(instance.EngineVersion))
-	if err != nil {
-		log.Errorf("Failed to parse RDS MariaDB version: %s", aws.StringValue(instance.EngineVersion))
-		return false
-	}
-
-	// Min supported MariaDB version that supports IAM is 10.6
-	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html
-	minIAMSupportedVer := semver.New("10.6.0")
-	return !ver.LessThan(*minIAMSupportedVer)
-}
-
-// IsRDSClusterSupported checks whether the Aurora cluster is supported.
+// IsRDSClusterSupported checks whether the aurora cluster is supported and logs
+// related info if not.
 func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
 	// Aurora Serverless v1 does NOT support IAM authentication.
@@ -687,17 +359,6 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	}
 
 	return true
-}
-
-// IsElastiCacheClusterSupported checks whether the ElastiCache cluster is
-// supported.
-func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
-	return aws.BoolValue(cluster.TransitEncryptionEnabled)
-}
-
-// IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.
-func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
-	return aws.BoolValue(cluster.TLSEnabled)
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
@@ -768,79 +429,6 @@ func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
 	}
 }
 
-// IsRedshiftClusterAvailable checks if the Redshift cluster is available.
-func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
-	// For a full list of status values, see:
-	// https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-mgmt-cluster-status
-	//
-	// Note that the Redshift guide does not specify billing information like
-	// the RDS and Aurora guides do. Most Redshift statuses are
-	// cross-referenced with similar statuses from RDS and Aurora guides to
-	// determine the availability.
-	//
-	// For "incompatible-xxx" statuses, the cluster is assumed to be available
-	// if the status is resulted by modifying the cluster, and the cluster is
-	// assumed to be unavailable if the cluster cannot be created or restored.
-	switch aws.StringValue(cluster.ClusterStatus) {
-	// nolint:misspell
-	case "available", "available, prep-for-resize", "available, resize-cleanup",
-		"cancelling-resize", "final-snapshot", "modifying", "rebooting",
-		"renaming", "resizing", "rotating-keys", "storage-full", "updating-hsm",
-		"incompatible-parameters", "incompatible-hsm":
-		return true
-
-	case "creating", "deleting", "hardware-failure", "paused",
-		"incompatible-network":
-		return false
-
-	default:
-		log.Warnf("Unknown status type: %q. Assuming Redshift cluster %q is available.",
-			aws.StringValue(cluster.ClusterStatus),
-			aws.StringValue(cluster.ClusterIdentifier),
-		)
-		return true
-	}
-}
-
-// IsElastiCacheClusterAvailable checks if the ElastiCache cluster is
-// available.
-func IsElastiCacheClusterAvailable(cluster *elasticache.ReplicationGroup) bool {
-	switch aws.StringValue(cluster.Status) {
-	case "available", "modifying", "snapshotting":
-		return true
-
-	case "creating", "deleting", "create-failed":
-		return false
-
-	default:
-		log.Warnf("Unknown status type: %q. Assuming ElastiCache %q is available.",
-			aws.StringValue(cluster.Status),
-			aws.StringValue(cluster.ReplicationGroupId),
-		)
-		return true
-
-	}
-}
-
-// IsMemoryDBClusterAvailable checks if the MemoryDB cluster is available.
-func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
-	switch aws.StringValue(cluster.Status) {
-	case "available", "modifying", "snapshotting":
-		return true
-
-	case "creating", "deleting", "create-failed":
-		return false
-
-	default:
-		log.Warnf("Unknown status type: %q. Assuming MemoryDB %q is available.",
-			aws.StringValue(cluster.Status),
-			aws.StringValue(cluster.Name),
-		)
-		return true
-
-	}
-}
-
 // auroraMySQLVersion extracts aurora mysql version from engine version
 func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
@@ -863,20 +451,6 @@ func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	return version
 }
 
-// GetMySQLEngineVersion returns MySQL engine version from provided metadata labels.
-// An empty string is returned if label doesn't exist.
-func GetMySQLEngineVersion(labels map[string]string) string {
-	if engine, ok := labels[labelEngine]; !ok || (engine != RDSEngineMySQL && engine != AzureEngineMySQL) {
-		return ""
-	}
-
-	version, ok := labels[labelEngineVersion]
-	if !ok {
-		return ""
-	}
-	return version
-}
-
 const (
 	// labelAccountID is the label key containing AWS account ID.
 	labelAccountID = "account-id"
@@ -888,10 +462,13 @@ const (
 	labelEngineVersion = "engine-version"
 	// labelEndpointType is the label key containing the RDS endpoint type.
 	labelEndpointType = "endpoint-type"
-	// labelVPCID is the label key containing the VPC ID.
-	labelVPCID = "vpc-id"
+)
+
+const (
+	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
+	rdsEndpointSuffix = ".rds.amazonaws.com"
 	// labelTeleportDBName is the label key containing the database name override.
-	labelTeleportDBName = types.TeleportNamespace + "/database_name"
+	labelTeleportDBName = "teleport.dev/database_name"
 )
 
 const (
@@ -899,8 +476,6 @@ const (
 	RDSEngineMySQL = "mysql"
 	// RDSEnginePostgres is RDS engine name for Postgres instances.
 	RDSEnginePostgres = "postgres"
-	// RDSEngineMariaDB is RDS engine name for MariaDB instances.
-	RDSEngineMariaDB = "mariadb"
 	// RDSEngineAurora is RDS engine name for Aurora MySQL 5.6 compatible clusters.
 	RDSEngineAurora = "aurora"
 	// RDSEngineAuroraMySQL is RDS engine name for Aurora MySQL 5.7 compatible clusters.
@@ -909,18 +484,18 @@ const (
 	RDSEngineAuroraPostgres = "aurora-postgresql"
 )
 
-// RDSEndpointType specifies the endpoint type for RDS clusters.
+// RDSEndpointType specifies the endpoint type
 type RDSEndpointType string
 
 const (
 	// RDSEndpointTypePrimary is the endpoint that specifies the connection for the primary instance of the RDS cluster.
 	RDSEndpointTypePrimary RDSEndpointType = "primary"
 	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
-	// available in an RDS cluster.
+	// available in a RDS cluster.
 	RDSEndpointTypeReader RDSEndpointType = "reader"
-	// RDSEndpointTypeCustom is the endpoint that specifies one of the custom endpoints associated with the RDS cluster.
+	// RDSEndpointTypeCustom is the endpoint that specifieds one of the custom endpoints associated with the RDS cluster.
 	RDSEndpointTypeCustom RDSEndpointType = "custom"
-	// RDSEndpointTypeInstance is the endpoint of an RDS DB instance.
+	// RDSEndpointTypeInstance is the endpoint of a RDS DB instance.
 	RDSEndpointTypeInstance RDSEndpointType = "instance"
 )
 
@@ -935,18 +510,4 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
-)
-
-const (
-	// AzureEngineMySQL is the Azure engine name for MySQL single-server instances
-	AzureEngineMySQL = "Microsoft.DBforMySQL/servers"
-	// AzureEnginePostgres is the Azure engine name for PostgreSQL single-server instances
-	AzureEnginePostgres = "Microsoft.DBforPostgreSQL/servers"
-)
-
-const (
-	// labelSubscriptionID is the label key for Azure subscription ID.
-	labelSubscriptionID = "subscription-id"
-	// labelResourceGroup is the label key for the Azure resource group name.
-	labelResourceGroup = "resource-group"
 )

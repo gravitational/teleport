@@ -26,27 +26,35 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
+	. "gopkg.in/check.v1"
 )
 
-func TestRewritePaths(t *testing.T) {
+func TestHTTP(t *testing.T) { TestingT(t) }
+
+type HTTPSuite struct {
+}
+
+var _ = Suite(&HTTPSuite{})
+
+func (s *HTTPSuite) TestRewritePaths(c *C) {
 	handler := newTestHandler()
 	server := httptest.NewServer(
 		RewritePaths(handler,
 			Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2")))
 	defer server.Close()
 	re, err := http.Post(server.URL+"/v1/sessions/s1/stream", "text/json", nil)
-	require.NoError(t, err)
+	c.Assert(err, IsNil)
 	defer re.Body.Close()
-	require.Equal(t, http.StatusOK, re.StatusCode)
-	require.Equal(t, "default", handler.capturedNamespace)
-	require.Equal(t, "s1", handler.capturedID)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(handler.capturedNamespace, Equals, "default")
+	c.Assert(handler.capturedID, Equals, "s1")
 
 	re, err = http.Post(server.URL+"/v1/namespaces/system/sessions/s2/stream", "text/json", nil)
-	require.NoError(t, err)
+	c.Assert(err, IsNil)
 	defer re.Body.Close()
-	require.Equal(t, http.StatusOK, re.StatusCode)
-	require.Equal(t, "system", handler.capturedNamespace)
-	require.Equal(t, "s2", handler.capturedID)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(handler.capturedNamespace, Equals, "system")
+	c.Assert(handler.capturedID, Equals, "s2")
 }
 
 type testHandler struct {

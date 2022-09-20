@@ -21,12 +21,7 @@ package utils
 
 import "github.com/gravitational/trace"
 
-// PercentUsed is not supported on Windows.
+// PercentUsed not supported on Windows.
 func PercentUsed(path string) (float64, error) {
-	return 0.0, trace.NotImplemented("disk usage not supported on Windows")
-}
-
-// CanUserWriteTo is not supported on Windows.
-func CanUserWriteTo(path string) (bool, error) {
-	return false, trace.NotImplemented("path permission checking is not supported on Windows")
+	return 0.0, trace.BadParameter("disk usage not supported on Windows")
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/oxy/connlimit"
 	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -88,6 +87,7 @@ func (l *ConnectionsLimiter) AcquireConnection(token string) error {
 
 // ReleaseConnection decrements the counter
 func (l *ConnectionsLimiter) ReleaseConnection(token string) {
+
 	l.Lock()
 	defer l.Unlock()
 

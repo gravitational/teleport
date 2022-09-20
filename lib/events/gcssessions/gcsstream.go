@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"cloud.google.com/go/storage"
-	"github.com/google/uuid"
+	"github.com/pborman/uuid"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/trace"
@@ -41,7 +41,7 @@ import (
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
 	upload := events.StreamUpload{
-		ID:        uuid.New().String(),
+		ID:        uuid.New(),
 		SessionID: sessionID,
 		Initiated: time.Now().UTC(),
 	}
@@ -287,11 +287,6 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.path(s), string(s)),
 		SessionID: s,
 	}
-}
-
-// ReserveUploadPart reserves an upload part.
-func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
-	return nil
 }
 
 const (

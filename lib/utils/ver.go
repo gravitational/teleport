@@ -23,9 +23,14 @@ import (
 
 // CheckVersion compares a version with a minimum version supported.
 func CheckVersion(currentVersion, minVersion string) error {
-	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)
+	currentSemver, err := semver.NewVersion(currentVersion)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", currentVersion)
+	}
+
+	minSemver, err := semver.NewVersion(minVersion)
+	if err != nil {
+		return trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", minVersion)
 	}
 
 	if currentSemver.LessThan(*minSemver) {

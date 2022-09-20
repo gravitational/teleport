@@ -34,15 +34,6 @@ type Conn struct {
 	bufr      *bufio.Reader
 	closeOnce sync.Once
 
-	// OnSend is an optional callback that is invoked when a TDP message
-	// is sent on the wire. It is passed both the raw bytes and the encoded
-	// message.
-	OnSend func(m Message, b []byte)
-
-	// OnRecv is an optional callback that is invoked when a TDP message
-	// is received on the wire.
-	OnRecv func(m Message)
-
 	// localAddr and remoteAddr will be set if rw is
 	// a conn that provides these fields
 	localAddr  net.Addr
@@ -80,9 +71,6 @@ func (c *Conn) Close() error {
 // InputMessage reads the next incoming message from the connection.
 func (c *Conn) InputMessage() (Message, error) {
 	m, err := decode(c.bufr)
-	if c.OnRecv != nil {
-		c.OnRecv(m)
-	}
 	return m, trace.Wrap(err)
 }
 
@@ -92,12 +80,10 @@ func (c *Conn) OutputMessage(m Message) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	_, err = c.rw.Write(buf)
-	if c.OnSend != nil {
-		c.OnSend(m, buf)
+	if _, err := c.rw.Write(buf); err != nil {
+		return trace.Wrap(err)
 	}
-	return trace.Wrap(err)
+	return nil
 }
 
 // SendError is a convenience function for sending an error message.

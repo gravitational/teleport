@@ -17,15 +17,17 @@ limitations under the License.
 package services
 
 import (
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestAcquireSemaphoreRequest(t *testing.T) {
+type SemaphoreSuite struct{}
+
+var _ = check.Suite(&SemaphoreSuite{})
+
+func (s *SemaphoreSuite) TestAcquireSemaphoreRequest(c *check.C) {
 	ok := types.AcquireSemaphoreRequest{
 		SemaphoreKind: "foo",
 		SemaphoreName: "bar",
@@ -33,42 +35,42 @@ func TestAcquireSemaphoreRequest(t *testing.T) {
 		Expires:       time.Now(),
 	}
 	ok2 := ok
-	require.Nil(t, ok.Check())
-	require.Nil(t, ok2.Check())
+	c.Assert(ok.Check(), check.IsNil)
+	c.Assert(ok2.Check(), check.IsNil)
 
 	// Check that all the required fields have their
 	// zero values rejected.
 	bad := ok
 	bad.SemaphoreKind = ""
-	require.NotNil(t, bad.Check())
+	c.Assert(bad.Check(), check.NotNil)
 	bad = ok
 	bad.SemaphoreName = ""
-	require.NotNil(t, bad.Check())
+	c.Assert(bad.Check(), check.NotNil)
 	bad = ok
 	bad.MaxLeases = 0
-	require.NotNil(t, bad.Check())
+	c.Assert(bad.Check(), check.NotNil)
 	bad = ok
 	bad.Expires = time.Time{}
-	require.NotNil(t, bad.Check())
+	c.Assert(bad.Check(), check.NotNil)
 
 	// ensure that well formed acquire params can configure
 	// a well formed semaphore.
 	sem, err := ok.ConfigureSemaphore()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// verify acquisition works and semaphore state is
 	// correctly updated.
 	lease, err := sem.Acquire("sem-id", ok)
-	require.NoError(t, err)
-	require.True(t, sem.Contains(*lease))
+	c.Assert(err, check.IsNil)
+	c.Assert(sem.Contains(*lease), check.Equals, true)
 
 	// verify keepalive succeeds and correctly updates
 	// semaphore expiry.
 	newLease := *lease
 	newLease.Expires = sem.Expiry().Add(time.Second)
-	require.Nil(t, sem.KeepAlive(newLease))
-	require.Equal(t, newLease.Expires, sem.Expiry())
+	c.Assert(sem.KeepAlive(newLease), check.IsNil)
+	c.Assert(sem.Expiry(), check.Equals, newLease.Expires)
 
-	require.Nil(t, sem.Cancel(newLease))
-	require.False(t, sem.Contains(newLease))
+	c.Assert(sem.Cancel(newLease), check.IsNil)
+	c.Assert(sem.Contains(newLease), check.Equals, false)
 }

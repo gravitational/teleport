@@ -20,24 +20,15 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/rand"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestProcessKubeCSR(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			Kubernetes: true, // test requires kube feature is enabled
-		},
-	})
-
-	s := newAuthSuite(t)
+func (s *AuthSuite) TestProcessKubeCSR(c *check.C) {
 	const (
 		username = "bob"
 		roleA    = "user:bob"
@@ -51,14 +42,14 @@ func TestProcessKubeCSR(t *testing.T) {
 		Usage:            []string{"usage a", "usage b"},
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"k8s group a", "k8s group b"},
-		Traits:           map[string][]string{"trait a": {"b", "c"}},
+		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
 		TeleportCluster:  s.clusterName.GetClusterName(),
 	}
 	subj, err := userID.Subject()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	pemCSR, err := newTestCSR(subj)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	csr := KubeCSR{
 		Username:    username,
 		ClusterName: s.clusterName.GetClusterName(),
@@ -67,31 +58,31 @@ func TestProcessKubeCSR(t *testing.T) {
 
 	// CSR with unknown roles.
 	_, err = s.a.ProcessKubeCSR(csr)
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err), "got: %v", err)
+	c.Assert(err, check.NotNil)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
 
 	// Create the user and allow it to request the additional role.
 	_, err = CreateUserRoleAndRequestable(s.a, username, roleB)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// CSR with allowed, known roles.
 	resp, err := s.a.ProcessKubeCSR(csr)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	cert, err := tlsca.ParseCertificatePEM(resp.Cert)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	// Note: we could compare cert.Subject with subj here directly.
 	// However, because pkix.Name encoding/decoding isn't symmetric (ExtraNames
 	// before encoding becomes Names after decoding), they wouldn't match.
 	// Therefore, convert back to Identity, which handles this oddity and
 	// should match.
 	gotUserID, err := tlsca.FromSubject(cert.Subject, time.Time{})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	wantUserID := userID
 	// Auth server should overwrite the Usage field and enforce UsageKubeOnly.
 	wantUserID.Usage = []string{teleport.UsageKubeOnly}
-	require.Equal(t, *gotUserID, wantUserID)
+	c.Assert(*gotUserID, check.DeepEquals, wantUserID)
 }
 
 // newTestCSR creates and PEM-encodes an x509 CSR with given subject.

@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 40 - WebAuthn Support
@@ -8,8 +8,6 @@ state: implemented
 ## What
 
 Provide WebAuthn support for Teleport, both server- and client-side.
-
-WebAuthn is available since Teleport 8.
 
 ## Why
 
@@ -42,35 +40,35 @@ to the server with the signed challenge. Assuming all is well this completes the
 registration process.
 
 ```
-                          Registration flow
-
+                          Registration flow                     
+                                                                
      ┌──────┐                       ┌──────┐            ┌──────┐
      │Device│                       │Client│            │Server│
      └──┬───┘                       └──┬───┘            └──┬───┘
-        │                              │ BeginRegistration │
-        │                              │ ──────────────────>
-        │                              │                   │
-        │                              │ CredentialCreation│
-        │                              │ <──────────────────
-        │                              │                   │
-        │ navigator.credential.create()│                   │
-        │ <─────────────────────────────                   │
-        │                              │                   │
-        │          Credential          │                   │
-        │ ─────────────────────────────>                   │
-        │                              │                   │
-        │                              │ FinishRegistration│
-        │                              │ ──────────────────>
-        │                              │                   │
-        │                              │  success/failure  │
-        │                              │ <──────────────────
+        │                              │ BeginRegistration │    
+        │                              │ ──────────────────>    
+        │                              │                   │    
+        │                              │ CredentialCreation│    
+        │                              │ <──────────────────    
+        │                              │                   │    
+        │ navigator.credential.create()│                   │    
+        │ <─────────────────────────────                   │    
+        │                              │                   │    
+        │          Credential          │                   │    
+        │ ─────────────────────────────>                   │    
+        │                              │                   │    
+        │                              │ FinishRegistration│    
+        │                              │ ──────────────────>    
+        │                              │                   │    
+        │                              │  success/failure  │    
+        │                              │ <──────────────────    
      ┌──┴───┐                       ┌──┴───┐            ┌──┴───┐
      │Device│                       │Client│            │Server│
      └──────┘                       └──────┘            └──────┘
 ```
 
 Authentication (also referred simply as Login) follows a similar "challenge ->
-sign -> verify" protocol. In simple terms, the client requests a
+sign -> verify" protocol. In simple terms, the client requests a 
 [CredentialAssertion](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialAssertion)
 from the server, signs it by calling
 [navigartor.credentials.get()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get),
@@ -97,7 +95,8 @@ WebAuthn is backwards compatible with U2F in the sense that FIDO/CTAP1 devices,
 ie U2F-capable devices, are still supported. The main difference in
 implementations lies in the definition of the App ID / Relying Party ID (ie,
 "https://example.com:3080" vs "example.com"). The "appid" extension is the
-solution for this problem and seems to be well-supported for browsers.
+solution for this problem and seems to be well-supported for browsers
+(__TODO(codingllama):__ Verify for Firefox and Safari).
 
 Unfortunately, the appid extension is not without its issues.
 [As the standard itself says in item 2](https://www.w3.org/TR/webauthn/#sctn-appid-extension),
@@ -147,10 +146,6 @@ auth_service:
       attestation_allowed_cas: []
       # Optional.
       attestation_denied_cas:  []
-      # Disables WebAuthn for second_factor modes "on" and "optional", allowing
-      # a fallback to U2F.
-      # Optional.
-      disabled: false
 ```
 
 Changes to the `cluster_auth_preference` resource follow suite (no new resources
@@ -188,8 +183,8 @@ settings:
 			AuthenticatorAttachment: "",
 			// Not aiming at "usernameless"/"first-factor" authentication _yet_.
 			RequireResidentKey: false,
-			// Do not ask for verification, users already go through password authn.
-			UserVerification: "discouraged",
+			// User presence is what we're aiming at, verification is a bonus.
+			UserVerification: "preferred",
 		},
 
 		// General timeout for flows, defaults to 60s.
@@ -409,58 +404,58 @@ that the viability of it has been established.
 This is the current flow of the login API:
 
 ```
-                                                      U2F login
-
-          ┌─┐
-          ║"│
-          └┬┘
-          ┌┼┐
+                                                      U2F login                                                  
+                                                                                                                 
+          ┌─┐                                                                                                    
+          ║"│                                                                                                    
+          └┬┘                                                                                                    
+          ┌┼┐                                                                                                    
            │                ┌───┐                             ┌─────┐                                      ┌────┐
           ┌┴┐               │tsh│                             │proxy│                                      │auth│
       codingllama           └─┬─┘                             └──┬──┘                                      └─┬──┘
-           │   $ tsh login    │                                  │                                           │
-           │─────────────────>│                                  │                                           │
-           │                  │                                  │                                           │
-           │                  │  POST /webapi/u2f/signrequest    │                                           │
-           │                  │─────────────────────────────────>│                                           │
-           │                  │                                  │                                           │
-           │                  │                                  │    POST /v2/u2f/users/codingllama/sign    │
-           │                  │                                  │───────────────────────────────────────────>
-           │                  │                                  │                                           │
-           │                  │                                  │     lib.auth.MFAAuthenticateChallenge     │
-           │                  │                                  │<───────────────────────────────────────────
-           │                  │                                  │                                           │
-           │                  │lib.auth.MFAAuthenticateChallenge │                                           │
-           │                  │<─────────────────────────────────│                                           │
-           │                  │                                  │                                           │
-           │tap security key  │                                  │                                           │
-           │<─────────────────│                                  │                                           │
-           │                  │                                  │                                           │
-           ────┐              │                                  │                                           │
-               │ *taps*       │                                  │                                           │
-           <───┘              │                                  │                                           │
-           │                  │                                  │                                           │
-           │                  │     POST /webapi/u2f/certs       │                                           │
-           │                  │─────────────────────────────────>│                                           │
-           │                  │                                  │                                           │
-           │                  │                                  │POST /v2/users/codingllama/ssh/authenticate│
-           │                  │                                  │───────────────────────────────────────────>
-           │                  │                                  │                                           │
-           │                  │                                  │         lib.auth.SSHLoginResponse         │
-           │                  │                                  │<───────────────────────────────────────────
-           │                  │                                  │                                           │
-           │                  │    lib.auth.SSHLoginResponse     │                                           │
-           │                  │<─────────────────────────────────│                                           │
-           │                  │                                  │                                           │
-           │      done        │                                  │                                           │
-           │<─────────────────│                                  │                                           │
+           │   $ tsh login    │                                  │                                           │   
+           │─────────────────>│                                  │                                           │   
+           │                  │                                  │                                           │   
+           │                  │  POST /webapi/u2f/signrequest    │                                           │   
+           │                  │─────────────────────────────────>│                                           │   
+           │                  │                                  │                                           │   
+           │                  │                                  │    POST /v2/u2f/users/codingllama/sign    │   
+           │                  │                                  │───────────────────────────────────────────>   
+           │                  │                                  │                                           │   
+           │                  │                                  │     lib.auth.MFAAuthenticateChallenge     │   
+           │                  │                                  │<───────────────────────────────────────────   
+           │                  │                                  │                                           │   
+           │                  │lib.auth.MFAAuthenticateChallenge │                                           │   
+           │                  │<─────────────────────────────────│                                           │   
+           │                  │                                  │                                           │   
+           │tap security key  │                                  │                                           │   
+           │<─────────────────│                                  │                                           │   
+           │                  │                                  │                                           │   
+           ────┐              │                                  │                                           │   
+               │ *taps*       │                                  │                                           │   
+           <───┘              │                                  │                                           │   
+           │                  │                                  │                                           │   
+           │                  │     POST /webapi/u2f/certs       │                                           │   
+           │                  │─────────────────────────────────>│                                           │   
+           │                  │                                  │                                           │   
+           │                  │                                  │POST /v2/users/codingllama/ssh/authenticate│   
+           │                  │                                  │───────────────────────────────────────────>   
+           │                  │                                  │                                           │   
+           │                  │                                  │         lib.auth.SSHLoginResponse         │   
+           │                  │                                  │<───────────────────────────────────────────   
+           │                  │                                  │                                           │   
+           │                  │    lib.auth.SSHLoginResponse     │                                           │   
+           │                  │<─────────────────────────────────│                                           │   
+           │                  │                                  │                                           │   
+           │      done        │                                  │                                           │   
+           │<─────────────────│                                  │                                           │   
       codingllama           ┌─┴─┐                             ┌──┴──┐                                      ┌─┴──┐
           ┌─┐               │tsh│                             │proxy│                                      │auth│
           ║"│               └───┘                             └─────┘                                      └────┘
-          └┬┘
-          ┌┼┐
-           │
-          ┌┴┐
+          └┬┘                                                                                                    
+          ┌┼┐                                                                                                    
+           │                                                                                                     
+          ┌┴┐                                                                                                    
 ```
 
 The proposed changes are twofold:
@@ -533,11 +528,6 @@ to safely talk to older Proxies (at least for a few releases).
 gRPC backwards compatibility is not a concern.
 
 #### WebAuthn user handle
-
-Implementation note: user handles are mainly used for resident keys, a WebAuthn
-feature we don't take advantage of (yet). This section is kept in the
-design/implementation for its future relevance, but user handles could be
-ignored by the current implementation without any downsides.
 
 WebAuthn requires the server to return a user handle (aka user ID) along with
 both registration and login challenges. The user handle is used by the

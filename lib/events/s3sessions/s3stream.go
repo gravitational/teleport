@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -31,7 +32,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+
 	"github.com/gravitational/trace"
 )
 
@@ -170,7 +171,8 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	return parts, nil
 }
 
-// ListUploads lists uploads that have been initiated but not completed
+// ListUploads lists uploads that have been initiated but not completed with
+// earlier uploads returned first
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	var prefix *string
 	if h.Path != "" {
@@ -204,11 +206,9 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		keyMarker = re.KeyMarker
 		uploadIDMarker = re.UploadIdMarker
 	}
-
 	sort.Slice(uploads, func(i, j int) bool {
 		return uploads[i].Initiated.Before(uploads[j].Initiated)
 	})
-
 	return uploads, nil
 }
 
@@ -218,9 +218,4 @@ func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata 
 		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID),
 		SessionID: sessionID,
 	}
-}
-
-// ReserveUploadPart reserves an upload part.
-func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
-	return nil
 }

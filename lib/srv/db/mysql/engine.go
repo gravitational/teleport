@@ -27,8 +27,12 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -36,20 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
-
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolMySQL)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
-	return &Engine{
-		EngineConfig: ec,
-	}
-}
 
 // Engine implements the MySQL database service that accepts client
 // connections coming over reverse tunnel from the proxy and proxies
@@ -57,24 +48,20 @@ func newEngine(ec common.EngineConfig) common.Engine {
 //
 // Implements common.Engine.
 type Engine struct {
-	// EngineConfig is the common database engine configuration.
-	common.EngineConfig
-	// proxyConn is a client connection.
-	proxyConn server.Conn
-}
-
-// InitializeConnection initializes the engine with client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
-	// Make server conn to get access to protocol's WriteOK/WriteError methods.
-	e.proxyConn = server.Conn{Conn: packet.NewConn(clientConn)}
-	return nil
-}
-
-// SendError sends an error to connected client in the MySQL understandable format.
-func (e *Engine) SendError(err error) {
-	if writeErr := e.proxyConn.WriteError(err); writeErr != nil {
-		e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
-	}
+	// Auth handles database access authentication.
+	Auth common.Auth
+	// Audit emits database access audit events.
+	Audit common.Audit
+	// AuthClient is the cluster auth server client.
+	AuthClient *auth.Client
+	// Context is the database server close context.
+	Context context.Context
+	// Clock is the clock interface.
+	Clock clockwork.Clock
+	// CloudClients provides access to cloud API clients.
+	CloudClients common.CloudClients
+	// Log is used for logging.
+	Log logrus.FieldLogger
 }
 
 // HandleConnection processes the connection from MySQL proxy coming
@@ -83,9 +70,18 @@ func (e *Engine) SendError(err error) {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session, clientConn net.Conn) (err error) {
+	// Make server conn to get access to protocol's WriteOK/WriteError methods.
+	proxyConn := server.Conn{Conn: packet.NewConn(clientConn)}
+	defer func() {
+		if err != nil {
+			if writeErr := proxyConn.WriteError(err); writeErr != nil {
+				e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
+			}
+		}
+	}()
 	// Perform authorization checks.
-	err := e.checkAccess(ctx, sessionCtx)
+	err = e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -103,17 +99,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			e.Log.WithError(err).Error("Failed to close connection to MySQL server.")
 		}
 	}()
-
-	// Internally, updateServerVersion() updates databases only when database version
-	// is not set, or it has changed since previous call.
-	if err := e.updateServerVersion(sessionCtx, serverConn); err != nil {
-		// Log but do not fail connection if the version update fails.
-		e.Log.WithError(err).Warnf("Failed to update the MySQL server version.")
-	}
-
 	// Send back OK packet to indicate auth/connect success. At this point
 	// the original client should consider the connection phase completed.
-	err = e.proxyConn.WriteOK(nil)
+	err = proxyConn.WriteOK(nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -122,8 +110,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// Copy between the connections.
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
-	go e.receiveFromClient(e.proxyConn.Conn, serverConn, clientErrCh, sessionCtx)
-	go e.receiveFromServer(serverConn, e.proxyConn.Conn, serverErrCh)
+	go e.receiveFromClient(clientConn, serverConn, clientErrCh, sessionCtx)
+	go e.receiveFromServer(serverConn, clientConn, serverErrCh)
 	select {
 	case err := <-clientErrCh:
 		e.Log.WithError(err).Debug("Client done.")
@@ -132,19 +120,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	case <-ctx.Done():
 		e.Log.Debug("Context canceled.")
 	}
-	return nil
-}
-
-// updateServerVersion updates the server runtime version if the version reported by the database is different from
-// the version in status configuration.
-func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *client.Conn) error {
-	serverVersion := serverConn.GetServerVersion()
-	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
-	// Update only when needed
-	if serverVersion != "" && serverVersion != statusVersion {
-		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
-	}
-
 	return nil
 }
 
@@ -195,7 +170,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			return nil, trace.Wrap(err)
 		}
 	case sessionCtx.Database.IsCloudSQL():
-		// For Cloud SQL MySQL there is no IAM auth, so we use one-time passwords
+		// For Cloud SQL MySQL there is no IAM auth so we use one-time passwords
 		// by resetting the database user password for each connection. Thus,
 		// acquire a lock to make sure all connection attempts to the same
 		// database and user are serialized.
@@ -238,7 +213,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 				return nil, trace.Wrap(err)
 			}
 			connectOpt = func(*client.Conn) {}
-			dialer = newGCPTLSDialer(tlsConfig)
+			dialer = e.newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
 		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
@@ -271,7 +246,19 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		),
 	)
 	if err != nil {
-		return nil, common.ConvertConnectError(err, sessionCtx)
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
+			return nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that IAM auth is enabled for MySQL user %q and Teleport database
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
+
+%v
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+		}
+		return nil, trace.Wrap(err)
 	}
 	return conn, nil
 }
@@ -323,43 +310,6 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			return
 		case *protocol.Quit:
 			return
-
-		case *protocol.InitDB:
-			e.Audit.EmitEvent(e.Context, makeInitDBEvent(sessionCtx, pkt))
-		case *protocol.CreateDB:
-			e.Audit.EmitEvent(e.Context, makeCreateDBEvent(sessionCtx, pkt))
-		case *protocol.DropDB:
-			e.Audit.EmitEvent(e.Context, makeDropDBEvent(sessionCtx, pkt))
-		case *protocol.ShutDown:
-			e.Audit.EmitEvent(e.Context, makeShutDownEvent(sessionCtx, pkt))
-		case *protocol.ProcessKill:
-			e.Audit.EmitEvent(e.Context, makeProcessKillEvent(sessionCtx, pkt))
-		case *protocol.Debug:
-			e.Audit.EmitEvent(e.Context, makeDebugEvent(sessionCtx, pkt))
-		case *protocol.Refresh:
-			e.Audit.EmitEvent(e.Context, makeRefreshEvent(sessionCtx, pkt))
-
-		case *protocol.StatementPreparePacket:
-			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
-		case *protocol.StatementExecutePacket:
-			// TODO(greedy52) Number of parameters is required to parse
-			// parameters out of the packet. Parameter definitions are required
-			// to properly format the parameters for including in the audit
-			// log. Both number of parameters and parameter definitions can be
-			// obtained from the response of COM_STMT_PREPARE.
-			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt))
-		case *protocol.StatementSendLongDataPacket:
-			e.Audit.EmitEvent(e.Context, makeStatementSendLongDataEvent(sessionCtx, pkt))
-		case *protocol.StatementClosePacket:
-			e.Audit.EmitEvent(e.Context, makeStatementCloseEvent(sessionCtx, pkt))
-		case *protocol.StatementResetPacket:
-			e.Audit.EmitEvent(e.Context, makeStatementResetEvent(sessionCtx, pkt))
-		case *protocol.StatementFetchPacket:
-			e.Audit.EmitEvent(e.Context, makeStatementFetchEvent(sessionCtx, pkt))
-		case *protocol.StatementBulkExecutePacket:
-			// TODO(greedy52) Number of parameters and parameter definitions
-			// are required. See above comments for StatementExecutePacket.
-			e.Audit.EmitEvent(e.Context, makeStatementBulkExecuteEvent(sessionCtx, pkt))
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
 		if err != nil {
@@ -428,10 +378,10 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 
 // newGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
 // port rather than the default MySQL port.
-func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
+func (e *Engine) newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 	return func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Workaround issue generating ephemeral certificates for secure connections
-		// by creating a TLS connection to the Cloud Proxy port overriding the
+		// by creating a TLS connection to the Cloud Proxy port overridding the
 		// MySQL client's connection. MySQL on the default port does not trust
 		// the ephemeral certificate's CA but Cloud Proxy does.
 		host, port, err := net.SplitHostPort(address)
@@ -441,21 +391,6 @@ func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 		tlsDialer := tls.Dialer{Config: tlsConfig}
 		return tlsDialer.DialContext(ctx, network, address)
 	}
-}
-
-// FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
-// In case of error the message returned by the database is propagated in returned error.
-func FetchMySQLVersion(ctx context.Context, database types.Database) (string, error) {
-	var dialer client.Dialer
-
-	if database.IsCloudSQL() {
-		dialer = newGCPTLSDialer(&tls.Config{})
-	} else {
-		var nd net.Dialer
-		dialer = nd.DialContext
-	}
-
-	return protocol.FetchMySQLVersionInternal(ctx, dialer, database.GetURI())
 }
 
 const (

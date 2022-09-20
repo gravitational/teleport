@@ -1,0 +1,246 @@
+---
+title: Set up Single Sign-On with GitHub
+description: Setting up GitHub SSO
+videoBanner: XjgN2WWFCX8
+---
+
+This guide explains how to set up GitHub Single Sign On (SSO) so you can
+automatically map teams in your GitHub organization to users and roles in
+Teleport.
+
+## Prerequisites
+
+- A GitHub organization with at least one team.
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Create a GitHub OAuth app
+
+Create and register a GitHub OAuth App. When you do so, ensure that your OAuth
+App's "Authentication callback URL" is the following:
+
+```
+https://PROXY_ADDRESS/v1/webapi/github/
+```
+
+`PROXY_ADDRESS` must be <ScopedBlock scope={["oss", "enterprise"]}>the public
+address of the Teleport Proxy Service</ScopedBlock><ScopedBlock
+scope="cloud">your Teleport Cloud tenant address</ScopedBlock>.
+
+Instructions for creating a GitHub OAuth app are available here:
+
+[Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
+
+## Step 2/3. Create a GitHub authentication connector
+
+Define a GitHub authentication connector by creating a file called `github.yaml`
+with the following content:
+
+```yaml
+kind: github
+version: v3
+metadata:
+  # Connector name that will be used with `tsh --auth=github login`
+  name: github
+spec:
+  # Client ID of your GitHub OAuth App
+  client_id: <client-id>
+  # Client secret of your GitHub OAuth App
+  client_secret: <client-secret>
+  # Connector display name that will be shown on the Web UI login screen
+  display: GitHub
+  # Callback URL that will be called after successful authentication
+  redirect_url: https://<proxy-address>/v1/webapi/github/callback
+  # Mapping of org/team memberships onto allowed logins and roles
+  teams_to_logins:
+    - organization: octocats # GitHub organization name
+      team: admins # GitHub team name within that organization
+      # Maps octocats/admins to the "access" Teleport role
+      logins:
+        - access
+```
+
+The values of `client_id`, `client_secret`, and `redirect_url` come from the
+GitHub OAuth App you created earlier.
+
+Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
+
+[GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
+
+Finally, create the connector using `tctl`:
+
+```code
+$ tctl create github.yaml
+# authentication connector "github" has been created
+```
+
+<Admonition type="tip">
+  When going through the GitHub authentication flow for the first time,
+  the application must be granted access to all organizations that are
+  present in the "teams to logins" mapping, otherwise Teleport will not be
+  able to determine team memberships for these organizations.
+</Admonition>
+
+## Step 3/3. Configure authentication preference
+
+Configure the Teleport Auth Service to enable the GitHub authentication
+connector.
+
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` includes the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: github
+  webauthn:
+    rp_id: 'example.teleport.sh'
+version: v2
+```
+
+For `rp_id`, use the public address of your <ScopedBlock scope={["oss", "enterprise"]}>Teleport Proxy Service</ScopedBlock><ScopedBlock scope="cloud">Teleport Cloud tenant</ScopedBlock>.
+
+Create the resource:
+
+```code
+$ tctl create -f cap.yaml
+# cluster auth preference has been updated
+```
+
+<Details scope={["enterprise", "oss"]} scopeOnly={true} opened title="Static configuration file">
+
+You can also edit your Teleport configuration file to include the following:
+
+```yaml
+# Snippet from /etc/teleport.yaml
+auth_service:
+  authentication:
+    type: github
+```
+</Details>
+
+You can now log in with Teleport using GitHub SSO.
+
+
+Run the following to log out of Teleport and log in again using GitHub SSO.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ tsh logout
+# Logged out all users from all proxies.
+$ tsh login --proxy=tele.example.com
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh logout
+# Logged out all users from all proxies.
+$ tsh login --proxy=mytenant.teleport.sh
+```
+
+</ScopedBlock>
+
+When you sign in for the first time, you will see a prompt to authorize your
+GitHub OAuth app:
+
+![GitHub SSO authorization view](../../../img/github-sso-auth-screen.jpg)
+
+After logging in successfully, you will see the following:
+
+![Login success view](../../../img/login-success.jpg)
+
+## Troubleshooting
+
+<Tabs>
+<TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
+
+### Using the Web UI
+
+If you get "access denied" or other login errors, the number one place to check is the Audit
+Log on the Teleport Auth Server. You can access it in the **Activity** tab of the Teleport Web UI.
+
+Example of a user being denied because the role `clusteradmin` wasn't set up:
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+
+### On the Auth Service host
+You can monitor Audit Log file entries and process logs on the Teleport Auth Server.
+The Audit Log is located in `/var/lib/teleport/log` by
+default and it will contain a detailed reason why a user's login was denied.
+
+<Admonition
+  type="Note"
+  title="Note"
+>
+  If you are using a Teleport storage configuration that does not store log entries locally, this will not appear. You can look at the `teleport`
+process logs to see `ERROR` and `INFO` entries.
+</Admonition>
+
+Example of a user being denied because the role `clusteradmin` wasn't set up:
+
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+
+Some errors (like filesystem permissions or a misconfigured network) can be
+diagnosed using Teleport's `stderr` log, which is usually available via:
+
+```code
+$ sudo journalctl -fu teleport
+```
+
+If you wish to increase the verbosity of Teleport's logs, you can pass the
+[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to the `teleport start` command.
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud"]}>
+If you get "access denied" or other login errors, the number one place to check is the Audit
+Log on the Teleport Auth Server. You can access it in the **Activity** tab of the Teleport Web UI.
+
+Example of a user being denied because the role `clusteradmin` wasn't set up:
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+</TabItem>
+</Tabs>

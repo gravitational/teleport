@@ -7,15 +7,8 @@
 # NOTE: this file is also used to run etcd tests.
 #
 
-set -e
-
-# Etcd before v3.5.0 requires ETCD_UNSUPPORTED_ARCH to be set in order to run on arm64.
-if [ "$(uname -m)" = "aarch64" ]; then
-export ETCD_UNSUPPORTED_ARCH=arm64
-fi
-
-HERE=$(readlink -f "$0")
-cd "$(dirname "$HERE")" || exit
+HERE=$(readlink -f $0)
+cd "$(dirname $HERE)" || exit
 
 mkdir -p data
 etcd --name teleportstorage \

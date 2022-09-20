@@ -26,7 +26,7 @@ services:
       - influxdb
 
   grafana_import:
-    image: curlimages/curl:latest
+    image: tutum/curl:latest
     command: bash -c /mnt/grafana-import.sh
     volumes:
       - .:/mnt

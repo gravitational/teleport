@@ -85,6 +85,10 @@ type Backend interface {
 	// CloseWatchers closes all the watchers
 	// without closing the backend
 	CloseWatchers()
+
+	// Migrate performs any data migration necessary between Teleport versions.
+	// Migrate must be called BEFORE using any other methods of the Backend.
+	Migrate(context.Context) error
 }
 
 // IterateRange is a helper for stepping over a range
@@ -118,10 +122,10 @@ type Batch interface {
 //
 // Here is an example of renewing object TTL:
 //
-// item.Expires = time.Now().Add(10 * time.Second)
-// lease, err := backend.Create(ctx, item)
-// expires := time.Now().Add(20 * time.Second)
-// err = backend.KeepAlive(ctx, lease, expires)
+// lease, err := backend.Create()
+// lease.Expires = time.Now().Add(time.Second)
+// Item TTL is extended
+// err = backend.KeepAlive(lease)
 //
 type Lease struct {
 	// Key is an object representing lease
@@ -161,7 +165,7 @@ type Watcher interface {
 	// Events returns channel with events
 	Events() <-chan Event
 
-	// Done returns the channel signaling the closure
+	// Done returns the channel signalling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases
@@ -233,36 +237,6 @@ func (p Params) GetString(key string) string {
 	return s
 }
 
-// Cleanse fixes an issue with yamlv2 decoding nested sections to
-// map[interface{}]interface{} rather than map[string]interface{}.
-// ObjectToStruct will fail on the former. yamlv3 corrects this behavior.
-// All non-string keys are dropped.
-func (p Params) Cleanse() {
-	for key, value := range p {
-		if mapValue, ok := value.(map[interface{}]interface{}); ok {
-			p[key] = convertParams(mapValue)
-		}
-	}
-}
-
-// convertParams converts from a map[interface{}]interface{} to
-// map[string]interface{} recursively. All non-string keys are dropped.
-// This function is called by Params.Cleanse.
-func convertParams(from map[interface{}]interface{}) (to map[string]interface{}) {
-	to = make(map[string]interface{}, len(from))
-	for key, value := range from {
-		strKey, ok := key.(string)
-		if !ok {
-			continue
-		}
-		if mapValue, ok := value.(map[interface{}]interface{}); ok {
-			value = convertParams(mapValue)
-		}
-		to[strKey] = value
-	}
-	return to
-}
-
 // NoLimit specifies no limits
 const NoLimit = 0
 
@@ -283,7 +257,9 @@ func nextKey(key []byte) []byte {
 	return noEnd
 }
 
-var noEnd = []byte{0}
+var (
+	noEnd = []byte{0}
+)
 
 // RangeEnd returns end of the range for given key.
 func RangeEnd(key []byte) []byte {
@@ -299,8 +275,6 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	case types.AppServer:
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
-	case types.KubeServer:
-		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
 	}
@@ -312,8 +286,6 @@ func GetPaginationKey(r types.Resource) string {
 	case types.DatabaseServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.AppServer:
-		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
-	case types.KubeServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.WindowsDesktop:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
@@ -419,3 +391,9 @@ func ExactKey(parts ...string) []byte {
 func internalKey(internalPrefix string, parts ...string) []byte {
 	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
+
+// NoMigrations implements a nop Migrate method of Backend.
+// Backend implementations should embed this when no migrations are necessary.
+type NoMigrations struct{}
+
+func (NoMigrations) Migrate(context.Context) error { return nil }

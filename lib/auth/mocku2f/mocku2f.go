@@ -37,14 +37,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/tstranex/u2f"
 )
-
-// u2fRegistrationFlags is fixed by the U2F standard.
-// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#registration-response-message-success
-const u2fRegistrationFlags = 0x05
 
 type Key struct {
 	KeyHandle  []byte
@@ -56,20 +51,11 @@ type Key struct {
 	// PreferRPID instructs the Key to use favor using the RPID for Webauthn
 	// ceremonies, even if the U2F App ID extension is present.
 	PreferRPID bool
+
 	// IgnoreAllowedCredentials allows the Key to sign a Webauthn
 	// CredentialAssertion even it its KeyHandle is not among the allowed
 	// credentials.
 	IgnoreAllowedCredentials bool
-	// SetUV sets the UV (user verification) bit on signatures if true.
-	// SetUV should be paired only with WebAuthn login/registration methods, as
-	// it makes Key mimic a WebAuthn device.
-	SetUV bool
-	// AllowResidentKey allows creation of resident credentials.
-	// There's no actual change in Key's behavior other than allowing such requests
-	// to proceed.
-	// AllowResidentKey should be paired only with WebAuthn registration methods,
-	// as it makes Key mimic a WebAuthn device.
-	AllowResidentKey bool
 
 	counter uint32
 }
@@ -143,14 +129,6 @@ func CreateWithKeyHandle(keyHandle []byte) (*Key, error) {
 	}, nil
 }
 
-// SetPasswordless sets common passwordless options in Key.
-// Options are AllowResidentKey, IgnoreAllowedCredentials and SetUV.
-func (muk *Key) SetPasswordless() {
-	muk.AllowResidentKey = true         // Passwordless keys must be resident.
-	muk.IgnoreAllowedCredentials = true // Empty for passwordless challenges.
-	muk.SetUV = true                    // UV required for passwordless.
-}
-
 func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterResponse, error) {
 	appIDHash := sha256.Sum256([]byte(req.AppID))
 
@@ -209,14 +187,8 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 		return nil, trace.Wrap(err)
 	}
 
-	flags := uint8(u2fRegistrationFlags)
-	if muk.SetUV {
-		// Mimic WebAuthn flags if SetUV is true.
-		flags = uint8(protocol.FlagUserPresent | protocol.FlagUserVerified | protocol.FlagAttestedCredentialData)
-	}
-
 	var regData []byte
-	regData = append(regData, flags)
+	regData = append(regData, 5) // fixed by specification
 	regData = append(regData, pubKey[:]...)
 	regData = append(regData, byte(len(muk.KeyHandle)))
 	regData = append(regData, muk.KeyHandle[:]...)
@@ -289,14 +261,9 @@ func (muk *Key) signAuthn(appIDHash, clientDataHash []byte) (*signAuthnResult, e
 	binary.BigEndian.PutUint32(counterBytes, muk.counter)
 	muk.counter++
 
-	flags := uint8(protocol.FlagUserPresent)
-	if muk.SetUV {
-		flags |= uint8(protocol.FlagUserVerified)
-	}
-
 	var authData []byte
 	authData = append(authData, appIDHash[:]...)
-	authData = append(authData, flags)
+	authData = append(authData, 1) // user presence
 	authData = append(authData, counterBytes[:]...)
 
 	var dataToSign []byte
@@ -312,7 +279,7 @@ func (muk *Key) signAuthn(appIDHash, clientDataHash []byte) (*signAuthnResult, e
 	}
 
 	var signData []byte
-	signData = append(signData, flags)
+	signData = append(signData, 1) // user presence
 	signData = append(signData, counterBytes[:]...)
 	signData = append(signData, sig[:]...)
 

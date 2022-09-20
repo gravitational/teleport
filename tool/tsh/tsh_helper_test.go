@@ -17,17 +17,13 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"fmt"
-	"net"
 	"os/user"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/breaker"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -41,9 +37,6 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
-	sshListenAddr := localListenerAddr()
-	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
-	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v1",
 		Global: config.Global{
@@ -59,11 +52,10 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: sshListenAddr,
+				ListenAddress: localListenerAddr(),
 			},
-			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
-			WebAddr:       localListenerAddr(),
-			TunAddr:       localListenerAddr(),
+			WebAddr: localListenerAddr(),
+			TunAddr: localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -75,8 +67,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	err = config.ApplyFileConfig(fileConfig, cfg)
+	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
@@ -93,7 +84,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	s.connector = mockConnector(t)
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -145,7 +136,6 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -153,7 +143,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -249,7 +239,9 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 	waitForEvents(t, process, serviceReadyEvents...)
 
 	if cfg.Databases.Enabled {
-		waitForDatabases(t, process, cfg.Databases.Databases)
+		for _, database := range cfg.Databases.Databases {
+			waitForDatabase(t, process, database)
+		}
 	}
 	return process
 }
@@ -260,20 +252,14 @@ func localListenerAddr() string {
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
-		_, err := svc.WaitForEventTimeout(30*time.Second, event)
-		require.NoError(t, err, "service server didn't receved %v event after 30s", event)
+		eventCh := make(chan service.Event, 1)
+		svc.WaitForEvent(svc.ExitContext(), event, eventCh)
+		select {
+		case <-eventCh:
+		case <-time.After(30 * time.Second):
+			// in reality, the auth server should start *much* sooner than this.  we use a very large
+			// timeout here because this isn't the kind of problem that this test is meant to catch.
+			t.Fatalf("service server didn't receved %v event after 30s", event)
+		}
 	}
-}
-
-func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string) {
-	ctx := context.Background()
-	credentials := apiclient.LoadProfile(tshHomePath, "")
-	c, err := apiclient.New(context.Background(), apiclient.Config{
-		Addrs:                    []string{addr},
-		Credentials:              []apiclient.Credentials{credentials},
-		InsecureAddressDiscovery: true,
-	})
-	require.NoError(t, err)
-	_, err = c.Ping(ctx)
-	require.NoError(t, err)
 }

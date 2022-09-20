@@ -20,7 +20,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
@@ -176,7 +176,7 @@ func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConn
 	tokenSource := jwtConfig.TokenSource(ctx)
 	token, err := tokenSource.Token()
 	if err != nil || !token.Valid() {
-		log.WithError(err).Debugf("failed to obtain valid Google Workspace credentials for scopes %v", scopes)
+		log.Debugf("failed to obtain valid Google Workspace credentials for scopes %v", scopes)
 		return nil, nil
 	}
 

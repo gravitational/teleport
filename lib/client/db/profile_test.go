@@ -107,13 +107,13 @@ func TestAddProfile(t *testing.T) {
 				Dir:  t.TempDir(),
 				Name: "alice",
 			}
-			actual, err := add(tc, db, ps, &testProfileFile{profiles: make(map[string]profile.ConnectProfile)}, "root-cluster")
+			actual, err := add(tc, db, ps, &testProfileFile{profiles: make(map[string]profile.ConnectProfile)})
 			require.NoError(t, err)
 			require.EqualValues(t, &profile.ConnectProfile{
 				Name:       profileName(tc.SiteName, db.ServiceName),
 				Host:       test.profileHostOut,
 				Port:       test.profilePortOut,
-				CACertPath: ps.CACertPathForCluster("root-cluster"),
+				CACertPath: ps.CACertPath(),
 				CertPath:   ps.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 				KeyPath:    ps.KeyPath(),
 			}, actual)

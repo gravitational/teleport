@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -34,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -70,8 +68,6 @@ type ResourceCommand struct {
 	createCmd *kingpin.CmdClause
 	updateCmd *kingpin.CmdClause
 
-	verbose bool
-
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
@@ -105,7 +101,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindApp:                     rc.createApp,
 		types.KindDatabase:                rc.createDatabase,
 		types.KindToken:                   rc.createToken,
-		types.KindInstaller:               rc.createInstaller,
 	}
 	rc.config = config
 
@@ -138,7 +133,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
 	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
-	rc.getCmd.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&rc.verbose)
 
 	rc.getCmd.Alias(getHelp)
 
@@ -594,23 +588,12 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI,
 	return trace.Wrap(err)
 }
 
-func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	inst, err := services.UnmarshalInstaller(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = client.SetInstaller(ctx, inst)
-	return trace.Wrap(err)
-}
-
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
 		types.KindClusterAuthPreference,
 		types.KindClusterNetworkingConfig,
 		types.KindSessionRecordingConfig,
-		types.KindInstaller,
 	}
 	if !apiutils.SliceContainsStr(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -795,34 +778,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
-	case types.KindKubeServer:
-		kubeServers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		deleted := false
-		for _, server := range kubeServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
-			}
-		}
-		if !deleted {
-			return trace.NotFound("kubernetes server %q not found", rc.ref.Name)
-		}
-		fmt.Printf("kubernetes server %q has been deleted\n", rc.ref.Name)
-	case types.KindInstaller:
-		err := client.DeleteInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if rc.ref.Name == installers.InstallerScriptName {
-			fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
-		} else {
-			fmt.Printf("%s has been deleted\n", rc.ref.Name)
-		}
 
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
@@ -1012,10 +967,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			for _, caType := range types.CertAuthTypes {
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
-					if trace.IsBadParameter(err) {
-						log.Warnf("failed to get certificate authority: %v; skipping", err)
-						continue
-					}
 					return nil, trace.Wrap(err)
 				}
 				allAuthorities = append(allAuthorities, authorities...)
@@ -1076,13 +1027,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &roleCollection{roles: roles, verbose: rc.verbose}, nil
+			return &roleCollection{roles: roles}, nil
 		}
 		role, err := client.GetRole(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: []types.Role{role}, verbose: rc.verbose}, nil
+		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {
 			namespaces, err := client.GetNamespaces()
@@ -1145,7 +1096,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
-
 	case types.KindClusterAuthPreference:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
@@ -1209,25 +1159,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
 		return &databaseServerCollection{servers: out}, nil
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &kubeServerCollection{servers: servers}, nil
-		}
-
-		var out []types.KubeServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
-		}
-		return &kubeServerCollection{servers: out}, nil
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {
@@ -1311,19 +1242,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
-	case types.KindInstaller:
-		if rc.ref.Name == "" {
-			installers, err := client.GetInstallers(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &installerCollection{installers: installers}, nil
-		}
-		inst, err := client.GetInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &installerCollection{installers: []types.Installer{inst}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

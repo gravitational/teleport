@@ -1,8 +1,7 @@
 clusterName: test-standalone-cluster
 chartMode: standalone
-persistence:
-  enabled: true
-  existingClaimName: teleport-storage
+standalone:
+  volumeSize: 50Gi
 acme: true
 acmeEmail: test@email.com
 labels:

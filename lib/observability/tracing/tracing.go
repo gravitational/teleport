@@ -194,9 +194,11 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
+		resource.WithProcess(),
 		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
 		resource.WithProcessExecutablePath(),
+		resource.WithProcessOwner(),
 		resource.WithProcessRuntimeName(),
 		resource.WithProcessRuntimeVersion(),
 		resource.WithProcessRuntimeDescription(),

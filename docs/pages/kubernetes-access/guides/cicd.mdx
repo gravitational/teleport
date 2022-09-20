@@ -14,7 +14,7 @@ to create credentials.
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: robot
 spec:
@@ -38,7 +38,7 @@ spec:
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../reference/cli.mdx#tctl-auth-sign):
+Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign):
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 

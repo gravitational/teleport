@@ -20,6 +20,7 @@ package filesessions
 import (
 	"bytes"
 	"context"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -241,7 +242,7 @@ func TestUploadResume(t *testing.T) {
 			name:    "stream created when checkpoint is lost after failure",
 			retries: 1,
 			onRetry: func(t *testing.T, attempt int, uploader *Uploader) {
-				files, err := os.ReadDir(uploader.cfg.ScanDir)
+				files, err := ioutil.ReadDir(uploader.cfg.ScanDir)
 				require.Nil(t, err)
 				checkpointsDeleted := 0
 				for i := range files {
@@ -395,8 +396,6 @@ func TestUploadBackoff(t *testing.T) {
 // TestUploadBadSession creates a corrupted session file
 // and makes sure the uploader marks it as faulty
 func TestUploadBadSession(t *testing.T) {
-	ctx := context.Background()
-
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)
 
@@ -406,7 +405,7 @@ func TestUploadBadSession(t *testing.T) {
 	sessionID := session.NewID()
 	fileName := filepath.Join(p.scanDir, string(sessionID)+tarExt)
 
-	err := os.WriteFile(fileName, []byte("this session is corrupted"), 0600)
+	err := ioutil.WriteFile(fileName, []byte("this session is corrupted"), 0600)
 	require.NoError(t, err)
 
 	// initiate the scan by advancing clock past
@@ -424,7 +423,7 @@ func TestUploadBadSession(t *testing.T) {
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
-	stats, err := p.uploader.Scan(ctx)
+	stats, err := p.uploader.Scan()
 	require.NoError(t, err)
 	// Bad records have been scanned, but uploads have not started
 	require.Equal(t, 1, stats.Scanned)
@@ -448,10 +447,19 @@ type uploaderPack struct {
 
 func (u *uploaderPack) Close(t *testing.T) {
 	u.cancel()
+
+	err := u.uploader.Close()
+	require.NoError(t, err)
+
+	if u.scanDir != "" {
+		err := os.RemoveAll(u.scanDir)
+		require.NoError(t, err)
+	}
 }
 
 func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
-	scanDir := t.TempDir()
+	scanDir, err := ioutil.TempDir("", "teleport-streams")
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	pack := uploaderPack{
@@ -477,6 +485,7 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 	}
 
 	uploader, err := NewUploader(UploaderConfig{
+		Context:    pack.ctx,
 		ScanDir:    pack.scanDir,
 		ScanPeriod: pack.scanPeriod,
 		Streamer:   pack.streamer,
@@ -486,7 +495,7 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 	})
 	require.NoError(t, err)
 	pack.uploader = uploader
-	go pack.uploader.Serve(pack.ctx)
+	go pack.uploader.Serve()
 	return pack
 }
 
@@ -509,11 +518,14 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	test := testCase.newTest(streamer)
 
-	scanDir := t.TempDir()
+	scanDir, err := ioutil.TempDir("", "teleport-streams")
+	require.Nil(t, err)
+	defer os.RemoveAll(scanDir)
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
 		EventsC:    eventsC,
+		Context:    ctx,
 		ScanDir:    scanDir,
 		ScanPeriod: scanPeriod,
 		Streamer:   test.streamer,
@@ -521,7 +533,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		AuditLog:   &events.DiscardAuditLog{},
 	})
 	require.Nil(t, err)
-	go uploader.Serve(ctx)
+	go uploader.Serve()
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
 

@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -56,6 +55,12 @@ type Config struct {
 	Clock clockwork.Clock
 	// EnableProxyProtocol enables proxy protocol
 	EnableProxyProtocol bool
+	// DisableSSH disables SSH socket
+	DisableSSH bool
+	// DisableTLS disables TLS socket
+	DisableTLS bool
+	// DisablePostgres disables Postgres access proxy listener
+	DisablePostgres bool
 	// ID is an identifier used for debugging purposes
 	ID string
 }
@@ -92,6 +97,9 @@ func New(cfg Config) (*Mux, error) {
 		Config:      cfg,
 		context:     ctx,
 		cancel:      cancel,
+		sshListener: newListener(ctx, cfg.Listener.Addr()),
+		tlsListener: newListener(ctx, cfg.Listener.Addr()),
+		dbListener:  newListener(ctx, cfg.Listener.Addr()),
 		waitContext: waitContext,
 		waitCancel:  waitCancel,
 	}, nil
@@ -113,31 +121,16 @@ type Mux struct {
 
 // SSH returns listener that receives SSH connections
 func (m *Mux) SSH() net.Listener {
-	m.Lock()
-	defer m.Unlock()
-	if m.sshListener == nil {
-		m.sshListener = newListener(m.context, m.Config.Listener.Addr())
-	}
 	return m.sshListener
 }
 
 // TLS returns listener that receives TLS connections
 func (m *Mux) TLS() net.Listener {
-	m.Lock()
-	defer m.Unlock()
-	if m.tlsListener == nil {
-		m.tlsListener = newListener(m.context, m.Config.Listener.Addr())
-	}
 	return m.tlsListener
 }
 
 // DB returns listener that receives database connections
 func (m *Mux) DB() net.Listener {
-	m.Lock()
-	defer m.Unlock()
-	if m.dbListener == nil {
-		m.dbListener = newListener(m.context, m.Config.Listener.Addr())
-	}
 	return m.dbListener
 }
 
@@ -192,26 +185,6 @@ func (m *Mux) Serve() error {
 	}
 }
 
-// protocolListener returns a registered listener for Protocol proto
-// and is safe for concurrent access.
-func (m *Mux) protocolListener(proto Protocol) *Listener {
-	m.RLock()
-	defer m.RUnlock()
-	switch proto {
-	case ProtoTLS:
-		return m.tlsListener
-	case ProtoSSH:
-		return m.sshListener
-	case ProtoPostgres:
-		return m.dbListener
-	}
-	return nil
-}
-
-// detectAndForward detects the protocol for conn and forwards to a
-// registered protocol listener (SSH, TLS, DB). Connections for a
-// protocol without a registered protocol listener are closed. This
-// method is called as a goroutine by Serve for each connection.
 func (m *Mux) detectAndForward(conn net.Conn) {
 	err := conn.SetReadDeadline(m.Clock.Now().Add(m.ReadDeadline))
 	if err != nil {
@@ -227,24 +200,45 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		conn.Close()
 		return
 	}
+
 	err = conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		m.Warning(trace.DebugReport(err))
-		connWrapper.Close()
+		conn.Close()
 		return
 	}
 
-	listener := m.protocolListener(connWrapper.protocol)
-	if listener == nil {
-		if connWrapper.protocol == ProtoHTTP {
-			m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
+	switch connWrapper.protocol {
+	case ProtoTLS:
+		if m.DisableTLS {
+			m.Debug("Closing TLS connection: TLS listener is disabled.")
+			conn.Close()
+			return
 		}
-		m.Debugf("Closing %[1]s connection: %[1]s listener is disabled.", connWrapper.protocol)
+		m.tlsListener.HandleConnection(m.context, connWrapper)
+	case ProtoSSH:
+		if m.DisableSSH {
+			m.Debug("Closing SSH connection: SSH listener is disabled.")
+			conn.Close()
+			return
+		}
+		m.sshListener.HandleConnection(m.context, connWrapper)
+	case ProtoHTTP:
+		m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
+		conn.Close()
+	case ProtoPostgres:
+		m.WithField("protocol", connWrapper.protocol).Debug("Detected Postgres client connection.")
+		if m.DisablePostgres {
+			m.Debug("Closing Postgres client connection: db proxy listener is disabled.")
+			conn.Close()
+			return
+		}
+		m.dbListener.HandleConnection(m.context, connWrapper)
+	default:
+		// should not get here, handle this just in case
 		connWrapper.Close()
-		return
+		m.Errorf("detected but unsupported protocol: %v", connWrapper.protocol)
 	}
-
-	listener.HandleConnection(m.context, connWrapper)
 }
 
 func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
@@ -257,7 +251,12 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 	// goes to the second pass to do protocol detection
 	var proxyLine *ProxyLine
 	for i := 0; i < 2; i++ {
-		proto, err := detectProto(reader)
+		bytes, err := reader.Peek(8)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to peek connection")
+		}
+
+		proto, err := detectProto(bytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -271,17 +270,6 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 				return nil, trace.BadParameter("duplicate proxy line")
 			}
 			proxyLine, err = ReadProxyLine(reader)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case ProtoProxyV2:
-			if !enableProxyProtocol {
-				return nil, trace.BadParameter("proxy protocol support is disabled")
-			}
-			if proxyLine != nil {
-				return nil, trace.BadParameter("duplicate proxy line")
-			}
-			proxyLine, err = ReadProxyLineV2(reader)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -317,37 +305,16 @@ const (
 	ProtoSSH
 	// ProtoProxy is a HAProxy proxy line protocol
 	ProtoProxy
-	// ProtoProxyV2 is a HAProxy binary protocol
-	ProtoProxyV2
 	// ProtoHTTP is HTTP protocol
 	ProtoHTTP
 	// ProtoPostgres is PostgreSQL wire protocol
 	ProtoPostgres
 )
 
-// protocolStrings defines strings for each Protocol.
-var protocolStrings = map[Protocol]string{
-	ProtoUnknown:  "Unknown",
-	ProtoTLS:      "TLS",
-	ProtoSSH:      "SSH",
-	ProtoProxy:    "Proxy",
-	ProtoProxyV2:  "ProxyV2",
-	ProtoHTTP:     "HTTP",
-	ProtoPostgres: "Postgres",
-}
-
-// String returns the string representation of Protocol p.
-// An empty string is returned when the protocol is not defined.
-func (p Protocol) String() string {
-	return protocolStrings[p]
-}
-
 var (
-	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
-	proxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
-	sshPrefix        = []byte{'S', 'S', 'H'}
-	tlsPrefix        = []byte{0x16}
-	proxyHelloPrefix = []byte(sshutils.ProxyHelloSignature)
+	proxyPrefix = []byte{'P', 'R', 'O', 'X', 'Y'}
+	sshPrefix   = []byte{'S', 'S', 'H'}
+	tlsPrefix   = []byte{0x16}
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -366,63 +333,34 @@ var (
 	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
 )
 
-var httpMethods = [...][]byte{
-	[]byte("GET"),
-	[]byte("POST"),
-	[]byte("PUT"),
-	[]byte("DELETE"),
-	[]byte("HEAD"),
-	[]byte("CONNECT"),
-	[]byte("OPTIONS"),
-	[]byte("TRACE"),
-	[]byte("PATCH"),
-}
-
-// isHTTP returns true if the first few bytes of the prefix indicate
+// isHTTP returns true if the first 3 bytes of the prefix indicate
 // the use of an HTTP method.
 func isHTTP(in []byte) bool {
-	for _, verb := range httpMethods {
-		if bytes.HasPrefix(in, verb) {
+	methods := [...][]byte{
+		[]byte("GET"),
+		[]byte("POST"),
+		[]byte("PUT"),
+		[]byte("DELETE"),
+		[]byte("HEAD"),
+		[]byte("CONNECT"),
+		[]byte("OPTIONS"),
+		[]byte("TRACE"),
+		[]byte("PATCH"),
+	}
+	for _, verb := range methods {
+		// we only get 3 bytes, so can only compare the first 3 bytes of each verb
+		if bytes.HasPrefix(verb, in[:3]) {
 			return true
 		}
 	}
 	return false
 }
 
-// detectProto tries to determine the network protocol used from the first
-// few bytes of a connection.
-func detectProto(r *bufio.Reader) (Protocol, error) {
-	// read the first 8 bytes without advancing the reader, some connections
-	// won't send more than 8 bytes at first
-	in, err := r.Peek(8)
-	if err != nil {
-		return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
-	}
-
+func detectProto(in []byte) (Protocol, error) {
 	switch {
-	case bytes.HasPrefix(in, proxyPrefix):
+	// reader peeks only 3 bytes, slice the longer proxy prefix
+	case bytes.HasPrefix(in, proxyPrefix[:3]):
 		return ProtoProxy, nil
-	case bytes.HasPrefix(in, proxyV2Prefix[:8]):
-		// if the first 8 bytes matches the first 8 bytes of the proxy
-		// protocol v2 magic bytes, read more of the connection so we can
-		// ensure all magic bytes match
-		in, err = r.Peek(len(proxyV2Prefix))
-		if err != nil {
-			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
-		}
-		if bytes.HasPrefix(in, proxyV2Prefix) {
-			return ProtoProxyV2, nil
-		}
-	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
-		// Support for SSH connections opened with the ProxyHelloSignature for
-		// Teleport to Teleport connections.
-		in, err = r.Peek(len(proxyHelloPrefix))
-		if err != nil {
-			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
-		}
-		if bytes.HasPrefix(in, proxyHelloPrefix) {
-			return ProtoSSH, nil
-		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil
 	case bytes.HasPrefix(in, tlsPrefix):
@@ -431,7 +369,7 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		return ProtoHTTP, nil
 	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
 		return ProtoPostgres, nil
+	default:
+		return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
 	}
-
-	return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
 }

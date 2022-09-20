@@ -106,26 +106,25 @@ teleport:
       average: 170
       burst: 171
   diag_addr: 127.0.0.1:3000
-  ca_pin:
-    - ca-pin-from-string
-    - %v
+  ca_pin: ""
 auth_service:
   enabled: yes
   listen_addr: 10.5.5.1:3025
   cluster_name: magadan
   tokens:
   - "proxy,node:xxx"
-  - "node:%v"
   - "auth:yyy"
   ca_key_params:
     pkcs11:
-      module_path: %s
+      module_path: /usr/local/lib/example/path.so
       token_label: "example_token"
       slot_number: 1
       pin: "example_pin"
   authentication:
     u2f:
       app_id: "app-id"
+      facets:
+      - https://localhost:3080
       device_attestation_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
@@ -156,31 +155,12 @@ proxy_service:
   enabled: yes
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
-  peer_listen_addr: peerhost:1234
-  peer_public_addr: peer.example:1234
   public_addr: web3:443
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
   mysql_public_addr: mysql.example:3306
   mongo_listen_addr: webhost:27017
   mongo_public_addr: mongo.example:27017
-
-db_service:
-  enabled: yes
-  resources:
-    - labels:
-        "*": "*"
-  azure:
-    - subscriptions: ["sub1", "sub2"]
-      resource_groups: ["group1", "group2"]
-      types: ["postgres", "mysql"]
-      regions: ["eastus", "centralus"]
-      tags:
-        "a": "b"
-    - types: ["postgres", "mysql"]
-      regions: ["westus"]
-      tags:
-        "c": "d"
 `
 
 // NoServicesConfigString is a configuration file with no services enabled
@@ -230,55 +210,4 @@ auth_service:
   authentication:
     type: saml
     local_auth: false
-`
-
-const configWithCAPins = `
-teleport:
-  nodename: cat.example.com
-  advertise_ip: 10.10.10.1
-  pid_file: /var/run/teleport.pid
-  log:
-    output: stderr
-    severity: INFO
-  ca_pin: [%v]
-auth_service:
-  enabled: yes
-  listen_addr: 10.5.5.1:3025
-  cluster_name: magadan
-  tokens:
-  - "proxy,node:xxx"
-  - "auth:yyy"
-  authentication:
-    type: local
-    second_factor: off
-
-ssh_service:
-  enabled: no
-
-proxy_service:
-  enabled: yes
-  web_listen_addr: webhost
-  tunnel_listen_addr: tunnelhost:1001
-  public_addr: web3:443
-`
-
-const configSessionRecording = `
-teleport:
-  nodename: node.example.com
-
-auth_service:
-  enabled: yes
-  %v
-  %v
-
-ssh_service:
-  enabled: no
-  public_addr: "ssh.example.com"
-
-proxy_service:
-  enabled: no
-  public_addr: "proxy.example.com"
-
-app_service:
-  enabled: no
 `

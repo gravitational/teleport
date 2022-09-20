@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -43,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -165,7 +163,7 @@ func NewServer(
 	ah AuthMethods,
 	opts ...ServerOption,
 ) (*Server, error) {
-	err := metrics.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
+	err := utils.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -351,8 +349,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.log.Infof("Context canceled wait, returning.")
-			return trace.ConnectionProblem(err, "context canceled")
+			s.log.Infof("Context cancelled wait, returning.")
+			return trace.ConnectionProblem(err, "context cancelled")
 		}
 	}
 }
@@ -368,7 +366,7 @@ func (s *Server) Close() error {
 		if utils.IsUseOfClosedNetworkError(err) {
 			return nil
 		}
-		return trace.Wrap(err)
+		return err
 	}
 
 	return nil
@@ -407,6 +405,7 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 //
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
+//
 func (s *Server) HandleConnection(conn net.Conn) {
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
@@ -439,13 +438,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	wrappedConn := wrapConnection(wconn, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
-		// Ignore EOF as these are triggered by loadbalancer health checks
-		if !errors.Is(err, io.EOF) {
-			s.log.
-				WithError(err).
-				WithField("remote_addr", conn.RemoteAddr()).
-				Warn("Error occurred in handshake for new SSH conn")
-		}
 		conn.SetDeadline(time.Time{})
 		return
 	}
@@ -746,17 +738,11 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 			if err = json.Unmarshal(payload, &hp); err != nil {
 				c.logger.Error(err)
 			} else {
-				if ca, err := utils.ParseAddr(hp.ClientAddr); err == nil {
+				ca, err := utils.ParseAddr(hp.ClientAddr)
+				if err == nil {
 					// replace proxy's client addr with a real client address
 					// we just got from the custom payload:
 					c.clientAddr = ca
-					if ca.AddrNetwork == "tcp" {
-						// source-address check in SSH server requires TCPAddr
-						c.clientAddr = &net.TCPAddr{
-							IP:   net.ParseIP(ca.Host()),
-							Port: ca.Port(0),
-						}
-					}
 				}
 
 				c.traceContext = hp.TracingContext

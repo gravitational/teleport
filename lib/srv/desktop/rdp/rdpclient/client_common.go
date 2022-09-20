@@ -20,7 +20,6 @@ package rdpclient
 import (
 	"context"
 	"image/png"
-	"time"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
@@ -33,7 +32,6 @@ type Config struct {
 	Addr string
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
-	CertTTL          time.Duration
 
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error
@@ -45,20 +43,12 @@ type Config struct {
 	// Encoder is an optional override for PNG encoding.
 	Encoder *png.Encoder
 
-	// AllowClipboard indicates whether the RDP connection should enable
-	// clipboard sharing.
-	AllowClipboard bool
-
-	// AllowDirectorySharing indicates whether the RDP connection should enable
-	// directory sharing.
-	AllowDirectorySharing bool
-
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.
-type GenerateUserCertFn func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error)
+type GenerateUserCertFn func(ctx context.Context, username string) (certDER, keyDER []byte, err error)
 
 //nolint:unused
 func (c *Config) checkAndSetDefaults() error {

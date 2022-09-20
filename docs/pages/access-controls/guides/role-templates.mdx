@@ -34,7 +34,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: alice
 spec:
@@ -47,7 +47,7 @@ spec:
       '*': '*'
 ---
 kind: role
-version: v5
+version: v4
 metadata:
   name: bob
 spec:
@@ -76,7 +76,7 @@ Let's create a role template called `devs.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: devs
 spec:
@@ -196,7 +196,7 @@ Let's create a role template called `sso-users` that expects external attribute
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: sso-users
 spec:
@@ -226,11 +226,11 @@ spec:
   # Callback URL that will be called after successful authentication
   redirect_url: https://teleport.example.com/v1/webapi/github/callback
   # Mapping of org/team memberships onto allowed Teleport roles
-  teams_to_roles:
+  teams_to_logins:
     - organization: octocats # GitHub organization name
       team: cyber # GitHub team name within that organization
       # Role names to map to
-      roles:
+      logins:
         - sso-users
 ```
 
@@ -299,7 +299,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: interpolation
 spec:
@@ -308,7 +308,7 @@ spec:
     logins: ['{{external.logins}}', 'admin']
 
     # Roles support interpolation in string values.
-    kubernetes_users: ['IAM#{{external.email}};']
+    kubernetes_users: ['IAM#{{external.foo}};']
 
     # Lists get expanded into lists.
     kubernetes_groups: ['{{external.groups}}']
@@ -332,7 +332,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v5
+version: v4
 metadata:
   name: interpolation
 spec:

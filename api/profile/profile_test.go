@@ -18,6 +18,7 @@ limitations under the License.
 package profile_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,7 +34,9 @@ import (
 func TestProfileBasics(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir, err := ioutil.TempDir("", "teleport")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
 
 	p := &profile.Profile{
 		WebProxyAddr:          "proxy:3088",
@@ -43,14 +46,13 @@ func TestProfileBasics(t *testing.T) {
 		DynamicForwardedPorts: []string{"localhost:8080"},
 		Dir:                   dir,
 		SiteName:              "example.com",
-		AuthConnector:         "passwordless",
 	}
 
 	// verify that profile name is proxy host component
 	require.Equal(t, "proxy", p.Name())
 
 	// save to a file:
-	err := p.SaveToDir(dir, false)
+	err = p.SaveToDir(dir, false)
 	require.NoError(t, err)
 
 	// verify that the resulting file exists and is of the form `<profile-dir>/<profile-name>.yaml`.
@@ -83,21 +85,4 @@ func TestProfileBasics(t *testing.T) {
 	clone, err = profile.FromDir(dir, p.Name())
 	require.NoError(t, err)
 	require.Equal(t, *p, *clone)
-}
-
-func TestAppPath(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-
-	p := &profile.Profile{
-		WebProxyAddr: "proxy:3088",
-		SSHProxyAddr: "proxy:3023",
-		Username:     "testuser",
-		Dir:          dir,
-		SiteName:     "example.com",
-	}
-
-	expected := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem")
-	require.Equal(t, expected, p.AppCertPath("banana"))
 }

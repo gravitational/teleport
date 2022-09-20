@@ -1,0 +1,274 @@
+---
+title: Running Teleport with a Custom Configuration using Helm
+description: Install and configure a Teleport cluster with a custom configuration using Helm
+---
+
+In this guide, we'll go through how to set up a Teleport cluster in Kubernetes using a custom [`teleport.yaml`](../reference/config.mdx)
+config file using Teleport Helm charts.
+
+This setup can be useful when you already have an existing Teleport cluster and would like to start running it in Kubernetes, or when
+migrating your setup from a legacy version of the Helm charts.
+
+## Prerequisites
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+
+## Step 1/4. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/4. Add the Teleport Helm chart repository
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+## Step 3/4. Setting up a Teleport cluster with Helm using a custom config
+
+In `custom` mode, the `teleport-cluster` Helm chart does not create a `ConfigMap` containing a `teleport.yaml` file for you, but
+expects that you will provide this yourself.
+
+For this example, we'll be using this `teleport.yaml` configuration file with a static join token (for more information on join tokens, see [Adding Nodes to the Cluster](../admin/adding-nodes.mdx)):
+
+```bash
+$ cat << EOF > teleport.yaml
+teleport:
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: true
+  cluster_name: custom.example.com
+  tokens:
+  # These commands will generate random 32-chacter alphanumeric strings to use as join tokens
+  - "proxy,node:$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
+  - "trusted_cluster:$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
+  listen_addr: 0.0.0.0:3025
+  public_addr: custom.example.com:3025
+
+proxy_service:
+  enabled: true
+  listen_addr: 0.0.0.0:3080
+  public_addr: custom.example.com:443
+
+ssh_service:
+  enabled: true
+  labels:
+    cluster: custom
+  commands:
+  - name: kernel
+    command: [/bin/uname, -r]
+    period: 5m
+EOF
+```
+
+<Admonition type="tip">
+  You can skip this step if you already have a `teleport.yaml` file locally that you'd like to use.
+</Admonition>
+
+Create the namespace for the config and add the `teleport.yaml` from your local
+disk:
+
+```code
+$ kubectl create namespace teleport
+$ kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml
+```
+
+<Admonition type="note">
+  The name of the `ConfigMap` used must match the name of the Helm release that you install below (the name just after `helm install`).
+  In this example, it's `teleport`.
+
+  The name (key) of the configuration file uploaded to your `ConfigMap` must be `teleport.yaml`. If your configuration file is named differently
+  on disk, you can specify the key that should be used in the `kubectl` command:
+
+  ```code
+  $ kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml=my-teleport-config-file.yaml
+  ```
+</Admonition>
+
+<ScopedBlock scope="enterprise">
+
+Before you can install Teleport in your Kubernetes cluster, you will need to
+create a secret that contains your Teleport license information.
+
+Download your Teleport Enterprise license from the
+[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
+a file called `license.pem`.
+
+Create a secret from your license file. Teleport will automatically discover
+this secret as long as your file is named `license.pem`.
+
+```code
+$ kubectl -n teleport create secret generic license --from-file=license.pem
+```
+
+</ScopedBlock>
+
+After the `ConfigMap` has been created<ScopedBlock scope="enterprise"> and you
+have deployed the secret containing your license file</ScopedBlock>, you can
+deploy the Helm chart into a Kubernetes cluster with a command like this:
+
+<ScopedBlock scope={["oss", "cloud"]}>
+
+```code
+$ helm install teleport teleport/teleport-cluster \
+  --namespace teleport \
+  --set chartMode=custom
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ helm install teleport teleport/teleport-cluster \
+  --namespace teleport \
+  --set chartMode=custom \
+  --set enterprise=true
+```
+
+</ScopedBlock>
+
+<Admonition type="warning">
+  Most settings from `values.yaml` will not be applied in `custom` mode.
+
+  It's important to specify any settings under the `acme`, `aws`, `gcp`, and `logLevel` sections of the chart in your own `teleport.yaml` file that you upload yourself.
+</Admonition>
+
+You can control the externally-facing name of your cluster using the `public_addr` sections of `teleport.yaml`. In this example,
+our `public_addr`s are set to `custom.example.com`.
+
+<Admonition type="note" title="External proxy port">
+  Note that although the `proxy_service` listens on port 3080 inside the pod, the default `LoadBalancer` service configured by the chart
+  will always listen externally on port 443 (which is redirected internally to port 3080).
+
+  Due to this, your `proxy_service.public_addr` should always end in `:443`:
+
+  ```yaml
+  proxy_service:
+    listen_addr: 0.0.0.0:3080
+    public_addr: custom.example.com:443
+  ```
+</Admonition>
+
+<Admonition type="tip">
+  It will help if you have access to the DNS provider which hosts `example.com` so you can add a `custom.example.com` record
+  and point it to the external IP or hostname of the Kubernetes load balancer.
+
+  Don't worry if you can't - you'll just have to remember to replace `custom.example.com` with the external IP or hostname of the Kubernetes load balancer to be able to access Teleport from your local machine.
+</Admonition>
+
+Once the chart is installed, you can use `kubectl` commands to view the deployment:
+
+```code
+$ kubectl --namespace teleport get all
+
+# NAME                            READY   STATUS    RESTARTS   AGE
+# pod/teleport-5c56b4d869-znmqk   1/1     Running   0          5h8m
+
+# NAME               TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)                                                      AGE
+# service/teleport   LoadBalancer   10.100.162.158   a5f22a02798f541e58c6641c1b158ea3-1989279894.us-east-1.elb.amazonaws.com   443:30945/TCP,3023:32342/TCP,3026:30851/TCP,3024:31521/TCP   5h29m
+
+# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+# deployment.apps/teleport   1/1     1            1           5h29m
+
+# NAME                                  DESIRED   CURRENT   READY   AGE
+# replicaset.apps/teleport-5c56b4d869   1         1         1       5h8m
+```
+
+## Step 4/4. Create a Teleport user (optional)
+
+If you're not migrating an existing Teleport cluster, you'll need to create a user to be able to log into Teleport. This needs to be done on the
+Teleport auth server, so we can run the command using `kubectl`:
+
+```code
+$ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
+# User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+# https://custom.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+# NOTE: Make sure custom.example.com:443 points at a Teleport proxy that users can access.
+```
+
+<Admonition type="note">
+  If you didn't set up DNS for your hostname earlier, remember to replace `custom.example.com` with the external IP or hostname of the
+  Kubernetes load balancer.
+
+  (!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
+
+  You should modify your command accordingly and replace `custom.example.com` with either the IP or hostname depending on which you have available. You may need to accept insecure warnings in your browser to view the page successfully.
+</Admonition>
+
+<Admonition type="warning">
+  Using a Kubernetes-issued load balancer IP or hostname is OK for testing but is not viable when running a production Teleport cluster
+  as the Subject Alternative Name on any public-facing certificate will be expected to match the cluster's configured public address (specified
+  using `public_addr` when using `custom` mode)
+
+  You must configure DNS properly using the methods described above for production workloads.
+</Admonition>
+
+Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
+
+## Upgrading the cluster after deployment
+
+### Making changes to `teleport.yaml`
+
+If you make changes to your Teleport `ConfigMap`, you can apply these changes by deleting the old `ConfigMap` and applying a new one:
+
+```code
+$ kubectl --namespace teleport delete configmap teleport && \
+# kubectl --namespace teleport create configmap teleport --from-file=teleport.yaml
+```
+
+<Admonition type="note">
+  Make sure that the name of the `ConfigMap` (e.g. `teleport`) matches the Helm release name used as described above.
+
+  You can list all available `ConfigMap`s in your namespace using this command:
+
+  ```code
+  $ kubectl --namespace teleport get configmap
+
+  # NAME       DATA   AGE
+  # teleport   1      2d21h
+  ```
+</Admonition>
+
+After editing the `ConfigMap`, you must initiate a rolling restart of your Teleport deployment to pick up the changed `ConfigMap`:
+
+```code
+$ kubectl --namespace teleport rollout restart deploy/teleport
+```
+
+### Making changes to other Helm values
+
+To make changes to your Teleport cluster after deployment which are not covered by the functionality in `teleport.yaml`, you can
+use `helm upgrade`.
+
+Run this command, editing your command line parameters as appropriate:
+
+```code
+$ helm upgrade teleport teleport/teleport-cluster \
+  --set highAvailability.replicaCount=3
+```
+
+<Admonition type="warning">
+  When using `custom` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB, or Firestore) for multiple replicas to be supported.
+
+  [Information on supported Teleport storage backends](../../architecture/authentication.mdx#storage-back-ends)
+
+  Manually configuring NFS-based storage or `ReadWriteMany` volume claims is **NOT** supported for an HA deployment and will result in errors.
+</Admonition>
+
+## Uninstalling the Helm chart
+
+To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
+
+```code
+$ helm --namespace teleport uninstall teleport
+```
+
+<Admonition type="note">
+  To change `chartMode`, you must first uninstall the existing chart and then install a new version with the appropriate values.
+</Admonition>
+
+## Next steps
+
+You can follow our [Getting Started with Teleport guide](../guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
+Teleport cluster.

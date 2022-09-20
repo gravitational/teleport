@@ -22,18 +22,17 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -78,28 +77,19 @@ func innerMain() error {
 		}
 	}
 
-	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
-	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
+	gomodcache := fmt.Sprintf("GOMODCACHE=%s", path.Join(args.workspace, gomodcacheDir))
 
-	log.Println("Analyzing code changes")
+	log.Println("Analysing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
 
-	if !ch.Code {
-		log.Println("No code changes detected. Skipping tests.")
+	hasOnlyDocChanges := ch.Docs && (!ch.Code)
+	if hasOnlyDocChanges {
+		log.Println("No non-docs changes detected. Skipping tests.")
 		return nil
 	}
-
-	// From this point on, whatever happens we want to upload any artifacts
-	// produced by the build
-	defer func() {
-		prefix := fmt.Sprintf("%s/artifacts", args.buildID)
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		artifacts.FindAndUpload(timeoutCtx, args.bucket, prefix, args.artifactSearchPatterns)
-	}()
 
 	log.Printf("Running root-only integration tests...")
 	err = runRootIntegrationTests(args.workspace, gomodcache)
@@ -107,23 +97,14 @@ func innerMain() error {
 		return trace.Wrap(err, "Root-only integration tests failed")
 	}
 	log.Println("Root-only integration tests passed.")
-
 	if !args.skipChown {
 		// We run some build steps as root and others as a non user, and we
 		// want the nonroot user to be able to manipulate the artifacts
-		// created by root, so we `chown -R` the whole workspace & module
-		// cache to allow it.
-
+		// created by root, so we `chown -R` the whole workspace to allow it.
 		log.Printf("Reconfiguring workspace for nonroot user")
 		err = chownR(args.workspace, nonrootUID, nonrootGID)
 		if err != nil {
 			return trace.Wrap(err, "failed reconfiguring workspace")
-		}
-
-		log.Printf("Reconfiguring module cache for nonroot user")
-		err = chownR(moduleCacheDir, nonrootUID, nonrootGID)
-		if err != nil {
-			return trace.Wrap(err, "failed reconfiguring module cache")
 		}
 	}
 
@@ -133,13 +114,12 @@ func innerMain() error {
 	// diagnostic warnings that would pollute the build log and just confuse
 	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	cancelCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
+	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
-	defer etcdSvc.Stop()
 
 	log.Printf("Running nonroot integration tests...")
 	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)

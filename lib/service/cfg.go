@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -50,7 +49,6 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -80,12 +78,15 @@ type Rate struct {
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir is the directory where teleport stores its permanent state
+	// DataDir provides directory where teleport stores it's permanent state
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
 	DataDir string
 
 	// Hostname is a node host name
 	Hostname string
+
+	// Token is used to register this Teleport instance with the auth server
+	Token string
 
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
@@ -104,7 +105,7 @@ type Config struct {
 	AdvertiseIP string
 
 	// CachePolicy sets caching policy for nodes and proxies
-	// in case if they lose connection to auth servers
+	// in case if they loose connection to auth servers
 	CachePolicy CachePolicy
 
 	// Auth service configuration. Manages cluster state and configuration.
@@ -134,6 +135,9 @@ type Config struct {
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
+
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -189,6 +193,11 @@ type Config struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
 
+	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
+	// algorithm that the server uses for signing user and host certificates.
+	// If omitted, the default will be used.
+	CASignatureAlgorithm *string
+
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr
 
@@ -221,15 +230,8 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
-
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
-
-	// SkipVersionCheck means the version checking between server and client
-	// will be skipped.
-	SkipVersionCheck bool
 
 	// BPFConfig holds configuration for the BPF service.
 	BPFConfig *bpf.Config
@@ -247,6 +249,11 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
+	// RestartThreshold describes the number of connection failures per
+	// unit time that the node can sustain before restarting itself, as
+	// measured by the rotation state service.
+	RestartThreshold Rate
+
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
 
@@ -256,68 +263,25 @@ type Config struct {
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
-
-	// CircuitBreakerConfig configures the auth client circuit breaker.
-	CircuitBreakerConfig breaker.Config
-
-	// token is either the token needed to join the auth server, or a path pointing to a file
-	// that contains the token
-	//
-	// This is private to avoid external packages reading the value - the value should be obtained
-	// using Token()
-	token string
 }
 
-// Token returns token needed to join the auth server
+// ApplyToken assigns a given token to all internal services but only if token
+// is not an empty string.
 //
-// If the value stored points to a file, it will attempt to read the token value from the file
-// and return an error if it wasn't successful
-// If the value stored doesn't point to a file, it'll return the value stored
-// If the token hasn't been set, an empty string will be returned
-func (cfg *Config) Token() (string, error) {
-	token, err := utils.TryReadValueAsFile(cfg.token)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return token, nil
-}
-
-// SetToken stores the value for --token or auth_token in the config
-//
-// This can be either the token or an absolute path to a file containing the token.
-func (cfg *Config) SetToken(token string) {
-	cfg.token = token
-}
-
-// HasToken gives the ability to check if there has been a token value stored
-// in the config
-func (cfg *Config) HasToken() bool {
-	return cfg.token != ""
-}
-
-// ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
-// If a pin is specified as a path to a file, that file must not be empty.
-func (cfg *Config) ApplyCAPins(caPins []string) error {
-	var filteredPins []string
-	for _, pinOrPath := range caPins {
-		if pinOrPath == "" {
-			continue
-		}
-		pins, err := utils.TryReadValueAsFile(pinOrPath)
+// returns:
+// true, nil if the token has been modified
+// false, nil if the token has not been modified
+// false, err if there was an error
+func (cfg *Config) ApplyToken(token string) (bool, error) {
+	if token != "" {
+		var err error
+		cfg.Token, err = utils.ReadToken(token)
 		if err != nil {
-			return trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
-		// an empty pin file is less obvious than a blank ca_pin in the config yaml.
-		if pins == "" {
-			return trace.BadParameter("empty ca_pin file: %v", pinOrPath)
-		}
-		filteredPins = append(filteredPins, strings.Split(pins, "\n")...)
+		return true, nil
 	}
-	if len(filteredPins) > 0 {
-		cfg.CAPins = filteredPins
-	}
-	return nil
+	return false, nil
 }
 
 // RoleConfig is a config for particular Teleport role
@@ -406,22 +370,15 @@ type ProxyConfig struct {
 	// MongoAddr is address of Mongo proxy.
 	MongoAddr utils.NetAddr
 
-	// PeerAddr is the proxy peering address.
-	PeerAddr utils.NetAddr
-
-	// PeerPublicAddr is the public address the proxy advertises for proxy
-	// peering clients.
-	PeerPublicAddr utils.NetAddr
-
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
-	// for the HTTP endpoint. The hosts in PublicAddr are included in the
+	// for the HTTP endpoint. The hosts in in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	PublicAddrs []utils.NetAddr
 
 	// SSHPublicAddrs is a list of the public addresses the proxy advertises
-	// for the SSH endpoint. The hosts in PublicAddr are included in the
+	// for the SSH endpoint. The hosts in in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	SSHPublicAddrs []utils.NetAddr
 
@@ -494,40 +451,6 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	return u.String(), nil
 }
 
-// publicPeerAddr attempts to returns the public address the proxy advertises
-// for proxy peering clients if available. It falls back to PeerAddr othewise.
-func (c ProxyConfig) publicPeerAddr() (*utils.NetAddr, error) {
-	addr := &c.PeerPublicAddr
-	if addr.IsEmpty() || addr.IsHostUnspecified() {
-		return c.peerAddr()
-	}
-	return addr, nil
-}
-
-// peerAddr returns the address the proxy advertises for proxy peering clients.
-func (c ProxyConfig) peerAddr() (*utils.NetAddr, error) {
-	addr := &c.PeerAddr
-	if addr.IsEmpty() {
-		addr = defaults.ProxyPeeringListenAddr()
-	}
-	if !addr.IsHostUnspecified() {
-		return addr, nil
-	}
-
-	ip, err := utils.GuessHostIP()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	port := addr.Port(defaults.ProxyPeeringListenPort)
-	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return addr, nil
-}
-
 // KubeProxyConfig specifies configuration for proxy service
 type KubeProxyConfig struct {
 	// Enabled turns kubernetes proxy role on or off for this process
@@ -560,8 +483,8 @@ type AuthConfig struct {
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
-	// ListenAddr is the listening address of the auth service
-	ListenAddr utils.NetAddr
+	// SSHAddr is the listening address of SSH tunnel to HTTP service
+	SSHAddr utils.NetAddr
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
@@ -648,17 +571,6 @@ type SSHConfig struct {
 
 	// X11 holds x11 forwarding configuration for Teleport.
 	X11 *x11.ServerConfig
-
-	// AllowFileCopying indicates whether this node is allowed to handle
-	// remote file operations via SCP or SFTP.
-	AllowFileCopying bool
-
-	// DisableCreateHostUser disables automatic user provisioning on this
-	// SSH node.
-	DisableCreateHostUser bool
-
-	// AWSMatchers are used to match EC2 instances for auto enrollment.
-	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -703,10 +615,6 @@ type DatabasesConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []services.AWSMatcher
-	// AzureMatchers match Azure hosted databases.
-	AzureMatchers []services.AzureMatcher
-	// Limiter limits the connection and request rates.
-	Limiter limiter.Config
 }
 
 // Database represents a single database that's being proxied.
@@ -721,8 +629,6 @@ type Database struct {
 	URI string
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string
-	// MySQL are additional MySQL database options.
-	MySQL MySQLOptions
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels services.CommandLabels
 	// TLS keeps database connection TLS configuration.
@@ -731,8 +637,6 @@ type Database struct {
 	AWS DatabaseAWS
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP
-	// AD contains Active Directory configuration for database.
-	AD DatabaseAD
 }
 
 // TLSMode defines all possible database verification modes.
@@ -777,12 +681,6 @@ func (m TLSMode) ToProto() types.DatabaseTLSMode {
 	}
 }
 
-// MySQLOptions are additional MySQL options.
-type MySQLOptions struct {
-	// ServerVersion is the version reported by Teleport DB Proxy on initial handshake.
-	ServerVersion string
-}
-
 // DatabaseTLS keeps TLS settings used when connecting to database.
 type DatabaseTLS struct {
 	// Mode is the TLS connection mode. See TLSMode for more details.
@@ -802,12 +700,6 @@ type DatabaseAWS struct {
 	Redshift DatabaseAWSRedshift
 	// RDS contains RDS specific settings.
 	RDS DatabaseAWSRDS
-	// ElastiCache contains ElastiCache specific settings.
-	ElastiCache DatabaseAWSElastiCache
-	// MemoryDB contains MemoryDB specific settings.
-	MemoryDB DatabaseAWSMemoryDB
-	// SecretStore contains settings for managing secrets.
-	SecretStore DatabaseAWSSecretStore
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -824,61 +716,12 @@ type DatabaseAWSRDS struct {
 	ClusterID string
 }
 
-// DatabaseAWSElastiCache contains settings for ElastiCache databases.
-type DatabaseAWSElastiCache struct {
-	// ReplicationGroupID is the ElastiCache replication group ID.
-	ReplicationGroupID string
-}
-
-// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
-type DatabaseAWSMemoryDB struct {
-	// ClusterName is the MemoryDB cluster name.
-	ClusterName string
-}
-
-// DatabaseAWSSecretStore contains secret store configurations.
-type DatabaseAWSSecretStore struct {
-	// KeyPrefix specifies the secret key prefix.
-	KeyPrefix string
-	// KMSKeyID specifies the AWS KMS key for encryption.
-	KMSKeyID string
-}
-
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
 type DatabaseGCP struct {
 	// ProjectID is the GCP project ID where the database is deployed.
 	ProjectID string
 	// InstanceID is the Cloud SQL instance ID.
 	InstanceID string
-}
-
-// DatabaseAD contains database Active Directory configuration.
-type DatabaseAD struct {
-	// KeytabFile is the path to the Kerberos keytab file.
-	KeytabFile string
-	// Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
-	Krb5File string
-	// Domain is the Active Directory domain the database resides in.
-	Domain string
-	// SPN is the service principal name for the database.
-	SPN string
-}
-
-// CheckAndSetDefaults validates database Active Directory configuration.
-func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
-	if d.KeytabFile == "" {
-		return trace.BadParameter("missing keytab file path for database %q", name)
-	}
-	if d.Krb5File == "" {
-		d.Krb5File = defaults.Krb5FilePath
-	}
-	if d.Domain == "" {
-		return trace.BadParameter("missing Active Directory domain for database %q", name)
-	}
-	if d.SPN == "" {
-		return trace.BadParameter("missing service principal name for database %q", name)
-	}
-	return nil
 }
 
 // CheckAndSetDefaults validates the database proxy configuration.
@@ -918,15 +761,6 @@ func (d *Database) CheckAndSetDefaults() error {
 					d.Name, connString.ReadPreference)
 			}
 		}
-	} else if d.Protocol == defaults.ProtocolRedis {
-		_, err := redis.ParseRedisAddress(d.URI)
-		if err != nil {
-			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
-		}
-	} else if d.Protocol == defaults.ProtocolSnowflake {
-		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
-			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
-		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
@@ -948,14 +782,6 @@ func (d *Database) CheckAndSetDefaults() error {
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
-
-	// For SQL Server we only support Kerberos auth with Active Directory at the moment.
-	if d.Protocol == defaults.ProtocolSQLServer {
-		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 
@@ -1179,12 +1005,6 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
-	// LabelAttributes are LDAP attributes to apply to hosts discovered
-	// via LDAP. Teleport labels hosts by prefixing the attribute with
-	// "ldap/" - for example, a value of "location" here would result in
-	// discovered desktops having a label with key "ldap/location" and
-	// the value being the value of the "location" attribute.
-	LabelAttributes []string `yaml:"label_attributes"`
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
@@ -1222,6 +1042,8 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// Password for LDAP authentication.
+	Password string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
@@ -1328,7 +1150,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Auth service defaults.
 	cfg.Auth.Enabled = true
-	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
+	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
@@ -1354,7 +1176,6 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
 	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
-	cfg.SSH.AllowFileCopying = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
@@ -1365,7 +1186,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
-	defaults.ConfigureLimiter(&cfg.Databases.Limiter)
 
 	// Metrics service defaults.
 	cfg.Metrics.Enabled = false
@@ -1375,9 +1195,12 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
+	cfg.RestartThreshold = Rate{
+		Amount: defaults.MaxConnectionErrorsBeforeRestart,
+		Time:   defaults.ConnectionErrorMeasurementPeriod,
+	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
-	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

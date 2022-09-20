@@ -29,58 +29,78 @@ import "C"
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"unsafe"
-
-	"github.com/gravitational/trace"
 )
 
-// A buffer of 100 should provide ample buffer to hold several VT
-// sequences (which are 5 bytes each max) and output them to the
-// terminal in real time.
-const sequenceBufferSize = 100
-
 var (
-	sequenceBuffer *bufferedChannelPipe
-
-	resizeEventSubscribers      []chan struct{}
-	resizeEventSubscribersMutex sync.Mutex
+	subscribers      []chan interface{}
+	subscribersMutex sync.Mutex
 
 	running           bool = false
 	runningMutex      sync.Mutex
 	runningQuitHandle C.HANDLE
 )
 
-func SequenceReader() io.Reader {
-	return sequenceBuffer
+// SequenceEvent is emitted when one or more key sequences are generated. This
+// implementation generally produces many 1-byte events rather than one event
+// per keystroke unless VT sequence translation is enabled.
+type SequenceEvent struct {
+	Sequence []byte
 }
 
-//export writeSequence
-func writeSequence(addr *C.char, len C.int) {
+// ResizeEvent is emitted when the window size has been modified. The semantics
+// of this event may vary depending on the current terminal and its flags:
+//  - `cmd.exe` tends not to emit vertical resize events, and horizontal events
+//    have nonsensical height (`Y`) values.
+//  - `powershell.exe` emits events reliably, but height values are still
+//    insane.
+//  - The new Windows Terminal app emits sane events for both horizontal and
+//    vertical resize inputs.
+type ResizeEvent struct {
+	X int16
+
+	// y is the resized height. Note that depending on console mode, this
+	// number may not be sensible and events may not trigger on vertical
+	// resize.
+	Y int16
+}
+
+// writeEvent dispatches an event to all listeners.
+func writeEvent(event interface{}) {
+	subscribersMutex.Lock()
+	defer subscribersMutex.Unlock()
+
+	for _, sub := range subscribers {
+		sub <- event
+	}
+}
+
+//export writeSequenceEvent
+func writeSequenceEvent(addr *C.char, len C.int) {
 	bytes := C.GoBytes(unsafe.Pointer(addr), len)
-	sequenceBuffer.Write(bytes)
+	writeEvent(SequenceEvent{
+		Sequence: bytes,
+	})
 }
 
-// SubcribeResizeEvents creates a new channel from which to receive console input events.
-func SubcribeResizeEvents() chan struct{} {
-	resizeEventSubscribersMutex.Lock()
-	defer resizeEventSubscribersMutex.Unlock()
+//export writeResizeEvent
+func writeResizeEvent(size C.COORD) {
+	writeEvent(ResizeEvent{
+		X: int16(size.X),
+		Y: int16(size.Y),
+	})
+}
 
-	ch := make(chan struct{})
-	resizeEventSubscribers = append(resizeEventSubscribers, ch)
+// Subscribe creates a new channel from which to receive console input events.
+func Subscribe() chan interface{} {
+	subscribersMutex.Lock()
+	defer subscribersMutex.Unlock()
+
+	ch := make(chan interface{})
+	subscribers = append(subscribers, ch)
 
 	return ch
-}
-
-//export notifyResizeEvent
-func notifyResizeEvent() {
-	resizeEventSubscribersMutex.Lock()
-	defer resizeEventSubscribersMutex.Unlock()
-
-	for _, sub := range resizeEventSubscribers {
-		sub <- struct{}{}
-	}
 }
 
 // readInputContinuous is a blocking call that continuously reads console
@@ -89,20 +109,15 @@ func notifyResizeEvent() {
 func readInputContinuous(quitHandle C.HANDLE) error {
 	C.ReadInputContinuous(quitHandle)
 
-	// Close the sequenceBuffer (terminal stdin)
-	if err := sequenceBuffer.Close(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Once finished, close all existing subscriber channels to notify them
 	// of the close (they can resubscribe if it's ever restarted).
-	resizeEventSubscribersMutex.Lock()
-	defer resizeEventSubscribersMutex.Unlock()
+	subscribersMutex.Lock()
+	defer subscribersMutex.Unlock()
 
-	for _, ch := range resizeEventSubscribers {
+	for _, ch := range subscribers {
 		close(ch)
 	}
-	resizeEventSubscribers = resizeEventSubscribers[:0]
+	subscribers = subscribers[:0]
 
 	runningMutex.Lock()
 	defer runningMutex.Unlock()
@@ -138,12 +153,6 @@ func Start() error {
 
 	running = true
 	runningQuitHandle = C.CreateEventA(nil, C.TRUE, C.FALSE, nil)
-
-	// Adding a buffer increases the speed of reads by a great amount,
-	// since waiting on channel sends is the main chokepoint. Without
-	// a sufficient buffer, the individual keystrokes won't be transmitted
-	// quickly enough for them to be grouped as a VT sequence by Windows.
-	sequenceBuffer = newBufferedChannelPipe(sequenceBufferSize)
 
 	go readInputContinuous(runningQuitHandle)
 

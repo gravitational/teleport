@@ -21,12 +21,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type componentStateEnum byte
@@ -70,7 +69,7 @@ type componentState struct {
 
 // newProcessState returns a new FSM that tracks the state of the Teleport process.
 func newProcessState(process *TeleportProcess) (*processState, error) {
-	err := metrics.RegisterPrometheusCollectors(stateGauge)
+	err := utils.RegisterPrometheusCollectors(stateGauge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

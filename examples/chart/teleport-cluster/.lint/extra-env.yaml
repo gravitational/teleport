@@ -1,4 +1,0 @@
-clusterName: helm-lint.example.com
-extraEnv:
-  - name: SOME_ENVIRONMENT_VARIABLE
-    value: "some-value"

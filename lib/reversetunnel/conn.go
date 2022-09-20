@@ -25,11 +25,12 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // connKey is a key used to identify tunnel connections. It contains the UUID
@@ -45,10 +46,6 @@ type connKey struct {
 
 // remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
-	// lastHeartbeat is the last time a heartbeat was received.
-	// intentionally placed first to ensure 64-bit alignment
-	lastHeartbeat int64
-
 	*connConfig
 	mu  sync.Mutex
 	log *logrus.Entry
@@ -72,6 +69,9 @@ type remoteConn struct {
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
+
+	// lastHeartbeat is the last time a heartbeat was received.
+	lastHeartbeat int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -136,7 +136,6 @@ func (c *remoteConn) Close() error {
 	}
 
 	return nil
-
 }
 
 // OpenChannel will open a SSH channel to the remote side.
@@ -210,11 +209,6 @@ func (c *remoteConn) updateProxies(proxies []types.Server) {
 	}
 }
 
-func (c *remoteConn) adviseReconnect() error {
-	_, _, err := c.sconn.SendRequest(reconnectRequest, true, nil)
-	return trace.Wrap(err)
-}
-
 // sendDiscoveryRequest sends a discovery request with up to date
 // list of connected proxies
 func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
@@ -246,4 +240,8 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	}
 
 	return nil
+}
+
+func (c *remoteConn) adviseReconnect() {
+	c.sconn.SendRequest(reconnectRequest, true, nil)
 }

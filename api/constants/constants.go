@@ -28,9 +28,7 @@ const (
 	// objects.
 	DefaultImplicitRole = "default-implicit-role"
 
-	// APIDomain is a default domain name for Auth server API. It is often
-	// used as an SNI to pass TLS handshakes regardless of the server address
-	// since we register "teleport.cluster.local" as a DNS in Certificates.
+	// APIDomain is a default domain name for Auth server API
 	APIDomain = "teleport.cluster.local"
 
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
@@ -47,13 +45,6 @@ const (
 	// EnhancedRecordingNetwork is a role option that implies network events
 	// are captured.
 	EnhancedRecordingNetwork = "network"
-
-	// LocalConnector is the authenticator connector for local logins.
-	LocalConnector = "local"
-
-	// PasswordlessConnector is the authenticator connector for
-	// local/passwordless logins.
-	PasswordlessConnector = "passwordless"
 
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
@@ -102,9 +93,6 @@ const (
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"
 
-	// KeepAliveKube is the keep alive type for Kubernetes server
-	KeepAliveKube = "kube"
-
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
 
@@ -138,22 +126,7 @@ const (
 
 	// RSAKeySize is the size of the RSA key.
 	RSAKeySize = 2048
-
-	// NoLoginPrefix is the prefix used for nologin certificate principals.
-	NoLoginPrefix = "-teleport-nologin-"
-
-	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
-	DatabaseCAMinVersion = "10.0.0"
-
-	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
-	SSHRSAType = "ssh-rsa"
 )
-
-// SystemConnectors lists the names of the system-reserved connectors.
-var SystemConnectors = []string{
-	LocalConnector,
-	PasswordlessConnector,
-}
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -166,10 +139,9 @@ const (
 	SecondFactorOTP = SecondFactorType("otp")
 	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
 	// required for all users.
-	// U2F is marked for removal. It currently works as an alias for "webauthn".
 	SecondFactorU2F = SecondFactorType("u2f")
-	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
-	// is required for all users.
+	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA is
+	// required for all users.
 	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.
@@ -274,57 +246,4 @@ const (
 	// NoProxy is an environment variable matching the cases
 	// when HTTPS_PROXY or HTTP_PROXY is ignored
 	NoProxy = "NO_PROXY"
-)
-
-// SessionRecordingService is used to differentiate session recording services.
-type SessionRecordingService int
-
-const (
-	// SessionRecordingServiceSSH represents the SSH service session.
-	SessionRecordingServiceSSH SessionRecordingService = iota
-)
-
-// SessionRecordingMode determines how session recording will behave in failure
-// scenarios.
-type SessionRecordingMode string
-
-const (
-	// SessionRecordingModeStrict causes any failure session recording to
-	// terminate the session or prevent a new session from starting.
-	SessionRecordingModeStrict = SessionRecordingMode("strict")
-
-	// SessionRecordingModeBestEffort allows the session to keep going even when
-	// session recording fails.
-	SessionRecordingModeBestEffort = SessionRecordingMode("best_effort")
-)
-
-// Constants for Traits
-const (
-	// TraitLogins is the name of the role variable used to store
-	// allowed logins.
-	TraitLogins = "logins"
-
-	// TraitWindowsLogins is the name of the role variable used
-	// to store allowed Windows logins.
-	TraitWindowsLogins = "windows_logins"
-
-	// TraitKubeGroups is the name the role variable used to store
-	// allowed kubernetes groups
-	TraitKubeGroups = "kubernetes_groups"
-
-	// TraitKubeUsers is the name the role variable used to store
-	// allowed kubernetes users
-	TraitKubeUsers = "kubernetes_users"
-
-	// TraitDBNames is the name of the role variable used to store
-	// allowed database names.
-	TraitDBNames = "db_names"
-
-	// TraitDBUsers is the name of the role variable used to store
-	// allowed database users.
-	TraitDBUsers = "db_users"
-
-	// TraitAWSRoleARNs is the name of the role variable used to store
-	// allowed AWS role ARNs.
-	TraitAWSRoleARNs = "aws_role_arns"
 )
