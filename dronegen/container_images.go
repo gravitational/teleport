@@ -34,7 +34,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"path"
 	"strings"
 )
@@ -861,33 +860,6 @@ func (cr *ContainerRepo) createAndPushManifestStep(manifestName string, pushStep
 		}),
 		DependsOn: pushStepNames,
 	}
-}
-
-// Drone has a 100 character limit for step names. This can be used to reduce the length.
-// Ex. abbreviatedString("abcdefg", 5) -> "a...g"
-func abbreviateMiddleString(s string, maxLength int) string {
-	if len(s) <= maxLength {
-		return s
-	}
-
-	ellipsis := "..."
-	trimLength := len(s) + len(ellipsis) - maxLength
-	middlePos := int(math.Floor(float64(len(s)) / 2.0))
-	leftEndingPos := middlePos - int(math.Floor(float64(trimLength)/2.0))
-	rightStartingPos := middlePos + int(math.Ceil(float64(trimLength)/2.0))
-
-	return s[0:leftEndingPos] + ellipsis + s[rightStartingPos:]
-}
-
-func abbreviateStartString(s string, maxLength int) string {
-	if len(s) <= maxLength {
-		return s
-	}
-
-	ellipsis := "..."
-	trimLength := len(s) + len(ellipsis) - maxLength
-
-	return ellipsis + s[trimLength:]
 }
 
 // Replaces `$()` with `$VERSION` for readability purposes
