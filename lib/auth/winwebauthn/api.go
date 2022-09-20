@@ -16,6 +16,7 @@ package winwebauthn
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -25,6 +26,28 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var (
+	ErrNotAllowed = errors.New("NotAllowed error")
+)
+
+// LoginOpts groups non-mandatory options for Login.
+type LoginOpts struct {
+	// User is the desired credential username for login.
+	// If empty, Login may either choose a credential or prompt the user for input
+	// (via LoginPrompt).
+	User string
+	// AuthenticatorAttachment specifies the desired authenticator attachment.
+	AuthenticatorAttachment AuthenticatorAttachment
+}
+
+type AuthenticatorAttachment int
+
+const (
+	AttachmentAuto AuthenticatorAttachment = iota
+	AttachmentCrossPlatform
+	AttachmentPlatform
+)
+
 // Login implements Login for WindowsHello, CTAP1 and CTAP2 devices.
 // The informed user is used to disambiguate credentials in case of passwordless
 // logins.
@@ -32,11 +55,11 @@ import (
 // credential is used.
 // Most callers should call Login directly, as it is correctly guarded by
 // IsAvailable.
-func Login(
-	ctx context.Context,
+func Login(ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion,
+	opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	return login(ctx, origin, assertion)
+	return login(ctx, origin, assertion, opts)
 }
 
 // Register implements Register for WindowsHello, CTAP1 and CTAP2 devices.
@@ -132,7 +155,7 @@ func RunDiagnostics(ctx context.Context, promptOut io.Writer) (*RunDiagnosticsRe
 			UserVerification: protocol.VerificationDiscouraged,
 		},
 	}
-	if _, _, err := Login(ctx, origin, assertion); err != nil {
+	if _, _, err := Login(ctx, origin, assertion, &LoginOpts{}); err != nil {
 		return res, trace.Wrap(err)
 	}
 	res.LoginSuccessful = true

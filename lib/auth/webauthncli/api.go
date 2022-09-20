@@ -111,17 +111,16 @@ func Login(
 		user = opts.User
 	}
 
-	// TODO(tobiaszheller): better support here.
 	switch attachment {
 	case AttachmentCrossPlatform:
 		log.Debug("Cross-platform login")
 		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
 	case AttachmentPlatform:
 		log.Debug("Platform login")
-		return platformLogin(origin, user, assertion, prompt)
+		return platformLogin(ctx, origin, user, assertion, prompt, opts)
 	default:
 		log.Debug("Attempting platform login")
-		resp, credentialUser, err := platformLogin(origin, user, assertion, prompt)
+		resp, credentialUser, err := platformLogin(ctx, origin, user, assertion, prompt, opts)
 		if !errors.Is(err, &touchid.ErrAttemptFailed{}) {
 			return resp, credentialUser, trace.Wrap(err)
 		}
@@ -142,7 +141,12 @@ func crossPlatformLogin(
 
 	if winwebauthn.IsAvailable() {
 		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential creation")
-		return winwebauthn.Login(ctx, origin, assertion)
+		inOpts := &winwebauthn.LoginOpts{}
+		if opts != nil {
+			inOpts.AuthenticatorAttachment = winwebauthn.AuthenticatorAttachment(opts.AuthenticatorAttachment)
+			inOpts.User = opts.User
+		}
+		return winwebauthn.Login(ctx, origin, assertion, inOpts)
 	}
 
 	if err := prompt.PromptTouch(); err != nil {
@@ -152,7 +156,17 @@ func crossPlatformLogin(
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+func platformLogin(ctx context.Context, origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	if winwebauthn.IsAvailable() {
+		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential assertion")
+		inOpts := &winwebauthn.LoginOpts{}
+		if opts != nil {
+			inOpts.AuthenticatorAttachment = winwebauthn.AuthenticatorAttachment(opts.AuthenticatorAttachment)
+			inOpts.User = opts.User
+		}
+		return winwebauthn.Login(ctx, origin, assertion, inOpts)
+	}
+
 	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err

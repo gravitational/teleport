@@ -49,7 +49,9 @@ var (
 // - different API version
 // - Worth pointing out that in the windows Hello attestation, there is SHA1 used over the signatures which can be potentially a secuirity risk, so you need to check for the use of RS1 in some internal code paths and reject if found.
 // - todo support api v4
+// - should we use panic recovery?
 
+// TODO(tobiaszheller): write docs and link to webauth.dll header file.
 type Client struct {
 	version int
 }
@@ -115,17 +117,18 @@ func diag() (*DiagResult, error) {
 func login(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion,
+	loginOpts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	cli, err := new()
 	if err != nil {
 		return nil, "", err
 	}
 	for _, ac := range assertion.Response.AllowedCredentials {
-		log.Debugf("WIN_WEBAUTHN: Allow creds: %s\n", ac.CredentialID)
+		log.Debugf("WIN_WEBAUTHN: Allow creds: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID))
 	}
 	log.Debugf("WIN_WEBAUTHN: Ext %v\n", assertion.Response.Extensions)
 	log.Debugf("WIN_WEBAUTHN: UV %v\n", assertion.Response.UserVerification)
-	resp, err := cli.GetAssertion(origin, assertion.Response)
+	resp, err := cli.GetAssertion(origin, assertion.Response, loginOpts)
 	if err != nil {
 		return nil, "", err
 	}
@@ -146,7 +149,7 @@ func register(
 		return nil, err
 	}
 	for _, ac := range cc.Response.CredentialExcludeList {
-		log.Debugf("WIN_WEBAUTHN: Excluded creds: %s\n", ac.CredentialID)
+		log.Debugf("WIN_WEBAUTHN: Excluded creds: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID))
 	}
 	log.Debugf("WIN_WEBAUTHN: Ext %v\n", cc.Response.Extensions)
 	log.Debugf("WIN_WEBAUTHN: AUTH %+v\n", cc.Response.AuthenticatorSelection)
@@ -173,7 +176,7 @@ func new() (*Client, error) {
 	return &Client{version: v}, nil
 }
 
-func (c Client) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions) (*wanlib.CredentialAssertionResponse, error) {
+func (c Client) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, err
@@ -186,7 +189,7 @@ func (c Client) GetAssertion(origin string, in protocol.PublicKeyCredentialReque
 	if err != nil {
 		return nil, err
 	}
-	opts, err := c.assertOptionsToCType(in)
+	opts, err := c.assertOptionsToCType(in, loginOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +364,7 @@ func (c Client) IsUVPlatformAuthenticatorAvailable() (bool, error) {
 	return out == 1, nil
 }
 
-func (c Client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions) (*_WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS, error) {
+func (c Client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*_WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS, error) {
 	// allowCredList, err := CredentialsExToCType(in.AllowedCredentials)
 	// if err != nil {
 	// 	return nil, err
@@ -376,6 +379,16 @@ func (c Client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptio
 		dwVersion = 6
 	}
 
+	var dwAuthenticatorAttachment uint32
+	if loginOpts != nil {
+		switch loginOpts.AuthenticatorAttachment {
+		case AttachmentPlatform:
+			dwAuthenticatorAttachment = 1
+		case AttachmentCrossPlatform:
+			dwAuthenticatorAttachment = 2
+		}
+	}
+
 	creds, err := credentialsToCType(in.AllowedCredentials)
 	if err != nil {
 		return nil, err
@@ -387,8 +400,7 @@ func (c Client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptio
 		CredentialList: *creds,
 		// TODO(tobiaszheller): map extensions.
 		// Extensions:                        *exstList,
-		// TODO(tobiaszheller): need to pass attachment, not in req currently!!.
-		dwAuthenticatorAttachment:     0,
+		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
 		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
 		// TODO(tobiaszheller): check if we need to support U2fAppId.
 		// pwszU2fAppId: ,

@@ -29,7 +29,7 @@ var errUnavailable = errors.New("windows webauthn unavailable in current build")
 
 func login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion,
+	origin string, assertion *wanlib.CredentialAssertion, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	return nil, "", errUnavailable
 }
