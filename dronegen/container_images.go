@@ -745,15 +745,25 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 
 	steps := make([]step, 0)
 
-	pushStepDetails := make([]*pushStepOutput, 0, len(buildStepDetails))
+	imageTags := cr.BuildImageTags(buildStepDetails[0].Version.ShellVersion)
+	pushedImageNames := make(map[string][]string, len(imageTags))
+	pushStepNames := make([]string, 0, len(buildStepDetails))
 	for _, buildStepDetail := range buildStepDetails {
-		pushStep, pushStepDetail := cr.tagAndPushStep(buildStepDetail)
-		pushStepDetails = append(pushStepDetails, pushStepDetail)
+		pushStep, pushedImages := cr.tagAndPushStep(buildStepDetail, imageTags)
+		pushStepNames = append(pushStepNames, pushStep.Name)
+		for _, imageTag := range imageTags {
+			pushedImageNames[imageTag] = append(pushedImageNames[imageTag], pushedImages[imageTag])
+		}
+
 		steps = append(steps, pushStep)
 	}
 
-	manifestStepName := cr.createAndPushManifestStep(pushStepDetails)
-	steps = append(steps, manifestStepName)
+	imageRepo := cr.BuildImageRepo()
+	for _, imageTag := range imageTags {
+		manifestName := buildStepDetails[0].Product.ImageNameBuilder(imageRepo, imageTag)
+		manifestStepName := cr.createAndPushManifestStep(manifestName, pushStepNames, pushedImageNames[imageTag])
+		steps = append(steps, manifestStepName)
+	}
 
 	return steps
 }
@@ -775,66 +785,73 @@ func (cr *ContainerRepo) BuildImageRepo() string {
 	return fmt.Sprintf("%s/%s/", cr.RegistryDomain, cr.RegistryOrg)
 }
 
-func (cr *ContainerRepo) BuildImageTag(majorVersion string) string {
-	baseTag := strings.TrimPrefix(majorVersion, "v")
+func (cr *ContainerRepo) getTagsForVersion(shellVersion string) []string {
+	return []string{
+		fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1)", shellVersion),     //Major
+		fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2)", shellVersion),   // Minor
+		fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2,3)", shellVersion), // Canonical
+	}
+}
 
-	if cr.TagBuilder == nil {
-		return baseTag
+func (cr *ContainerRepo) BuildImageTags(shellVersion string) []string {
+	tags := cr.getTagsForVersion(shellVersion)
+
+	if cr.TagBuilder != nil {
+		for i, tag := range tags {
+			tags[i] = cr.TagBuilder(tag)
+		}
 	}
 
-	return cr.TagBuilder(baseTag)
+	return tags
 }
 
-type pushStepOutput struct {
-	PushedImageName string
-	BaseImageName   string
-	StepName        string
-}
+func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []string) (step, map[string]string) {
+	imageRepo := cr.BuildImageRepo()
 
-func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step, *pushStepOutput) {
-	imageName := buildStepDetails.Product.ImageNameBuilder(cr.BuildImageRepo(), cr.BuildImageTag(buildStepDetails.Version.MajorVersion))
-	archImageName := fmt.Sprintf("%s-%s", imageName, buildStepDetails.BuiltImageArch)
-	abbreviatedArchImageName := abbreviateString(archImageName, 50)
+	archImageNames := make(map[string]string, len(imageTags))
+	for _, imageTag := range imageTags {
+		imageName := buildStepDetails.Product.ImageNameBuilder(imageRepo, imageTag)
+		archImageNames[imageTag] = fmt.Sprintf("%s-%s", imageName, buildStepDetails.BuiltImageArch)
+	}
+
+	commands := []string{
+		fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImageName), // This will pull from the local registry
+	}
+	for _, archImageName := range archImageNames {
+		commands = append(commands, fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, archImageName))
+	}
+	for _, archImageName := range archImageNames {
+		commands = append(commands, fmt.Sprintf("docker push %q", archImageName))
+	}
 
 	step := step{
-		Name:        fmt.Sprintf("Tag and push %q to %s", abbreviatedArchImageName, cr.Name),
+		Name:        fmt.Sprintf("Tag and push image %q to %s", trimRegistry(buildStepDetails.BuiltImageName), cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
-		Commands: cr.buildCommandsWithLogin([]string{
-			fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImageName), // This will pull from the local registry
-			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, archImageName),
-			fmt.Sprintf("docker push %q", archImageName),
-		}),
+		Commands:    cr.buildCommandsWithLogin(commands),
 		DependsOn: []string{
 			buildStepDetails.StepName,
 		},
 	}
 
-	return step, &pushStepOutput{
-		PushedImageName: archImageName,
-		BaseImageName:   imageName,
-		StepName:        step.Name,
-	}
+	return step, archImageNames
 }
 
-func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOutput) step {
-	if len(pushStepDetails) == 0 {
+func (cr *ContainerRepo) createAndPushManifestStep(manifestName string, pushStepNames, pushedImageNames []string) step {
+	if len(pushStepNames) == 0 {
 		return step{}
 	}
 
-	manifestName := pushStepDetails[0].BaseImageName
-	abbreviatedManifestName := abbreviateString(manifestName, 50)
+	displayManifestName := trimRegistry(cleanShellVersionString(manifestName))
 
-	manifestCommandArgs := make([]string, 0, len(pushStepDetails))
-	pushStepNames := make([]string, 0, len(pushStepDetails))
-	for _, pushStepDetail := range pushStepDetails {
-		manifestCommandArgs = append(manifestCommandArgs, fmt.Sprintf("--amend %q", pushStepDetail.PushedImageName))
-		pushStepNames = append(pushStepNames, pushStepDetail.StepName)
+	manifestCommandArgs := make([]string, 0, len(pushedImageNames))
+	for _, pushedImageName := range pushedImageNames {
+		manifestCommandArgs = append(manifestCommandArgs, fmt.Sprintf("--amend %q", pushedImageName))
 	}
 
 	return step{
-		Name:        fmt.Sprintf("Create manifest and push %q to %s", abbreviatedManifestName, cr.Name),
+		Name:        fmt.Sprintf("Create manifest and push %q to %s", displayManifestName, cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
@@ -848,7 +865,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOu
 
 // Drone has a 100 character limit for step names. This can be used to reduce the length.
 // Ex. abbreviatedString("abcdefg", 5) -> "a...g"
-func abbreviateString(s string, maxLength int) string {
+func abbreviateMiddleString(s string, maxLength int) string {
 	if len(s) <= maxLength {
 		return s
 	}
@@ -860,4 +877,33 @@ func abbreviateString(s string, maxLength int) string {
 	rightStartingPos := middlePos + int(math.Ceil(float64(trimLength)/2.0))
 
 	return s[0:leftEndingPos] + ellipsis + s[rightStartingPos:]
+}
+
+func abbreviateStartString(s string, maxLength int) string {
+	if len(s) <= maxLength {
+		return s
+	}
+
+	ellipsis := "..."
+	trimLength := len(s) + len(ellipsis) - maxLength
+
+	return ellipsis + s[trimLength:]
+}
+
+// Replaces `$()` with `$VERSION` for readability purposes
+func cleanShellVersionString(s string) string {
+	startPoint := strings.IndexRune(s, '(')
+	endPoint := strings.LastIndex(s, ")")
+
+	if startPoint == -1 || endPoint == -1 {
+		return s
+	}
+
+	return s[0:startPoint] + "SHELL_VERSION" + s[endPoint+1:]
+}
+
+// Removes the registry/org in s for readability purposes
+func trimRegistry(s string) string {
+	splitImageName := strings.Split(s, "/")
+	return splitImageName[len(splitImageName)-1]
 }
