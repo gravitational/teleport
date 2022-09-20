@@ -1561,6 +1561,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
+		FIPS:                    cfg.FIPS,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1911,6 +1912,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Presence:         cfg.services,
 		Restrictions:     cfg.services,
 		Apps:             cfg.services,
+		Kubernetes:       cfg.services,
 		Databases:        cfg.services,
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,
@@ -2556,6 +2558,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = pool
+		//nolint:staticcheck // Keep BuildNameToCertificate to avoid changes in legacy behavior.
 		tlsConfig.BuildNameToCertificate()
 
 		listener = tls.NewListener(listener, tlsConfig)

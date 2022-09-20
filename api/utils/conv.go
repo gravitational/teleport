@@ -32,24 +32,23 @@ import (
 //
 // Example: assume you have two structs:
 //
-// type A struct {
-//     Name string `json:"name"`
-//	   Age  int    `json:"age"`
-// }
+//	type A struct {
+//	    Name string `json:"name"`
+//		   Age  int    `json:"age"`
+//	}
 //
-// type B struct {
-//	   FullName string `json:"name"`
-// }
+//	type B struct {
+//		   FullName string `json:"name"`
+//	}
 //
 // Now you can convert B to A:
 //
-//		b := &B{ FullName: "Bob Dilan"}
-//		var a *A
-//		utils.ObjectToStruct(b, &a)
-//		fmt.Println(a.Name)
+//			b := &B{ FullName: "Bob Dilan"}
+//			var a *A
+//			utils.ObjectToStruct(b, &a)
+//			fmt.Println(a.Name)
 //
-//  > "Bob Dilan"
-//
+//	 > "Bob Dilan"
 func ObjectToStruct(in interface{}, out interface{}) error {
 	bytes, err := json.Marshal(in)
 	if err != nil {
