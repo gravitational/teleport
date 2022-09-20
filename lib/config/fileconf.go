@@ -451,6 +451,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 					serviceType, constants.SupportedAWSDiscoveryServices)
 			}
 		}
+		if matcher.Tags == nil || len(matcher.Tags) == 0 {
+			matcher.Tags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+		}
 
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{

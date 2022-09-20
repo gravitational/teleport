@@ -722,6 +722,7 @@ func TestDiscoveryConfig(t *testing.T) {
 						SSM: AWSSSM{
 							DocumentName: defaults.AWSInstallerDocument,
 						},
+						Tags: map[string]apiutils.Strings{"*": {"*"}},
 						InstallParams: &InstallParams{
 							JoinParams: JoinParams{
 								TokenName: defaults.IAMInviteTokenName,
