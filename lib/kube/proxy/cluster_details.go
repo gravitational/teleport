@@ -83,7 +83,7 @@ func parseKubeClusterCredentials(ctx context.Context, cluster types.KubeCluster,
 }
 
 // parseKubeConfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
-// If the config defines multiple contexts, it will pick one (the order is not guarenteed).
+// If the config defines multiple contexts, it will pick one (the order is not guaranteed).
 func parseKubeConfig(ctx context.Context, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*kubeCreds, error) {
 	config, err := clientcmd.Load(cluster.GetKubeconfig())
 	if err != nil {

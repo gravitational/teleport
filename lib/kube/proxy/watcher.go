@@ -209,8 +209,8 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 }
 
 // deleteKubernetesServer deletes kubernetes server for the specified cluster.
-func (t *TLSServer) deleteKubernetesServer(ctx context.Context, name string) error {
-	err := t.AuthClient.DeleteKubernetesServer(ctx, t.HostID, name)
+func (s *TLSServer) deleteKubernetesServer(ctx context.Context, name string) error {
+	err := s.AuthClient.DeleteKubernetesServer(ctx, s.HostID, name)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
