@@ -1832,6 +1832,24 @@ impl ReadCache_Call {
     }
 }
 
+impl Encode for ReadCache_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?; // _send_buffer_ptr
+        self.common.encode_ptr(&mut index, &mut w)?;
+
+        w.extend(encode_str_unicode(&self.lookup_name)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct ReadCache_Common {
@@ -1864,6 +1882,24 @@ impl ReadCache_Common {
         self.context.decode_value(payload)?;
         self.card_uuid.resize(16, 0); // 16 bytes for UUID.
         payload.read_exact(&mut self.card_uuid)?;
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        encode_ptr(None, index, w)?; // _card_uuid_ptr
+
+        w.write_u32::<LittleEndian>(self.freshness_counter)?;
+        let data_is_null = if self.data_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(data_is_null)?;
+        w.write_u32::<LittleEndian>(self.data_len)?;
+
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        self.context.encode_value(w)?;
+        w.extend_from_slice(&self.card_uuid);
         Ok(())
     }
 }
@@ -2546,6 +2582,35 @@ mod tests {
                 1, 16, 8, 0, 204, 204, 204, 204, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 21, 0, 0, 0, 0, 0, 2, 0, 21, 0, 0, 0, 97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121, 7, 79,
                 5, 160, 0, 0, 3, 8, 144, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_readcachew() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_READCACHEW,
+            &ReadCache_Call {
+                lookup_name: "Cached_CardmodFile\\Cached_Pin_Freshness".to_string(),
+                common: ReadCache_Common {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    card_uuid: vec![
+                        138, 113, 14, 35, 145, 213, 78, 249, 174, 208, 142, 171, 174, 121, 3, 76,
+                    ],
+                    freshness_counter: 0,
+                    data_is_null: false,
+                    data_len: 4294967295,
+                },
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 112, 0, 16, 128, 0, 0, 0,
+                0, 0, 0, 2, 0, 0, 0, 0, 0,
             ],
         )
     }
