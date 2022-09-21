@@ -978,6 +978,21 @@ impl Context_Call {
     }
 }
 
+impl Encode for Context_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+        self.context.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct GetStatusChange_Call {
@@ -2171,6 +2186,24 @@ mod tests {
             },
             vec![
                 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_releasecontext() {
+        let context_value = 2;
+        test_ioctl(
+            context_value,
+            IoctlCode::SCARD_IOCTL_RELEASECONTEXT,
+            &Context_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
         )
     }
