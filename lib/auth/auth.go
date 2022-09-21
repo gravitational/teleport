@@ -337,7 +337,7 @@ var (
 	heartbeatsMissedByAuth = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricHeartbeatsMissed,
-			Help: "Number of hearbeats missed by auth server",
+			Help: "Number of heartbeats missed by auth server",
 		},
 	)
 
@@ -345,8 +345,7 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricRegisteredServers,
-			Help: "The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. " +
-				"After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL.",
+			Help:      "The number of Teleport services that are connected to an auth server by version.",
 		},
 		[]string{teleport.TagVersion},
 	)
