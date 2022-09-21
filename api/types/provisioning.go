@@ -466,7 +466,19 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case JoinMethodGitHub:
+		providerCfg := p.Spec.GitHub
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"github" configuration must be provided for join method %q`,
+				JoinMethodGitHub,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	case JoinMethodToken:
+		// no additional validation required.
 	case "":
 		return trace.BadParameter(`"join_method" must be specified`)
 	default:
@@ -616,6 +628,9 @@ func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 }
 
 func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, bool) {
+	if p.Spec.JoinMethod == JoinMethodGitHub {
+		return nil, false
+	}
 	v2 := &ProvisionTokenV2{
 		Kind:     KindToken,
 		Version:  V2,
@@ -631,8 +646,6 @@ func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, bool) {
 	if p.Spec.EC2 != nil {
 		v2.Spec.AWSIIDTTL = p.Spec.EC2.IIDTTL
 	}
-	// TODO: When non-backwards-compatible join methods are added,
-	// the conversion should return nil, false here
 	return v2, true
 }
 
@@ -642,8 +655,8 @@ func (a *ProvisionTokenSpecV3AWSEC2) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
 	}
-	for _, allowRule := range a.Allow {
-		if allowRule.Account == "" && allowRule.Role == "" {
+	for _, rule := range a.Allow {
+		if rule.Account == "" && rule.Role == "" {
 			return trace.BadParameter(
 				`allow rule for %q join method must set "account" or "role"`,
 				JoinMethodEC2,
@@ -661,11 +674,30 @@ func (a *ProvisionTokenSpecV3AWSIAM) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodIAM)
 	}
-	for _, allowRule := range a.Allow {
-		if allowRule.Account == "" && allowRule.ARN == "" {
+	for _, rule := range a.Allow {
+		if rule.Account == "" && rule.ARN == "" {
 			return trace.BadParameter(
 				`allow rule for %q join method must set "account" or "arn"`,
 				JoinMethodEC2,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV3GitHub) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodGitHub)
+	}
+	for _, rule := range a.Allow {
+		// The combination of repository and owner uniquely identifies a repo.
+		specificRepoSet := rule.Repository != "" && rule.RepositoryOwner != ""
+		// Sub sufficiently uniquely identifies a workflow and repository.
+		subSet := rule.Sub != ""
+		if subSet || specificRepoSet {
+			return trace.BadParameter(
+				`allow rule for %q must abide by secure guidelines. check documentation.`,
+				JoinMethodGitHub,
 			)
 		}
 	}
