@@ -43,43 +43,21 @@ var (
 	procWebAuthNAuthenticatorGetAssertion                     = modWebAuthn.NewProc("WebAuthNAuthenticatorGetAssertion")
 	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
 	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
-)
 
-// TODO:
-// - different API version
-// - Worth pointing out that in the windows Hello attestation, there is SHA1 used over the signatures which can be potentially a secuirity risk, so you need to check for the use of RS1 in some internal code paths and reject if found.
-// - todo support api v4
-// - should we use panic recovery?
+	moduser32               = windows.NewLazySystemDLL("user32.dll")
+	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
+)
 
 var (
 	clientOnce sync.Once
-	client     *Client
+	clientVar  *client
 )
 
-type Client struct {
+type client struct {
 	version           int
 	hasCompileSupport bool
 	isAvailable       bool
 	hasPlatformUV     bool
-}
-
-func new() (*Client, error) {
-	v, err := getAPIVersionNumber()
-	if err != nil {
-		// TODO: return typed error
-		return nil, err
-	}
-	uvPlatform, err := isUVPlatformAuthenticatorAvailable()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Client{
-		version:           v,
-		hasCompileSupport: true,
-		hasPlatformUV:     uvPlatform,
-		isAvailable:       v > 0 && v <= 4,
-	}, nil
 }
 
 // getOrCreateClient uses package variable to store client connection.
@@ -87,21 +65,40 @@ func new() (*Client, error) {
 // Diagnostics are safe to cache because dll isn't something that
 // could change during program invocation.
 // Client will be alaways created, even if dll is missing on system.
-func getOrCreateClient() *Client {
+func getOrCreateClient() *client {
+	new := func() (*client, error) {
+		v, err := getAPIVersionNumber()
+		if err != nil {
+			// TODO: return typed error
+			return nil, err
+		}
+		uvPlatform, err := isUVPlatformAuthenticatorAvailable()
+		if err != nil {
+			return nil, err
+		}
+
+		return &client{
+			version:           v,
+			hasCompileSupport: true,
+			hasPlatformUV:     uvPlatform,
+			isAvailable:       v > 0 && v <= 4,
+		}, nil
+	}
+
 	clientOnce.Do(func() {
 		c, err := new()
 		if err != nil {
 			// If not able to create client, log warning and create client which
 			// just retrun IsAvailable false.
 			log.WithError(err).Warn("Windows webauthn creating client failed")
-			c = &Client{
+			c = &client{
 				hasCompileSupport: true,
 				isAvailable:       false,
 			}
 		}
-		client = c
+		clientVar = c
 	})
-	return client
+	return clientVar
 }
 
 const (
@@ -121,6 +118,16 @@ func isAvailable() bool {
 	// Diagnostics are safe to cache because dll isn't something that
 	// could change during program invocation.
 	return getOrCreateClient().isAvailable
+}
+
+func checkSupport() (*CheckSupportResult, error) {
+	cli := getOrCreateClient()
+	return &CheckSupportResult{
+		HasCompileSupport: cli.hasCompileSupport,
+		IsAvailable:       cli.isAvailable,
+		HasPlatformUV:     cli.hasPlatformUV,
+		APIVersion:        cli.version,
+	}, nil
 }
 
 func login(
@@ -169,7 +176,7 @@ func register(
 	}, nil
 }
 
-func (c Client) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (c client) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, err
@@ -230,7 +237,7 @@ func (c Client) GetAssertion(origin string, in protocol.PublicKeyCredentialReque
 	}, nil
 }
 
-func (c Client) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
+func (c client) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, err
@@ -357,7 +364,7 @@ func isUVPlatformAuthenticatorAvailable() (bool, error) {
 	return out == 1, nil
 }
 
-func (c Client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*_WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS, error) {
+func (c client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*_WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS, error) {
 	// allowCredList, err := CredentialsExToCType(in.AllowedCredentials)
 	// if err != nil {
 	// 	return nil, err
@@ -678,7 +685,7 @@ func requireResidentKeyToCType(in *bool) uint32 {
 // 	}
 // }
 
-func (c Client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*_WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS, error) {
+func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*_WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS, error) {
 	// TODO (tobiaszheller): enable
 	// exCredList, err := CredentialsExToCType(in.CredentialExcludeList)
 	// if err != nil {
@@ -1088,4 +1095,12 @@ func bytePtrToByte(size uint32, p *byte) []byte {
 	}
 
 	return unsafe.Slice(p, size)
+}
+
+func getForegroundWindow() (hwnd syscall.Handle, err error) {
+	r0, _, err := procGetForegroundWindow.Call()
+	if err != syscall.Errno(0) {
+		return syscall.InvalidHandle, err
+	}
+	return syscall.Handle(r0), nil
 }

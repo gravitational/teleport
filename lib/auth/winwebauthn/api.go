@@ -31,6 +31,7 @@ import (
 )
 
 var (
+	// TODO(tobiaszheller): use that types error.
 	ErrNotAllowed = errors.New("NotAllowed error")
 )
 
@@ -92,7 +93,7 @@ func IsAvailable() bool {
 	return isAvailable()
 }
 
-// TODO(tobiaszheller): I already have RunDiagnostics which uses user itneractions,consider rename.
+// CheckSupport return information whether Windows Webauthn is supported.
 func CheckSupport() (*CheckSupportResult, error) {
 	return checkSupport()
 }
