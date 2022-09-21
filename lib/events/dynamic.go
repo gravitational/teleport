@@ -251,6 +251,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UpgradeWindowStartUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
+	case SSMRunEvent:
+		e = &events.SSMRun{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 	default:
