@@ -277,11 +277,11 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		switch provisionToken.GetJoinMethod() {
 		case types.JoinMethodToken,
 			types.JoinMethodIAM,
-			types.JoinMethodGithub:
+			types.JoinMethodGitHub:
 		default:
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
-				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{types.JoinMethodToken, types.JoinMethodIAM, types.JoinMethodGithub})
+				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{types.JoinMethodToken, types.JoinMethodIAM, types.JoinMethodGitHub})
 		}
 		return provisionToken, nil
 	}

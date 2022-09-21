@@ -103,7 +103,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodGithub:
+	case types.JoinMethodGitHub:
 		// TODO: Implement Github validation
 		panic("github not implemented yet...")
 	case types.JoinMethodIAM:
@@ -149,7 +149,7 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		case types.JoinMethodToken:
 			shouldDeleteToken = true
 			renewable = true
-		case types.JoinMethodIAM, types.JoinMethodGithub:
+		case types.JoinMethodIAM, types.JoinMethodGitHub:
 			renewable = false
 		default:
 			return nil, trace.BadParameter(
