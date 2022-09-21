@@ -2061,6 +2061,25 @@ impl GetReaderIcon_Call {
     }
 }
 
+impl Encode for GetReaderIcon_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        encode_ptr(None, &mut index, &mut w)?; // _reader_ptr
+
+        self.context.encode_value(&mut w)?;
+        w.extend(encode_str_unicode(&self.reader_name)?);
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct GetReaderIcon_Return {
@@ -2698,6 +2717,51 @@ mod tests {
             },
             vec![
                 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_disconnect() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_DISCONNECT,
+            &HCardAndDisposition_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                disposition: 0,
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_getreadericon() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_GETREADERICON,
+            &GetReaderIcon_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+                reader_name: "Teleport".to_string(),
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 34, 0, 16, 128, 0, 0, 0,
+                0, 0, 0, 2, 0, 0, 0, 0, 0,
             ],
         )
     }
