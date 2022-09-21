@@ -386,14 +386,6 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 )
 
-// OTPType is the type of the One-time Password Algorithm.
-type OTPType string
-
-const (
-	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
-	TOTP = OTPType("totp")
-)
-
 const (
 	// These values are from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 
