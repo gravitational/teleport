@@ -843,13 +843,13 @@ func TestWebSessionsBadInput(t *testing.T) {
 			Pass:              "bla bla",
 			SecondFactorToken: validToken,
 		},
-		// bad hotp token
+		// bad otp token
 		{
 			User:              user,
 			Pass:              pass,
 			SecondFactorToken: "bad token",
 		},
-		// missing hotp token
+		// missing otp token
 		{
 			User: user,
 			Pass: pass,

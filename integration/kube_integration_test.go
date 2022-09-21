@@ -421,7 +421,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 
 	// forward local port to target port 80 of the nginx container
-	localPort := helpers.NewPortValue()
+	localPort := newPortValue()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -457,7 +457,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 
-	localPort = helpers.NewPortValue()
+	localPort = newPortValue()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      testPod,
@@ -681,7 +681,7 @@ loop:
 	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
 
 	// forward local port to target port 80 of the nginx container
-	localPort := helpers.NewPortValue()
+	localPort := newPortValue()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -709,7 +709,7 @@ loop:
 	require.NoError(t, resp.Body.Close())
 
 	// impersonating client requests will be denied
-	localPort = helpers.NewPortValue()
+	localPort = newPortValue()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -934,7 +934,7 @@ loop:
 	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
 
 	// forward local port to target port 80 of the nginx container
-	localPort := helpers.NewPortValue()
+	localPort := newPortValue()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -962,7 +962,7 @@ loop:
 	require.NoError(t, resp.Body.Close())
 
 	// impersonating client requests will be denied
-	localPort = helpers.NewPortValue()
+	localPort = newPortValue()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -1192,7 +1192,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
-	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, helpers.NewPortStr())
+	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, newPortStr())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 	tconf.Proxy.Kube.LegacyKubeProxy = true
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -1213,13 +1213,11 @@ func tlsClientConfig(cfg *rest.Config) (*tls.Config, error) {
 		return nil, trace.BadParameter("failed to append certs from PEM")
 	}
 
-	tlsConfig := &tls.Config{
+	return &tls.Config{
 		RootCAs:      pool,
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-	}
-	tlsConfig.BuildNameToCertificate()
-	return tlsConfig, nil
+	}, nil
 }
 
 func kubeProxyTLSConfig(cfg kube.ProxyConfig) (*tls.Config, error) {

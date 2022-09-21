@@ -64,6 +64,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindApp, RO()),
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
+	types.NewRule(types.KindKubernetesCluster, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -151,6 +152,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindLock, RW()),
 				types.NewRule(types.KindToken, RW()),
 				types.NewRule(types.KindConnectionDiagnostic, RW()),
+				types.NewRule(types.KindKubernetesCluster, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
