@@ -1,10 +1,10 @@
 ---
 title: Access Requests with Microsoft Teams
-description: How to set up Teleport's MsTeams plugin for privilege elevation approvals.
+description: How to set up Teleport's Microsoft Teams plugin for privilege elevation approvals.
 ---
 
-This guide will explain how to set up MsTeams to receive Access Request messages
-from Teleport. Teleport's MsTeams integration notifies individuals of
+This guide will explain how to set up Microsoft Teams to receive Access Request messages
+from Teleport. Teleport's Microsoft Teams integration notifies individuals of
 Access Requests. Users can then approve and deny Access Requests by following the
 message link, making it easier to implement security best practices without
 compromising productivity.
@@ -25,12 +25,12 @@ compromising productivity.
 
 ## Step 1/9. Define RBAC resources
 
-Before you set up the MsTeams plugin, you will need to enable Role Access Requests
+Before you set up the Microsoft Teams plugin, you will need to enable Role Access Requests
 in your Teleport cluster. 
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/9. Install the Teleport MsTeams plugin
+## Step 2/9. Install the Teleport Microsoft Teams plugin
 
 We currently only provide `linux-amd64` binaries. You can also compile these
 plugins from source. You can run the plugin from a remote host or your local
@@ -98,9 +98,9 @@ $ sudo mv auth.* /var/lib/teleport/plugins/msteams
 
 ## Step 5/9. Register an Azure Bot
 
-The Access Request plugin for MsTeams receives Access Request events from the
-Teleport Auth Service, formats them into MsTeams messages, and sends them to the
-MsTeams API to post them in your workspace. For this to work, you must register a
+The Access Request plugin for Microsoft Teams receives Access Request events from the
+Teleport Auth Service, formats them into Microsoft Teams messages, and sends them to the
+Microsoft Teams API to post them in your workspace. For this to work, you must register a
 new Azure Bot. Azure Bot is a managed service by Microsoft that allows to
 develop bots that interact with users through different channels, including
 Microsoft Teams.
@@ -117,10 +117,10 @@ Microsoft App ID".
 
 ![Create Azure Bot](../../../img/enterprise/plugins/msteams/create-azure-bot.png)
 
-### Connect the bot to MsTeams
+### Connect the bot to Microsoft Teams
 
 Once the bot is created, open its resource page on the Azure console and
-navigate to the "Channels" tab. Click "Microsoft Teams" and add the MsTeams
+navigate to the "Channels" tab. Click "Microsoft Teams" and add the Microsoft Teams
 channel.
 
 The result should be as follows:
@@ -170,20 +170,20 @@ The result should be as follows:
 
 ![Granted App Permissions](../../../img/enterprise/plugins/msteams/granted-app-permissions.png)
 
-## Step 6/9. Configure the Teleport MsTeams plugin
+## Step 6/9. Configure the Teleport Microsoft Teams plugin
 
-At this point, the Teleport MsTeams plugin has the credentials it needs to
+At this point, the Teleport Microsoft Teams plugin has the credentials it needs to
 communicate with your Teleport cluster and Azure APIs, but the app has not been
-installed to MsTeams yet.
+installed to Microsoft Teams yet.
 
-In this step, you will configure the MsTeams plugin to use the Azure
+In this step, you will configure the Microsoft Teams plugin to use the Azure
 credentials and generate the Teams App package that will be used to install the
 Microsoft Teams App. You will also configure the plugin to notify
-the right MsTeams users when it receives an Access Request update.
+the right Microsoft Teams users when it receives an Access Request update.
 
 ### Generate a config file and assets
 
-The Teleport MsTeams plugin uses a config file in TOML format.  The `configure`
+The Teleport Microsoft Teams plugin uses a config file in TOML format.  The `configure`
 subcommand generates the directory `/var/lib/teleport/plugins/msteams/assets`
 containing the TOML configuration file and an `app.zip` file that will be used
 later to add the Teams App into the organization catalog.
@@ -217,7 +217,7 @@ to `/etc/teleport-msteams.toml`. You can then edit the copy located in `/etc/`.
 
 **`[teleport]`**
 
-The MsTeams plugin uses this section to connect to the Teleport Auth Service.
+The Microsoft Teams plugin uses this section to connect to the Teleport Auth Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -228,7 +228,7 @@ access the Auth Service directly:
   <TabItem label="Connect to the Auth Service"> 
     
 Set `addr` to the address and port of your Auth Service. This address must be
-reachable from the Teleport MsTeams Plugin.
+reachable from the Teleport Microsoft Teams Plugin.
 
 Set `client_key`, `client_crt`, and `root_cas` to the identity files
 generated earlier:
@@ -273,9 +273,9 @@ identity = "/var/lib/teleport/plugins/msteams/auth.pem"
 **`[role_to_recipients]`**
 
 The `role_to_recipients` map configure the users and channels that the
-MsTeams plugin will notify when a user requests access to a specific role. When
-the MsTeams plugin receives an Access Request from the Auth Service, it will
-look up the role being requested and identify the MsTeams users and channels to
+Microsoft Teams plugin will notify when a user requests access to a specific role. When
+the Microsoft Teams plugin receives an Access Request from the Auth Service, it will
+look up the role being requested and identify the Microsoft Teams users and channels to
 notify.
 
 Here is an example of a `role_to_recipients` map:
@@ -290,7 +290,7 @@ Here is an example of a `role_to_recipients` map:
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
 value configures the Teams user (or users) to notify. The value can be a single
 string or an array of strings. Each string must be either the email address of
-a MsTeams user or a channel URL.
+a Microsoft Teams user or a channel URL.
 
 You can find the URL of a channel by opening the channel and clicking the button
 "Get link to channel":
@@ -309,14 +309,14 @@ Users can suggest reviewers when they create an Access Request, e.g.,:
 $ tsh request create --roles=dbadmin --reviewers=alice@example.com,ivan@example.com
 ```
 
-If an Access Request includes suggested reviewers, the MsTeams plugin will add
+If an Access Request includes suggested reviewers, the Microsoft Teams plugin will add
 these to the list of channels to notify. If a suggested reviewer is an email
 address, the plugin will look up the the direct message channel for that
 address and post a message in that channel.
 
 </Details>
 
-Configure the MsTeams plugin to notify you when a user requests the `editor` role
+Configure the Microsoft Teams plugin to notify you when a user requests the `editor` role
 by adding the following to your `role_to_recipients` config (replace
 `TELEPORT_USERNAME` with the email of the user you assigned the `editor-reviewer`
 role earlier):
@@ -331,7 +331,7 @@ role earlier):
 
 ### Upload the Teams App
 
-Open MsTeams and go to "Apps", "Manage your apps", then in the additional
+Open Microsoft Teams and go to "Apps", "Manage your apps", then in the additional
 choices menu choose "Upload an App".
 
 ![Upload Teams App](../../../img/enterprise/plugins/msteams/upload-teams-app.png)
@@ -368,7 +368,7 @@ Note: Once an app is added to a team, it can post on all channels.
 Once Teleport is running, you've created the Teams App, and the plugin is
 configured, you can now run the plugin and test the workflow.
 
-### Test MsTeams connectivity
+### Test Microsoft Teams connectivity
 
 Start the plugin in validation mode:
 
@@ -393,7 +393,7 @@ teleport-msteams v10.0.2 go1.18.1
 Check your MS Teams!
 ```
 
-The plugin should exit and you should have received two messages through MsTeams.
+The plugin should exit and you should have received two messages through Microsoft Teams.
 
 ![Validate Bot Message](../../../img/enterprise/plugins/msteams/validate-bot-message.png)
 
@@ -405,19 +405,19 @@ following steps.
 (!docs/pages/includes/plugins/create-request.mdx!)
 
 The user you configured earlier to review the request should receive a direct
-message from "TeleBot" in MsTeams allowing them to visit a link in the Teleport
+message from "TeleBot" in Microsoft Teams allowing them to visit a link in the Teleport
 Web UI and either approve or deny the request.
 
 ### Resolve the request
 
 (!docs/pages/includes/plugins/resolve-request.mdx!)
 
-Once the request is resolved, the MsTeams bot will update the Access Request message
+Once the request is resolved, the Microsoft Teams bot will update the Access Request message
 to reflect its new status.
 
 <Admonition title="Auditing Access Requests">
 
-When the MsTeams plugin posts an Access Request notification to a channel, anyone
+When the Microsoft Teams plugin posts an Access Request notification to a channel, anyone
 with access to the channel can view the notification and follow the link. While
 users must be authorized via their Teleport roles to review Access Requests, you
 should still check the Teleport audit log to ensure that the right users are
