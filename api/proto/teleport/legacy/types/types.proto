@@ -1054,6 +1054,8 @@ message ProvisionTokenSpecV3 {
   ProvisionTokenSpecV3AWSIAM IAM = 5 [(gogoproto.jsontag) = "aws_iam,omitempty"];
   // EC2 allows the configuration of options specific to the "ec2" join method.
   ProvisionTokenSpecV3AWSEC2 EC2 = 6 [(gogoproto.jsontag) = "aws_ec2,omitempty"];
+  // GitHub allows the configuration of options specific to the "github" join method.
+  ProvisionTokenSpecV3GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
 }
 
 message ProvisionTokenSpecV3AWSEC2 {
@@ -1084,6 +1086,18 @@ message ProvisionTokenSpecV3AWSIAM {
     // ARN is used for the IAM join method, the AWS identity of joining nodes
     // must match this ARN. Supports wildcards "*" and "?".
     string ARN = 2 [(gogoproto.jsontag) = "arn,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+message ProvisionTokenSpecV3GitHub {
+  message Rule {
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    string Repository = 2 [(gogoproto.jsontag) = "repository,omitempty"];
+    string RepositoryOwner = 3 [(gogoproto.jsontag) = "repository_owner,omitempty"];
+    // TODO: More of these !
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.

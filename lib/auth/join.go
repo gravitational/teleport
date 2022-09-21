@@ -107,8 +107,6 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkGitHubJoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// TODO: Implement Github validation
-		panic("github not implemented yet...")
 	case types.JoinMethodIAM:
 		// IAM join method must use the gRPC RegisterUsingIAMMethod
 		return nil, trace.AccessDenied("this token is only valid for the IAM " +
