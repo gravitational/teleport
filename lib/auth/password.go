@@ -198,8 +198,7 @@ func (s *Server) checkPassword(user string, password []byte, otpToken string) (*
 	return &checkPasswordResult{mfaDev: mfaDev}, nil
 }
 
-// checkOTP determines the type of OTP token used (for legacy HOTP support), fetches the
-// appropriate type from the backend, and checks if the token is valid.
+// checkOTP checks if the OTP token is valid.
 func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error) {
 	// get the previously used token to mitigate token replay attacks
 	usedToken, err := s.GetUsedTOTPToken(user)
