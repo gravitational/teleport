@@ -104,6 +104,9 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGitHub:
+		if err := a.checkGitHubJoinRequest(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		// TODO: Implement Github validation
 		panic("github not implemented yet...")
 	case types.JoinMethodIAM:
