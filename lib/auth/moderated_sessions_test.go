@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
 )
 
 // TestUnmoderatedSessionsAllowed tests that we allow creating unmoderated sessions even if the
@@ -94,7 +93,6 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 
 	tracker, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, tracker)
 	require.ErrorIs(t, err, ErrRequiresEnterprise)
 }

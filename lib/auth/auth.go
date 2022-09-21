@@ -1164,7 +1164,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.Wrap(ErrRequiresEnterprise, "Resource Access Requests")
+		return nil, fmt.Errorf("Resource Access Requests: %w", ErrRequiresEnterprise)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -3142,7 +3142,7 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
 			if modules.GetModules().BuildType() != modules.BuildEnterprise {
-				return nil, trace.Wrap(ErrRequiresEnterprise, "Moderated Sessions")
+				return nil, fmt.Errorf("Moderated Sessions: %w", ErrRequiresEnterprise)
 			}
 		}
 	}
