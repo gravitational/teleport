@@ -133,7 +133,7 @@ func newSession(ctx context.Context,
 		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
 		terminal:              term,
-		shouldClearOnExit:     isFIPS() || client.FIPSEnabled,
+		shouldClearOnExit:     client.FIPSEnabled || isFIPS(),
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
