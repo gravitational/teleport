@@ -26,10 +26,14 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -39,11 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 const (
@@ -74,7 +74,6 @@ type GlobalCLIFlags struct {
 // This allows OSS and Enterprise Teleport editions to plug their own
 // implementations of different CLI commands into the common execution
 // framework
-//
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
@@ -90,6 +89,19 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(commands []CLICommand) {
+	err := TryRun(commands, os.Args[1:])
+	if err != nil {
+		var exitError *toolcommon.ExitCodeError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.Code)
+		}
+		utils.FatalError(err)
+	}
+}
+
+// TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
+// This is useful for testing tctl, because we can capture the returned error in tests.
+func TryRun(commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
 
 	// app is the command line parser
@@ -143,17 +155,17 @@ func Run(commands []CLICommand) {
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, os.Args[1:])
-	selectedCmd, err := app.Parse(os.Args[1:])
+	utils.UpdateAppUsageTemplate(app, args)
+	selectedCmd, err := app.Parse(args)
 	if err != nil {
-		app.Usage(os.Args[1:])
-		utils.FatalError(err)
+		app.Usage(args)
+		return trace.Wrap(err)
 	}
 
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
 		utils.PrintVersion()
-		return
+		return nil
 	}
 
 	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
@@ -164,7 +176,7 @@ func Run(commands []CLICommand) {
 	// configure all commands with Teleport configuration (they share 'cfg')
 	clientConfig, err := ApplyConfig(&ccf, cfg)
 	if err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 
 	ctx, cancel := signal.NotifyContext(
@@ -180,7 +192,7 @@ func Run(commands []CLICommand) {
 		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServers[0].Addr)
-		os.Exit(1)
+		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
 	}
 
 	// execute whatever is selected:
@@ -188,12 +200,13 @@ func Run(commands []CLICommand) {
 	for _, c := range commands {
 		match, err = c.TryRun(ctx, selectedCmd, client)
 		if err != nil {
-			utils.FatalError(err)
+			return trace.Wrap(err)
 		}
 		if match {
 			break
 		}
 	}
+	return nil
 }
 
 // ApplyConfig takes configuration values from the config file and applies them

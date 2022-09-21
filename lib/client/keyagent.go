@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
@@ -336,7 +335,7 @@ func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
 // of these trusted CAs.
 //
 // Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
-// Why do we trust the proxy? Because we've connected to it via HTTPS + username + Password + HOTP.
+// Why do we trust the proxy? Because we've connected to it via HTTPS + username + Password + OTP.
 func (a *LocalKeyAgent) AddHostSignersToCache(certAuthorities []auth.TrustedCerts) error {
 	for _, ca := range certAuthorities {
 		publicKeys, err := ca.SSHCertPublicKeys()
@@ -629,7 +628,7 @@ func (a *LocalKeyAgent) signers() ([]ssh.Signer, error) {
 		if err := k.checkCert(cert); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signer, err := apisshutils.SSHSigner(cert, k)
+		signer, err := sshutils.SSHSigner(cert, k)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
