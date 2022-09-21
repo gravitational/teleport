@@ -2677,4 +2677,28 @@ mod tests {
             ],
         )
     }
+
+    #[test]
+    fn test_endtransaction() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_ENDTRANSACTION,
+            &HCardAndDisposition_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                disposition: 0,
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
 }
