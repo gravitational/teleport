@@ -1482,6 +1482,25 @@ impl Status_Call {
     }
 }
 
+impl Encode for Status_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        let reader_names_is_null = if self.reader_names_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(reader_names_is_null)?;
+        w.write_u32::<LittleEndian>(self.reader_length)?;
+        w.write_u32::<LittleEndian>(self.atr_length)?;
+        self.handle.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 enum State {
@@ -2383,6 +2402,34 @@ mod tests {
             },
             vec![
                 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_statusw() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            IoctlCode::SCARD_IOCTL_STATUSW,
+            &Status_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                reader_names_is_null: false,
+                reader_length: 4294967295,
+                atr_length: 32,
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0,
+                0, 0, 2, 0, 6, 0, 0, 0, 2, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 20, 0,
+                0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0, 116, 0, 0, 0, 0, 0,
             ],
         )
     }
