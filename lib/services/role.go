@@ -1103,53 +1103,37 @@ func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params A
 	// per-session MFA is overridden by hardware key PIV touch requirement.
 	// check if the auth pref or any roles have this option.
 	if authPrefRequirement == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return AccessMFAParams{
-			Required: MFARequiredNever,
-		}
+		return AccessMFAParams{Required: MFARequiredNever}
 	}
 	for _, role := range set {
 		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return AccessMFAParams{
-				Required: MFARequiredNever,
-			}
+			return AccessMFAParams{Required: MFARequiredNever}
 		}
 	}
 
 	// MFA is always required according to the cluster auth pref.
 	if authPrefRequirement.IsSessionMFARequired() {
-		return AccessMFAParams{
-			Required: MFARequiredAlways,
-		}
-	}
-
-	// Auth pref doesn't require MFA and no roles to check.
-	if len(set) == 0 {
-		return AccessMFAParams{
-			Required: MFARequiredNever,
-		}
+		return AccessMFAParams{Required: MFARequiredAlways}
 	}
 
 	// If MFA requirement is the same across all roles, we can skip the per-role check.
 	// Set mfaRequired to the first role's requirement, then check if all other roles match.
-	rolesMFARequired := set[0].GetOptions().RequireMFAType.IsSessionMFARequired()
-	for _, role := range set[1:] {
-		if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
-			// This role differs from the MFA requirement of the other roles, return per-role.
-			return AccessMFAParams{
-				Required: MFARequiredPerRole,
+	if len(set) > 0 {
+		rolesMFARequired := set[0].GetOptions().RequireMFAType.IsSessionMFARequired()
+		for _, role := range set[1:] {
+			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
+				// This role differs from the MFA requirement of the other roles, return per-role.
+				return AccessMFAParams{Required: MFARequiredPerRole}
 			}
+		}
+
+		if rolesMFARequired {
+			return AccessMFAParams{Required: MFARequiredAlways}
 		}
 	}
 
-	if rolesMFARequired {
-		return AccessMFAParams{
-			Required: MFARequiredAlways,
-		}
-	} else {
-		return AccessMFAParams{
-			Required: MFARequiredNever,
-		}
-	}
+	// No roles to check or no roles require MFA.
+	return AccessMFAParams{Required: MFARequiredNever}
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
