@@ -42,7 +42,7 @@ const (
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodIAM),
-	string(types.JoinMethodGithub),
+	string(types.JoinMethodGitHub),
 }
 
 var log = logrus.WithFields(logrus.Fields{
