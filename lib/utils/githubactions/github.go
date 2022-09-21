@@ -1,4 +1,4 @@
-package github
+package githubactions
 
 import (
 	"context"
@@ -30,20 +30,22 @@ import (
 // - https://github.com/actions/toolkit/blob/main/packages/core/src/oidc-utils.ts
 // - https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-cloud-providers
 
+const IssuerURL = "https://token.actions.githubusercontent.com"
+
 type tokenResponse struct {
 	Value string `json:"value"`
 }
 
-// IdentityProvider allows a GitHub ID token to be fetched whilst executing
+// IDTokenSource allows a GitHub ID token to be fetched whilst executing
 // within the context of a GitHub actions workflow.
-type IdentityProvider struct {
+type IDTokenSource struct {
 	getIDTokenURL   func() string
 	getRequestToken func() string
 	client          http.Client
 }
 
-func NewIdentityProvider() *IdentityProvider {
-	return &IdentityProvider{
+func NewIDTokenSource() *IDTokenSource {
+	return &IDTokenSource{
 		getIDTokenURL: func() string {
 			return os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL")
 		},
@@ -53,7 +55,9 @@ func NewIdentityProvider() *IdentityProvider {
 	}
 }
 
-func (ip *IdentityProvider) GetIDToken(ctx context.Context) (string, error) {
+// GetIDToken utilises values set in the environment and the GitHub API to
+// fetch a GitHub issued IDToken.
+func (ip *IDTokenSource) GetIDToken(ctx context.Context) (string, error) {
 	// TODO: Inject audience to be set
 	audience := "teleport.ottr.sh"
 
@@ -77,7 +81,7 @@ func (ip *IdentityProvider) GetIDToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	req.Header.Set("Authorization", requestToken)
+	req.Header.Set("Authorization", "Bearer "+requestToken)
 	req.Header.Set("Accept", "application/json; api-version=2.0")
 	req.Header.Set("Content-Type", "application/json")
 	res, err := ip.client.Do(req)

@@ -19,7 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
-	"github.com/gravitational/teleport/lib/utils/github"
+	"github.com/gravitational/teleport/lib/utils/githubactions"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -167,7 +167,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	} else if params.JoinMethod == types.JoinMethodGitHub {
 		// TODO: Inject this in.
-		gh := github.NewIdentityProvider()
+		gh := githubactions.NewIDTokenSource()
 		token, err := gh.GetIDToken(context.TODO())
 		if err != nil {
 			return nil, trace.Wrap(err)
