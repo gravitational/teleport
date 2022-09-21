@@ -10,13 +10,32 @@ import (
 	"os"
 )
 
-// See https://github.com/actions/toolkit/blob/main/packages/core/src/oidc-utils.ts
-// for reference.
+// GitHub Workload Identity
+//
+// GH provides workloads with two environment variables to faciliate fetching
+// a ID token for that workload.
+//
+// ACTIONS_ID_TOKEN_REQUEST_TOKEN: A token that can be redeemed against the
+// identity service for an ID token.
+// ACTIONS_ID_TOKEN_REQUEST_URL: Indicates the URL of the identity service.
+//
+// To redeem the request token for an ID token, a GET request shall be made
+// to the specified URL with the specified token provided as a Bearer token
+// using the Authorization header.
+//
+// The `audience` query parameter can be used to customise the audience claim
+// within the resulting ID token.
+//
+// Valuable reference:
+// - https://github.com/actions/toolkit/blob/main/packages/core/src/oidc-utils.ts
+// - https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-cloud-providers
 
 type tokenResponse struct {
 	Value string `json:"value"`
 }
 
+// IdentityProvider allows a GitHub ID token to be fetched whilst executing
+// within the context of a GitHub actions workflow.
 type IdentityProvider struct {
 	getIDTokenURL   func() string
 	getRequestToken func() string
