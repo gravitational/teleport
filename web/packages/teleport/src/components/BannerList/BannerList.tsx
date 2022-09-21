@@ -62,6 +62,7 @@ export const BannerList = ({
           message={banner.message}
           severity={banner.severity}
           id={banner.id}
+          link={banner.link}
           onClose={removeBanner}
           key={banner.id}
         />
@@ -94,5 +95,6 @@ export type BannerType = {
   message: string;
   severity: Severity;
   id: string;
+  link?: string;
   hidden?: boolean;
 };
