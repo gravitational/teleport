@@ -1414,6 +1414,10 @@ func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterD
 // isRecordingProxy returns true if the proxy is in recording mode. Note, this
 // function can only be called after authentication has occurred and should be
 // called before the first session is created.
+//
+// DEPRECATED: clusterDetails should be used instead to avoid multiple round trips for
+// cluster information.
+// TODO(tross):DELETE IN 12.0
 func (proxy *ProxyClient) isRecordingProxy(ctx context.Context) (bool, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
