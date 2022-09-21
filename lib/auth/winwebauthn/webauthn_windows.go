@@ -67,7 +67,7 @@ type client struct {
 // Client will be alaways created, even if dll is missing on system.
 func getOrCreateClient() *client {
 	new := func() (*client, error) {
-		v, err := getAPIVersionNumber()
+		v, err := checkIfDLLExistsAndGetAPIVersionNumber()
 		if err != nil {
 			// TODO: return typed error
 			return nil, err
@@ -176,6 +176,8 @@ func register(
 	}, nil
 }
 
+// GetAssertion calls WebAuthNAuthenticatorGetAssertion endpoiont from
+// webauthn.dll and returns CredentialAssertionResponse
 func (c client) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
@@ -237,6 +239,8 @@ func (c client) GetAssertion(origin string, in protocol.PublicKeyCredentialReque
 	}, nil
 }
 
+// MakeCredential calls WebAuthNAuthenticatorMakeCredential endpoiont from
+// webauthn.dll and returns CredentialCreationResponse
 func (c client) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
@@ -325,7 +329,10 @@ func freeAssertion(in *_WEBAUTHN_ASSERTION) error {
 
 type hresult int32
 
-func getAPIVersionNumber() (int, error) {
+// checkIfDLLExistsAndGetAPIVersionNumber checks if dll exists and tries to load
+// it's version via API call. This function makes sure to not panic if dll is
+// missing.
+func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
 	if err := modWebAuthn.Load(); err != nil {
 		return 0, err
 	}
@@ -494,11 +501,6 @@ func credParamToCType(in []protocol.CredentialParameter) (*_WEBAUTHN_COSE_CREDEN
 		cCredentialParameters: uint32(len(out)),
 		pCredentialParameters: &out[0],
 	}, nil
-}
-
-type clientDataDetails struct {
-	cdJson []byte
-	cdHash []byte
 }
 
 func clientDataToCType(challenge, origin, cdType string) (*_WEBAUTHN_CLIENT_DATA, []byte, error) {
@@ -674,17 +676,6 @@ func requireResidentKeyToCType(in *bool) uint32 {
 	return boolToUint32(*in)
 }
 
-// func preferResidentKeyToCType(in protocol.ResidentKeyRequirement) uint32 {
-// 	protocol.Req
-// 	switch in {
-// 	case protocol.ResidentKeyRequirementPreferred:
-// 		return 1
-// 		// TODO(tobiaszheller): not sure what we should do about Required value.
-// 	default:
-// 		return 0
-// 	}
-// }
-
 func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*_WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS, error) {
 	// TODO (tobiaszheller): enable
 	// exCredList, err := CredentialsExToCType(in.CredentialExcludeList)
@@ -706,11 +697,10 @@ func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOp
 		dwVersion = 5
 	}
 
+	// TODO (tobiaszheller): version of duo-labs/webatuhn used in teleport does
+	// not support PreferResidentKey field. We cannot easily update version due
+	// to dependency issues.
 	var bPreferResidentKey uint32
-	// TODO (tobiaszheller): enable
-	// if c.version >= apiVersion4 {
-	// 	bPreferResidentKey = preferResidentKeyToCType(in.AuthenticatorSelection.ResidentKey)
-	// }
 	return &_WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS{
 		dwVersion:             dwVersion,
 		dwTimeoutMilliseconds: uint32(in.Timeout),
@@ -729,17 +719,26 @@ func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOp
 
 type _WEBAUTHN_RP_ENTITY_INFORMATION struct {
 	dwVersion uint32
-	pwszId    *uint16
-	pwszName  *uint16
-	pwszIcon  *uint16
+	// Identifier for the RP. This field is required.
+	pwszId *uint16
+	// Contains the friendly name of the Relying Party, such as "Acme Corporation", "Widgets Inc" or "Awesome Site".
+	// This field is required.
+	pwszName *uint16
+	// Optional URL pointing to RP's logo.
+	pwszIcon *uint16
 }
 
 type _WEBAUTHN_USER_ENTITY_INFORMATION struct {
-	dwVersion       uint32
-	cbId            uint32
-	pbId            *byte
-	pwszName        *uint16
-	pwszIcon        *uint16
+	dwVersion uint32
+	// Identifier for the User. This field is required.
+	cbId uint32
+	pbId *byte
+	// Contains a detailed name for this account, such as "john.p.smith@example.com".
+	pwszName *uint16
+	// Optional URL that can be used to retrieve an image containing the user's current avatar,
+	// or a data URI that contains the image data.
+	pwszIcon *uint16
+	// For User: Contains the friendly name associated with the user account by the Relying Party, such as "John P. Smith".
 	pwszDisplayName *uint16
 }
 
@@ -749,39 +748,28 @@ type _WEBAUTHN_COSE_CREDENTIAL_PARAMETERS struct {
 }
 
 type _WEBAUTHN_COSE_CREDENTIAL_PARAMETER struct {
-	// Version of this structure, to allow for modifications in the future.
 	dwVersion uint32
-
 	// Well-known credential type specifying a credential to create.
 	pwszCredentialType *uint16
-
 	// Well-known COSE algorithm specifying the algorithm to use for the credential.
 	lAlg int32
 }
 
 type _WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS struct {
-	dwVersion uint32
-
+	dwVersion             uint32
 	dwTimeoutMilliseconds uint32
-
 	// Credentials used for exclusion.
 	CredentialList _WEBAUTHN_CREDENTIALS
-
 	// Optional extensions to parse when performing the operation.
 	Extensions _WEBAUTHN_EXTENSIONS
-
 	// Optional. Platform vs Cross-Platform Authenticators.
 	dwAuthenticatorAttachment uint32
-
 	// Optional. Require key to be resident or not. Defaulting to FALSE.
 	bRequireResidentKey uint32
-
 	// User Verification Requirement.
 	dwUserVerificationRequirement uint32
-
 	// Attestation Conveyance Preference.
 	dwAttestationConveyancePreference uint32
-
 	// Reserved for future Use
 	dwFlags uint32
 
@@ -805,13 +793,10 @@ type _WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS struct {
 
 	// Enterprise Attestation
 	dwEnterpriseAttestation uint32
-
 	// Large Blob Support: none, required or preferred
-	//
 	// NTE_INVALID_PARAMETER when large blob required or preferred and
 	//   bRequireResidentKey isn't set to TRUE
 	dwLargeBlobSupport uint32
-
 	// Optional. Prefer key to be resident. Defaulting to FALSE. When TRUE,
 	// overrides the above bRequireResidentKey.
 	bPreferResidentKey uint32
@@ -830,14 +815,10 @@ type _WEBAUTHN_CREDENTIALS struct {
 }
 
 type _WEBAUTHN_CREDENTIAL struct {
-	// Version of this structure, to allow for modifications in the future.
 	dwVersion uint32
-
 	// Size of pbID.
 	cbId uint32
-
 	pbId *byte
-
 	// Well-known credential type specifying what this particular credential is.
 	pwszCredentialType *uint16
 }
@@ -853,17 +834,13 @@ type _WEBAUTHN_EXTENSIONS struct {
 }
 
 type _WEBAUTHN_CREDENTIAL_EX struct {
-	// Version of this structure, to allow for modifications in the future.
 	dwVersion uint32
-
 	// Size of pbID.
 	cbId uint32
 	// Unique ID for this particular credential.
 	pbId *byte
-
 	// Well-known credential type specifying what this particular credential is.
 	pwszCredentialType *uint16
-
 	// Transports. 0 implies no transport restrictions.
 	dwTransports uint32
 }
@@ -873,23 +850,18 @@ type _WEBAUTHN_CREDENTIAL_LIST struct {
 }
 
 type _WEBAUTHN_CREDENTIAL_ATTESTATION struct {
-	// Version of this structure, to allow for modifications in the future.
 	DwVersion uint32
-
 	// Attestation format type
 	PwszFormatType *uint16
-
 	// Size of CbAuthenticatorData.
 	CbAuthenticatorData uint32
 	// Authenticator data that was created for this credential.
 	PbAuthenticatorData *byte
-
 	// Size of CBOR encoded attestation information
 	//0 => encoded as CBOR null value.
 	CbAttestation uint32
 	//Encoded CBOR attestation information
-	PbAttestation *byte
-
+	PbAttestation           *byte
 	DwAttestationDecodeType uint32
 	// Following depends on the dwAttestationDecodeType
 	//  WEBAUTHN_ATTESTATION_DECODE_NONE
@@ -897,11 +869,9 @@ type _WEBAUTHN_CREDENTIAL_ATTESTATION struct {
 	//  WEBAUTHN_ATTESTATION_DECODE_COMMON
 	//      PWEBAUTHN_COMMON_ATTESTATION;
 	PvAttestationDecode *byte
-
 	// The CBOR encoded Attestation Object to be returned to the RP.
 	CbAttestationObject uint32
 	PbAttestationObject *byte
-
 	// The CredentialId bytes extracted from the Authenticator Data.
 	// Used by Edge to return to the RP.
 	CbCredentialId uint32
@@ -931,15 +901,11 @@ type _WEBAUTHN_CREDENTIAL_ATTESTATION struct {
 }
 
 type _WEBAUTHN_CLIENT_DATA struct {
-	// Version of this structure, to allow for modifications in the future.
-	// This field is required and should be set to CURRENT_VERSION above.
 	dwVersion uint32
-
 	// Size of the pbClientDataJSON field.
 	cbClientDataJSON uint32
 	// UTF-8 encoded JSON serialization of the client data.
 	pbClientDataJSON *byte
-
 	// Hash algorithm ID used to hash the pbClientDataJSON field.
 	pwszHashAlgId *uint16
 }
