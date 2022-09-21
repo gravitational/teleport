@@ -79,7 +79,6 @@ func Register(
 // CheckSupport is the result from a Windows webauthn support check.
 type CheckSupportResult struct {
 	HasCompileSupport bool
-	HasSignature      bool
 	IsAvailable       bool
 	HasPlatformUV     bool
 	APIVersion        int

@@ -51,12 +51,57 @@ var (
 // - todo support api v4
 // - should we use panic recovery?
 
+var (
+	clientOnce sync.Once
+	client     *Client
+)
+
 type Client struct {
-	version int
+	version           int
+	hasCompileSupport bool
+	isAvailable       bool
+	hasPlatformUV     bool
 }
 
-func (c Client) GetVersion() int {
-	return c.version
+func new() (*Client, error) {
+	v, err := getAPIVersionNumber()
+	if err != nil {
+		// TODO: return typed error
+		return nil, err
+	}
+	uvPlatform, err := isUVPlatformAuthenticatorAvailable()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{
+		version:           v,
+		hasCompileSupport: true,
+		hasPlatformUV:     uvPlatform,
+		isAvailable:       v > 0 && v <= 4,
+	}, nil
+}
+
+// getOrCreateClient uses package variable to store client connection.
+// Client is cached between invocations to avoid user-visible delays.
+// Diagnostics are safe to cache because dll isn't something that
+// could change during program invocation.
+// Client will be alaways created, even if dll is missing on system.
+func getOrCreateClient() *Client {
+	clientOnce.Do(func() {
+		c, err := new()
+		if err != nil {
+			// If not able to create client, log warning and create client which
+			// just retrun IsAvailable false.
+			log.WithError(err).Warn("Windows webauthn creating client failed")
+			c = &Client{
+				hasCompileSupport: true,
+				isAvailable:       false,
+			}
+		}
+		client = c
+	})
+	return client
 }
 
 const (
@@ -66,51 +111,16 @@ const (
 	apiVersion4 = 4
 )
 
-var (
-	cachedSupport   *CheckSupportResult
-	cachedSupportMU sync.Mutex
-)
-
 // IsAvailable returns true if Windows Webauthn is available in the system.
 // Typically, a series of checks is performed in an attempt to avoid false
 // positives.
-// See Diag.
+// See checkSupport.
 func isAvailable() bool {
 	// IsAvailable guards most of the public APIs, so results are cached between
 	// invocations to avoid user-visible delays.
 	// Diagnostics are safe to cache because dll isn't something that
 	// could change during program invocation.
-	cachedSupportMU.Lock()
-	defer cachedSupportMU.Unlock()
-
-	if cachedSupport == nil {
-		var err error
-		cachedSupport, err = checkSupport()
-		if err != nil {
-			log.WithError(err).Warn("Windows webauthn self-diagnostics failed")
-			return false
-		}
-	}
-
-	return cachedSupport.IsAvailable
-}
-
-// checkSupport returns diagnostics information about Windows Webauthn support.
-func checkSupport() (*CheckSupportResult, error) {
-	c, err := new()
-	if err != nil {
-		return nil, err
-	}
-	uvPlatform, err := c.IsUVPlatformAuthenticatorAvailable()
-	if err != nil {
-		return nil, err
-	}
-	return &CheckSupportResult{
-		HasCompileSupport: true,
-		HasPlatformUV:     uvPlatform,
-		IsAvailable:       c.GetVersion() > 0,
-		APIVersion:        c.GetVersion(),
-	}, nil
+	return getOrCreateClient().isAvailable
 }
 
 func login(
@@ -118,10 +128,7 @@ func login(
 	origin string, assertion *wanlib.CredentialAssertion,
 	loginOpts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	cli, err := new()
-	if err != nil {
-		return nil, "", err
-	}
+	cli := getOrCreateClient()
 	for _, ac := range assertion.Response.AllowedCredentials {
 		log.Debugf("WIN_WEBAUTHN: Allow creds: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID))
 	}
@@ -143,10 +150,7 @@ func register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation,
 ) (*proto.MFARegisterResponse, error) {
-	cli, err := new()
-	if err != nil {
-		return nil, err
-	}
+	cli := getOrCreateClient()
 	for _, ac := range cc.Response.CredentialExcludeList {
 		log.Debugf("WIN_WEBAUTHN: Excluded creds: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID))
 	}
@@ -163,16 +167,6 @@ func register(
 			Webauthn: wanlib.CredentialCreationResponseToProto(resp),
 		},
 	}, nil
-}
-
-// TODO(tobiaszheller): change to init only once.
-func new() (*Client, error) {
-	v, err := getAPIVersionNumber()
-	if err != nil {
-		// TODO: return typed error
-		return nil, err
-	}
-	return &Client{version: v}, nil
 }
 
 func (c Client) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
@@ -349,7 +343,7 @@ func getErrorName(in hresult, originCode uintptr) error {
 	return fmt.Errorf("Webauthn err for code %v: %s", originCode, errString)
 }
 
-func (c Client) IsUVPlatformAuthenticatorAvailable() (bool, error) {
+func isUVPlatformAuthenticatorAvailable() (bool, error) {
 	var out uint32
 	ret, _, err := procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Call(
 		uintptr(unsafe.Pointer(&out)),
