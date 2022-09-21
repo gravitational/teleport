@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 )
 
 func responseFromAWSIdentity(id awsIdentity) string {
@@ -100,7 +100,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	require.NoError(t, err)
 	a := p.a
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
