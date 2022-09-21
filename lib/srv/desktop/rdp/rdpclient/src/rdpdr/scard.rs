@@ -1961,6 +1961,24 @@ impl WriteCache_Call {
     }
 }
 
+impl Encode for WriteCache_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?; // _lookup_name_ptr
+        self.common.encode_ptr(&mut index, &mut w)?;
+
+        w.extend(encode_str_unicode(&self.lookup_name)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 struct WriteCache_Common {
@@ -1995,6 +2013,24 @@ impl WriteCache_Common {
         self.data.resize(data_len as usize, 0);
         payload.read_exact(&mut self.data)?;
 
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        encode_ptr(None, index, w)?; // _card_uuid_ptr
+        w.write_u32::<LittleEndian>(self.freshness_counter)?;
+        encode_ptr(Some(0), index, w)?; // _data_len and _data_ptr
+
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        self.context.encode_value(w)?;
+        w.extend_from_slice(&self.card_uuid);
+
+        w.write_u32::<LittleEndian>(self.data.len() as u32)?;
+        w.extend_from_slice(&self.data);
         Ok(())
     }
 }
@@ -2611,6 +2647,33 @@ mod tests {
             vec![
                 1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 112, 0, 16, 128, 0, 0, 0,
                 0, 0, 0, 2, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_writecachew() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            None,
+            IoctlCode::SCARD_IOCTL_WRITECACHEW,
+            &WriteCache_Call {
+                lookup_name: "Cached_CardProperty_Read Only Mode_0".to_string(),
+                common: WriteCache_Common {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    card_uuid: vec![
+                        138, 113, 14, 35, 145, 213, 78, 249, 174, 208, 142, 171, 174, 121, 3, 76,
+                    ],
+                    freshness_counter: 0,
+                    data: vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0],
+                },
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
         )
     }
