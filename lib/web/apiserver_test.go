@@ -860,7 +860,7 @@ func TestClusterNodesGet(t *testing.T) {
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	_, err := s.makeTerminal(t, s.authPack(t, "foo"), session.ID("/../../../foo"))
+	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID(session.ID("/../../../foo")))
 	require.Error(t, err)
 }
 
@@ -1050,7 +1050,7 @@ func TestResizeTerminal(t *testing.T) {
 	// Create a new user "foo", open a terminal to a new session, and wait for
 	// it to be ready.
 	pack1 := s.authPack(t, "foo")
-	ws1, err := s.makeTerminal(t, pack1, sid)
+	ws1, err := s.makeTerminal(t, pack1, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 	err = s.waitForRawEvent(ws1, 5*time.Second)
@@ -1059,7 +1059,7 @@ func TestResizeTerminal(t *testing.T) {
 	// Create a new user "bar", open a terminal to the session created above,
 	// and wait for it to be ready.
 	pack2 := s.authPack(t, "bar")
-	ws2, err := s.makeTerminal(t, pack2, sid)
+	ws2, err := s.makeTerminal(t, pack2, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
 	err = s.waitForRawEvent(ws2, 5*time.Second)
@@ -1120,7 +1120,7 @@ func TestResizeTerminal(t *testing.T) {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
+	ws, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1538,7 +1538,7 @@ func TestActiveSessions(t *testing.T) {
 	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, sid)
+	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1651,7 +1651,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, sid)
+	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1739,7 +1739,7 @@ func TestPlayback(t *testing.T) {
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
 	sid := session.NewID()
-	ws, err := s.makeTerminal(t, pack, sid)
+	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 }
@@ -3359,8 +3359,8 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 }
 
 // TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
-//  - Recovery codes are not returned for usernames that are not emails
-//  - Recovery codes are returned for usernames that are valid emails
+//   - Recovery codes are not returned for usernames that are not emails
+//   - Recovery codes are returned for usernames that are valid emails
 func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
@@ -3522,12 +3522,28 @@ func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p b
 	return []events.EventFields{}, nil
 }
 
-func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
-	var sessionID session.ID
-	if len(opts) == 0 {
-		sessionID = session.NewID()
-	} else {
-		sessionID = opts[0]
+type terminalOpt func(t *TerminalRequest)
+
+func withSessionID(sid session.ID) terminalOpt {
+	return func(t *TerminalRequest) { t.SessionID = sid }
+}
+
+func withKeepaliveInterval(d time.Duration) terminalOpt {
+	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
+}
+
+func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, error) {
+	req := TerminalRequest{
+		Server: s.srvID,
+		Login:  pack.login,
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+		SessionID: session.NewID(),
+	}
+	for _, opt := range opts {
+		opt(&req)
 	}
 
 	u := url.URL{
@@ -3535,15 +3551,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID
 		Scheme: client.WSS,
 		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut),
 	}
-	data, err := json.Marshal(TerminalRequest{
-		Server: s.srvID,
-		Login:  pack.login,
-		Term: session.TerminalParams{
-			W: 100,
-			H: 100,
-		},
-		SessionID: sessionID,
-	})
+	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
