@@ -96,7 +96,7 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, tracker)
-	require.Contains(t, err.Error(), "Moderated Sessions are only supported in Teleport Enterprise")
+	require.ErrorIs(t, err, ErrRequiresEnterprise)
 }
 
 // TestModeratedSessionsEnabled verifies that we can create session trackers with moderation
