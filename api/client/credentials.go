@@ -83,7 +83,8 @@ func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 // KeyPair Credentials can only be used to connect directly to a Teleport Auth server.
 //
 // New KeyPair files can be generated with tsh or tctl.
-//  $ tctl auth sign --format=tls --user=api-user --out=path/to/certs
+//
+//	$ tctl auth sign --format=tls --user=api-user --out=path/to/certs
 //
 // The certificates' time to live can be specified with --ttl.
 //
@@ -142,8 +143,9 @@ func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 // or through a reverse tunnel.
 //
 // A new identity file can be generated with tsh or tctl.
-//  $ tsh login --user=api-user --out=identity-file-path
-//  $ tctl auth sign --user=api-user --out=identity-file-path
+//
+//	$ tsh login --user=api-user --out=identity-file-path
+//	$ tctl auth sign --user=api-user --out=identity-file-path
 //
 // The identity file's time to live can be specified with --ttl.
 //
@@ -212,8 +214,9 @@ func (c *identityCredsFile) load() error {
 // or through a reverse tunnel.
 //
 // A new identity file can be generated with tsh or tctl.
-//  $ tsh login --user=api-user --out=identity-file-path
-//  $ tctl auth sign --user=api-user --out=identity-file-path
+//
+//	$ tsh login --user=api-user --out=identity-file-path
+//	$ tctl auth sign --user=api-user --out=identity-file-path
 //
 // The identity file's time to live can be specified with --ttl.
 //
@@ -288,7 +291,8 @@ func (c *identityCredsString) load() error {
 // tunnel address and make a connection through it.
 //
 // A new profile can be generated with tsh.
-//  $ tsh login --user=api-user
+//
+//	$ tsh login --user=api-user
 func LoadProfile(dir, name string) Credentials {
 	return &profileCreds{
 		dir:  dir,

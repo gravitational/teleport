@@ -18,11 +18,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // Resolver looks up reverse tunnel addresses
@@ -41,13 +42,13 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 		return nil, err
 	}
 	return func(ctx context.Context) (*utils.NetAddr, error) {
-		a, err := cache.Get(ctx, "resolver", func(ctx context.Context) (interface{}, error) {
+		addr, err := utils.FnCacheGet(ctx, cache, "resolver", func(ctx context.Context) (*utils.NetAddr, error) {
 			return resolver(ctx)
 		})
 		if err != nil {
 			return nil, err
 		}
-		addr := a.(*utils.NetAddr)
+
 		if addr != nil {
 			// make a copy to avoid a data race when the caching resolver is shared by goroutines.
 			addrCopy := *addr

@@ -83,12 +83,12 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 }
 
 // TestAddKey ensures correct adding of ssh keys. This test checks the following:
-//   * When adding a key it's written to disk.
-//   * When we add a key, it's added to both the teleport ssh agent as well
+//   - When adding a key it's written to disk.
+//   - When we add a key, it's added to both the teleport ssh agent as well
 //     as the system ssh agent.
-//   * When we add a key, both the certificate and private key are added into
+//   - When we add a key, both the certificate and private key are added into
 //     the both the teleport ssh agent and the system ssh agent.
-//   * When we add a key, it's tagged with a comment that indicates that it's
+//   - When we add a key, it's tagged with a comment that indicates that it's
 //     a teleport key with the teleport username.
 func TestAddKey(t *testing.T) {
 	s := makeSuite(t)
@@ -157,8 +157,8 @@ func TestAddKey(t *testing.T) {
 
 // TestLoadKey ensures correct loading of a key into an agent. This test
 // checks the following:
-//   * Loading a key multiple times overwrites the same key.
-//   * The key is correctly loaded into the agent. This is tested by having
+//   - Loading a key multiple times overwrites the same key.
+//   - The key is correctly loaded into the agent. This is tested by having
 //     the agent sign data that is then verified using the public key
 //     directly.
 func TestLoadKey(t *testing.T) {
