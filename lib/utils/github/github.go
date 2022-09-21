@@ -35,10 +35,16 @@ func NewIdentityProvider() *IdentityProvider {
 }
 
 func (ip *IdentityProvider) GetIDToken(ctx context.Context) (string, error) {
-	tokenURL := ip.getIDTokenURL()
-	requestToken := ip.getRequestToken()
 	// TODO: Inject audience to be set
 	audience := "teleport.ottr.sh"
+
+	tokenURL := ip.getIDTokenURL()
+	requestToken := ip.getRequestToken()
+	if tokenURL == "" || requestToken == "" {
+		return "", trace.BadParameter(
+			"ACTIONS_ID_TOKEN_REQUEST_URL or ACTIONS_ID_TOKEN_REQUEST_TOKEN environment variable missing",
+		)
+	}
 
 	tokenURL = tokenURL + "&audience=" + url.QueryEscape(audience)
 	req, err := http.NewRequestWithContext(
