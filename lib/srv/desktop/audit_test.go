@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"context"
+	"crypto/rand"
 	"io"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -34,7 +36,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
+type testSetup struct {
+	s           *WindowsService
+	id          *tlsca.Identity
+	emitter     *eventstest.MockEmitter
+	sessionID   string
+	desktopAddr string
+	dirID       uint32
+	dirName     string
+	sendHandler func(m tdp.Message, b []byte)
+	recvHandler func(m tdp.Message)
+}
+
+func setup() testSetup {
 	emitter := &eventstest.MockEmitter{}
 	log := logrus.New()
 	log.SetOutput(io.Discard)
@@ -49,6 +63,7 @@ func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
 			},
 			Clock: clockwork.NewFakeClockAt(time.Now()),
 		},
+		sdMap: newSharedDirectoryNameMap(),
 	}
 
 	id := &tlsca.Identity{
@@ -57,12 +72,21 @@ func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
 		MFAVerified:  "mfa-id",
 		ClientIP:     "127.0.0.1",
 	}
+	sessionID, desktopAddr, dirID, dirName := "session-0", "windows.example.com", uint32(2), "test-dir"
 
-	return s, id, emitter
+	sendHandler := s.makeTDPSendHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sessionID, desktopAddr)
+	recvHandler := s.makeTDPReceiveHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sessionID, desktopAddr)
+
+	return testSetup{s, id, emitter, sessionID, desktopAddr, dirID, dirName, sendHandler, recvHandler}
 }
 
 func TestSessionStartEvent(t *testing.T) {
-	s, id, emitter := setup()
+	su := setup()
+	s, id, emitter := su.s, su.id, su.emitter
 
 	desktop := &types.WindowsDesktopV3{
 		ResourceHeader: types.ResourceHeader{
@@ -88,7 +112,7 @@ func TestSessionStartEvent(t *testing.T) {
 		},
 		UserMetadata: userMeta,
 		SessionMetadata: events.SessionMetadata{
-			SessionID: "sessionID",
+			SessionID: su.sessionID,
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
@@ -137,7 +161,7 @@ func TestSessionStartEvent(t *testing.T) {
 				id,
 				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
-				"sessionID",
+				su.sessionID,
 				desktop,
 				test.err,
 			)
@@ -154,7 +178,8 @@ func TestSessionStartEvent(t *testing.T) {
 }
 
 func TestSessionEndEvent(t *testing.T) {
-	s, id, emitter := setup()
+	su := setup()
+	s, id, emitter := su.s, su.id, su.emitter
 
 	desktop := &types.WindowsDesktopV3{
 		ResourceHeader: types.ResourceHeader{
@@ -215,4 +240,170 @@ func TestSessionEndEvent(t *testing.T) {
 		Participants:          []string{"foo"},
 	}
 	require.Empty(t, cmp.Diff(expected, endEvent))
+}
+
+func TestEmitsRecordingEventsOnSend(t *testing.T) {
+	su := setup()
+	emitter, handler := su.emitter, su.sendHandler
+
+	// a fake PNG Frame message
+	encoded := []byte{byte(tdp.TypePNGFrame), 0x01, 0x02}
+
+	// the handler accepts both the message structure and its encoded form,
+	// but our logic only depends on the encoded form, so pass a nil message
+	var msg tdp.Message
+	handler(msg, encoded)
+
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	dr, ok := e.(*events.DesktopRecording)
+	require.True(t, ok)
+	require.Equal(t, encoded, dr.Message)
+}
+
+func TestSkipsExtremelyLargePNGs(t *testing.T) {
+	su := setup()
+	emitter, handler := su.emitter, su.sendHandler
+
+	// a fake PNG Frame message, which is way too big to be legitimate
+	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
+	rand.Read(maliciousPNG)
+	maliciousPNG[0] = byte(tdp.TypePNGFrame)
+
+	// the handler accepts both the message structure and its encoded form,
+	// but our logic only depends on the encoded form, so pass a nil message
+	var msg tdp.Message
+	handler(msg, maliciousPNG)
+
+	require.Nil(t, emitter.LastEvent())
+}
+
+func TestEmitsRecordingEventsOnReceive(t *testing.T) {
+	su := setup()
+	emitter, handler := su.emitter, su.recvHandler
+
+	msg := tdp.MouseButton{
+		Button: tdp.LeftMouseButton,
+		State:  tdp.ButtonPressed,
+	}
+	handler(msg)
+
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	dr, ok := e.(*events.DesktopRecording)
+	require.True(t, ok)
+	decoded, err := tdp.Decode(dr.Message)
+	require.NoError(t, err)
+	require.Equal(t, msg, decoded)
+}
+
+func TestEmitsClipboardSendEvents(t *testing.T) {
+	su := setup()
+	s, emitter, handler := su.s, su.emitter, su.recvHandler
+
+	fakeClipboardData := make([]byte, 1024)
+	rand.Read(fakeClipboardData)
+
+	start := s.cfg.Clock.Now().UTC()
+	msg := tdp.ClipboardData(fakeClipboardData)
+	handler(msg)
+
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	cs, ok := e.(*events.DesktopClipboardSend)
+	require.True(t, ok)
+	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
+	require.Equal(t, "session-0", cs.SessionID)
+	require.Equal(t, "windows.example.com", cs.DesktopAddr)
+	require.Equal(t, s.clusterName, cs.ClusterName)
+	require.Equal(t, start, cs.Time)
+}
+
+func TestEmitsClipboardReceiveEvents(t *testing.T) {
+	setup := setup()
+	s, emitter, handler := setup.s, setup.emitter, setup.sendHandler
+
+	fakeClipboardData := make([]byte, 512)
+	rand.Read(fakeClipboardData)
+
+	start := s.cfg.Clock.Now().UTC()
+	msg := tdp.ClipboardData(fakeClipboardData)
+	encoded, err := msg.Encode()
+	require.NoError(t, err)
+	handler(msg, encoded)
+
+	e := emitter.LastEvent()
+	require.NotNil(t, e)
+	cs, ok := e.(*events.DesktopClipboardReceive)
+	require.True(t, ok)
+	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
+	require.Equal(t, "session-0", cs.SessionID)
+	require.Equal(t, "windows.example.com", cs.DesktopAddr)
+	require.Equal(t, s.clusterName, cs.ClusterName)
+	require.Equal(t, start, cs.Time)
+}
+
+func TestEmitsDesktopSharedDirectoryStartEvents(t *testing.T) {
+	for _, test := range []struct {
+		desc        string
+		initialized bool
+		errCode     int
+		succeeded   bool
+	}{
+		{
+			desc:        "directory sharing initialization succeeded",
+			initialized: true,
+			errCode:     tdp.ErrCodeNil,
+			succeeded:   true,
+		},
+		{
+			desc:        "directory sharing initialization failed",
+			initialized: true,
+			errCode:     tdp.ErrCodeFailed,
+			succeeded:   false,
+		},
+		{
+			desc:        "directory name cache somehow became out of sync",
+			initialized: false,
+			errCode:     tdp.ErrCodeNil,
+			succeeded:   true,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			su := setup()
+
+			if test.initialized {
+				// Initialize the sdMap by simulating a SharedDirectoryAnnounce
+				su.recvHandler(tdp.SharedDirectoryAnnounce{
+					DirectoryID: su.dirID,
+					Name:        su.dirName,
+				})
+			}
+
+			// Simulate a successful SharedDirectoryAcknowledge,
+			// which should cause a DesktopSharedDirectoryStart
+			// to be emitted.
+			msg := tdp.SharedDirectoryAcknowledge{
+				ErrCode:     uint32(test.errCode),
+				DirectoryID: su.dirID,
+			}
+			encoded, err := msg.Encode()
+			require.NoError(t, err)
+			su.sendHandler(msg, encoded)
+
+			e := su.emitter.LastEvent()
+			require.NotNil(t, e)
+			sds, ok := e.(*events.DesktopSharedDirectoryStart)
+			require.True(t, ok)
+			require.Equal(t, test.succeeded, sds.Succeeded)
+			require.Equal(t, su.desktopAddr, sds.DesktopAddr)
+			if test.initialized {
+				require.Equal(t, su.dirName, sds.DirectoryName)
+			} else {
+				require.Equal(t, "unknown", sds.DirectoryName)
+			}
+			require.Equal(t, su.dirID, sds.DirectoryID)
+
+		})
+	}
 }

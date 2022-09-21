@@ -163,7 +163,7 @@ func (s *WindowsService) onSharedDirectoryAnnounce(sessionID string, m tdp.Share
 
 func (s *WindowsService) onSharedDirectoryAcknowledge(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, ack tdp.SharedDirectoryAcknowledge) {
 	succeeded := true
-	if ack.ErrCode != tdp.ErrCodeSuccess {
+	if ack.ErrCode != tdp.ErrCodeNil {
 		succeeded = false
 	}
 

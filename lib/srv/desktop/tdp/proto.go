@@ -1506,5 +1506,6 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 }
 
 const (
-	ErrCodeSuccess = 0
+	ErrCodeNil    = 0
+	ErrCodeFailed = 1
 )
