@@ -102,3 +102,51 @@ func (ip *IdentityProvider) GetIDToken(ctx context.Context) (string, error) {
 
 	return data.Value, nil
 }
+
+// IDTokenClaims is the structure of claims contained within a Github issued
+// ID token.
+//
+// See the following for the structure:
+// https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token
+type IDTokenClaims struct {
+	// Sub also known as Subject is a string that roughly uniquely indentifies
+	// the workload. The format of this varies depending on the type of
+	// github action run.
+	Sub string `json:"sub"`
+	// The personal account that initiated the workflow run.
+	Actor string `json:"actor"`
+	// The ID of personal account that initiated the workflow run.
+	ActorID string `json:"actor_id"`
+	// The target branch of the pull request in a workflow run.
+	BaseRef string `json:"base_ref"`
+	// The name of the environment used by the job.
+	Environment string `json:"environment"`
+	// The name of the event that triggered the workflow run.
+	EventName string `json:"event_name"`
+	// The source branch of the pull request in a workflow run.
+	HeadRef string `json:"head_ref"`
+	// This is the ref path to the reusable workflow used by this job.
+	JobWorkflowRef string `json:"job_workflow_ref"`
+	// The git ref that triggered the workflow run.
+	Ref string `json:"ref"`
+	// The type of ref, for example: "branch".
+	RefType string `json:"ref_type"`
+	// The visibility of the repository where the workflow is running. Accepts the following values: internal, private, or public.
+	RepositoryVisibility string `json:"repository_visibility"`
+	// The repository from where the workflow is running.
+	Repository string `json:"repository"`
+	// The ID of the repository from where the workflow is running.
+	RepositoryID string `json:"repository_id"`
+	// The name of the organization in which the repository is stored.
+	RepositoryOwner string `json:"repository_owner"`
+	// The ID of the organization in which the repository is stored.
+	RepositoryOwnerID string `json:"repository_owner_id"`
+	// The ID of the workflow run that triggered the workflow.
+	RunID string `json:"run_id"`
+	// The number of times this workflow has been run.
+	RunNumber string `json:"run_number"`
+	// The number of times this workflow run has been retried.
+	RunAttempt string `json:"run_attempt"`
+	// The name of the workflow.
+	Workflow string `json:"workflow"`
+}
