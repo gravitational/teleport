@@ -317,7 +317,7 @@ CREATE TABLE audit (
 	event_data json NOT NULL,
 	creation_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX audit_search_events_idx ON audit (event_time, session_id, event_index, audit_id, event_type);
+CREATE INDEX audit_search_events_idx ON audit (event_time, session_id, event_index, audit_id);
 CREATE INDEX audit_creation_time_idx ON audit (creation_time);
 `}
 
