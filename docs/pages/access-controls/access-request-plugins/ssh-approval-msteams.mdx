@@ -13,14 +13,14 @@ compromising productivity.
 
 (!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- A Microsoft Teams License (Microsoft 365 Business)
-- Azure console access in the organization/directory paying the Office 365 Licenses (MsTeams licences)
+- A Microsoft Teams License (Microsoft 365 Business).
+- Azure console access in the organization/directory holding the Microsoft Teams License.
 - An Azure resource group in the same directory. This will  host resources for the the Microsoft Teams Access Request plugin.
   You should have enough permissions to create and edit Azure Bot Services in this resource group.
 - Someone with Global Admin rights on the Azure Active Directory that will
-  grant permissions to the plugin
+  grant permissions to the plugin.
 - Someone with the `Teams administrator` role that can approve installation
-  requests for Microsoft Teams applications
+  requests for Microsoft Teams Apps.
 (!/docs/pages/includes/tctl.mdx!)
 
 ## Step 1/9. Define RBAC resources
@@ -108,8 +108,8 @@ Microsoft Teams.
 ### Register a new Azure bot
 
 Visit [https://portal.azure.com/#create/Microsoft.AzureBot](https://portal.azure.com/#create/Microsoft.AzureBot)
-to create a new bot. Choose the bot handle (this is for semantic use only, it will
-not be displayed to the user or used in configuration), the Azure subscription,
+to create a new bot. Choose the bot handle so you can find the bot later in the Azure console (the bot handle will
+not be displayed to the user or used to configure the Microsoft Teams plugin). Also edit the Azure subscription,
 the resource group and the bot pricing tier.
 
 In the "Microsoft App ID" section choose "Single Tenant" and "Create new
@@ -119,7 +119,7 @@ Microsoft App ID".
 
 ### Connect the bot to MsTeams
 
-Once the bot is created, open its resource page on the azure console and
+Once the bot is created, open its resource page on the Azure console and
 navigate to the "Channels" tab. Click "Microsoft Teams" and add the MsTeams
 channel.
 
@@ -127,13 +127,13 @@ The result should be as follows:
 
 ![Add Bot Channel](../../../img/enterprise/plugins/msteams/add-bot-channel.png)
 
-### Recover the bot app ID, tenant ID and create a client secret
+### Obtain information about your Microsoft App
 
 On the bot's "Configuration" tab, copy and keep in a safe place the values of
 "Microsoft App ID" and "App Tenant ID".  Those two UUIDs will be used in the
 plugin configuration.
 
-Click the "Manage" link next to "Microsoft App ID", this will open the app management view.
+Click the "Manage" link next to "Microsoft App ID". This will open the app management view.
 
 ![Manage Bot App](../../../img/enterprise/plugins/msteams/manage-bot-app.png)
 
@@ -178,7 +178,7 @@ installed to MsTeams yet.
 
 In this step, you will configure the MsTeams plugin to use the Azure
 credentials and generate the Teams App package that will be used to install the
-Teams App to your teams instance. You will also configure the plugin to notify
+Microsoft Teams App. You will also configure the plugin to notify
 the right MsTeams users when it receives an Access Request update.
 
 ### Generate a config file and assets
@@ -202,7 +202,7 @@ This should result in a config file like the one below:
 ```
 
 Copy the `/var/lib/teleport/plugins/msteams/assets/app.zip` file to your local
-computer, you will have to upload it to MsTeams later.
+computer. You will have to upload it to Microsoft Teams later.
 
 <Admonition type="warning" title="Configure command">
 The `configure` command is not idempotent. It generates a new Microsoft Teams
