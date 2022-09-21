@@ -873,29 +873,6 @@ fn decode_string_unicode(payload: &mut Payload) -> RdpResult<String> {
     Ok(s)
 }
 
-fn encode_str_unicode(s: &str) -> RdpResult<Vec<u8>> {
-    let mut buf = vec![];
-
-    // It's not exactly clear what the purpose of these length/offset fields are,
-    // but they're expected for single unicode strings.
-    let len = s.len() as u32 + 1; // +1 for the null terminator.
-    buf.write_u32::<LittleEndian>(len)?;
-    buf.write_u32::<LittleEndian>(0)?;
-    buf.write_u32::<LittleEndian>(len)?;
-
-    for c in s.encode_utf16() {
-        buf.write_u16::<LittleEndian>(c)?;
-    }
-    buf.write_u16::<LittleEndian>(0)?;
-
-    if (len - 1) % 2 == 0 {
-        // Add extra padding for a 4-byte aligned NULL-terminated string.
-        buf.write_u16::<LittleEndian>(0)?;
-    }
-
-    Ok(buf)
-}
-
 fn encode_multistring_unicode(items: &[String]) -> RdpResult<Vec<u8>> {
     let mut buf = vec![];
     for s in items.iter() {
@@ -1000,17 +977,6 @@ impl ReaderState {
 
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
         self.reader = decode_string_unicode(payload)?;
-        Ok(())
-    }
-
-    fn encode_ptr(&self, index: &mut u32, w: &mut Vec<u8>) -> RdpResult<()> {
-        encode_ptr(None, index, w)?;
-        self.common.encode(w)?;
-        Ok(())
-    }
-
-    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
-        w.extend(encode_str_unicode(&self.reader)?);
         Ok(())
     }
 }
