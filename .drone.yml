@@ -936,6 +936,25 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Register artifacts
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $ProgressPreference = 'SilentlyContinue'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $OutputsDir = "$Workspace/outputs"
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-beta.2-windows.exe'
+  - $relcliSha256 = '6b96852a5e9704b66025cffc71cfe7fe7a2aa7131277a96bccce7e890a2d5a0c'
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
+  - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -7054,6 +7073,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 6820f97d5d9c565d4a77e1f2c6a0b8091df655a1540a4133a5860f31f8414ff3
+hmac: 734ceb1c15b758c1f8ef2b9e2ff12c15a238b5a3ff4dfcd1965f6dab65c69b6b
 
 ...
