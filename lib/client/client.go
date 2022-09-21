@@ -1054,23 +1054,23 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	return resp.Resources, resp.NextKey, nil
 }
 
-// authClient is a wrapper around auth.ClientI which
+// sharedAuthClient is a wrapper around auth.ClientI which
 // prevents the underlying client from being closed.
-type authClient struct {
+type sharedAuthClient struct {
 	auth.ClientI
 }
 
 // Close is a no-op
-func (a authClient) Close() error {
+func (a sharedAuthClient) Close() error {
 	return nil
 }
 
 // CurrentCluster returns an authenticated auth server client for the local cluster.
 func (proxy *ProxyClient) CurrentCluster() auth.ClientI {
-	// The auth.ClientI is wrapped in an authClient to prevent callers from
+	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
 	// being able to close the client. The auth.ClientI is only to be closed
 	// when the ProxyClient is closed.
-	return authClient{ClientI: proxy.currentCluster}
+	return sharedAuthClient{ClientI: proxy.currentCluster}
 }
 
 // ConnectToRootCluster connects to the auth server of the root cluster
@@ -1335,12 +1335,7 @@ func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterD
 		return details, trace.Wrap(err)
 	}
 
-	clt, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return details, trace.Wrap(err)
-	}
-
-	pong, err := clt.Ping(ctx)
+	pong, err := proxy.CurrentCluster().Ping(ctx)
 	if err != nil {
 		return details, trace.Wrap(err)
 	}
