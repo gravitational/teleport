@@ -2355,27 +2355,26 @@ func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Option
 		return nil, trace.Wrap(err)
 	}
 
-	cfg := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
-
 	return &sftpConfig{
-		cfg:       cfg,
+		cfg:       sftp.CreateUploadConfig(srcPaths, dst.Path, opts),
 		addr:      addr,
 		hostLogin: dst.Login,
 	}, nil
 }
 
 func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
+	if len(args) > 2 {
+		return nil, trace.BadParameter("only one source file and one destination file is supported when downloading files")
+	}
+
 	// args are guaranteed to have len(args) > 1
 	src, addr, err := getSCPDestination(args[0], port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: check that only 2 args are passed?
-	cfg := sftp.CreateDownloadConfig(src.Path, args[1], opts)
-
 	return &sftpConfig{
-		cfg:       cfg,
+		cfg:       sftp.CreateDownloadConfig(src.Path, args[1], opts),
 		addr:      addr,
 		hostLogin: src.Login,
 	}, nil
