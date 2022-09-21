@@ -1931,7 +1931,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 
 // TransferFiles transfers files over SFTP.
 func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
-	ctx, span := c.Tracer.Start(
+	_, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/TransferFiles",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
