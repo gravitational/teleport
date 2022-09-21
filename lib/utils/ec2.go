@@ -75,11 +75,16 @@ func GetEC2NodeID() (string, error) {
 }
 
 // EC2 Node IDs are {AWS account ID}-{EC2 resource ID} eg:
-//   123456789012-i-1234567890abcdef0
+//
+//	123456789012-i-1234567890abcdef0
+//
 // AWS account ID is always a 12 digit number, see
-//   https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
+//
+//	https://docs.aws.amazon.com/general/latest/gr/acct-identifiers.html
+//
 // EC2 resource ID is i-{8 or 17 hex digits}, see
-//   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+//
+//	https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
 var ec2NodeIDRE = regexp.MustCompile("^[0-9]{12}-i-[0-9a-f]{8,}$")
 
 // IsEC2NodeID returns true if the given ID looks like an EC2 node ID. Uses a
@@ -134,7 +139,8 @@ func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClie
 }
 
 // EC2 resource ID is i-{8 or 17 hex digits}, see
-//   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+//
+//	https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
 var ec2ResourceIDRE = regexp.MustCompile("^i-[0-9a-f]{8,}$")
 
 // IsAvailable checks if instance metadata is available.

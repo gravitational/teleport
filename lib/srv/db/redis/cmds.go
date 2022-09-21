@@ -49,9 +49,9 @@ const (
 
 // processCmd processes commands received from connected client. Most commands are just passed to Redis instance,
 // but some require special actions:
-//  * Redis 7.0+ commands are rejected as at the moment of writing Redis 7.0 hasn't been released and go-redis doesn't support it.
-//  * RESP3 commands are rejected as Teleport/go-redis currently doesn't support this version of protocol.
-//  * Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
+//   - Redis 7.0+ commands are rejected as at the moment of writing Redis 7.0 hasn't been released and go-redis doesn't support it.
+//   - RESP3 commands are rejected as Teleport/go-redis currently doesn't support this version of protocol.
+//   - Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
 func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
 	case helloCmd, punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:

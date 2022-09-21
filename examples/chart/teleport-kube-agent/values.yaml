@@ -106,6 +106,7 @@ existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
+# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
 podSecurityPolicy:
   enabled: true
 
@@ -247,14 +248,14 @@ extraEnv: []
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []
-#- name: myvolume
-#  secret:
-#    secretName: testSecret
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
 
 # Extra volume mounts corresponding to the volumes mounted above
 extraVolumeMounts: []
-#- name: myvolume
-#  mountPath: /path/on/host
+# - name: myvolume
+#   mountPath: /path/on/host
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
@@ -262,9 +263,9 @@ imagePullPolicy: IfNotPresent
 # A list of initContainers to run before each Teleport pod starts
 # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 initContainers: []
-#- name: "teleport-init"
-#  image: "alpine"
-#  args: ["echo test"]
+# - name: "teleport-init"
+#   image: "alpine"
+#   args: ["echo test"]
 
 # Resources to request for each pod in the deployment
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
