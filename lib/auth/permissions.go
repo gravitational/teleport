@@ -651,6 +651,21 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					},
 				},
 			})
+	case types.RoleDiscovery:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+					},
+				},
+			})
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
