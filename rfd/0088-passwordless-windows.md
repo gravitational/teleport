@@ -98,7 +98,9 @@ created-but-not-registered credential. Credential removal is only possible
 using webauthn API version 4+.
 
 Windows webauthn supports attestation. For FIDO devices it is passed from
-device. For Windows hello device it is TPM attestation.
+device. For Windows hello device it is TPM attestation. Worth mentioning is
+fact that for assertion using Windows Hello RSA2048 + SHA256 is used, however
+for attestation on TPM prior to 2.0 SHA-1 can be used.
 
 ### Authentication
 
