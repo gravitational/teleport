@@ -86,7 +86,7 @@ func (c *AppsCommand) ListApps(ctx context.Context, client auth.ClientI) error {
 	return nil
 }
 
-var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}.
+var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to make the application available:

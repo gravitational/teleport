@@ -118,6 +118,8 @@ type RegisterParams struct {
 	EC2IdentityDocument []byte
 	// JoinMethod is the joining method used for this register request.
 	JoinMethod types.JoinMethod
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -448,32 +450,67 @@ type joinServiceClient interface {
 func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
 	ctx := context.Background()
 
-	// call RegisterUsingIAMMethod with a callback to respond to the challenge
-	// with the join request
-	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-		// create the signed sts:GetCallerIdentity request and include the challenge
-		signedRequest, err := createSignedStsIdentityRequest(challenge)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// send the register request including the challenge response
-		return &proto.RegisterUsingIAMMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
+	// Attempt to use the regional STS endpoint, fall back to using the global
+	// endpoint. The regional endpoint may fail if Auth is on an older version
+	// which does not support regional endpoints, the STS service is not
+	// enabled in the current region, or an unknown AWS region is configured.
+	var errs []error
+	for _, s := range []struct {
+		desc string
+		opts []stsIdentityRequestOption
+	}{
+		{
+			desc: "regional",
+			opts: []stsIdentityRequestOption{
+				withFIPSEndpoint(params.FIPS),
+				withRegionalEndpoint(true),
 			},
-			StsIdentityRequest: signedRequest,
-		}, nil
-	})
+		},
+		{
+			desc: "global",
+			opts: []stsIdentityRequestOption{
+				// Global endpoint does not support FIPS, this is a fallback
+				// when joining a cluster with an auth server on an older
+				// version which does not yet support regional endpoints.
+				withFIPSEndpoint(false),
+				withRegionalEndpoint(false),
+			},
+		},
+	} {
+		log.Infof("Attempting to register %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
+		// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
+		certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+			// create the signed sts:GetCallerIdentity request and include the challenge
+			signedRequest, err := createSignedSTSIdentityRequest(ctx, challenge, s.opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-	return certs, trace.Wrap(err)
+			// send the register request including the challenge response
+			return &proto.RegisterUsingIAMMethodRequest{
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+					Token:                token,
+					HostID:               params.ID.HostUUID,
+					NodeName:             params.ID.NodeName,
+					Role:                 params.ID.Role,
+					AdditionalPrincipals: params.AdditionalPrincipals,
+					DNSNames:             params.DNSNames,
+					PublicTLSKey:         params.PublicTLSKey,
+					PublicSSHKey:         params.PublicSSHKey,
+				},
+				StsIdentityRequest: signedRequest,
+			}, nil
+		})
+		if err != nil {
+			log.WithError(err).Infof("Failed to register %s using %s STS endpoint", params.ID.Role, s.desc)
+			errs = append(errs, err)
+		} else {
+			log.Infof("Successfully registered %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
+			return certs, nil
+		}
+	}
+
+	return nil, trace.NewAggregate(errs...)
 }
 
 // ReRegisterParams specifies parameters for re-registering
