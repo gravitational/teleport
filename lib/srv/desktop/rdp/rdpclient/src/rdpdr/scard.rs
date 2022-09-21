@@ -1437,6 +1437,22 @@ impl HCardAndDisposition_Call {
     }
 }
 
+impl Encode for HCardAndDisposition_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(self.disposition)?;
+        self.handle.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct Status_Call {
@@ -2344,6 +2360,29 @@ mod tests {
                 1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
                 0, 0, 2, 0, 4, 0, 0, 0, 4, 0, 2, 0, 2, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0,
                 1, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_begintransaction() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            IoctlCode::SCARD_IOCTL_BEGINTRANSACTION,
+            &HCardAndDisposition_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                disposition: 0,
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
         )
     }
