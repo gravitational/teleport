@@ -642,6 +642,16 @@ impl EstablishContext_Call {
     }
 }
 
+impl Encode for EstablishContext_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+        w.write_u32::<LittleEndian>(self.scope as u32)?;
+        Ok(w)
+    }
+}
+
 #[derive(Debug, FromPrimitive, ToPrimitive, Copy, Clone)]
 #[allow(non_camel_case_types)]
 enum Scope {
@@ -2018,7 +2028,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ioctl_accessstartedevent() {
+    fn test_accessstartedevent() {
         test_ioctl(
             IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT,
             &ScardAccessStartedEvent_Call {
@@ -2026,6 +2036,20 @@ mod tests {
             },
             vec![
                 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_establishcontext() {
+        test_ioctl(
+            IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT,
+            &EstablishContext_Call {
+                scope: Scope::SCARD_SCOPE_SYSTEM,
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
+                0, 0, 2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
             ],
         )
     }
