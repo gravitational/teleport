@@ -3,7 +3,7 @@ authors: Jan Kaczmarkiewicz (jan.kaczmarkiewicz@goteleport.com)
 state: draft
 ---
 
-# RFD 83 - Prevent user role self-lock
+# RFD 86 - Prevent user role self-lock
 
 ## Required Approvers
 
