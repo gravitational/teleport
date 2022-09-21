@@ -59,9 +59,14 @@ func (ip *IdentityProvider) GetIDToken(ctx context.Context) (string, error) {
 
 	tokenURL := ip.getIDTokenURL()
 	requestToken := ip.getRequestToken()
-	if tokenURL == "" || requestToken == "" {
+	if tokenURL == "" {
 		return "", trace.BadParameter(
-			"ACTIONS_ID_TOKEN_REQUEST_URL or ACTIONS_ID_TOKEN_REQUEST_TOKEN environment variable missing",
+			"ACTIONS_ID_TOKEN_REQUEST_URL environment variable missing",
+		)
+	}
+	if requestToken == "" {
+		return "", trace.BadParameter(
+			"ACTIONS_ID_TOKEN_REQUEST_TOKEN environment variable missing",
 		)
 	}
 
