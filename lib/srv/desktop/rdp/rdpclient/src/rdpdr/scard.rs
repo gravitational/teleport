@@ -914,6 +914,29 @@ fn decode_string_unicode(payload: &mut Payload) -> RdpResult<String> {
     Ok(s)
 }
 
+fn encode_str_unicode(s: &str) -> RdpResult<Vec<u8>> {
+    let mut buf = vec![];
+
+    // It's not exactly clear what the purpose of these length/offset fields are,
+    // but they're expected for single unicode strings.
+    let len = s.len() as u32 + 1; // +1 for the null terminator.
+    buf.write_u32::<LittleEndian>(len)?;
+    buf.write_u32::<LittleEndian>(0)?;
+    buf.write_u32::<LittleEndian>(len)?;
+
+    for c in s.encode_utf16() {
+        buf.write_u16::<LittleEndian>(c)?;
+    }
+    buf.write_u16::<LittleEndian>(0)?;
+
+    if (len - 1) % 2 == 0 {
+        // Add extra padding for a 4-byte aligned NULL-terminated string.
+        buf.write_u16::<LittleEndian>(0)?;
+    }
+
+    Ok(buf)
+}
+
 fn encode_multistring_unicode(items: &[String]) -> RdpResult<Vec<u8>> {
     let mut buf = vec![];
     for s in items.iter() {
@@ -1572,6 +1595,26 @@ impl GetDeviceTypeId_Call {
     }
 }
 
+impl Encode for GetDeviceTypeId_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        encode_ptr(None, &mut index, &mut w)?;
+
+        self.context.encode_value(&mut w)?;
+
+        let reader_name = encode_str_unicode(&self.reader_name)?;
+        w.extend(reader_name);
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct GetDeviceTypeId_Return {
@@ -2043,8 +2086,16 @@ mod tests {
         Payload::new(e.encode().unwrap())
     }
 
-    fn test_ioctl(ctl_code: IoctlCode, payload: &dyn Encode, expected: Vec<u8>) {
+    fn test_ioctl(
+        established_ctxs: u32,
+        ctl_code: IoctlCode,
+        payload: &dyn Encode,
+        expected: Vec<u8>,
+    ) {
         let mut c = client();
+        for _ in 0..established_ctxs {
+            c.contexts.establish();
+        }
         let (code, res) = c.ioctl(ctl_code, &mut to_payload(payload)).unwrap();
         assert_eq!(0, code);
         assert_eq!(expected, res);
@@ -2053,6 +2104,7 @@ mod tests {
     #[test]
     fn test_accessstartedevent() {
         test_ioctl(
+            0,
             IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT,
             &ScardAccessStartedEvent_Call {
                 _unused: 3234823568,
@@ -2066,6 +2118,7 @@ mod tests {
     #[test]
     fn test_establishcontext() {
         test_ioctl(
+            0,
             IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT,
             &EstablishContext_Call {
                 scope: Scope::SCARD_SCOPE_SYSTEM,
@@ -2080,9 +2133,13 @@ mod tests {
     #[test]
     fn test_listreadersw() {
         test_ioctl(
+            0,
             IoctlCode::SCARD_IOCTL_LISTREADERSW,
             &ListReaders_Call {
-                context: Context::new(1),
+                context: Context {
+                    length: 4,
+                    value: 2,
+                },
                 groups_ptr_length: 36,
                 groups_length: 36,
                 groups_ptr: 131076,
@@ -2094,6 +2151,26 @@ mod tests {
                 1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0,
                 0, 0, 2, 0, 20, 0, 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0,
                 116, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_getdevicetypeid() {
+        let context_value = 2;
+        test_ioctl(
+            context_value,
+            IoctlCode::SCARD_IOCTL_GETDEVICETYPEID,
+            &GetDeviceTypeId_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+                reader_ptr: 131076,
+                reader_name: "Teleport".to_string(),
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 0, 0, 0,
             ],
         )
     }
