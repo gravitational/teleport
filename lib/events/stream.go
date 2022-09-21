@@ -225,7 +225,6 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 // The individual session stream is represented by continuous globally
 // ordered sequence of events serialized to binary protobuf format.
 //
-//
 // The stream is split into ordered slices of gzipped audit events.
 //
 // Each slice is composed of three parts:
@@ -247,7 +246,6 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 //
 // This design allows the streamer to upload slices using S3-compatible APIs
 // in parallel without buffering to disk.
-//
 func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

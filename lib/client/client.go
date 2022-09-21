@@ -86,7 +86,6 @@ type NodeClient struct {
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
-//
 func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
