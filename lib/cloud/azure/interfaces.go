@@ -60,8 +60,26 @@ type ARMPostgres interface {
 
 var _ ARMPostgres = (*armpostgresql.ServersClient)(nil)
 
+// TODO
+type RedisServer interface {
+	GetName() string
+	GetLocation() string
+	GetResourceID() string
+	GetHostname() string
+	GetPort() string
+	GetTags() map[string]string
+	GetClusteringPolicy() string
+	GetEngineVersion() string
+	IsSupported() (bool, error)
+	IsAvailable() (bool, error)
+}
+
 // CacheForRedisClient provides an interface for an Azure Redis For Cache client.
 type CacheForRedisClient interface {
 	// GetToken retrieves the auth token for provided resource ID.
 	GetToken(ctx context.Context, resourceID string) (string, error)
+	// ListAll returns all Azure Redis servers within an Azure subscription.
+	ListAll(ctx context.Context) ([]RedisServer, error)
+	// ListWithinGroup returns all Azure Redis servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]RedisServer, error)
 }

@@ -454,6 +454,17 @@ message Azure {
   string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
   // ResourceID is the Azure fully qualified ID for the resource.
   string ResourceID = 2 [(gogoproto.jsontag) = "resource_id,omitempty"];
+  // Redis contains Azure Cache for Redis specific database metadata.
+  AzureRedis Redis = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "redis,omitempty"
+  ];
+}
+
+// AzureRedis contains Azure Cache for Redis specific database metadata.
+message AzureRedis {
+  // ClusteringPolicy is the clustering policy for Redis Enterprise.
+  string ClusteringPolicy = 1 [(gogoproto.jsontag) = "clustering_policy,omitempty"];
 }
 
 // AD contains Active Directory specific database configuration.

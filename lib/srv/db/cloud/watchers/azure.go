@@ -71,13 +71,29 @@ type azureFetcherConfig struct {
 }
 
 // regionMatches returns whether a given region matches the configured Regions selector
-func (f *azureFetcher) regionMatches(region string) bool {
-	if _, ok := f.cfg.regionSet[types.Wildcard]; ok {
+func regionMatches(cfg *azureFetcherConfig, region string) bool {
+	if _, ok := cfg.regionSet[types.Wildcard]; ok {
 		// wildcard matches all regions
 		return true
 	}
-	_, ok := f.cfg.regionSet[region]
+	_, ok := cfg.regionSet[region]
 	return ok
+}
+
+// getSubscriptions returns the subscriptions that this fetcher is configured to query.
+// This will make an API call to list subscription IDs when the fetcher is configured to match "*" subscription,
+// in order to discover and query new subscriptions.
+// Otherwise, a list containing the fetcher's non-wildcard subscription is returned.
+func getSubscriptions(ctx context.Context, cfg *azureFetcherConfig) ([]string, error) {
+	if cfg.Subscription != types.Wildcard {
+		return []string{cfg.Subscription}, nil
+	}
+	client, err := cfg.AzureClients.GetAzureSubscriptionClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	subIDs, err := client.ListSubscriptionIDs(ctx)
+	return subIDs, trace.Wrap(err)
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -139,22 +155,6 @@ func (f *azureFetcher) getDBServersClient(subID string) (azure.DBServersClient, 
 	}
 }
 
-// getSubscriptions returns the subscriptions that this fetcher is configured to query.
-// This will make an API call to list subscription IDs when the fetcher is configured to match "*" subscription,
-// in order to discover and query new subscriptions.
-// Otherwise, a list containing the fetcher's non-wildcard subscription is returned.
-func (f *azureFetcher) getSubscriptions(ctx context.Context) ([]string, error) {
-	if f.cfg.Subscription != types.Wildcard {
-		return []string{f.cfg.Subscription}, nil
-	}
-	client, err := f.cfg.AzureClients.GetAzureSubscriptionClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	subIDs, err := client.ListSubscriptionIDs(ctx)
-	return subIDs, trace.Wrap(err)
-}
-
 // getDBServersInSubscription fetches Azure DB servers within a given subscription.
 func (f *azureFetcher) getDBServersInSubscription(ctx context.Context, subID string) ([]*azure.DBServer, error) {
 	client, err := f.getDBServersClient(subID)
@@ -172,7 +172,7 @@ func (f *azureFetcher) getDBServersInSubscription(ctx context.Context, subID str
 // getAllDBServers fetches Azure DB servers from all subscriptions that this fetcher is configured to query.
 func (f *azureFetcher) getAllDBServers(ctx context.Context) ([]*azure.DBServer, error) {
 	var result []*azure.DBServer
-	subIDs, err := f.getSubscriptions(ctx)
+	subIDs, err := getSubscriptions(ctx, &f.cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -203,7 +203,7 @@ func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error
 			continue
 		}
 		// azure sdk provides no way to query by region, so we have to filter results
-		if !f.regionMatches(server.Location) {
+		if !regionMatches(&f.cfg, server.Location) {
 			continue
 		}
 

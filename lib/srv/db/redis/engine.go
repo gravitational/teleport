@@ -216,6 +216,14 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
 			defaultMode = Cluster
 		}
+
+	case types.DatabaseTypeAzure:
+		// "OSSCluster" requires client to use the OSS Cluster mode.
+		//
+		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
+		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == "OSSCluster" {
+			defaultMode = Cluster
+		}
 	}
 
 	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
