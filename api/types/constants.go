@@ -455,6 +455,9 @@ const (
 
 	// AlertPermitAll is an internal label that indicates that an alert is suitable for display to all users.
 	AlertPermitAll = "teleport.internal/alert-permit-all"
+
+	// AlertLink is an internal label that indicates that an alert is a link.
+	AlertLink = "teleport.internal/link"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
