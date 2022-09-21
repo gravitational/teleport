@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"github.com/gravitational/teleport/lib/utils/github"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -122,6 +123,9 @@ type RegisterParams struct {
 	CircuitBreakerConfig breaker.Config
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+	// IDToken is a token retrieved from a workload identity provider for
+	// certain join types e.g GitHub, Google.
+	IDToken string
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -161,6 +165,14 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else if params.JoinMethod == types.JoinMethodGitHub {
+		// TODO: Inject this in.
+		gh := github.NewIdentityProvider()
+		token, err := gh.GetIDToken(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.IDToken = token
 	}
 
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
@@ -240,6 +252,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -286,6 +299,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
 			})
 	}
 	return certs, trace.Wrap(err)
