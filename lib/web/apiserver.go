@@ -2727,10 +2727,6 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	case constants.SecondFactorOff:
 		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), *req, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
-		if req.HOTPToken != "" {
-			req.OTPToken = req.HOTPToken
-		}
 		cert, err = h.auth.GetCertificateWithOTP(r.Context(), *req, clientMeta)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
