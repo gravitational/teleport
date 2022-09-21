@@ -610,9 +610,8 @@ proxy_service:
     # "v1": defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
-    # The HTTPS listen address to serve the Web UI and authenticate CLI (command
-    # line interface) users.
-    # Handles the PostgreSQL proxy if database access is enabled.
+    # The HTTPS listen address to serve the Web UI and authenticate users.
+    # Handles the PostgreSQL proxy if Database Access is enabled.
     web_listen_addr: 0.0.0.0:3080
 
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
