@@ -155,6 +155,7 @@ func NewPresetAuditorRole() types.Role {
 				Rules: []types.Rule{
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
+					types.NewRule(types.KindSessionTracker, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -168,6 +169,9 @@ func NewPresetAuditorRole() types.Role {
 // This is used to update the current cluster roles when deploying a new resource.
 func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
+		teleport.PresetAuditorRoleName: {
+			types.NewRule(types.KindSessionTracker, RO()),
+		},
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
 		},
