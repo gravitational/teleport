@@ -764,8 +764,12 @@ func TestAppServersHA(t *testing.T) {
 			test.waitForTunnelConn(t, p, 2)
 
 			for _, appServer := range servers {
-				require.NoError(t, appServer.Close())
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				ctx = appServer.StartShutdown(ctx)
 				require.NoError(t, appServer.Wait())
+
+				<-ctx.Done()
+				cancel()
 
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
