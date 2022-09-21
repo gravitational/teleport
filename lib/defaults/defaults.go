@@ -188,10 +188,6 @@ const (
 	// value is used.
 	ProvisioningTokenTTL = 30 * time.Minute
 
-	// HOTPFirstTokensRange is amount of lookahead tokens we remember
-	// for sync purposes
-	HOTPFirstTokensRange = 4
-
 	// MinPasswordLength is minimum password length
 	MinPasswordLength = 6
 
