@@ -1625,7 +1625,44 @@ impl Transmit_Call {
     }
 }
 
-#[derive(Debug)]
+impl Encode for Transmit_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.handle.encode_ptr(&mut index, &mut w)?;
+        self.send_pci.encode_ptr(&mut index, &mut w)?;
+        w.write_u32::<LittleEndian>(0)?; // _send_length
+        encode_ptr(None, &mut index, &mut w)?; // _send_buffer_ptr
+                                               // recv_pci_ptr
+        if let Some(_recv_pci) = self.recv_pci.clone() {
+            encode_ptr(None, &mut index, &mut w)?;
+        } else {
+            w.write_u32::<LittleEndian>(0)?;
+        }
+        let recv_buffer_is_null = if self.recv_buffer_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(recv_buffer_is_null)?;
+        w.write_u32::<LittleEndian>(self.recv_length)?;
+
+        self.handle.encode_value(&mut w)?;
+        self.send_pci.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.send_length)?;
+        w.extend(self.send_buffer.clone());
+
+        if let Some(recv_pci) = self.recv_pci.clone() {
+            recv_pci.encode_ptr(&mut index, &mut w)?;
+            recv_pci.encode_value(&mut w)?;
+        }
+
+        Ok(w)
+    }
+}
+
+#[derive(Debug, Clone)]
 #[allow(dead_code, non_camel_case_types)]
 struct SCardIO_Request {
     protocol: CardProtocol,
@@ -1649,6 +1686,16 @@ impl SCardIO_Request {
     }
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
         payload.read_exact(&mut self.extra_bytes)?;
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        w.write_u32::<LittleEndian>(self.protocol.bits())?;
+        encode_ptr(Some(self.extra_bytes_length), index, w)
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        w.extend_from_slice(&self.extra_bytes);
         Ok(())
     }
 }
@@ -2205,23 +2252,49 @@ mod tests {
 
     fn test_ioctl(
         established_ctxs: u32,
+        connect_scard_to_ctx: Option<u32>,
         ctl_code: IoctlCode,
         payload: &dyn Encode,
         expected: Vec<u8>,
     ) {
         let mut c = client();
+
         for _ in 0..established_ctxs {
             c.contexts.establish();
         }
+        if let Some(connect_scard_to_ctx) = connect_scard_to_ctx {
+            connect_scard(&mut c, connect_scard_to_ctx);
+        }
+
         let (code, res) = c.ioctl(ctl_code, &mut to_payload(payload)).unwrap();
         assert_eq!(0, code);
         assert_eq!(expected, res);
+    }
+
+    /// Connects a piv::Card to the client's internal context cache
+    /// (on the context corresponding to context_value). This is a manual
+    /// way of doing what test_scard_ioctl_connectw does to the Client's
+    /// internal state.
+    fn connect_scard(c: &mut Client, context_value: u32) {
+        let ctx = c.contexts.get(context_value).unwrap();
+        ctx.connect(
+            Context {
+                length: 4,
+                value: context_value,
+            },
+            c.uuid,
+            &c.cert_der,
+            &c.key_der,
+            c.pin.clone(),
+        )
+        .unwrap();
     }
 
     #[test]
     fn test_accessstartedevent() {
         test_ioctl(
             0,
+            None,
             IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT,
             &ScardAccessStartedEvent_Call {
                 _unused: 3234823568,
@@ -2236,6 +2309,7 @@ mod tests {
     fn test_establishcontext() {
         test_ioctl(
             0,
+            None,
             IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT,
             &EstablishContext_Call {
                 scope: Scope::SCARD_SCOPE_SYSTEM,
@@ -2251,6 +2325,7 @@ mod tests {
     fn test_listreadersw() {
         test_ioctl(
             0,
+            None,
             IoctlCode::SCARD_IOCTL_LISTREADERSW,
             &ListReaders_Call {
                 context: Context {
@@ -2277,6 +2352,7 @@ mod tests {
         let context_value = 2;
         test_ioctl(
             context_value,
+            None,
             IoctlCode::SCARD_IOCTL_GETDEVICETYPEID,
             &GetDeviceTypeId_Call {
                 context: Context {
@@ -2297,6 +2373,7 @@ mod tests {
         let context_value = 2;
         test_ioctl(
             context_value,
+            None,
             IoctlCode::SCARD_IOCTL_RELEASECONTEXT,
             &Context_Call {
                 context: Context {
@@ -2315,6 +2392,7 @@ mod tests {
         let context_value = 1;
         test_ioctl(
             context_value,
+            None,
             IoctlCode::SCARD_IOCTL_GETSTATUSCHANGEW,
             &GetStatusChange_Call {
                 context: Context {
@@ -2361,6 +2439,7 @@ mod tests {
         let context_value = 5;
         test_ioctl(
             context_value,
+            None,
             IoctlCode::SCARD_IOCTL_CONNECTW,
             &Connect_Call {
                 reader: "Teleport".to_string(),
@@ -2388,6 +2467,7 @@ mod tests {
         let context_value = 5;
         test_ioctl(
             context_value,
+            None,
             IoctlCode::SCARD_IOCTL_BEGINTRANSACTION,
             &HCardAndDisposition_Call {
                 handle: Handle {
@@ -2411,6 +2491,7 @@ mod tests {
         let context_value = 5;
         test_ioctl(
             context_value,
+            None,
             IoctlCode::SCARD_IOCTL_STATUSW,
             &Status_Call {
                 handle: Handle {
@@ -2430,6 +2511,41 @@ mod tests {
                 0, 0, 2, 0, 6, 0, 0, 0, 2, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 20, 0,
                 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0, 116, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_transmit() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            Some(context_value),
+            IoctlCode::SCARD_IOCTL_TRANSMIT,
+            &Transmit_Call {
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                send_pci: SCardIO_Request {
+                    protocol: CardProtocol::SCARD_PROTOCOL_T1,
+                    extra_bytes_length: 0,
+                    extra_bytes: vec![],
+                },
+                send_length: 14,
+                send_buffer: vec![0, 164, 4, 0, 9, 160, 0, 0, 3, 8, 0, 0, 16, 0],
+                recv_pci: None,
+                recv_buffer_is_null: false,
+                recv_length: 258,
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                21, 0, 0, 0, 0, 0, 2, 0, 21, 0, 0, 0, 97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121, 7, 79,
+                5, 160, 0, 0, 3, 8, 144, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
         )
     }
