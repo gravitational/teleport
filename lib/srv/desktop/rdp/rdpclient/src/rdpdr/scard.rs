@@ -810,6 +810,29 @@ impl ListReaders_Call {
     }
 }
 
+impl Encode for ListReaders_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+        encode_ptr(Some(self.groups_ptr_length), &mut index, &mut w)?; // takes care of encoding groups_ptr
+        let readers_is_null = if self.readers_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(readers_is_null)?;
+        w.write_u32::<LittleEndian>(self.readers_size)?;
+
+        self.context.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.groups_length)?;
+        w.extend(encode_multistring_unicode(&self.groups)?);
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct ListReaders_Return {
@@ -2050,6 +2073,27 @@ mod tests {
             vec![
                 1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
                 0, 0, 2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_listreadersw() {
+        test_ioctl(
+            IoctlCode::SCARD_IOCTL_LISTREADERSW,
+            &ListReaders_Call {
+                context: Context::new(1),
+                groups_ptr_length: 36,
+                groups_length: 36,
+                groups_ptr: 131076,
+                groups: vec!["SCard$AllReaders".to_string()],
+                readers_is_null: false,
+                readers_size: 4294967295,
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0,
+                0, 0, 2, 0, 20, 0, 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0,
+                116, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
         )
     }
