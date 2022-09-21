@@ -1038,6 +1038,33 @@ impl GetStatusChange_Call {
     }
 }
 
+impl Encode for GetStatusChange_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        w.write_u32::<LittleEndian>(self.timeout)?;
+        encode_ptr(Some(self.states_ptr_length), &mut index, &mut w)?; // takes care of encoding states_ptr
+
+        self.context.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.states_length)?;
+        for state in &self.states {
+            state.encode_ptr(&mut index, &mut w)?;
+        }
+        for state in &self.states {
+            state.encode_value(&mut w)?;
+        }
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
 struct ReaderState {
     reader: String,
@@ -1056,6 +1083,17 @@ impl ReaderState {
 
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
         self.reader = decode_string_unicode(payload)?;
+        Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut Vec<u8>) -> RdpResult<()> {
+        encode_ptr(None, index, w)?;
+        self.common.encode(w)?;
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        w.extend(encode_str_unicode(&self.reader)?);
         Ok(())
     }
 }
@@ -2204,6 +2242,52 @@ mod tests {
             },
             vec![
                 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_getstatuschangew() {
+        let context_value = 1;
+        test_ioctl(
+            context_value,
+            IoctlCode::SCARD_IOCTL_GETSTATUSCHANGEW,
+            &GetStatusChange_Call {
+                context: Context {
+                    length: 4,
+                    value: context_value,
+                },
+                timeout: 4294967295,
+                states_ptr_length: 2,
+                states_ptr: 131076,
+                states_length: 2,
+                states: vec![
+                    ReaderState {
+                        reader: "\\\\?PnP?\\Notification".to_string(),
+                        common: ReaderState_Common_Call {
+                            current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            atr_length: 0,
+                            atr: [0; 36],
+                        },
+                    },
+                    ReaderState {
+                        reader: "Teleport".to_string(),
+                        common: ReaderState_Common_Call {
+                            current_state: CardStateFlags::SCARD_STATE_EMPTY,
+                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                            atr_length: 0,
+                            atr: [0; 36],
+                        },
+                    },
+                ],
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
+                0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                16, 0, 0, 0, 34, 0, 0, 0, 11, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0,
+                11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
         )
     }
