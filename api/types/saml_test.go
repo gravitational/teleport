@@ -41,7 +41,7 @@ func TestSAMLSecretsStrip(t *testing.T) {
 }
 
 // TestSAMLAcsUriHasConnector tests that the ACS URI has the connector ID as the last part if IdP-initiated login is enabled.
-func TestSAMLAcsUriHasConnectorName(t *testing.T) {
+func TestSAMLACSURIHasConnectorName(t *testing.T) {
 	connector, err := NewSAMLConnector("myBusinessConnector", SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://teleport.local/webapi/v1/saml/acs",
 		SSO:                      "test",
