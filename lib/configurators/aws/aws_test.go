@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package databases
+package aws
 
 import (
 	"context"
@@ -22,14 +22,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/trace"
 )
 
@@ -45,7 +50,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 
 	tests := map[string]struct {
 		returnError        bool
-		flags              BootstrapFlags
+		flags              configurators.BootstrapFlags
 		fileConfig         *config.FileConfig
 		target             awslib.Identity
 		statements         []*awslib.Statement
@@ -452,6 +457,48 @@ func TestAWSIAMDocuments(t *testing.T) {
 				},
 			},
 		},
+		"AutoDiscovery EC2": {
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{DiscoveryService: true},
+			fileConfig: &config.FileConfig{
+				Discovery: config.Discovery{
+					AWSMatchers: []config.AWSMatcher{
+						{
+							Types:   []string{constants.AWSServiceTypeEC2},
+							Regions: []string{"eu-central-1"},
+							Tags:    map[string]utils.Strings{"*": []string{"*"}},
+							InstallParams: &config.InstallParams{
+								JoinParams: config.JoinParams{
+									TokenName: "token",
+									Method:    types.JoinMethodEC2,
+								},
+							},
+						},
+					},
+				},
+			},
+
+			statements: []*awslib.Statement{
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"ec2:DescribeInstances",
+						"ssm:GetCommandInvocation",
+						"ssm:SendCommand"},
+					Resources: []string{"*"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"ec2:DescribeInstances",
+						"ssm:GetCommandInvocation",
+						"ssm:SendCommand"},
+					Resources: []string{"*"},
+				},
+			},
+		},
 		"AutoDiscoveryUnknownIdentity": {
 			returnError: true,
 			target:      unknownIdentity,
@@ -521,7 +568,7 @@ func TestAWSPolicyCreator(t *testing.T) {
 				isBoundary: test.isBoundary,
 			}
 
-			actionCtx := &ConfiguratorActionContext{}
+			actionCtx := &configurators.ConfiguratorActionContext{}
 			err := action.Execute(ctx, actionCtx)
 			if test.returnError {
 				require.Error(t, err)
@@ -550,12 +597,12 @@ func TestAWSPoliciesAttacher(t *testing.T) {
 		returnError bool
 		target      awslib.Identity
 		policies    *policiesMock
-		actionCtx   *ConfiguratorActionContext
+		actionCtx   *configurators.ConfiguratorActionContext
 	}{
 		"AttachPoliciesToUser": {
 			target:   userTarget,
 			policies: &policiesMock{},
-			actionCtx: &ConfiguratorActionContext{
+			actionCtx: &configurators.ConfiguratorActionContext{
 				AWSPolicyArn:         "policy-arn",
 				AWSPolicyBoundaryArn: "policy-boundary-arn",
 			},
@@ -563,7 +610,7 @@ func TestAWSPoliciesAttacher(t *testing.T) {
 		"AttachPoliciesToRole": {
 			target:   roleTarget,
 			policies: &policiesMock{},
-			actionCtx: &ConfiguratorActionContext{
+			actionCtx: &configurators.ConfiguratorActionContext{
 				AWSPolicyArn:         "policy-arn",
 				AWSPolicyBoundaryArn: "policy-boundary-arn",
 			},
@@ -572,7 +619,7 @@ func TestAWSPoliciesAttacher(t *testing.T) {
 			returnError: true,
 			target:      roleTarget,
 			policies:    &policiesMock{},
-			actionCtx: &ConfiguratorActionContext{
+			actionCtx: &configurators.ConfiguratorActionContext{
 				AWSPolicyBoundaryArn: "policy-boundary-arn",
 			},
 		},
@@ -580,7 +627,7 @@ func TestAWSPoliciesAttacher(t *testing.T) {
 			returnError: true,
 			target:      roleTarget,
 			policies:    &policiesMock{},
-			actionCtx: &ConfiguratorActionContext{
+			actionCtx: &configurators.ConfiguratorActionContext{
 				AWSPolicyArn: "policy-arn",
 			},
 		},
@@ -590,7 +637,7 @@ func TestAWSPoliciesAttacher(t *testing.T) {
 			policies: &policiesMock{
 				attachError: trace.NotImplemented("attach policy not implemented"),
 			},
-			actionCtx: &ConfiguratorActionContext{
+			actionCtx: &configurators.ConfiguratorActionContext{
 				AWSPolicyArn:         "policy-arn",
 				AWSPolicyBoundaryArn: "policy-boundary-arn",
 			},
@@ -601,7 +648,7 @@ func TestAWSPoliciesAttacher(t *testing.T) {
 			policies: &policiesMock{
 				attachBoundaryError: trace.NotImplemented("attach policy not implemented"),
 			},
-			actionCtx: &ConfiguratorActionContext{
+			actionCtx: &configurators.ConfiguratorActionContext{
 				AWSPolicyArn:         "policy-arn",
 				AWSPolicyBoundaryArn: "policy-boundary-arn",
 			},
@@ -630,7 +677,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := map[string]struct {
-		flags             BootstrapFlags
+		flags             configurators.BootstrapFlags
 		identity          awslib.Identity
 		accountID         string
 		partitionID       string
@@ -640,7 +687,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 		targetPartitionID string
 	}{
 		"UserNameFromFlags": {
-			flags:             BootstrapFlags{AttachToUser: "example-user"},
+			flags:             configurators.BootstrapFlags{AttachToUser: "example-user"},
 			accountID:         "123456",
 			partitionID:       "aws",
 			targetType:        awslib.User{},
@@ -649,14 +696,14 @@ func TestAWSPoliciesTarget(t *testing.T) {
 			targetPartitionID: "aws",
 		},
 		"UserARNFromFlags": {
-			flags:             BootstrapFlags{AttachToUser: "arn:aws:iam::123456:user/example-user"},
+			flags:             configurators.BootstrapFlags{AttachToUser: "arn:aws:iam::123456:user/example-user"},
 			targetType:        awslib.User{},
 			targetName:        "example-user",
 			targetAccountID:   "123456",
 			targetPartitionID: "aws",
 		},
 		"RoleNameFromFlags": {
-			flags:             BootstrapFlags{AttachToRole: "example-role"},
+			flags:             configurators.BootstrapFlags{AttachToRole: "example-role"},
 			accountID:         "123456",
 			partitionID:       "aws",
 			targetType:        awslib.Role{},
@@ -665,14 +712,14 @@ func TestAWSPoliciesTarget(t *testing.T) {
 			targetPartitionID: "aws",
 		},
 		"RoleARNFromFlags": {
-			flags:             BootstrapFlags{AttachToRole: "arn:aws:iam::123456:role/example-role"},
+			flags:             configurators.BootstrapFlags{AttachToRole: "arn:aws:iam::123456:role/example-role"},
 			targetType:        awslib.Role{},
 			targetName:        "example-role",
 			targetAccountID:   "123456",
 			targetPartitionID: "aws",
 		},
 		"UserFromIdentity": {
-			flags:             BootstrapFlags{},
+			flags:             configurators.BootstrapFlags{},
 			identity:          userIdentity,
 			targetType:        awslib.User{},
 			targetName:        userIdentity.GetName(),
@@ -680,7 +727,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 			targetPartitionID: userIdentity.GetPartition(),
 		},
 		"RoleFromIdentity": {
-			flags:             BootstrapFlags{},
+			flags:             configurators.BootstrapFlags{},
 			identity:          roleIdentity,
 			targetType:        awslib.Role{},
 			targetName:        roleIdentity.GetName(),
@@ -688,7 +735,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 			targetPartitionID: roleIdentity.GetPartition(),
 		},
 		"DefaultTarget": {
-			flags:             BootstrapFlags{},
+			flags:             configurators.BootstrapFlags{},
 			accountID:         "*",
 			partitionID:       "*",
 			targetType:        awslib.User{},
@@ -710,16 +757,68 @@ func TestAWSPoliciesTarget(t *testing.T) {
 	}
 }
 
+func TestAWSDocumentConfigurator(t *testing.T) {
+	var err error
+	ctx := context.Background()
+
+	config := ConfiguratorConfig{
+		AWSSession:   &awssession.Session{},
+		AWSSTSClient: &STSMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		AWSSSMClient: &SSMMock{
+			t: t,
+			expectedInput: &ssm.CreateDocumentInput{
+				Content:        aws.String(EC2DiscoverySSMDocument("https://proxy.example.org:443")),
+				DocumentType:   aws.String("Command"),
+				DocumentFormat: aws.String("YAML"),
+				Name:           aws.String("document"),
+			},
+		},
+		FileConfig: &config.FileConfig{
+			Proxy: config.Proxy{
+				PublicAddr: []string{"proxy.example.org:443"},
+			},
+			Discovery: config.Discovery{
+				AWSMatchers: []config.AWSMatcher{
+					{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						SSM:     config.AWSSSM{DocumentName: "document"},
+					},
+				},
+			},
+		},
+		Flags: configurators.BootstrapFlags{
+			DiscoveryService:    true,
+			ForceEC2Permissions: true,
+		},
+		Policies: &policiesMock{
+			upsertArn: "polcies-arn",
+		},
+	}
+	configurator, err := NewAWSConfigurator(config)
+	require.NoError(t, err)
+	require.False(t, configurator.IsEmpty())
+
+	// Execute actions.
+	actionCtx := &configurators.ConfiguratorActionContext{}
+	for _, action := range configurator.Actions() {
+		err = action.Execute(ctx, actionCtx)
+		require.NoError(t, err)
+	}
+
+}
+
 // TestAWSConfigurator tests all actions together.
 func TestAWSConfigurator(t *testing.T) {
 	var err error
 	ctx := context.Background()
 
-	config := AWSConfiguratorConfig{
+	config := ConfiguratorConfig{
 		AWSSession:   &awssession.Session{},
 		AWSSTSClient: &STSMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		AWSSSMClient: &SSMMock{},
 		FileConfig:   &config.FileConfig{},
-		Flags: BootstrapFlags{
+		Flags: configurators.BootstrapFlags{
 			AttachToUser:        "some-user",
 			ForceRDSPermissions: true,
 		},
@@ -733,11 +832,26 @@ func TestAWSConfigurator(t *testing.T) {
 	require.False(t, configurator.IsEmpty())
 
 	// Execute actions.
-	actionCtx := &ConfiguratorActionContext{}
+	actionCtx := &configurators.ConfiguratorActionContext{}
 	for _, action := range configurator.Actions() {
 		err = action.Execute(ctx, actionCtx)
 		require.NoError(t, err)
 	}
+
+	config.Flags.DiscoveryService = true
+	config.Flags.ForceEC2Permissions = true
+
+	configurator, err = NewAWSConfigurator(config)
+	require.NoError(t, err)
+	require.False(t, configurator.IsEmpty())
+
+	// Execute actions.
+	actionCtx = &configurators.ConfiguratorActionContext{}
+	for _, action := range configurator.Actions() {
+		err = action.Execute(ctx, actionCtx)
+		require.NoError(t, err)
+	}
+
 }
 
 type policiesMock struct {
@@ -771,4 +885,19 @@ func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdenti
 	return &sts.GetCallerIdentityOutput{
 		Arn: aws.String(m.ARN),
 	}, m.callerIdentityErr
+}
+
+type SSMMock struct {
+	ssmiface.SSMAPI
+
+	t             *testing.T
+	expectedInput *ssm.CreateDocumentInput
+}
+
+func (m *SSMMock) CreateDocumentWithContext(ctx aws.Context, input *ssm.CreateDocumentInput, opts ...request.Option) (*ssm.CreateDocumentOutput, error) {
+
+	m.t.Helper()
+	require.Equal(m.t, m.expectedInput, input)
+
+	return nil, nil
 }
