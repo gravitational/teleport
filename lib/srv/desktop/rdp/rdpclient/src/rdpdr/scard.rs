@@ -1265,6 +1265,23 @@ impl Connect_Call {
     }
 }
 
+impl Encode for Connect_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        encode_ptr(None, &mut index, &mut w)?;
+        self.common.encode_ptr(&mut index, &mut w)?;
+        w.extend(encode_str_unicode(&self.reader)?);
+        self.common.encode_value(&mut w)?;
+
+        Ok(w)
+    }
+}
+
 bitflags! {
     struct CardProtocol: u32 {
         const SCARD_PROTOCOL_UNDEFINED = 0x00000000;
@@ -1299,9 +1316,21 @@ impl Connect_Common {
             preferred_protocols,
         })
     }
+
     fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
         self.context.decode_value(payload)?;
         Ok(())
+    }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_ptr(index, w)?;
+        w.write_u32::<LittleEndian>(self.share_mode)?;
+        w.write_u32::<LittleEndian>(self.preferred_protocols.bits())?;
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut dyn Write) -> RdpResult<()> {
+        self.context.encode_value(w)
     }
 }
 
@@ -2288,6 +2317,33 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 16, 0, 0, 0, 34, 0, 0, 0, 11, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0,
                 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_connectw() {
+        let context_value = 5;
+        test_ioctl(
+            context_value,
+            IoctlCode::SCARD_IOCTL_CONNECTW,
+            &Connect_Call {
+                reader: "Teleport".to_string(),
+                common: Connect_Common {
+                    context: Context {
+                        length: 4,
+                        value: context_value,
+                    },
+                    share_mode: 2,
+                    preferred_protocols: CardProtocol::SCARD_PROTOCOL_T0
+                        | CardProtocol::SCARD_PROTOCOL_T1
+                        | CardProtocol::SCARD_PROTOCOL_TX,
+                },
+            },
+            vec![
+                1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
+                0, 0, 2, 0, 4, 0, 0, 0, 4, 0, 2, 0, 2, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0,
+                1, 0, 0, 0,
             ],
         )
     }
