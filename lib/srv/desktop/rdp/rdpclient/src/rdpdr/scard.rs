@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::Payload;
 use crate::{piv, Message};
-use crate::{Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use iso7816::command::Command as CardCommand;
@@ -36,7 +36,7 @@ pub struct Client {
     // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
     //
     // contexts also holds a cache and connected smartcard handles for each context.
-    pub(crate) contexts: Contexts,
+    contexts: Contexts,
     uuid: Uuid,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
@@ -513,8 +513,8 @@ impl RPCETypeHeader {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
-pub(crate) struct ScardAccessStartedEvent_Call {
-    pub _unused: u32,
+struct ScardAccessStartedEvent_Call {
+    _unused: u32,
 }
 
 impl ScardAccessStartedEvent_Call {
@@ -522,14 +522,6 @@ impl ScardAccessStartedEvent_Call {
         Ok(Self {
             _unused: payload.read_u32::<LittleEndian>()?,
         })
-    }
-}
-
-impl Encode for ScardAccessStartedEvent_Call {
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-        w.write_u32::<LittleEndian>(self._unused)?;
-        Ok(w)
     }
 }
 
@@ -625,8 +617,8 @@ impl Long_Return {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-pub(crate) struct EstablishContext_Call {
-    pub scope: Scope,
+struct EstablishContext_Call {
+    scope: Scope,
 }
 
 impl EstablishContext_Call {
@@ -642,19 +634,9 @@ impl EstablishContext_Call {
     }
 }
 
-impl Encode for EstablishContext_Call {
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-        w.extend(RPCEStreamHeader::new().encode()?);
-        RPCETypeHeader::new(0).encode(&mut w)?;
-        w.write_u32::<LittleEndian>(self.scope as u32)?;
-        Ok(w)
-    }
-}
-
 #[derive(Debug, FromPrimitive, ToPrimitive, Copy, Clone)]
 #[allow(non_camel_case_types)]
-pub(crate) enum Scope {
+enum Scope {
     SCARD_SCOPE_USER = 0x00000000,
     SCARD_SCOPE_TERMINAL = 0x00000001,
     SCARD_SCOPE_SYSTEM = 0x00000002,
@@ -685,15 +667,15 @@ impl EstablishContext_Return {
 }
 
 #[derive(Debug)]
-pub(crate) struct Context {
-    pub length: u32,
+struct Context {
+    length: u32,
     // Shortcut: we always create 4-byte context values.
     // The spec allows this field to have variable length.
-    pub value: u32,
+    value: u32,
 }
 
 impl Context {
-    pub(crate) fn new(val: u32) -> Self {
+    fn new(val: u32) -> Self {
         Self {
             length: 4,
             value: val,
@@ -756,14 +738,14 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-pub(crate) struct ListReaders_Call {
-    pub context: Context,
-    pub groups_ptr_length: u32,
-    pub groups_length: u32,
-    pub groups_ptr: u32,
-    pub groups: Vec<String>,
-    pub readers_is_null: bool,
-    pub readers_size: u32,
+struct ListReaders_Call {
+    context: Context,
+    groups_ptr_length: u32,
+    groups_length: u32,
+    groups_ptr: u32,
+    groups: Vec<String>,
+    readers_is_null: bool,
+    readers_size: u32,
 }
 
 impl ListReaders_Call {
@@ -807,24 +789,6 @@ impl ListReaders_Call {
                 readers_size,
             })
         }
-    }
-}
-
-impl Encode for ListReaders_Call {
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-        w.extend(RPCEStreamHeader::new().encode()?);
-        RPCETypeHeader::new(0).encode(&mut w)?;
-        let mut index = 0;
-        self.context.encode_ptr(&mut index, &mut w)?;
-        encode_ptr(Some(self.groups_ptr_length), &mut index, &mut w)?; // takes care of encoding groups_ptr
-        let readers_is_null = if self.readers_is_null { 1 } else { 0 };
-        w.write_u32::<LittleEndian>(readers_is_null)?;
-        w.write_u32::<LittleEndian>(self.readers_size)?;
-        self.context.encode_value(&mut w)?;
-        w.write_u32::<LittleEndian>(self.groups_length)?;
-        w.extend(encode_multistring_unicode(&self.groups)?);
-        Ok(w)
     }
 }
 
@@ -957,8 +921,8 @@ fn encode_multistring_ascii(items: &[String]) -> RdpResult<Vec<u8>> {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-pub(crate) struct Context_Call {
-    pub context: Context,
+struct Context_Call {
+    context: Context,
 }
 
 impl Context_Call {
@@ -973,30 +937,15 @@ impl Context_Call {
     }
 }
 
-impl Encode for Context_Call {
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-
-        w.extend(RPCEStreamHeader::new().encode()?);
-        RPCETypeHeader::new(0).encode(&mut w)?;
-
-        let mut index = 0;
-        self.context.encode_ptr(&mut index, &mut w)?;
-        self.context.encode_value(&mut w)?;
-
-        Ok(w)
-    }
-}
-
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-pub(crate) struct GetStatusChange_Call {
-    pub context: Context,
-    pub timeout: u32,
-    pub states_ptr_length: u32,
-    pub states_ptr: u32,
-    pub states_length: u32,
-    pub states: Vec<ReaderState>,
+struct GetStatusChange_Call {
+    context: Context,
+    timeout: u32,
+    states_ptr_length: u32,
+    states_ptr: u32,
+    states_length: u32,
+    states: Vec<ReaderState>,
 }
 
 impl GetStatusChange_Call {
@@ -1033,37 +982,10 @@ impl GetStatusChange_Call {
     }
 }
 
-impl Encode for GetStatusChange_Call {
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-
-        w.extend(RPCEStreamHeader::new().encode()?);
-        RPCETypeHeader::new(0).encode(&mut w)?;
-
-        let mut index = 0;
-        self.context.encode_ptr(&mut index, &mut w)?;
-
-        w.write_u32::<LittleEndian>(self.timeout)?;
-        encode_ptr(Some(self.states_ptr_length), &mut index, &mut w)?; // takes care of encoding states_ptr
-
-        self.context.encode_value(&mut w)?;
-
-        w.write_u32::<LittleEndian>(self.states_length)?;
-        for state in &self.states {
-            state.encode_ptr(&mut index, &mut w)?;
-        }
-        for state in &self.states {
-            state.encode_value(&mut w)?;
-        }
-
-        Ok(w)
-    }
-}
-
 #[derive(Debug)]
-pub(crate) struct ReaderState {
-    pub reader: String,
-    pub common: ReaderState_Common_Call,
+struct ReaderState {
+    reader: String,
+    common: ReaderState_Common_Call,
 }
 
 impl ReaderState {
@@ -1095,11 +1017,11 @@ impl ReaderState {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-pub(crate) struct ReaderState_Common_Call {
-    pub current_state: CardStateFlags,
-    pub event_state: CardStateFlags,
-    pub atr_length: u32,
-    pub atr: [u8; 36],
+struct ReaderState_Common_Call {
+    current_state: CardStateFlags,
+    event_state: CardStateFlags,
+    atr_length: u32,
+    atr: [u8; 36],
 }
 
 impl ReaderState_Common_Call {
@@ -1128,7 +1050,7 @@ impl ReaderState_Common_Call {
 }
 
 bitflags! {
-    pub struct CardStateFlags: u32 {
+    struct CardStateFlags: u32 {
         const SCARD_STATE_UNAWARE = 0x0000;
         const SCARD_STATE_IGNORE = 0x0001;
         const SCARD_STATE_CHANGED = 0x0002;
@@ -1617,10 +1539,10 @@ impl Transmit_Return {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-pub(crate) struct GetDeviceTypeId_Call {
-    pub context: Context,
-    pub reader_ptr: u32,
-    pub reader_name: String,
+struct GetDeviceTypeId_Call {
+    context: Context,
+    reader_ptr: u32,
+    reader_name: String,
 }
 
 impl GetDeviceTypeId_Call {
@@ -1640,27 +1562,6 @@ impl GetDeviceTypeId_Call {
             reader_ptr,
             reader_name,
         })
-    }
-}
-
-impl Encode for GetDeviceTypeId_Call {
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-
-        w.extend(RPCEStreamHeader::new().encode()?);
-        RPCETypeHeader::new(0).encode(&mut w)?;
-
-        let mut index = 0;
-        self.context.encode_ptr(&mut index, &mut w)?;
-
-        encode_ptr(None, &mut index, &mut w)?;
-
-        self.context.encode_value(&mut w)?;
-
-        let reader_name = encode_str_unicode(&self.reader_name)?;
-        debug!("reader_name = {:?}", reader_name);
-        w.extend(reader_name);
-        Ok(w)
     }
 }
 
@@ -1898,8 +1799,8 @@ impl GetReaderIcon_Return {
 }
 
 #[derive(Debug)]
-pub(crate) struct Contexts {
-    pub(crate) contexts: HashMap<u32, ContextInternal>,
+struct Contexts {
+    contexts: HashMap<u32, ContextInternal>,
     next_id: u32,
 }
 
@@ -1911,7 +1812,7 @@ impl Contexts {
         }
     }
 
-    pub(crate) fn establish(&mut self) -> Context {
+    fn establish(&mut self) -> Context {
         let ctx_internal = ContextInternal::new();
         let id = self.next_id;
         self.next_id += 1;
@@ -1920,7 +1821,7 @@ impl Contexts {
         ctx
     }
 
-    pub(crate) fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
+    fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
         self.contexts.get_mut(&id)
     }
 
@@ -1930,14 +1831,14 @@ impl Contexts {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct ContextInternal {
+struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
     cache: HashMap<String, Vec<u8>>,
 }
 
 impl ContextInternal {
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self {
             next_id: 1,
             handles: HashMap::new(),

@@ -37,7 +37,7 @@ fn test_to_windows_time() {
     assert_eq!(to_windows_time(1000), 116444736010000000);
 }
 
-fn client(with_scard_id: bool, established_contexts: u32) -> Client {
+fn client(with_scard_id: bool) -> Client {
     let mut c = Client::new(Config {
         cert_der: vec![],
         key_der: vec![],
@@ -71,10 +71,6 @@ fn client(with_scard_id: bool, established_contexts: u32) -> Client {
 
     if with_scard_id {
         c.push_active_device_id(SCARD_DEVICE_ID).unwrap();
-    }
-
-    for _ in 0..established_contexts {
-        c.scard.contexts.establish();
     }
 
     c
@@ -124,7 +120,7 @@ fn test_payload_in_to_response_out(
 
 #[test]
 fn test_handle_server_announce() {
-    let mut c = client(false, 0);
+    let mut c = client(false);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -166,7 +162,7 @@ fn test_handle_server_announce() {
 
 #[test]
 fn test_handle_server_capability() {
-    let mut c = client(false, 0);
+    let mut c = client(false);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -288,7 +284,7 @@ fn test_handle_server_capability() {
 
 #[test]
 fn test_handle_client_id_confirm() {
-    let mut c = client(false, 0);
+    let mut c = client(false);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
@@ -329,7 +325,7 @@ fn test_handle_client_id_confirm() {
 
 #[test]
 fn test_handle_device_reply() {
-    let mut c = client(true, 0);
+    let mut c = client(true);
     test_payload_in_to_response_out(
         &mut c,
         PayloadIn {
