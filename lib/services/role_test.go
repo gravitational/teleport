@@ -2667,13 +2667,13 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		{
 			name:      "cluster requires MFA, no MFA provided",
 			roles:     RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
-			mfaParams: AccessMFAParams{Verified: false, AlwaysRequired: true},
+			mfaParams: AccessMFAParams{Verified: false, Required: MFARequiredAlways},
 			access:    []access{},
 		},
 		{
 			name:      "cluster requires MFA, MFA provided",
 			roles:     RoleSet{roleDevStage, roleDevProdWithMFA, roleDevProd},
-			mfaParams: AccessMFAParams{Verified: true, AlwaysRequired: true},
+			mfaParams: AccessMFAParams{Verified: true, Required: MFARequiredAlways},
 			access: []access{
 				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
 				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
@@ -3656,14 +3656,14 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			name:      "cluster requires MFA but MFA not verified",
 			roles:     []*types.RoleV5{matchingLabelsRole},
 			cluster:   clusterWithLabels,
-			mfaParams: AccessMFAParams{Verified: false, AlwaysRequired: true},
+			mfaParams: AccessMFAParams{Verified: false, Required: MFARequiredAlways},
 			hasAccess: false,
 		},
 		{
 			name:      "role requires MFA and MFA verified",
 			roles:     []*types.RoleV5{matchingLabelsRole},
 			cluster:   clusterWithLabels,
-			mfaParams: AccessMFAParams{Verified: true, AlwaysRequired: true},
+			mfaParams: AccessMFAParams{Verified: true, Required: MFARequiredAlways},
 			hasAccess: true,
 		},
 	}
@@ -4703,7 +4703,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		server  types.Server
 	}{
 		{
-			test: "test exact match, one sudoer entry, one role",
+			test:    "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 				Spec: types.RoleSpecV5{
@@ -4711,7 +4711,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4775,7 +4775,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4799,7 +4799,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			},
 		},
 		{
-			test: "line deny",
+			test:    "line deny",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 				Spec: types.RoleSpecV5{
@@ -5080,7 +5080,7 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "empty role set and auth pref requirement",
 			expectMFAParams: AccessMFAParams{
-				NeverRequired: true,
+				Required: MFARequiredNever,
 			}},
 		{
 			name: "no roles require mfa, auth pref doesn't require mfa",
@@ -5090,7 +5090,7 @@ func TestMFAParams(t *testing.T) {
 			},
 			authPrefMFARequireType: types.RequireMFAType_OFF,
 			expectMFAParams: AccessMFAParams{
-				NeverRequired: true,
+				Required: MFARequiredNever,
 			},
 		},
 		{
@@ -5101,7 +5101,7 @@ func TestMFAParams(t *testing.T) {
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
-				AlwaysRequired: true,
+				Required: MFARequiredAlways,
 			},
 		},
 		{
@@ -5111,7 +5111,9 @@ func TestMFAParams(t *testing.T) {
 				types.RequireMFAType_SESSION,
 			},
 			authPrefMFARequireType: types.RequireMFAType_OFF,
-			expectMFAParams:        AccessMFAParams{},
+			expectMFAParams: AccessMFAParams{
+				Required: MFARequiredPerRole,
+			},
 		},
 		{
 			name: "some roles require mfa, auth pref requires mfa",
@@ -5121,7 +5123,7 @@ func TestMFAParams(t *testing.T) {
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
-				AlwaysRequired: true,
+				Required: MFARequiredAlways,
 			},
 		},
 		{
@@ -5132,7 +5134,7 @@ func TestMFAParams(t *testing.T) {
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
-				AlwaysRequired: true,
+				Required: MFARequiredAlways,
 			},
 		},
 		{
@@ -5143,7 +5145,7 @@ func TestMFAParams(t *testing.T) {
 			},
 			authPrefMFARequireType: types.RequireMFAType_OFF,
 			expectMFAParams: AccessMFAParams{
-				AlwaysRequired: true,
+				Required: MFARequiredAlways,
 			},
 		},
 		{
@@ -5154,7 +5156,7 @@ func TestMFAParams(t *testing.T) {
 			},
 			authPrefMFARequireType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			expectMFAParams: AccessMFAParams{
-				NeverRequired: true,
+				Required: MFARequiredNever,
 			},
 		},
 		{
@@ -5165,12 +5167,13 @@ func TestMFAParams(t *testing.T) {
 			},
 			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
-				NeverRequired: true,
+				Required: MFARequiredNever,
 			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var set RoleSet
 			for _, roleRequirement := range tc.roleMFARequireTypes {
 				set = append(set, newRole(func(r *types.RoleV5) {

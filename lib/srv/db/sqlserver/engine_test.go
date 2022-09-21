@@ -231,9 +231,13 @@ func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.Acces
 }
 
 func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	if authPrefMFARequirement.IsSessionMFARequired() {
+		return services.AccessMFAParams{
+			Required: services.MFARequiredAlways,
+		}
+	}
 	return services.AccessMFAParams{
-		AlwaysRequired: authPrefMFARequirement.IsSessionMFARequired(),
-		NeverRequired:  !authPrefMFARequirement.IsSessionMFARequired(),
+		Required: services.MFARequiredNever,
 	}
 }
 

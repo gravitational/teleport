@@ -1019,6 +1019,13 @@ func testGenerateUserSingleUseCert(ctx context.Context, t *testing.T, cl *Client
 	require.NoError(t, stream.CloseSend())
 }
 
+var requireMFATypes = []types.RequireMFAType{
+	types.RequireMFAType_OFF,
+	types.RequireMFAType_SESSION,
+	types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+	types.RequireMFAType_HARDWARE_KEY_TOUCH,
+}
+
 func TestIsMFARequired(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -1041,12 +1048,7 @@ func TestIsMFARequired(t *testing.T) {
 	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"})
 	require.NoError(t, err)
 
-	for _, authPrefRequireMFAType := range []types.RequireMFAType{
-		types.RequireMFAType_OFF,
-		types.RequireMFAType_SESSION,
-		types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
-		types.RequireMFAType_HARDWARE_KEY_TOUCH,
-	} {
+	for _, authPrefRequireMFAType := range requireMFATypes {
 		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 			Type:           constants.Local,
 			SecondFactor:   constants.SecondFactorOptional,
@@ -1059,12 +1061,7 @@ func TestIsMFARequired(t *testing.T) {
 		err = srv.Auth().SetAuthPreference(ctx, authPref)
 		require.NoError(t, err)
 
-		for _, roleRequireMFAType := range []types.RequireMFAType{
-			types.RequireMFAType_OFF,
-			types.RequireMFAType_SESSION,
-			types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
-			types.RequireMFAType_HARDWARE_KEY_TOUCH,
-		} {
+		for _, roleRequireMFAType := range requireMFATypes {
 			// If role or auth pref have "hardware_key_touch", expect not required.
 			expectRequired := !(roleRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH || authPrefRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH)
 			// Otherwise, if auth pref or role require session MFA, expect required.

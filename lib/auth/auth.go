@@ -3192,9 +3192,10 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		return nil, trace.Wrap(err)
 	}
 
-	if params := checker.MFAParams(pref.GetRequireMFAType()); params.AlwaysRequired {
+	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
-	} else if params.NeverRequired {
+	case services.MFARequiredNever:
 		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
 

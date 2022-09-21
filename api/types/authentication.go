@@ -715,23 +715,6 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
 }
 
-// type RequireMFATypeString string
-
-// const (
-// 	// RequireMFAOff means MFA is *not* required to begin server sessions.
-// 	RequireMFAOff RequireMFATypeString = "off"
-// 	// RequireMFASession means MFA is required to begin server sessions.
-// 	RequireMFASession RequireMFATypeString = "session_mfa"
-// 	// RequireMFASessionAndHardwareKey means MFA is required to begin server sessions,
-// 	// and login sessions must use a private key backed by a hardware key.
-// 	RequireMFASessionAndHardwareKey RequireMFATypeString = "hardware_key"
-// 	// RequireMFAHardwareKeyTouch means login sessions must use a hardware private key that
-// 	// requires touch to be used. This touch requirement applies to all API requests
-// 	// rather than only session requests. This touch is different from MFA, so to prevent
-// 	// requiring double touch on session requests, normal Session MFA is disabled.
-// 	RequireMFAHardwareKeyTouch RequireMFATypeString = "hardware_key_touch"
-// )
-
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
 	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY

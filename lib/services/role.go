@@ -1098,45 +1098,56 @@ func (set RoleSet) PinSourceIP() bool {
 // MFAParams returns MFA params for the given user given their roles, the cluster
 // auth preference, and whether mfa has been verified.
 func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params AccessMFAParams) {
+	// per-session MFA is overridden by hardware key PIV touch requirement.
+	// check if the auth pref or any roles have this option.
 	if authPrefRequirement == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		// per-session MFA is overridden by hardware key PIV touch requirement.
 		return AccessMFAParams{
-			NeverRequired: true,
+			Required: MFARequiredNever,
+		}
+	}
+	for _, role := range set {
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+			return AccessMFAParams{
+				Required: MFARequiredNever,
+			}
 		}
 	}
 
+	// MFA is always required according to the cluster auth pref.
 	if authPrefRequirement.IsSessionMFARequired() {
-		params.AlwaysRequired = true
-	} else {
-		params.NeverRequired = true
+		return AccessMFAParams{
+			Required: MFARequiredAlways,
+		}
 	}
 
-	if len(set) > 0 {
-		// Assume mfa is always/never required, and then switch
-		// always/never required to false depending on what we find.
-		var roleAlwaysRequired, roleNeverRequired = true, true
-		for _, role := range set {
-			if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-				// per-session MFA is overridden by hardware key PIV touch requirement.
-				return AccessMFAParams{
-					NeverRequired: true,
-				}
-			}
+	// Auth pref doesn't require MFA and no roles to check.
+	if len(set) == 0 {
+		return AccessMFAParams{
+			Required: MFARequiredNever,
+		}
+	}
 
-			if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
-				roleNeverRequired = false
-			} else {
-				roleAlwaysRequired = false
+	// If MFA requirement is the same across all roles, we can skip the per-role check.
+	// Set mfaRequired to the first role's requirement, then check if all other roles match.
+	rolesMFARequired := set[0].GetOptions().RequireMFAType.IsSessionMFARequired()
+	for _, role := range set[1:] {
+		if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
+			// This role differs from the MFA requirement of the other roles, return per-role.
+			return AccessMFAParams{
+				Required: MFARequiredPerRole,
 			}
 		}
-
-		// The cluster auth preference or all roles do require per-session MFA.
-		params.AlwaysRequired = params.AlwaysRequired || roleAlwaysRequired
-		// Neither the cluster nor roles ever require per-session MFA.
-		params.NeverRequired = params.NeverRequired && roleNeverRequired
 	}
 
-	return params
+	if rolesMFARequired {
+		return AccessMFAParams{
+			Required: MFARequiredAlways,
+		}
+	} else {
+		return AccessMFAParams{
+			Required: MFARequiredNever,
+		}
+	}
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
@@ -1974,7 +1985,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
-	if mfa.AlwaysRequired && !mfa.Verified {
+	if mfa.Required == MFARequiredAlways && !mfa.Verified {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
 	}
@@ -2079,7 +2090,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 
 		// if we've reached this point, namespace, labels, and matchers all match.
 		// if MFA is verified or never required, we're done.
-		if mfa.Verified || mfa.NeverRequired {
+		if mfa.Verified || mfa.Required == MFARequiredNever {
 			return nil
 		}
 		// if MFA is not verified and we require session MFA, deny access
@@ -2556,17 +2567,29 @@ func (set RoleSet) GetSearchAsRoles() []string {
 
 // AccessMFAParams contains MFA-related parameters for methods that check access.
 type AccessMFAParams struct {
-	// AlwaysRequired is set when MFA is required for all sessions, regardless
-	// of per-role options.
-	AlwaysRequired bool
-	// NeverRequired is set when MFA is never required for any sessions, regardless
-	// of per-role options. This means either both the cluster auth preference and
-	// all roles have per-session MFA off, or at least one of those resources has
-	// "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
-	NeverRequired bool
+	// Required determines whether a user's MFA requirement dynamically changes based on
+	// their active role (per-role), or is static across all roles (always/never).
+	Required MFARequired
 	// Verified is set when MFA has been verified by the caller.
 	Verified bool
 }
+
+// MFARequired determines when MFA is required for a user to access a resource.
+type MFARequired string
+
+const (
+	// MFARequiredNever means that MFA is never required for any sessions started by this user. This either
+	// means both the cluster auth preference and all roles have per-session MFA off, or at least one of
+	// those resources has "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
+	MFARequiredNever MFARequired = "never"
+	// MFARequiredAlways means that MFA is required for all sessions started by a user. This either
+	// means that the cluster auth preference requires per-session MFA, or all of the user's roles require
+	// per-session MFA
+	MFARequiredAlways MFARequired = "always"
+	// MFARequiredPerRole means that MFA requirement is based on which of the user's roles
+	// provides access to the session in question.
+	MFARequiredPerRole MFARequired = "per-role"
+)
 
 // SortedRoles sorts roles by name
 type SortedRoles []types.Role
