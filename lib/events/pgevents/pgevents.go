@@ -528,10 +528,9 @@ func (l *Log) searchEvents(
 		}
 		q.Append(" ORDER BY event_time DESC, session_id DESC, event_index DESC, audit_id DESC")
 	}
-	q.Append(" LIMIT %v", limit)
 
 	var evs []apievents.AuditEvent
-	var shortRead bool
+	var sizeLimit bool
 	var endKeyset keyset
 
 	const fetchSize = defaults.EventsIterationLimit
@@ -539,14 +538,14 @@ func (l *Log) searchEvents(
 
 	if err := l.beginTxFunc(ctx, txReadOnly, func(tx pgx.Tx) error {
 		evs = evs[:0]
-		totalSize := 0
-		shortRead = false
+		sizeLimit = false
 
 		if _, err := tx.Exec(ctx, q.String(), q.Args()...); err != nil {
 			return trace.Wrap(err)
 		}
 
-		for len(evs) < limit && !shortRead {
+		totalSize := 0
+		for len(evs) < limit && !sizeLimit {
 			rows, err := tx.Query(ctx, fetchQuery)
 			if err != nil {
 				return trace.Wrap(err)
@@ -572,7 +571,7 @@ func (l *Log) searchEvents(
 				}
 
 				if len(data)+totalSize > events.MaxEventBytesInResponse {
-					shortRead = true
+					sizeLimit = true
 					rows.Close()
 					break
 				}
@@ -586,6 +585,11 @@ func (l *Log) searchEvents(
 
 				evs = append(evs, ev)
 				endKeyset = ks
+
+				if len(evs) >= limit {
+					rows.Close()
+					break
+				}
 			}
 			if err := rows.Err(); err != nil {
 				return trace.Wrap(err)
@@ -601,7 +605,7 @@ func (l *Log) searchEvents(
 	}
 
 	nextKey := ""
-	if len(evs) > 0 && (len(evs) >= limit || shortRead) {
+	if len(evs) > 0 && (len(evs) >= limit || sizeLimit) {
 		nextKey = endKeyset.ToKey()
 	}
 
