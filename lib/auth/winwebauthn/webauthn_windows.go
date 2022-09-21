@@ -372,10 +372,10 @@ func isUVPlatformAuthenticatorAvailable() (bool, error) {
 }
 
 func (c client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*_WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS, error) {
-	// allowCredList, err := CredentialsExToCType(in.AllowedCredentials)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	allowCredList, err := credentialsExToCType(in.AllowedCredentials)
+	if err != nil {
+		return nil, err
+	}
 	var dwVersion uint32
 	switch c.version {
 	case apiVersion1, apiVersion2:
@@ -396,22 +396,16 @@ func (c client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptio
 		}
 	}
 
-	creds, err := credentialsToCType(in.AllowedCredentials)
-	if err != nil {
-		return nil, err
-	}
 	return &_WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS{
 		dwVersion:             dwVersion,
 		dwTimeoutMilliseconds: uint32(in.Timeout),
-		// TODO: FIll at older API.
-		CredentialList: *creds,
 		// TODO(tobiaszheller): map extensions.
 		// Extensions:                        *exstList,
 		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
 		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
 		// TODO(tobiaszheller): check if we need to support U2fAppId.
 		// pwszU2fAppId: ,
-		// pAllowCredentialList: allowCredList,
+		pAllowCredentialList: allowCredList,
 	}, nil
 }
 
@@ -533,39 +527,7 @@ func clientDataToCType(challenge, origin, cdType string) (*_WEBAUTHN_CLIENT_DATA
 
 }
 
-func credentialsToCType(in []protocol.CredentialDescriptor) (*_WEBAUTHN_CREDENTIALS, error) {
-	creds := make([]_WEBAUTHN_CREDENTIAL, 0, len(in))
-	for _, e := range in {
-		if e.Type == "" {
-			return nil, fmt.Errorf("missing CredentialDescriptor.Type")
-		}
-		if len(e.CredentialID) == 0 {
-			return nil, fmt.Errorf("missing CredentialDescriptor.CredentialID")
-		}
-		pwszCredentialType, err := windows.UTF16PtrFromString(string(e.Type))
-		if err != nil {
-			return nil, err
-		}
-		creds = append(creds, _WEBAUTHN_CREDENTIAL{
-			dwVersion:          1,
-			cbId:               uint32(len(e.CredentialID)),
-			pbId:               &e.CredentialID[0],
-			pwszCredentialType: pwszCredentialType,
-		})
-	}
-	if len(in) == 0 {
-		return &_WEBAUTHN_CREDENTIALS{}, nil
-	}
-
-	return &_WEBAUTHN_CREDENTIALS{
-		cCredentials: uint32(len(creds)),
-		pCredentials: &creds[0],
-	}, nil
-
-}
-
 func credentialsExToCType(in []protocol.CredentialDescriptor) (*_WEBAUTHN_CREDENTIAL_LIST, error) {
-	// TODO(tobiaszheller): fix that fn, it's causing panic.
 	exCredList := make([]*_WEBAUTHN_CREDENTIAL_EX, 0, len(in))
 	for _, e := range in {
 		if e.Type == "" {
@@ -677,12 +639,7 @@ func requireResidentKeyToCType(in *bool) uint32 {
 }
 
 func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*_WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS, error) {
-	// TODO (tobiaszheller): enable
-	// exCredList, err := CredentialsExToCType(in.CredentialExcludeList)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	creds, err := credentialsToCType(in.CredentialExcludeList)
+	exCredList, err := credentialsExToCType(in.CredentialExcludeList)
 	if err != nil {
 		return nil, err
 	}
@@ -704,16 +661,14 @@ func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOp
 	return &_WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS{
 		dwVersion:             dwVersion,
 		dwTimeoutMilliseconds: uint32(in.Timeout),
-		CredentialList:        *creds,
 		// TODO(tobiaszheller): map extensions.
 		// Extensions:                        *exstList,
 		dwAuthenticatorAttachment:         attachmentToCType(in.AuthenticatorSelection.AuthenticatorAttachment),
 		dwAttestationConveyancePreference: conveyancePreferenceToCType(in.Attestation),
 		bRequireResidentKey:               requireResidentKeyToCType(in.AuthenticatorSelection.RequireResidentKey),
 		dwUserVerificationRequirement:     userVerificationToCType(in.AuthenticatorSelection.UserVerification),
-		// TODO(tobiaszheller): fill pExcludeCredentialList in v>=3.
-		// pExcludeCredentialList:            exCredList,
-		bPreferResidentKey: bPreferResidentKey,
+		pExcludeCredentialList:            exCredList,
+		bPreferResidentKey:                bPreferResidentKey,
 	}, nil
 }
 
@@ -911,25 +866,18 @@ type _WEBAUTHN_CLIENT_DATA struct {
 }
 
 type _WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS struct {
-	// Version of this structure, to allow for modifications in the future.
 	dwVersion uint32
-
 	// Time that the operation is expected to complete within.
 	// This is used as guidance, and can be overridden by the platform.
 	dwTimeoutMilliseconds uint32
-
 	// Allowed Credentials List.
 	CredentialList _WEBAUTHN_CREDENTIALS
-
 	// Optional extensions to parse when performing the operation.
 	Extensions _WEBAUTHN_EXTENSIONS
-
 	// Optional. Platform vs Cross-Platform Authenticators.
 	dwAuthenticatorAttachment uint32
-
 	// User Verification Requirement.
 	dwUserVerificationRequirement uint32
-
 	// Flags
 	dwFlags uint32
 
@@ -939,7 +887,6 @@ type _WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS struct {
 
 	// Optional identifier for the U2F AppId. Converted to UTF8 before being hashed. Not lower cased.
 	pwszU2fAppId *uint16
-
 	// If the following is non-NULL, then, set to TRUE if the above pwszU2fAppid was used instead of
 	// PCWSTR pwszRpId;
 	pbU2fAppId uint32
@@ -963,14 +910,12 @@ type _WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS struct {
 	//
 
 	dwCredLargeBlobOperation uint32
-
 	// Size of pbCredLargeBlob
 	cbCredLargeBlob uint32
 	pbCredLargeBlob *byte
 }
 
 type _WEBAUTHN_ASSERTION struct {
-	// Version of this structure, to allow for modifications in the future.
 	dwVersion uint32
 
 	// Size of cbAuthenticatorData.
@@ -998,9 +943,8 @@ type _WEBAUTHN_ASSERTION struct {
 	Extensions _WEBAUTHN_EXTENSIONS
 
 	// Size of pbCredLargeBlob
-	cbCredLargeBlob uint32
-	pbCredLargeBlob *byte
-
+	cbCredLargeBlob       uint32
+	pbCredLargeBlob       *byte
 	dwCredLargeBlobStatus uint32
 }
 
@@ -1012,7 +956,6 @@ type _WEBAUTHN_X5C struct {
 }
 
 type _WEBAUTHN_COMMON_ATTESTATION struct {
-	// Version of this structure, to allow for modifications in the future.
 	dwVersion uint32
 
 	// Hash and Padding Algorithm
