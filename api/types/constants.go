@@ -345,6 +345,15 @@ const (
 	// OriginKubernetes is an origin value indicating that the resource was
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
+
+	// AWSAccountIDLabel is used to identify nodes by AWS account ID
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	AWSAccountIDLabel = TeleportNamespace + "/account-id"
+	// AWSInstanceIDLabel is used to identify nodes by EC2 instance ID
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
 )
 
 // EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
