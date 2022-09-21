@@ -1002,6 +1002,16 @@ type kubeCollector struct {
 	current map[string]types.KubeCluster
 	// lock protects the "current" map.
 	lock sync.RWMutex
+	// initialized is used to check whether the initial sync has completed
+	initialized bool
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (c *kubeCollector) isInitialized() bool {
+	c.lock.RUnlock()
+	defer c.lock.RUnlock()
+	return c.initialized
 }
 
 // resourceKind specifies the resource kind to watch.
@@ -1028,6 +1038,7 @@ func (p *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 		return trace.Wrap(ctx.Err())
 	case p.KubeClustersC <- clusters:
 	}
+	p.initialized = true
 	return nil
 }
 
