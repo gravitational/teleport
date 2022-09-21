@@ -288,15 +288,15 @@ func (c client) MakeCredential(origin string, in protocol.PublicKeyCredentialCre
 
 	defer freeCredentialAttestation(out)
 
-	credentials := bytePtrToByte(out.CbCredentialId, out.PbCredentialId)
+	credential := bytePtrToByte(out.CbCredentialId, out.PbCredentialId)
 
 	return &wanlib.CredentialCreationResponse{
 		PublicKeyCredential: wanlib.PublicKeyCredential{
 			Credential: wanlib.Credential{
-				ID:   base64.RawURLEncoding.EncodeToString(credentials),
-				Type: "public-key",
+				ID:   base64.RawURLEncoding.EncodeToString(credential),
+				Type: string(protocol.PublicKeyCredentialType),
 			},
-			RawID: credentials,
+			RawID: credential,
 		},
 		AttestationResponse: wanlib.AuthenticatorAttestationResponse{
 			AuthenticatorResponse: wanlib.AuthenticatorResponse{
