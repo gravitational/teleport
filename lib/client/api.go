@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
@@ -2270,11 +2271,11 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	return nil
 }
 
-// SCP securely copies file(s) from one SSH server to another
-func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flags scp.Flags, quiet bool) (err error) {
+// SFTP securely copies file(s) from one SSH server to another
+func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/SCP",
+		"teleportClient/SFTP",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -2293,7 +2294,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
-	log.Infof("Connecting to proxy to copy (recursively=%v)...", flags.Recursive)
+	log.Infof("Connecting to proxy to copy (recursively=%v)...", opts.Recursive)
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2312,106 +2313,76 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		}
 		return proxyClient.ConnectToNode(
 			ctx,
-			NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+			NodeDetails{
+				Addr:      addr,
+				Namespace: tc.Namespace,
+				Cluster:   tc.SiteName,
+			},
 			hostLogin,
 		)
 	}
 
-	// gets called to convert SSH error code to tc.ExitStatus
-	onError := func(err error) error {
-		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
-		if exitError != nil {
-			tc.ExitStatus = exitError.ExitStatus()
-		}
-		return err
-	}
-
-	tpl := scp.Config{
-		User:           tc.Username,
-		ProgressWriter: progressWriter,
-		Flags:          flags,
-	}
-
-	var config *scpConfig
-	// upload:
+	var config *sftpConfig
 	if isRemoteDest(last) {
-		config, err = tc.uploadConfig(ctx, tpl, port, args)
+		config, err = tc.uploadConfig(args, port, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		config, err = tc.downloadConfig(ctx, tpl, port, args)
+		config, err = tc.downloadConfig(args, port, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	config.cfg.ProgressWriter = progressWriter
 
 	client, err := connectToNode(config.addr, config.hostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return onError(client.ExecuteSCP(ctx, config.cmd))
+	return trace.Wrap(client.TransferFiles(ctx, config.cfg))
 }
 
-func (tc *TeleportClient) uploadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
 	// args are guaranteed to have len(args) > 1
-	filesToUpload := args[:len(args)-1]
+	srcPaths := args[:len(args)-1]
 	// copy everything except the last arg (the destination)
-	destPath := args[len(args)-1]
+	dstPath := args[len(args)-1]
 
-	// If more than a single file were provided, scp must be in directory mode
-	// and the target on the remote host needs to be a directory.
-	var directoryMode bool
-	if len(filesToUpload) > 1 {
-		directoryMode = true
-	}
-
-	dest, addr, err := getSCPDestination(destPath, port)
+	dst, addr, err := getSCPDestination(dstPath, port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tpl.RemoteLocation = dest.Path
-	tpl.Flags.Target = filesToUpload
-	tpl.Flags.DirectoryMode = directoryMode
+	cfg := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
 
-	cmd, err := scp.CreateUploadCommand(tpl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &scpConfig{
-		cmd:       cmd,
+	return &sftpConfig{
+		cfg:       cfg,
 		addr:      addr,
-		hostLogin: dest.Login,
+		hostLogin: dst.Login,
 	}, nil
 }
 
-func (tc *TeleportClient) downloadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
 	// args are guaranteed to have len(args) > 1
 	src, addr, err := getSCPDestination(args[0], port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tpl.RemoteLocation = src.Path
-	tpl.Flags.Target = args[1:]
+	// TODO: check that only 2 args are passed?
+	cfg := sftp.CreateDownloadConfig(src.Path, args[1], opts)
 
-	cmd, err := scp.CreateDownloadCommand(tpl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &scpConfig{
-		cmd:       cmd,
+	return &sftpConfig{
+		cfg:       cfg,
 		addr:      addr,
 		hostLogin: src.Login,
 	}, nil
 }
 
-type scpConfig struct {
-	cmd       scp.Command
+type sftpConfig struct {
+	cfg       *sftp.Config
 	addr      string
 	hostLogin string
 }
