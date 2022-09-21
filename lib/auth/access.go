@@ -157,9 +157,9 @@ func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.
 		return trace.Wrap(err)
 	}
 
-	isRoleLoosingUpdateRolesRule := Contains(rolesWithUpdateRolesRule, targetRole.GetName()) && !roleHasUpdateRolesRule(targetRole)
+	isRoleLosingUpdateRolesRule := Contains(rolesWithUpdateRolesRule, targetRole.GetName()) && !roleHasUpdateRolesRule(targetRole)
 
-	if !isRoleLoosingUpdateRolesRule {
+	if !isRoleLosingUpdateRolesRule {
 		return nil
 	}
 
