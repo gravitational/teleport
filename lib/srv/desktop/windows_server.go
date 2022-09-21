@@ -185,6 +185,8 @@ type LDAPConfig struct {
 	Username string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }
@@ -320,7 +322,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
 	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
-		cfg.Log.Warn("LDAP configuration specifies both der_ca_file and insecure_skip_verify." +
+		cfg.Log.Warn("LDAP configuration specifies both a CA certificate and insecure_skip_verify." +
 			"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning.")
 	}
 
@@ -482,6 +484,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 			},
 		},
 		InsecureSkipVerify: s.cfg.InsecureSkipVerify,
+		ServerName:         s.cfg.ServerName,
 	}
 
 	if s.cfg.CA != nil {
@@ -1094,18 +1097,21 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 // private key archival.
 //
 // This function is equivalent to running:
-//     certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+//
+//	certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
 //
 // You can confirm the cert is present by running:
-//     certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
+//
+//	certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
 //
 // Once the CA is published to LDAP, it should eventually sync and be present in the
 // machine's enterprise NTAuth store. You can check that with:
-//     certutil -viewstore -enterprise NTAuth
+//
+//	certutil -viewstore -enterprise NTAuth
 //
 // You can expedite the synchronization by running:
-//     certutil -pulse
 //
+//	certutil -pulse
 func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
 	// Check if our CA is already in the store. The LDAP entry for NTAuth store
 	// is constant and it should always exist.

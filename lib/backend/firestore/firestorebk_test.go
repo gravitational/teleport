@@ -53,7 +53,6 @@ func TestMain(m *testing.M) {
 // to verify backwards compatibility. Gogoproto is incompatible with ApiV2 protoc-gen-go code.
 //
 // Track the issue here: https://github.com/gogo/protobuf/issues/678
-//
 func TestMarshal(t *testing.T) {
 	meta := adminpb.IndexOperationMetadata{}
 	data, err := proto.Marshal(&meta)

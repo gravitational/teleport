@@ -24,12 +24,10 @@ an interface to create transactions with cancellation through a Tx interface.
 
 	Driver -> DB -> Tx
 
-Testing
+# Testing
 
 Test a Driver implementation using the TestDriver package function. The test
 will configure the driver for use with a test backend and execute the backend
 test suite. See driver implementations for details about configuring tests.
-
-
 */
 package sqlbk

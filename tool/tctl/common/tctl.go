@@ -74,7 +74,6 @@ type GlobalCLIFlags struct {
 // This allows OSS and Enterprise Teleport editions to plug their own
 // implementations of different CLI commands into the common execution
 // framework
-//
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing

@@ -30,12 +30,12 @@ import (
 //
 // https://docs.mongodb.com/master/reference/mongodb-wire-protocol/#op-msg
 //
-// OP_MSG {
-//     MsgHeader header;          // standard message header
-//     uint32 flagBits;           // message flags
-//     Sections[] sections;       // data sections
-//     optional<uint32> checksum; // optional CRC-32C checksum
-// }
+//	OP_MSG {
+//	    MsgHeader header;          // standard message header
+//	    uint32 flagBits;           // message flags
+//	    Sections[] sections;       // data sections
+//	    optional<uint32> checksum; // optional CRC-32C checksum
+//	}
 type MessageOpMsg struct {
 	Header                   MessageHeader
 	Flags                    wiremessage.MsgFlag
