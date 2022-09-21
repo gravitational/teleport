@@ -113,9 +113,8 @@ func createBotUser(
 
 // createBot creates a new certificate renewal bot from a bot request.
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	if !modules.GetModules().Features().MachineID {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Machine ID is only supported in Teleport Enterprise")
 	}
 
 	if req.Name == "" {
@@ -460,9 +459,8 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 func (s *Server) generateInitialBotCerts(ctx context.Context, username string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
 
-	if !modules.GetModules().Features().MachineID {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Machine ID is only supported in Teleport Enterprise")
 	}
 
 	// Extract the user and role set for whom the certificate will be generated.

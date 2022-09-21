@@ -133,7 +133,6 @@ func (p *cliModules) Features() modules.Features {
 		App:                     true,
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
-		ResourceAccessRequests:  true,
 	}
 }
 

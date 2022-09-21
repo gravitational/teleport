@@ -1161,8 +1161,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.checker.GetAllowedResourceIDs()) > 0 && !modules.GetModules().Features().ResourceAccessRequests {
-		return nil, trace.AccessDenied("this Teleport cluster is not licensed for resource access requests, please contact the cluster administrator")
+	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Resource Access Requests are only supported in Teleport Enterprise")
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -3139,8 +3139,8 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	// Don't allow sessions that require moderation without the enterprise feature enabled.
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
-			if !modules.GetModules().Features().ModeratedSessions {
-				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			if modules.GetModules().BuildType() != modules.BuildEnterprise {
+				return nil, trace.AccessDenied("Moderated Sessions are only supported in Teleport Enterprise")
 			}
 		}
 	}

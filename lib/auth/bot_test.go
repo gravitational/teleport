@@ -37,15 +37,12 @@ import (
 )
 
 // TestServerCreateBotFeatureDisabled ensures that you cannot create a bot when
-// the appropriate license does not exist. It is a separate test from
+// the license does not allow for the feature. It is a separate test from
 // TestServerCreateBot as `modules.SetTestModules` does not work with parallel
 // tests.
 func TestServerCreateBotFeatureDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			MachineID: false,
-		},
-	})
+	// Use OSS License (which doesn't support Machine ID).
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
@@ -58,7 +55,7 @@ func TestServerCreateBotFeatureDisabled(t *testing.T) {
 		Roles: []string{"example"},
 	})
 	require.True(t, trace.IsAccessDenied(err))
-	require.Contains(t, err.Error(), "not licensed")
+	require.Contains(t, err.Error(), "only supported in Teleport Enterprise")
 }
 
 // TestServerCreateBot ensures that the create bot RPC creates the appropriate
@@ -188,11 +185,8 @@ func TestBotResourceName(t *testing.T) {
 }
 
 func TestRegisterBotOnboardFeatureDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			MachineID: false,
-		},
-	})
+	// Use OSS License (which doesn't support Machine ID).
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
 
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
@@ -231,7 +225,7 @@ func TestRegisterBotOnboardFeatureDisabled(t *testing.T) {
 		PublicSSHKey: publicKey,
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "not licensed")
+	require.Contains(t, err.Error(), "only supported in Teleport Enterprise")
 }
 
 func renewBotCerts(

@@ -1318,11 +1318,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 
 func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Can not use t.Parallel() when changing modules
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			ResourceAccessRequests: true,
-		},
-	})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)

@@ -55,12 +55,6 @@ type Features struct {
 	HSM bool
 	// Desktop enables desktop access product
 	Desktop bool
-	// ModeratedSessions turns on moderated sessions
-	ModeratedSessions bool
-	// MachineID turns on MachineID
-	MachineID bool
-	// ResourceAccessRequests turns on resource access requests
-	ResourceAccessRequests bool
 }
 
 // ToProto converts Features into proto.Features
@@ -76,9 +70,6 @@ func (f Features) ToProto() *proto.Features {
 		Cloud:                   f.Cloud,
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
-		ModeratedSessions:       f.ModeratedSessions,
-		MachineID:               f.MachineID,
-		ResourceAccessRequests:  f.ResourceAccessRequests,
 	}
 }
 
@@ -156,12 +147,10 @@ func (p *defaultModules) PrintVersion() {
 // Features returns supported features
 func (p *defaultModules) Features() Features {
 	return Features{
-		Kubernetes:        true,
-		DB:                true,
-		App:               true,
-		Desktop:           true,
-		MachineID:         true,
-		ModeratedSessions: false, // moderated sessions is supported in enterprise only
+		Kubernetes: true,
+		DB:         true,
+		App:        true,
+		Desktop:    true,
 	}
 }
 
