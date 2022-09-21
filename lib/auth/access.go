@@ -184,8 +184,8 @@ func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.
 		return nil
 	}
 
-	log.Warnf("Failed to %s role. This operation will cause no user to be able to edit roles.", request)
-	return trace.BadParameter("Failed to %s role. This operation will cause no user to be able to edit roles.", request)
+	log.Warnf("Failed to %s role. This operation would cause no local user to be able to edit roles.", request)
+	return trace.BadParameter("Failed to %s role. This operation would cause no local user to be able to edit roles.", request)
 }
 
 // returns a list of roles that have a update rule associated to the role resource.

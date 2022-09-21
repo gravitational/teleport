@@ -271,6 +271,6 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, r
 		return nil
 	}
 
-	log.Warnf("failed to %s last local user with permissions to update roles", request)
-	return trace.BadParameter("failed to %s last local user with permissions to update roles", request)
+	log.Warnf("Failed to %s last local user with permissions to update roles", request)
+	return trace.BadParameter("Failed to %s last local user with permissions to update roles", request)
 }
