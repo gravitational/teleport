@@ -57,3 +57,10 @@ func (c *Session) String() string {
 	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
 		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
 }
+
+// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
+func (c *Session) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	params := c.Checker.MFAParams(authPrefMFARequirement)
+	params.Verified = c.Identity.MFAVerified != ""
+	return params
+}
