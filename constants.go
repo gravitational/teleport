@@ -125,6 +125,9 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDiscovery is the Discovery service.
+	ComponentDiscovery = "discovery:service"
+
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
@@ -381,16 +384,6 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
-)
-
-// OTPType is the type of the One-time Password Algorithm.
-type OTPType string
-
-const (
-	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
-	TOTP = OTPType("totp")
-	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
-	HOTP = OTPType("hotp")
 )
 
 const (

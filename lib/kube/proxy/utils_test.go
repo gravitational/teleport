@@ -26,17 +26,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
@@ -44,6 +34,17 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type testContext struct {
@@ -280,7 +281,7 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	require.NoError(t, err)
 
-	privPEM, _, err := native.GenerateKeyPair()
+	privPEM, _, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	priv, err := tlsca.ParsePrivateKeyPEM(privPEM)

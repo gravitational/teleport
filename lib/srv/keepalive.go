@@ -62,7 +62,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentKeepAlive,
 	})
-	log.Debugf("Starting keep-alive loop with with interval %v and max count %v.", p.Interval, p.MaxCount)
+	log.Debugf("Starting keep-alive loop with interval %v and max count %v.", p.Interval, p.MaxCount)
 
 	tickerCh := time.NewTicker(p.Interval)
 	defer tickerCh.Stop()
