@@ -71,7 +71,7 @@ windows_desktop_service:
     labels:
       environment: prod
 
-  # Labels to attach to the Windows Desktop Service. This is used internally,
+  # Labels to attach to the Windows Desktop Service. This is used internally, so
   # any custom labels added won't affect the Windows hosts.
   labels:
     teleport.internal/resource-id: "resource-id"
