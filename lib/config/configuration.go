@@ -2245,31 +2245,33 @@ func splitRoles(roles string) []string {
 
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
-	switch fc.Version {
-	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
+	// config v1 and v2 allow for `auth_token` to set `join_params.method` and `join_params.token_name`
+	if fc.Version == defaults.TeleportConfigVersionV1 || fc.Version == defaults.TeleportConfigVersionV2 {
 		if fc.AuthToken != "" {
-			cfg.JoinMethod = types.JoinMethodToken
-			cfg.SetToken(fc.AuthToken)
-
 			if fc.JoinParams != (JoinParams{}) {
 				return trace.BadParameter("only one of auth_token or join_params should be set")
 			}
+
+			cfg.JoinMethod = types.JoinMethodToken
+			cfg.SetToken(fc.AuthToken)
 		}
-	case defaults.TeleportConfigVersionV3:
-		if fc.AuthToken != "" {
-			return trace.BadParameter("auth_token is no longer supported in config v3, use join_params instead")
-		}
+
+		return nil
+	}
+
+	// from config v3 onwards, we have removed auth_token
+	if fc.AuthToken != "" {
+		return trace.BadParameter("auth_token is no longer supported in config v3 onwards, use join_params instead")
 	}
 
 	if fc.JoinParams != (JoinParams{}) {
 		cfg.SetToken(fc.JoinParams.TokenName)
 
-		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
-			cfg.JoinMethod = fc.JoinParams.Method
-		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
+		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
+			return trace.Wrap(err)
 		}
+
+		cfg.JoinMethod = fc.JoinParams.Method
 	}
 
 	return nil
