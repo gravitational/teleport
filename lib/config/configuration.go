@@ -592,8 +592,8 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.ListenAddr = *addr
-		if err := cfg.SetAuthServerAddresses(append(cfg.AuthServerAddresses(), *addr)); err != nil {
-			return trace.Wrap(err)
+		if len(cfg.AuthServerAddresses()) == 0 {
+			cfg.SetAuthServerAddress(*addr)
 		}
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
