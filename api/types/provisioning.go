@@ -608,6 +608,8 @@ func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 	return p
 }
 
+var ProvisionTokenNotBackwardsCompatibleErr = trace.Errorf("token cannot be converted to V2 and must be fetched using V3 API")
+
 func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, error) {
 	v2 := &ProvisionTokenV2{
 		Kind:     KindToken,
@@ -621,11 +623,14 @@ func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, error) {
 			Allow:           p.GetAllowRules(),
 		},
 	}
-	if p.Spec.EC2 != nil {
+	switch p.Spec.JoinMethod {
+	case JoinMethodEC2:
 		v2.Spec.AWSIIDTTL = p.Spec.EC2.IIDTTL
+	case JoinMethodToken, JoinMethodIAM:
+	// No special action to take
+	default:
+		return nil, trace.Wrap(ProvisionTokenNotBackwardsCompatibleErr)
 	}
-	// TODO: When non-backwards-compatible join methods are added,
-	// the conversion should return nil, false here
 	return v2, nil
 }
 

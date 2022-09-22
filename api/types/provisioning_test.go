@@ -725,9 +725,10 @@ func TestProvisionTokenV3_GetAWSIIDTTL(t *testing.T) {
 
 func TestProvisionTokenV3_V2(t *testing.T) {
 	tests := []struct {
-		name  string
-		token *ProvisionTokenV3
-		want  *ProvisionTokenV2
+		name      string
+		token     *ProvisionTokenV3
+		want      *ProvisionTokenV2
+		wantError string
 	}{
 		{
 			name: "token",
@@ -845,13 +846,41 @@ func TestProvisionTokenV3_V2(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "inconvertible type",
+			token: &ProvisionTokenV3{
+				Kind:    KindToken,
+				Version: V3,
+				Metadata: Metadata{
+					Name: "foo",
+				},
+				Spec: ProvisionTokenSpecV3{
+					Roles:      SystemRoles{RoleNop},
+					JoinMethod: "join-method-does-not-exist",
+					IAM: &ProvisionTokenSpecV3AWSIAM{
+						Allow: []*ProvisionTokenSpecV3AWSIAM_Rule{
+							{
+								Account: "xyzzy",
+								ARN:     "arn-123",
+							},
+						},
+					},
+				},
+			},
+			want:      nil,
+			wantError: ProvisionTokenNotBackwardsCompatibleErr.Error(),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.token.V2()
 			require.Equal(t, tt.want, got)
-			require.NoError(t, err)
+			if tt.wantError != "" {
+				require.EqualError(t, err, tt.wantError)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
