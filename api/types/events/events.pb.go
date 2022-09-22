@@ -7656,7 +7656,7 @@ func (m *KubernetesClusterDelete) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_KubernetesClusterDelete proto.InternalMessageInfo
 
-// SSMRun is emitted after an SSM document completes execution.
+// SSMRun is emitted after an AWS SSM document completes execution.
 type SSMRun struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
