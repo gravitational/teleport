@@ -39,6 +39,7 @@ func newWindowsPipeline(name string) pipeline {
 func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
 
+	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = triggerTag
 
 	p.Steps = []step{
