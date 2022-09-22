@@ -539,13 +539,16 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
-
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
+
+	// SSMRunEvent is emitted when a run of an install script
+	// completes on a discovered EC2 node
+	SSMRunEvent = "ssm.run"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
