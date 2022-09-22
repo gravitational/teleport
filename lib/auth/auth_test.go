@@ -94,6 +94,9 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 	p.a, err = NewServer(authConfig)
 	if err != nil {
@@ -866,6 +869,9 @@ func TestUpdateConfig(t *testing.T) {
 		Backend:                s.bk,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 	authServer, err := NewServer(authConfig)
 	require.NoError(t, err)
@@ -2041,7 +2047,7 @@ func TestCAGeneration(t *testing.T) {
 	)
 	native.PrecomputeKeys()
 	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := native.GenerateKeyPair()
+	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{
