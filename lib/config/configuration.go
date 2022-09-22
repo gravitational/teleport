@@ -2254,13 +2254,11 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 
 			cfg.JoinMethod = types.JoinMethodToken
 			cfg.SetToken(fc.AuthToken)
+
+			return nil
 		}
-
-		return nil
-	}
-
-	// from config v3 onwards, we have removed auth_token
-	if fc.AuthToken != "" {
+	} else if fc.AuthToken != "" {
+		// from config v3 onwards, we have removed auth_token
 		return trace.BadParameter("auth_token is no longer supported in config v3 onwards, use join_params instead")
 	}
 
