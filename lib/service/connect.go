@@ -253,7 +253,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 			}, nil
 		}
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
-		clt, err := process.newClient(process.Config.AuthServerAddresses(), process.Config.ProxyServer, identity)
+		clt, err := process.newClient(identity)
 		if err != nil {
 			// In the event that a user is attempting to connect a machine to
 			// a different cluster it will give a cryptic warning about an
@@ -282,7 +282,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, err := process.newClient(process.Config.AuthServerAddresses(), process.Config.ProxyServer, identity)
+			clt, err := process.newClient(identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -304,7 +304,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, err := process.newClient(process.Config.AuthServerAddresses(), process.Config.ProxyServer, newIdentity)
+			clt, err := process.newClient(newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -326,7 +326,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: newIdentity,
 				}, nil
 			}
-			clt, err := process.newClient(process.Config.AuthServerAddresses(), process.Config.ProxyServer, newIdentity)
+			clt, err := process.newClient(newIdentity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -346,7 +346,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 					ServerIdentity: identity,
 				}, nil
 			}
-			clt, err := process.newClient(process.Config.AuthServerAddresses(), process.Config.ProxyServer, identity)
+			clt, err := process.newClient(identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -511,7 +511,7 @@ func (process *TeleportProcess) firstTimeConnectWithAssertions(role types.System
 	}
 	process.deleteKeyPair(role, reason)
 
-	clt, err := process.newClient(process.Config.AuthServerAddresses(), process.Config.ProxyServer, identity)
+	clt, err := process.newClient(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -637,7 +637,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			ServerIdentity: identity,
 		}
 	} else {
-		clt, err := process.newClient(process.Config.AuthServerAddresses(), process.Config.ProxyServer, identity)
+		clt, err := process.newClient(identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1048,13 +1048,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	}
 }
 
-// newClient attempts to tunnel to either the proxy server or auth server
-// When a proxy server is specified (config v3 onwards), it will only attempt to tunnel to the proxy
-// and will error if the connection fails.
-// When only auth servers are specified (config v1 and v2 can have multiple auth servers, v3 only allows one)
-// It will attempt to direct dial the auth server, and fallback to trying to tunnel connect to the
-// Auth Server through the proxy.
-func (process *TeleportProcess) newClient(authServers []utils.NetAddr, proxyAddress utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
+// newClient attempts to connect to either the proxy server or auth server
+// For config v3 and onwards, it will only connect to either the proxy (via tunnel) or the auth server (direct),
+// depending on what was specified in the config.
+// For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
+// to the Auth Server through the proxy.
+func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, error) {
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1065,60 +1064,83 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, proxyAddr
 		return nil, trace.Wrap(err)
 	}
 
-	// try and connect to the proxy server first to avoid the extra direct dial when using the value from auth servers
-	if !proxyAddress.IsEmpty() {
-		logger := process.log.WithField("proxy-address", proxyAddress.String())
-		logger.Debug("Attempting to connect to Proxy Server through tunnel.")
-
-		tunnelClient, err := process.newClientThroughTunnel([]utils.NetAddr{proxyAddress}, tlsConfig, sshClientConfig)
-		if err != nil {
-			return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel.")
+	authServers := process.Config.AuthServerAddresses()
+	connectToAuthServer := func(logger *logrus.Entry) (*auth.Client, error) {
+		logger.Debug("Attempting to connect to Auth Server directly.")
+		directClient, directErr := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
+		if directErr != nil {
+			logger.Debug("Failed to connect to Auth Server directly.")
+			return nil, directErr
 		}
 
-		logger.Debug("Connected to Proxy Server through tunnel.")
-
-		return tunnelClient, nil
-	}
-
-	// if we don't have a proxy address, try to connect to the auth server directly
-	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
-	logger.Debug("Attempting to connect to Auth Server directly.")
-	directClient, directErr := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
-	if directErr == nil {
 		logger.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
 	}
-	logger.Debug("Failed to connect to Auth Server directly.")
 
-	// Don't attempt to connect through a tunnel as a proxy or auth server.
-	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
-		return nil, trace.Wrap(directErr)
+	switch process.Config.Version {
+	// for config v1 and v2, attempt to directly connect to the auth server and fall back to tunnelling
+	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
+		// if we don't have a proxy address, try to connect to the auth server directly
+		logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
+
+		directClient, directErr := connectToAuthServer(logger)
+		if directErr == nil {
+			return directClient, nil
+		}
+
+		// Don't attempt to connect through a tunnel as a proxy or auth server.
+		if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
+			return nil, trace.Wrap(directErr)
+		}
+
+		// if that fails, attempt to connect to the auth server through a tunnel
+
+		logger.Debug("Attempting to discover reverse tunnel address.")
+		logger.Debug("Attempting to connect to Auth Server through tunnel.")
+
+		tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
+		if err != nil {
+			process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
+			process.log.Errorf("- connecting to auth server directly: %v", directErr)
+			if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
+				err = trace.Wrap(err, "This is the alternative port we tried and it's not configured.")
+			}
+			process.log.Errorf("- connecting to auth server through tunnel: %v", err)
+			collectedErrs := trace.NewAggregate(directErr, err)
+			if utils.IsUntrustedCertErr(collectedErrs) {
+				collectedErrs = trace.WrapWithMessage(collectedErrs, utils.SelfSignedCertsMsg)
+			}
+			return nil, trace.WrapWithMessage(collectedErrs,
+				"Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+		}
+
+		logger.Debug("Connected to Auth Server through tunnel.")
+		return tunnelClient, nil
+
+	// for config v3, either tunnel to the given proxy server or directly connect to the given auth server
+	case defaults.TeleportConfigVersionV3:
+		proxyServer := process.Config.ProxyServer
+		if !proxyServer.IsEmpty() {
+			logger := process.log.WithField("proxy-server", proxyServer.String())
+			logger.Debug("Attempting to connect to Proxy Server through tunnel.")
+
+			tunnelClient, err := process.newClientThroughTunnel([]utils.NetAddr{proxyServer}, tlsConfig, sshClientConfig)
+			if err != nil {
+				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel.")
+			}
+
+			logger.Debug("Connected to Proxy Server through tunnel.")
+
+			return tunnelClient, nil
+		}
+
+		// if we don't have a proxy address, try to connect to the auth server directly
+		logger := process.log.WithField("auth-server", utils.NetAddrsToStrings(authServers))
+
+		return connectToAuthServer(logger)
 	}
 
-	logger.Debug("Attempting to discover reverse tunnel address.")
-
-	// if that fails, attempt to connect to the auth server through a tunnel
-
-	logger.Debug("Attempting to connect to Auth Server through tunnel.")
-
-	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
-	if err != nil {
-		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
-		process.log.Errorf("- connecting to auth server directly: %v", directErr)
-		if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
-			err = trace.Wrap(err, "This is the alternative port we tried and it's not configured.")
-		}
-		process.log.Errorf("- connecting to auth server through tunnel: %v", err)
-		collectedErrs := trace.NewAggregate(directErr, err)
-		if utils.IsUntrustedCertErr(collectedErrs) {
-			collectedErrs = trace.WrapWithMessage(collectedErrs, utils.SelfSignedCertsMsg)
-		}
-		return nil, trace.WrapWithMessage(collectedErrs,
-			"Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
-	}
-
-	logger.Debug("Connected to Auth Server through tunnel.")
-	return tunnelClient, nil
+	return nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
