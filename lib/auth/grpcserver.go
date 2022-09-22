@@ -2928,9 +2928,9 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	v2, ok := t.V2()
-	if !ok {
-		return nil, trace.Errorf("the requested token cannot be converted to v2 and must be fetched using GetTokenV3")
+	v2, err := t.V2()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return v2, nil
@@ -2963,14 +2963,11 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.Prov
 	}
 	provisionTokensV2 := make([]*types.ProvisionTokenV2, 0, len(ts))
 	for _, t := range ts {
-		v2Token, ok := t.V2()
-		if ok {
-			provisionTokensV2 = append(provisionTokensV2, v2Token)
-		} else {
-			g.Logger.
-				WithField("token_id", t.GetResourceID()).
-				Debug("GetTokens (V2) encountered ProvisionTokenV3 that could not convert to V2. Omitting.")
+		v2, err := t.V2()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		provisionTokensV2 = append(provisionTokensV2, v2)
 	}
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,

@@ -77,11 +77,7 @@ type ProvisionToken interface {
 	// This exists for the transition period where the V2 Token RPCs still exist
 	// and we may need to be able to convert tokens to a V2 representation
 	// for serialization.
-	//
-	// The second return value is a boolean indicating if this token can be
-	// represented as v2, for cases where a new provider type is used, this
-	// value will be false and the token should not be presented to a consumer.
-	V2() (*ProvisionTokenV2, bool)
+	V2() (*ProvisionTokenV2, error)
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -124,7 +120,7 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 }
 
 // MustCreateProvisionToken returns a new valid provision token
-// or panics, used in tests
+// or panics, used in tests.
 func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
 	t, err := NewProvisionToken(token, roles, expires)
 	if err != nil {
@@ -215,29 +211,29 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GetVersion returns resource version
+// GetVersion returns resource version.
 func (p *ProvisionTokenV2) GetVersion() string {
 	return p.Version
 }
 
 // GetRoles returns a list of teleport roles
 // that will be granted to the user of the token
-// in the crendentials
+// in the credentials.
 func (p *ProvisionTokenV2) GetRoles() SystemRoles {
 	return p.Spec.Roles
 }
 
-// SetRoles sets teleport roles
+// SetRoles sets teleport roles.
 func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
 }
 
-// GetAllowRules returns the list of allow rules
+// GetAllowRules returns the list of allow rules.
 func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 	return p.Spec.Allow
 }
 
-// GetAWSIIDTTL returns the TTL of EC2 IIDs
+// GetAWSIIDTTL returns the TTL of EC2 IIDs.
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
 }
@@ -247,62 +243,62 @@ func (p *ProvisionTokenV2) GetJoinMethod() JoinMethod {
 	return p.Spec.JoinMethod
 }
 
-// GetBotName returns the BotName field which must be set for joining bots.
+// GetBotName returns the BotName field which must be set for joining bots..
 func (p *ProvisionTokenV2) GetBotName() string {
 	return p.Spec.BotName
 }
 
-// GetKind returns resource kind
+// GetKind returns resource kind.
 func (p *ProvisionTokenV2) GetKind() string {
 	return p.Kind
 }
 
-// GetSubKind returns resource sub kind
+// GetSubKind returns resource sub kind.
 func (p *ProvisionTokenV2) GetSubKind() string {
 	return p.SubKind
 }
 
-// SetSubKind sets resource subkind
+// SetSubKind sets resource subkind.
 func (p *ProvisionTokenV2) SetSubKind(s string) {
 	p.SubKind = s
 }
 
-// GetResourceID returns resource ID
+// GetResourceID returns resource ID.
 func (p *ProvisionTokenV2) GetResourceID() int64 {
 	return p.Metadata.ID
 }
 
-// SetResourceID sets resource ID
+// SetResourceID sets resource ID.
 func (p *ProvisionTokenV2) SetResourceID(id int64) {
 	p.Metadata.ID = id
 }
 
-// GetMetadata returns metadata
+// GetMetadata returns metadata.
 func (p *ProvisionTokenV2) GetMetadata() Metadata {
 	return p.Metadata
 }
 
-// SetMetadata sets resource metatada
+// SetMetadata sets resource metatada.
 func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 	p.Metadata = meta
 }
 
-// GetSuggestedLabels returns the labels the resource should set when using this token
+// GetSuggestedLabels returns the labels the resource should set when using this token.
 func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 	return p.Spec.SuggestedLabels
 }
 
-// SetExpiry sets expiry time for the object
+// SetExpiry sets expiry time for the object.
 func (p *ProvisionTokenV2) SetExpiry(expires time.Time) {
 	p.Metadata.SetExpiry(expires)
 }
 
-// Expiry returns object expiry setting
+// Expiry returns object expiry setting.
 func (p *ProvisionTokenV2) Expiry() time.Time {
 	return p.Metadata.Expiry()
 }
 
-// GetName returns token name
+// GetName returns token name.
 func (p *ProvisionTokenV2) GetName() string {
 	return p.Metadata.Name
 }
@@ -360,8 +356,8 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 	return v3
 }
 
-func (p *ProvisionTokenV2) V2() (*ProvisionTokenV2, bool) {
-	return p, true
+func (p *ProvisionTokenV2) V2() (*ProvisionTokenV2, error) {
+	return p, nil
 }
 
 // ProvisionTokensFromV1 converts V1 provision tokens to resource list
@@ -473,7 +469,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GetAllowRules returns the list of allow rules
+// GetAllowRules returns the list of allow rules.
 func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
 	// For now, we convert the V3 rules to V2 rules, to allow the auth server
 	// implementation to remain the same with the introduction of V3.
@@ -500,7 +496,7 @@ func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
 	return rules
 }
 
-// GetAWSIIDTTL returns the TTL of EC2 IIDs
+// GetAWSIIDTTL returns the TTL of EC2 IIDs.
 func (p *ProvisionTokenV3) GetAWSIIDTTL() Duration {
 	ec2 := p.Spec.EC2
 	if ec2 == nil {
@@ -514,32 +510,32 @@ func (p *ProvisionTokenV3) GetAWSIIDTTL() Duration {
 
 // GetRoles returns a list of teleport roles
 // that will be granted to the user of the token
-// in the crendentials
+// in the credentials.
 func (p *ProvisionTokenV3) GetRoles() SystemRoles {
 	return p.Spec.Roles
 }
 
-// SetRoles sets teleport roles
+// SetRoles sets teleport roles.
 func (p *ProvisionTokenV3) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
 }
 
-// SetExpiry sets expiry time for the object
+// SetExpiry sets expiry time for the object.
 func (p *ProvisionTokenV3) SetExpiry(expires time.Time) {
 	p.Metadata.SetExpiry(expires)
 }
 
-// Expiry returns object expiry setting
+// Expiry returns object expiry setting.
 func (p *ProvisionTokenV3) Expiry() time.Time {
 	return p.Metadata.Expiry()
 }
 
-// GetName returns server name
+// GetName returns token name.
 func (p *ProvisionTokenV3) GetName() string {
 	return p.Metadata.Name
 }
 
-// SetName sets the name of the ProvisionTokenV3
+// SetName sets the name of the ProvisionTokenV3.
 func (p *ProvisionTokenV3) SetName(e string) {
 	p.Metadata.Name = e
 }
@@ -549,42 +545,42 @@ func (p *ProvisionTokenV3) GetBotName() string {
 	return p.Spec.BotName
 }
 
-// GetKind returns resource kind
+// GetKind returns resource kind.
 func (p *ProvisionTokenV3) GetKind() string {
 	return p.Kind
 }
 
-// GetSubKind returns resource sub kind
+// GetSubKind returns resource sub kind.
 func (p *ProvisionTokenV3) GetSubKind() string {
 	return p.SubKind
 }
 
-// SetSubKind sets resource subkind
+// SetSubKind sets resource subkind.
 func (p *ProvisionTokenV3) SetSubKind(s string) {
 	p.SubKind = s
 }
 
-// GetResourceID returns resource ID
+// GetResourceID returns resource ID.
 func (p *ProvisionTokenV3) GetResourceID() int64 {
 	return p.Metadata.ID
 }
 
-// SetResourceID sets resource ID
+// SetResourceID sets resource ID.
 func (p *ProvisionTokenV3) SetResourceID(id int64) {
 	p.Metadata.ID = id
 }
 
-// GetVersion returns resource version
+// GetVersion returns resource version.
 func (p *ProvisionTokenV3) GetVersion() string {
 	return p.Version
 }
 
-// GetMetadata returns metadata
+// GetMetadata returns metadata.
 func (p *ProvisionTokenV3) GetMetadata() Metadata {
 	return p.Metadata
 }
 
-// SetMetadata sets resource metadata
+// SetMetadata sets resource metadata.
 func (p *ProvisionTokenV3) SetMetadata(meta Metadata) {
 	p.Metadata = meta
 }
@@ -612,7 +608,7 @@ func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 	return p
 }
 
-func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, bool) {
+func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, error) {
 	v2 := &ProvisionTokenV2{
 		Kind:     KindToken,
 		Version:  V2,
@@ -630,7 +626,7 @@ func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, bool) {
 	}
 	// TODO: When non-backwards-compatible join methods are added,
 	// the conversion should return nil, false here
-	return v2, true
+	return v2, nil
 }
 
 // Validation for provider specific config

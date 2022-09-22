@@ -725,10 +725,9 @@ func TestProvisionTokenV3_GetAWSIIDTTL(t *testing.T) {
 
 func TestProvisionTokenV3_V2(t *testing.T) {
 	tests := []struct {
-		name     string
-		token    *ProvisionTokenV3
-		want     *ProvisionTokenV2
-		wantBool bool
+		name  string
+		token *ProvisionTokenV3
+		want  *ProvisionTokenV2
 	}{
 		{
 			name: "token",
@@ -763,7 +762,6 @@ func TestProvisionTokenV3_V2(t *testing.T) {
 					Allow: []*TokenRule{},
 				},
 			},
-			wantBool: true,
 		},
 		{
 			name: "ec2",
@@ -807,7 +805,6 @@ func TestProvisionTokenV3_V2(t *testing.T) {
 					AWSIIDTTL: NewDuration(time.Minute * 300),
 				},
 			},
-			wantBool: true,
 		},
 		{
 			name: "iam",
@@ -847,15 +844,14 @@ func TestProvisionTokenV3_V2(t *testing.T) {
 					},
 				},
 			},
-			wantBool: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotBool := tt.token.V2()
+			got, err := tt.token.V2()
 			require.Equal(t, tt.want, got)
-			require.Equal(t, tt.wantBool, gotBool)
+			require.NoError(t, err)
 		})
 	}
 }

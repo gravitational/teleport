@@ -108,7 +108,8 @@ func TestMarshalProvisionToken(t *testing.T) {
 		time.Date(2000, 0, 0, 0, 0, 0, 0, time.UTC),
 	)
 	v3.SetResourceID(1337)
-	v2, _ := v3.V2()
+	v2, err := v3.V2()
+	require.NoError(t, err)
 
 	tests := []struct {
 		name  string
