@@ -137,7 +137,7 @@ func login(
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	cli := getOrCreateClient()
 	for _, ac := range assertion.Response.AllowedCredentials {
-		log.Debugf("WIN_WEBAUTHN: Allow creds: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID))
+		log.Debugf("WIN_WEBAUTHN: Allow creds type %s: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID), ac.Type)
 	}
 	log.Debugf("WIN_WEBAUTHN: Ext %v\n", assertion.Response.Extensions)
 	log.Debugf("WIN_WEBAUTHN: UV %v\n", assertion.Response.UserVerification)
@@ -159,12 +159,11 @@ func register(
 ) (*proto.MFARegisterResponse, error) {
 	cli := getOrCreateClient()
 	for _, ac := range cc.Response.CredentialExcludeList {
-		log.Debugf("WIN_WEBAUTHN: Excluded creds: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID))
+		log.Debugf("WIN_WEBAUTHN: Excluded creds type %s: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID), ac.Type)
 	}
 	log.Debugf("WIN_WEBAUTHN: Ext %v\n", cc.Response.Extensions)
-	log.Debugf("WIN_WEBAUTHN: AUTH %+v\n", cc.Response.AuthenticatorSelection)
+	log.Debugf("WIN_WEBAUTHN: UV %v, RRK %v ATTACHMENT %v \n", cc.Response.AuthenticatorSelection.UserVerification, cc.Response.AuthenticatorSelection.RequireResidentKey, cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	log.Debugf("WIN_WEBAUTHN: ATT %v\n", cc.Response.Attestation)
-	log.Debugf("WIN_WEBAUTHN: User %+v\n", cc.Response.User)
 	resp, err := cli.MakeCredential(origin, cc.Response)
 	if err != nil {
 		return nil, err

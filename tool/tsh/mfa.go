@@ -209,7 +209,7 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
 		// TODO (tobiaszheller): check all IsFIDO2Available and maybe repolace with something new for winhello.
-	if wancli.IsFIDO2Available() {
+	if wancli.IsFIDO2Available() || winwebauthn.IsAvailable() {
 		c.Flag("allow-passwordless", "Allow passwordless logins").BoolVar(&c.allowPasswordless)
 	}
 	return c
