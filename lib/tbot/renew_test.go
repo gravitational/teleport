@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	libconfig "github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -35,7 +34,7 @@ import (
 
 // TestOnboardViaToken ensures a bot can join using token auth.
 func TestOnboardViaToken(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 
 	log := libutils.NewLoggerForTests()
 
@@ -71,7 +70,7 @@ func TestOnboardViaToken(t *testing.T) {
 }
 
 func TestDatabaseRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 
 	log := libutils.NewLoggerForTests()
 	// Make a new auth server.
@@ -165,7 +164,7 @@ func TestDatabaseRequest(t *testing.T) {
 }
 
 func TestAppRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{App: true}})
+	t.Parallel()
 	ctx := context.Background()
 
 	const appName = "foo"

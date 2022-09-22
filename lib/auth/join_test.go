@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -271,7 +270,7 @@ func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole,
 // TestRegister_Bot tests that a provision token can be used to generate
 // renewable certificates for a non-interactive user.
 func TestRegister_Bot(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 
 	srv := newTestTLSServer(t)
 

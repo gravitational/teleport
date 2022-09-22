@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
@@ -83,7 +82,7 @@ func validateTemplate(t *testing.T, tplI config.Template, dest bot.Destination) 
 // TestTemplateRendering performs a full renewal and ensures all expected
 // default config templates are present.
 func TestDefaultTemplateRendering(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 
 	// Make a new auth server.
 	log := utils.NewLoggerForTests()

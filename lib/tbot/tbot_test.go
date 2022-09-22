@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
@@ -120,7 +119,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 // TestCARotation is a heavy integration test that through a rotation, the bot
 // receives credentials for a new CA.
 func TestBot_Run_CARotation(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("test skipped when -short provided")
 	}
