@@ -157,8 +157,6 @@ type ForwarderConfig struct {
 	PublicAddr string
 	// log is the logger function
 	log logrus.FieldLogger
-	// Selectors is a list of resource monitor selectors.
-	resourceMatchers []services.ResourceMatcher
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -253,6 +251,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
+		clusterDetails: make(map[string]*kubeDetails),
 	}
 
 	fwd.router.UseRawPath = true
@@ -273,20 +272,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if cfg.ClusterOverride != "" {
 		fwd.log.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
 	}
-
-	fwd.clusterDetails, err = getKubeDetails(cfg.Context, fwd.log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, cfg.CheckImpersonationPermissions)
-
-	// if kubeconfig parsing returned a BadParameter error - no clusters provided-
-	// but the service is willing to start as resource a watcher,
-	// we let the service continue otherwise we return an error.
-	if err != nil && (!trace.IsBadParameter(err) ||
-		cfg.KubeServiceType != KubeService ||
-		len(cfg.resourceMatchers) == 0) {
-		return nil, trace.Wrap(err)
-	} else if fwd.clusterDetails == nil {
-		// if service is starting as resource watcher but clusterDetails is nil
-		// we create it.
-		fwd.clusterDetails = make(map[string]*kubeDetails)
+	if len(cfg.KubeClusterName) > 0 || len(cfg.KubeconfigPath) > 0 || cfg.KubeServiceType != KubeService {
+		fwd.clusterDetails, err = getKubeDetails(cfg.Context, fwd.log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, cfg.CheckImpersonationPermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return fwd, nil

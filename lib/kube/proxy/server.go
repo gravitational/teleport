@@ -93,8 +93,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
-	// this is used to infer if the service should start when no kube clusters are provided.
-	c.resourceMatchers = c.ResourceMatchers
+
 	return nil
 }
 
@@ -140,7 +139,11 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	fwd, err := NewForwarder(cfg.ForwarderConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
-
+	} else if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
+		len(cfg.ResourceMatchers) == 0 {
+		// if fwd has no clusters and the service type is KubeService but no resource watcher is configured
+		// then the kube_service does not need to start since it will not serve any static or dynamic cluster.
+		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
 	// authMiddleware authenticates request assuming TLS client authentication
