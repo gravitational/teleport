@@ -554,13 +554,13 @@ test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
 #
-UNIT_ROOT_REGEX := ^TestRoot
+UNIT_ROOT_REGEX := ^TestRootUnknown
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e operator)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" github.com/gravitational/teleport/integration/proxy $(FLAGS) $(ADDFLAGS)
 		| tee $(TEST_LOG_DIR)/unit-root.json \
 		| ${RENDER_TESTS}
 
@@ -619,10 +619,10 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES = $(shell go list ./... | grep integration)
+integration: PACKAGES = github.com/gravitational/teleport/integration/appaccess
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
+	$(CGOFLAG) go test -count=7 -failfast -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
 		| $(RENDER_TESTS) -report-by test
 
@@ -633,7 +633,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES = $(shell go list ./... | grep integration)
+integration-root: PACKAGES = github.com/gravitational/teleport/integration/appaccess
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
