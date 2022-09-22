@@ -2259,7 +2259,7 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	case defaults.TeleportConfigVersionV3:
 		if fc.AuthToken != "" {
-			return trace.BadParameter("auth_token is no longer supported, use join_params instead")
+			return trace.BadParameter("auth_token is no longer supported in config v3, use join_params instead")
 		}
 	}
 
