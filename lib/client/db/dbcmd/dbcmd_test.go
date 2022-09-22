@@ -94,7 +94,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
-		WebProxyAddr: "localhost",
+		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
@@ -450,6 +450,20 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd: []string{"redis-cli",
 				"-h", "localhost",
 				"-p", "12345"},
+			wantErr: false,
+		},
+		{
+			name:       "redis-cli remote web proxy",
+			dbProtocol: defaults.ProtocolRedis,
+			opts:       []ConnectCommandFunc{WithLocalProxy("", 0, "") /* negate default WithLocalProxy*/},
+			execer:     &fakeExec{},
+			cmd: []string{"redis-cli",
+				"-h", "proxy.example.com",
+				"-p", "3080",
+				"--tls",
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"--sni", "proxy.example.com"},
 			wantErr: false,
 		},
 		{

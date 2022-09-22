@@ -265,6 +265,10 @@ const (
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
+	// KindInstaller is a resource that holds a node installer script
+	// used to install teleport on discovered nodes
+	KindInstaller = "installer"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
@@ -438,6 +442,9 @@ const (
 
 	// AlertPermitAll is an internal label that indicates that an alert is suitable for display to all users.
 	AlertPermitAll = "teleport.internal/alert-permit-all"
+
+	// AlertLink is an internal label that indicates that an alert is a link.
+	AlertLink = "teleport.internal/link"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

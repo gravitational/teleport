@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"net/url"
 	"regexp"
 	"sort"
 	"time"
@@ -27,6 +28,8 @@ import (
 
 // matchStrictLabel is a fairly conservative allowed charset for labels.
 var matchStrictLabel = regexp.MustCompile(`^[a-z0-9\.\-\/]+$`).MatchString
+
+const validLinkDestination = "goteleport.com"
 
 type alertOptions struct {
 	labels   map[string]string
@@ -112,7 +115,7 @@ func (c *ClusterAlert) setDefaults() {
 	}
 }
 
-// CheckAndSetDefaults verfies required fields.
+// CheckAndSetDefaults verifies required fields.
 func (c *ClusterAlert) CheckAndSetDefaults() error {
 	c.setDefaults()
 	if c.Version != V1 {
@@ -135,8 +138,19 @@ func (c *ClusterAlert) CheckAndSetDefaults() error {
 		if !matchStrictLabel(key) {
 			return trace.BadParameter("invalid alert label key: %q", key)
 		}
-		if !matchStrictLabel(val) {
+		// for links, we relax the conditions on label values
+		if key != AlertLink && !matchStrictLabel(val) {
 			return trace.BadParameter("invalid alert label value: %q", val)
+		}
+
+		if key == AlertLink {
+			u, err := url.Parse(val)
+			if err != nil {
+				return trace.BadParameter("invalid alert: label link %q is not a valid URL", val)
+			}
+			if u.Hostname() != validLinkDestination {
+				return trace.BadParameter("invalid alert: label link not allowed %q", val)
+			}
 		}
 	}
 	return nil

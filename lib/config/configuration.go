@@ -783,11 +783,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// was passed. If the certificate is not self-signed, verify the certificate
 		// chain from leaf to root with the trust store on the computer so browsers
 		// don't complain.
-		certificateChainBytes, err := utils.ReadPath(p.Certificate)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1049,6 +1045,21 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	}
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
+
+	for _, matcher := range fc.SSH.AWSMatchers {
+		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
+			services.AWSMatcher{
+				Types:   matcher.Matcher.Types,
+				Regions: matcher.Matcher.Regions,
+				Tags:    matcher.Matcher.Tags,
+				Params: services.InstallerParams{
+					JoinMethod: matcher.InstallParams.JoinParams.Method,
+					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
+					ScriptName: matcher.InstallParams.ScriptName,
+				},
+				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			})
+	}
 
 	return nil
 }
@@ -1347,11 +1358,7 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
 		}
 
-		certificateChainBytes, err := utils.ReadPath(p.Certificate)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
