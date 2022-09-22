@@ -136,17 +136,23 @@ $ tctl tokens rm (=presets.tokens.first=)
 
 ### Create a configuration file
 
-Set up your Teleport Node with the following content in `/etc/teleport.yaml`. 
+Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
 
 ```yaml
 # Example config to be saved as etc/teleport.yaml
+version: v3
 teleport:
   nodename: graviton-node
   # The token you created earlier
-  auth_token: (=presets.tokens.first=)
-  auth_servers:
-  # Replace with the address of the Teleport Auth Service or Proxy Service.
-  - 127.0.0.1:3025
+  join_params:
+    join_method: token
+    token_name: (=presets.tokens.first=)
+
+  # Replace with the address of the Teleport Auth Service
+  auth_server: 127.0.0.1:3025
+  # Or specify the Proxy Service address.
+  proxy_server: 127.0.0.1:3080
+
   data_dir: /var/lib/teleport
 proxy_service:
   enabled: false

@@ -73,10 +73,12 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.AuthServers, err = utils.ParseAddrs([]string{opts.Addr})
+	authServers, err := utils.ParseAddrs([]string{opts.Addr})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cfg.SetAuthServerAddresses(authServers)
 
 	// read the host UUID only in case the identity was not provided,
 	// because it will be used for reading local auth server identity
@@ -99,7 +101,7 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
 	return authConfig, nil

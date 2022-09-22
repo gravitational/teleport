@@ -335,7 +335,7 @@ gpupdate.exe /force
 
 <Admonition type="note" title="Secure Cipher Suites">
   Teleport's RDP client supports only secure algorithms
-  for making TLS connections, so we have to configure our Domain Controller 
+  for making TLS connections, so we have to configure our Domain Controller
   to support those cipher suites as well.
   This step is only *necessary* for Windows Server 2012 R2 Domain Controller as it does not support
   secure algorithms by default. If it does not apply to you, you can skip this step and go to the [next step](#step-57-export-your-ldap-ca-certificate).
@@ -466,7 +466,7 @@ windows_desktop_service:
 </Details>
 <Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={"cloud"}>
 For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
-the hosted proxy. This requires setting `auth_servers` to your cloud tenant and
+the hosted proxy. This requires setting `proxy_server` to your cloud tenant and
 providing a join token.
 
 First, generate a join token with the following command:
@@ -479,10 +479,12 @@ Copy the join token to a file on the instance where you will run Windows Desktop
 Service, and then use the following configuration:
 
 ```yaml
+version: v3
 teleport:
-  auth_token: /path/to/token
-  auth_servers:
-  - mytenant.teleport.sh # replace with your cloud tenant
+  join_params:
+    join_method: token
+    token_name: /path/to/token
+  proxy_server: mytenant.teleport.sh # replace with your cloud tenant
 windows_desktop_service:
   enabled: yes
   ldap:

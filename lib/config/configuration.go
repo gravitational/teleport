@@ -216,6 +216,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc == nil {
 		return nil
 	}
+
+	applyConfigVersion(fc, cfg)
+
 	// merge file-based config with defaults in 'cfg'
 	if fc.Auth.Disabled() {
 		cfg.Auth.Enabled = false
@@ -253,20 +256,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.PIDFile = fc.PIDFile
 
-	// config file has auth servers in there?
-	if len(fc.AuthServers) > 0 {
-		cfg.AuthServers = make([]utils.NetAddr, 0, len(fc.AuthServers))
-		for _, as := range fc.AuthServers {
-			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err != nil {
-				return trace.Errorf("cannot parse auth server address: '%v'", as)
-			}
-			cfg.AuthServers = append(cfg.AuthServers, *addr)
-		}
+	if err := applyAuthOrProxyAddress(fc, cfg); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := applyTokenConfig(fc, cfg); err != nil {
@@ -391,8 +382,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	applyConfigVersion(fc, cfg)
-
 	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
 	// and "app_service" if they are enabled.
 	if fc.Auth.Enabled() {
@@ -446,6 +435,75 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	if fc.Discovery.Enabled() {
 		applyDiscoveryConfig(fc, cfg)
+	}
+
+	return nil
+}
+
+func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
+	switch cfg.Version {
+	// For config versions v1 and v2, the auth_servers field can point to an auth
+	// server or a proxy server
+	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
+		// config file has auth servers in there?
+		if len(fc.AuthServers) > 0 {
+			var parsedAddresses []utils.NetAddr
+
+			for _, as := range fc.AuthServers {
+				addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				if err != nil {
+					return trace.Errorf("cannot parse auth server address: '%v'", as)
+				}
+
+				parsedAddresses = append(parsedAddresses, *addr)
+			}
+
+			cfg.SetAuthServerAddresses(parsedAddresses)
+		}
+
+		if fc.AuthServer != "" {
+			return trace.BadParameter("auth_server is supported from config version v3 onwards")
+		}
+
+		if fc.ProxyServer != "" {
+			return trace.BadParameter("proxy_server is supported from config version v3 onwards")
+		}
+
+	// From v3 onwards, either auth_server or proxy_server should be set
+	case defaults.TeleportConfigVersionV3:
+		if len(fc.AuthServers) > 0 {
+			return trace.BadParameter("config version v3 requires the use of auth_server or proxy_server")
+		}
+
+		if fc.AuthServer != "" {
+			addr, err := utils.ParseHostPortAddr(fc.AuthServer, defaults.AuthListenPort)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err != nil {
+				return trace.BadParameter("cannot parse auth server address: '%v'", fc.AuthServer)
+			}
+
+			cfg.SetAuthServerAddresses([]utils.NetAddr{*addr})
+		}
+
+		if fc.ProxyServer != "" {
+			addr, err := utils.ParseHostPortAddr(fc.ProxyServer, defaults.HTTPListenPort)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err != nil {
+				return trace.BadParameter("cannot parse proxy address: '%v'", fc.ProxyServer)
+			}
+
+			cfg.ProxyServer = *addr
+		}
 	}
 
 	return nil
@@ -544,7 +602,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.ListenAddr = *addr
-		cfg.AuthServers = append(cfg.AuthServers, *addr)
+		cfg.SetAuthServerAddresses(append(cfg.AuthServerAddresses(), *addr))
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
 		tun, err := t.ConvertAndValidate()
@@ -857,8 +915,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		if fc.Version == defaults.TeleportConfigVersionV2 {
-			// Always enable kube service if using config V2 (TLS routing is supported)
+		switch fc.Version {
+		case defaults.TeleportConfigVersionV2, defaults.TeleportConfigVersionV3:
+			// Always enable kube service if using config v2 onwards (TLS routing is supported)
 			cfg.Proxy.Kube.Enabled = true
 		}
 	}
@@ -955,8 +1014,9 @@ func getPostgresDefaultPort(cfg *service.Config) int {
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
-	if cfg.Version == defaults.TeleportConfigVersionV2 {
-		// For v2 configuration if an address is not provided don't fallback to the default values.
+	switch cfg.Version {
+	case defaults.TeleportConfigVersionV2, defaults.TeleportConfigVersionV3:
+		// From v2 onwards. if an address is not provided don't fall back to the default values.
 		return
 	}
 
@@ -1978,13 +2038,13 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
 		}
-		cfg.AuthServers = make([]utils.NetAddr, 0, len(clf.AuthServerAddr))
+		cfg.SetAuthServerAddresses(make([]utils.NetAddr, 0, len(clf.AuthServerAddr)))
 		for _, as := range clf.AuthServerAddr {
 			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
 			if err != nil {
 				return trace.BadParameter("cannot parse auth server address: '%v'", as)
 			}
-			cfg.AuthServers = append(cfg.AuthServers, *addr)
+			cfg.SetAuthServerAddresses(append(cfg.AuthServerAddresses(), *addr))
 		}
 	}
 
@@ -2032,8 +2092,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
-	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
+	if len(cfg.AuthServerAddresses()) == 0 && cfg.Auth.Enabled {
+		cfg.SetAuthServerAddresses([]utils.NetAddr{cfg.Auth.ListenAddr})
 	}
 
 	// add data_dir to the backend config:
@@ -2187,11 +2247,6 @@ func splitRoles(roles string) []string {
 
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
-	if fc.AuthToken != "" {
-		cfg.JoinMethod = types.JoinMethodToken
-		cfg.SetToken(fc.AuthToken)
-	}
-
 	if fc.JoinParams != (JoinParams{}) {
 		if cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")

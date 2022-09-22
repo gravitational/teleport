@@ -191,7 +191,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		}
 		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
-			err, cfg.AuthServers[0].Addr)
+			err, cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
 	}
 
@@ -248,12 +248,12 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 
 	// --auth-server flag(-s)
 	if len(ccf.AuthServerAddr) != 0 {
-		addrs, err := utils.ParseAddrs(ccf.AuthServerAddr)
+		authServers, err := utils.ParseAddrs(ccf.AuthServerAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// Overwrite any existing configuration with flag values.
-		cfg.AuthServers = addrs
+		cfg.SetAuthServerAddresses(authServers)
 	}
 
 	// Config file should take precedence, if available.
@@ -272,12 +272,15 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 
 	// If auth server is not provided on the command line or in file
 	// configuration, use the default.
-	if len(cfg.AuthServers) == 0 {
-		cfg.AuthServers, err = utils.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
+	if len(cfg.AuthServerAddresses()) == 0 {
+		authServers, err := utils.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		cfg.SetAuthServerAddresses(authServers)
 	}
+
 	authConfig := new(authclient.Config)
 	// --identity flag
 	if ccf.IdentityFilePath != "" {
@@ -330,7 +333,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		}
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
 	return authConfig, nil
@@ -421,9 +424,9 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 			return nil, trace.Wrap(err)
 		}
 		log.Debugf("Setting auth server to web proxy %v.", webProxyAddr)
-		cfg.AuthServers = []utils.NetAddr{*webProxyAddr}
+		cfg.SetAuthServerAddresses([]utils.NetAddr{*webProxyAddr})
 	}
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
 	return authConfig, nil

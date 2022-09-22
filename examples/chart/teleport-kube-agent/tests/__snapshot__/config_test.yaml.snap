@@ -3,9 +3,12 @@ does not generate a config for clusterrole.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -38,9 +41,12 @@ does not generate a config for pdb.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -73,9 +79,12 @@ matches snapshot and tests for annotations.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -111,9 +120,12 @@ matches snapshot and tests for extra-labels.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -149,9 +161,12 @@ matches snapshot for affinity.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -184,9 +199,12 @@ matches snapshot for all-v6.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -235,9 +253,12 @@ matches snapshot for aws-databases.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -282,9 +303,12 @@ matches snapshot for backwards-compatibility.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -317,9 +341,12 @@ matches snapshot for ca-pin.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           ca_pin:
             - sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
           log:
@@ -354,9 +381,12 @@ matches snapshot for db.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -394,9 +424,12 @@ matches snapshot for dynamic-app.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -431,9 +464,12 @@ matches snapshot for dynamic-db.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -468,9 +504,12 @@ matches snapshot for imagepullsecrets.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -503,9 +542,12 @@ matches snapshot for initcontainers.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -538,9 +580,12 @@ matches snapshot for log-basic.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -573,9 +618,12 @@ matches snapshot for log-extra.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: DEBUG
             output: /var/lib/teleport/test.log
@@ -608,9 +656,12 @@ matches snapshot for log-legacy.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: DEBUG
             output: stderr
@@ -643,9 +694,12 @@ matches snapshot for node-selector.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -678,9 +732,12 @@ matches snapshot for pdb.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: DEBUG
             output: /var/lib/teleport/test.log
@@ -713,9 +770,12 @@ matches snapshot for resources.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -748,9 +808,12 @@ matches snapshot for stateful.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -783,9 +846,12 @@ matches snapshot for tolerations.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr
@@ -818,9 +884,12 @@ matches snapshot for volumes.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
+        version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
+          join_params:
+            join_method: token
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
           log:
             severity: INFO
             output: stderr

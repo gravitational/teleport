@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -816,7 +817,26 @@ const (
 	TeleportConfigVersionV1 string = "v1"
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
+	// TeleportConfigVersionV3 is the teleport proxy configuration v3 version.
+	TeleportConfigVersionV3 string = "v3"
 )
+
+// TeleportVersions is an exported slice of the allowed versions in the config file,
+//for convenience (looping through, etc)
+var TeleportVersions = []string{
+	TeleportConfigVersionV1,
+	TeleportConfigVersionV2,
+	TeleportConfigVersionV3,
+}
+
+func ValidateVersion(version string) error {
+	hasVersion := apiutils.SliceContainsStr(TeleportVersions, version)
+	if !hasVersion {
+		return trace.BadParameter("version must be one of %s", strings.Join(TeleportVersions, ", "))
+	}
+
+	return nil
+}
 
 // Default values for tsh and tctl commands.
 const (

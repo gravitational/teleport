@@ -146,7 +146,7 @@ func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, prox
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cfg.AuthServers = []utils.NetAddr{*proxyAddr}
+	cfg.SetAuthServerAddresses([]utils.NetAddr{*proxyAddr})
 
 	token, err := proxy.Config.Token()
 	require.NoError(t, err)

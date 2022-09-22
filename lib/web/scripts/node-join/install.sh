@@ -414,12 +414,14 @@ install_teleport_app_config() {
     log "Writing Teleport app service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
     cat << EOF > ${TELEPORT_CONFIG_PATH}
+version: v3
 teleport:
   nodename: ${NODENAME}
-  auth_token: ${JOIN_TOKEN}
+  join_params:
+    join_method: token
+    token_name: ${JOIN_TOKEN}
 ${CA_PINS_CONFIG}
-  auth_servers:
-  - ${TARGET_HOSTNAME}:${TARGET_PORT}
+  proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}
   log:
     output: stderr
     severity: INFO
@@ -444,7 +446,7 @@ install_teleport_node_config() {
       --token ${JOIN_TOKEN} \
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
-      --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
+      --proxy ${TARGET_HOSTNAME}:${TARGET_PORT} \
       "${LABELS_FLAG[@]}" \
       --output ${TELEPORT_CONFIG_PATH}
 }

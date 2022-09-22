@@ -188,12 +188,14 @@ Save the following configuration file as `/etc/teleport.yaml` on the Proxy Serve
 
 ```yaml
 # enable multiplexing all traffic on TCP port 443
-version: v2
+version: v3
 teleport:
-  auth_token: EXAMPLE-PROXY-JOIN-TOKEN
+  join_params:
+    join_method: token
+    token_name: EXAMPLE-PROXY-JOIN-TOKEN
   # We recommend using a TCP load balancer pointed to the auth servers when
   # setting up in High Availability mode.
-  auth_servers: [ "auth.example.com:3025" ]
+  auth_server: auth.example.com:3025
 # enable proxy service, disable auth and ssh
 ssh_service:
   enabled: false
@@ -214,11 +216,14 @@ proxy_service:
 Save the following configuration file as `/etc/teleport.yaml` on the Node:
 
 ```yaml
+version: v3
 teleport:
-  auth_token: EXAMPLE-NODE-JOIN-TOKEN
+  join_params:
+    join_method: token
+    token_name: EXAMPLE-NODE-JOIN-TOKEN
   # Nodes and other agents can be joined to the cluster via the proxy's public address.
   # This will establish a reverse tunnel between the proxy and the node which is used for all traffic.
-  auth_servers: [ "teleport.example.com:443" ]
+  proxy_server: teleport.example.com:443
 # enable ssh service and disable auth and proxy
 ssh_service:
   enabled: true

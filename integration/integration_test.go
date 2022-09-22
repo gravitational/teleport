@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
@@ -134,6 +135,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("MultiplexingTrustedClusters", suite.bind(testMultiplexingTrustedClusters))
 	t.Run("PAM", suite.bind(testPAM))
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
+	t.Run("ProxyServer", suite.bind(testProxyServer))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
@@ -720,12 +722,12 @@ func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *he
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
 		tconf.SetToken("token")
-		tconf.AuthServers = []utils.NetAddr{
+		tconf.SetAuthServerAddresses([]utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        main.Web,
 			},
-		}
+		})
 
 		tconf.Auth.Enabled = false
 
@@ -2695,12 +2697,12 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
-		tconf.AuthServers = []utils.NetAddr{
+		tconf.SetAuthServerAddresses([]utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        aux.Web,
 			},
-		}
+		})
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
@@ -3107,12 +3109,12 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
 		tconf.SetToken("token")
-		tconf.AuthServers = []utils.NetAddr{
+		tconf.SetAuthServerAddresses([]utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        proxyConfig.WebAddr,
 			},
-		}
+		})
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
@@ -3248,12 +3250,12 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
 		tconf.SetToken("token")
-		tconf.AuthServers = []utils.NetAddr{
+		tconf.SetAuthServerAddresses([]utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        main.Web,
 			},
-		}
+		})
 
 		tconf.Auth.Enabled = false
 
@@ -3554,6 +3556,50 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			}
 		})
 	}
+}
+
+// testProxyServer uses the forwarding proxy to connect to a server that
+// presents a host key instead of a certificate in different configurations
+// for the host key checking parameter in services.ClusterConfig.
+func testProxyServer(t *testing.T, suite *integrationTestSuite) {
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *service.Config {
+		tconf := suite.defaultServiceConfig()
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+
+	main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig())
+	defer main.StopAll()
+
+	nodeConfig := func() *service.Config {
+		tconf := suite.defaultServiceConfig()
+		tconf.Version = libdefaults.TeleportConfigVersionV3
+		tconf.Hostname = Host
+		tconf.SetToken("token")
+		tconf.ProxyServer = utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        main.Web,
+		}
+
+		tconf.Auth.Enabled = false
+		tconf.Proxy.Enabled = false
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+
+	_, err := main.StartReverseTunnelNode(nodeConfig())
+	require.NoError(t, err)
+
+	verifySessionJoin(t, suite.Me.Username, main)
 }
 
 // testProxyHostKeyCheck uses the forwarding proxy to connect to a server that
@@ -6303,9 +6349,9 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			conf.DataDir = t.TempDir()
 			conf.SetToken("token")
 			conf.UploadEventsC = i.UploadEventsC
-			conf.AuthServers = []utils.NetAddr{
+			conf.SetAuthServerAddresses([]utils.NetAddr{
 				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))),
-			}
+			})
 			conf.HostUUID = name
 			conf.Hostname = name
 			conf.SSH.Enabled = true

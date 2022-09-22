@@ -95,7 +95,7 @@ func TestMonitor(t *testing.T) {
 	var err error
 	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddresses([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}})
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
@@ -459,7 +459,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddresses([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -580,7 +580,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddresses([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}})
 	cfg.Clock = clock
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -641,7 +641,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Create Node process.
 	nodeCfg := MakeDefaultConfig()
-	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
+	nodeCfg.SetAuthServerAddresses([]utils.NetAddr{listenAddr})
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
@@ -669,7 +669,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	authCfg := MakeDefaultConfig()
-	authCfg.AuthServers = []utils.NetAddr{listenAddr}
+	authCfg.SetAuthServerAddresses([]utils.NetAddr{listenAddr})
 	authCfg.DataDir = t.TempDir()
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.StaticTokens = staticTokens

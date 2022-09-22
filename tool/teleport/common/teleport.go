@@ -232,7 +232,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate := dbConfigure.Command("create", "Creates a sample Database Service configuration.")
 	dbConfigureCreate.Flag("proxy", fmt.Sprintf("Teleport proxy address to connect to [%s].", defaults.ProxyWebListenAddr().Addr)).
 		Default(defaults.ProxyWebListenAddr().Addr).
-		StringsVar(&dbConfigCreateFlags.AuthServersAddr)
+		StringVar(&dbConfigCreateFlags.ProxyServer)
 	dbConfigureCreate.Flag("token", "Invitation token to register with an auth server [none].").Default("/tmp/token").StringVar(&dbConfigCreateFlags.AuthToken)
 	dbConfigureCreate.Flag("rds-discovery", "List of AWS regions in which the agent will discover RDS/Aurora instances.").StringsVar(&dbConfigCreateFlags.RDSDiscoveryRegions)
 	dbConfigureCreate.Flag("redshift-discovery", "List of AWS regions in which the agent will discover Redshift instances.").StringsVar(&dbConfigCreateFlags.RedshiftDiscoveryRegions)
@@ -320,7 +320,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
 	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
-	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
+	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
@@ -328,6 +328,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
+	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
 	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
@@ -339,11 +340,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("output",
 		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dumpFlags.output)
-	dumpNodeConfigure.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV2).StringVar(&dumpFlags.Version)
+	dumpNodeConfigure.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dumpNodeConfigure.Flag("public-addr", "The hostport that the node advertises for the SSH endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dumpNodeConfigure.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
 	dumpNodeConfigure.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dumpNodeConfigure.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
+	dumpNodeConfigure.Flag("proxy", "Address of the auth server.").StringVar(&dumpFlags.ProxyAddress)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2")
@@ -489,16 +491,12 @@ func normalizeOutput(output string) string {
 }
 
 func checkConfigurationFileVersion(version string) error {
-	supportedVersions := []string{defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2}
-	switch version {
-	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2, "":
-	default:
-		return trace.BadParameter(
-			"unsupported Teleport configuration version %q, supported are: %s",
-			version, strings.Join(supportedVersions, ","))
+	// allow an empty version as we default to v1
+	if version == "" {
+		return nil
 	}
 
-	return nil
+	return defaults.ValidateVersion(version)
 }
 
 // onConfigDump is the handler for "configure" CLI command

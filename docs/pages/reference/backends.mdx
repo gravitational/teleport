@@ -42,10 +42,9 @@ run in a highly available fashion.
 
 ## Auth Server State
 
-To run multiple instances of Teleport Auth Server, you must switch to a High Availability secrets back-end first. Also, you must tell each node in a cluster that there is more than one auth server available. There are two ways to do this:
+To run multiple instances of Teleport Auth Server, you must switch to a High Availability secrets back-end first.
 
-- Use a load balancer to create a single auth API access point (AP) and specify this AP in `auth_servers` section of Teleport configuration for all nodes in a cluster. This load balancer should do TCP level forwarding.
-- If a load balancer is not an option, you must specify each instance of an auth server in `auth_servers` section of Teleport configuration.
+To do this, use a load balancer to create a single auth API access point (AP) and specify this AP in `auth_server` section of Teleport configuration for all nodes in a cluster. This load balancer should do TCP level forwarding.
 
 **IMPORTANT:** with multiple instances of the auth servers running, special
 attention needs to be paid to keeping their configuration identical. Settings
@@ -119,8 +118,7 @@ To configure Teleport for using etcd as a storage backend:
     don't already have a TLS setup.
 - Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
 - Deploy several auth servers connected to etcd backend.
-- Deploy several proxy nodes that have `auth_servers` pointed to the list of auth
-  servers to connect to.
+- Deploy several proxy nodes that have `auth_server` pointed to the auth server to connect to.
 
 ```yaml
 teleport:

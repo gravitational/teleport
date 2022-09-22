@@ -16,7 +16,7 @@ You will be deploying three Teleport services on a single host:
   resources or manage the cluster.
 
 - The **SSH Service**  is an SSH server implementation that provides seamless
-  access to Linux hosts in your cluster. 
+  access to Linux hosts in your cluster.
 
   SSH Service instances are called **Teleport Nodes**. When a Teleport Node
   receives a connection request, the request is authenticated through the
@@ -197,7 +197,7 @@ permissions and the option to download your license file:
 Save your license file on the host where you will install Teleport at the path,
 `/var/lib/teleport/license.pem`.
 
-### Start Teleport 
+### Start Teleport
 
 On the host where you are running Teleport, generate a systemd unit file for
 Teleport and save it in `/etc/systemd/system/teleport.service`:
@@ -213,7 +213,7 @@ $ sudo systemctl enable teleport
 $ sudo systemctl start teleport
 ```
 
-Confirm that the `teleport` service has started: 
+Confirm that the `teleport` service has started:
 
 ```
 $ sudo systemctl status teleport
@@ -238,9 +238,9 @@ The output should look something like this:
 ```code
 $ sudo netstat -lptne | grep teleport
 tcp6       0      0 :::443                  :::*                    LISTEN
-0          168760     29504/teleport    
+0          168760     29504/teleport
 tcp6       0      0 :::3022                 :::*                    LISTEN
-0          167812     29504/teleport    
+0          167812     29504/teleport
 tcp6       0      0 :::3025                 :::*                    LISTEN
 0          168741     29504/teleport
 ```
@@ -297,7 +297,7 @@ Run the following commands to download and run the Teleport installer:
   ```code
   $ curl -O https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg
   # Installs on Macintosh HD
-  $ sudo installer -pkg teleport-ent-(=teleport.version=).pkg -target / 
+  $ sudo installer -pkg teleport-ent-(=teleport.version=).pkg -target /
   # Password:
   # installer: Package name is teleport-ent-(=teleport.version=)
   # installer: Upgrading at base path /
@@ -359,7 +359,7 @@ $ tsh --proxy=auth.example.com login --user=myuser
 ```
 
 Note that you can omit the `--user` flag if the `$USER` environment variable
-is equal to your Teleport username.  
+is equal to your Teleport username.
 
 If successful, the `tsh login` command will retrieve a user certificate for
 `myuser` and store it in the `~/.tsh/keys/<proxy>` directory.
@@ -405,8 +405,8 @@ List all SSH servers connected to Teleport:
 
 ```code
 $ tsh ls
-Node Name        Address        Labels                                
----------------- -------------- ------------------------------------- 
+Node Name        Address        Labels
+---------------- -------------- -------------------------------------
 mynode 127.0.0.1:3022 env=example,hostname=mynode
 ```
 

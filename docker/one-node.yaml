@@ -1,14 +1,17 @@
+version: v3
 teleport:
-  auth_servers: ["one"]
-  auth_token: foo
+  auth_server: one
+  join_params:
+    join_method: token
+    token_name: foo
   log:
     output: /var/lib/teleport/teleport.log
     severity: INFO
 
   data_dir: /var/lib/teleport
   storage:
-      path: /var/lib/teleport/backend
-      type: dir
+    path: /var/lib/teleport/backend
+    type: dir
 
 auth_service:
   enabled: no
@@ -16,11 +19,11 @@ auth_service:
 ssh_service:
   enabled: yes
   labels:
-      cluster: one
+    cluster: one
   commands:
-      - name: kernel
-        command: [/bin/uname, -r]
-        period: 5m
+    - name: kernel
+      command: [ /bin/uname, -r ]
+      period: 5m
 
 proxy_service:
   enabled: no

@@ -253,7 +253,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, config.Auth.ListenAddr)
+	config.SetAuthServerAddresses(append(config.AuthServerAddresses(), config.Auth.ListenAddr))
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
@@ -291,7 +291,7 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 	config.PollingPeriod = 1 * time.Second
 	config.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
-	config.AuthServers = append(config.AuthServers, authAddr)
+	config.SetAuthServerAddresses(append(config.AuthServerAddresses(), authAddr))
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.Log = log
 	return config

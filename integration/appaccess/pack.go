@@ -556,12 +556,12 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
 		raConf.SetToken("static-token-value")
-		raConf.AuthServers = []utils.NetAddr{
+		raConf.SetAuthServerAddresses([]utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        p.rootCluster.Web,
 			},
-		}
+		})
 		raConf.Auth.Enabled = false
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
@@ -701,12 +701,12 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
 		laConf.SetToken("static-token-value")
-		laConf.AuthServers = []utils.NetAddr{
+		laConf.SetAuthServerAddresses([]utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
 				Addr:        p.leafCluster.Web,
 			},
-		}
+		})
 		laConf.Auth.Enabled = false
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false

@@ -90,10 +90,8 @@ type Config struct {
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 
-	// AuthServers is a list of auth servers, proxies and peer auth servers to
-	// connect to. Yes, this is not just auth servers, the field name is
-	// misleading.
-	AuthServers []utils.NetAddr
+	// ProxyServer is the address of the proxy
+	ProxyServer utils.NetAddr
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
@@ -269,6 +267,58 @@ type Config struct {
 	// This is private to avoid external packages reading the value - the value should be obtained
 	// using Token()
 	token string
+
+	// v1, v2 -
+	// AuthServers is a list of auth servers, proxies and peer auth servers to
+	// connect to. Yes, this is not just auth servers, the field name is
+	// misleading.
+	// v3 -
+	// AuthServers contains a single address that is set by `auth_server` in the config
+	// A proxy address would be specified separately, so this no longer contains both
+	// auth servers and proxies.
+	//
+	// In order to keep backwards compatibility between v3 and v2/v1, this is now private
+	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
+	// as we still need to keep multiple addresses and return them for older config versions.
+	authServers []utils.NetAddr
+}
+
+// AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
+// will return just the first (as only one should be set) address for config versions v3
+// onwards.
+func (cfg *Config) AuthServerAddresses() []utils.NetAddr {
+	switch cfg.Version {
+	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
+		return cfg.authServers
+
+	// we only want to return one auth server if the config version is v3 or above
+	case defaults.TeleportConfigVersionV3:
+		if len(cfg.authServers) > 0 {
+			return cfg.authServers[0:1]
+		}
+	}
+
+	return []utils.NetAddr{}
+}
+
+// SetAuthServerAddresses sets the value of authServers, filtering out any empty addresses
+// If the config version is v1 or v2, it will set the value to all the given addresses (as
+// multiple can be specified).
+// If the config version is v3 or onwards, it'll only the first non-empty address.
+func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) {
+	cfg.authServers = []utils.NetAddr{}
+
+	for _, addr := range addrs {
+		if !addr.IsEmpty() {
+			cfg.authServers = append(cfg.authServers, addr)
+
+			switch cfg.Version {
+			case defaults.TeleportConfigVersionV3:
+				// we only want to allow one auth server to be set when the config version is v3 or above
+				return
+			}
+		}
+	}
 }
 
 // Token returns token needed to join the auth server
@@ -329,7 +379,7 @@ func (cfg *Config) RoleConfig() RoleConfig {
 		DataDir:     cfg.DataDir,
 		HostUUID:    cfg.HostUUID,
 		HostName:    cfg.Hostname,
-		AuthServers: cfg.AuthServers,
+		AuthServers: cfg.AuthServerAddresses(),
 		Auth:        cfg.Auth,
 		Console:     cfg.Console,
 	}

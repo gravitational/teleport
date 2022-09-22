@@ -307,8 +307,11 @@ elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
     # Teleport proxy proxies and optionally records
     # SSH sessions
     cat >${USE_CONFIG_PATH} <<EOF
+version: v3
 teleport:
-  auth_token: /var/lib/teleport/token
+  join_params:
+    join_method: token
+    token_name: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
@@ -324,8 +327,7 @@ teleport:
   storage:
     type: dir
     path: /var/lib/teleport/backend
-  auth_servers:
-    - ${TELEPORT_AUTH_SERVER_LB}:3025
+  auth_server: ${TELEPORT_AUTH_SERVER_LB}:3025
 
 auth_service:
   enabled: no
@@ -348,7 +350,7 @@ EOF
     if [[ "${USE_ACM}" != "true" ]]; then
         write_https_keypairs_section
     fi
-    
+
     # set up the database listeners
     write_database_section TELEPORT_DOMAIN_NAME
 
@@ -374,8 +376,11 @@ elif [[ "${TELEPORT_ROLE}" == "node" ]]; then
     echo "node" > ${USE_CONFD_DIR}/role.node
     # Teleport node handles incoming connections
     cat >${USE_CONFIG_PATH} <<EOF
+version: v3
 teleport:
-  auth_token: /var/lib/teleport/token
+  join_params:
+      join_method: token
+      token_name: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
@@ -386,8 +391,7 @@ teleport:
   storage:
     type: dir
     path: /var/lib/teleport/backend
-  auth_servers:
-    - ${TELEPORT_AUTH_SERVER_LB}:3025
+  auth_server: ${TELEPORT_AUTH_SERVER_LB}:443
 
 auth_service:
   enabled: no
@@ -506,7 +510,7 @@ EOF
 
             # set up the database listeners
             write_database_section TELEPORT_EXTERNAL_HOSTNAME
-    
+
             # set up the kubernetes listener
             write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
@@ -527,7 +531,7 @@ EOF
 
         # set up the database listeners
         write_database_section TELEPORT_EXTERNAL_HOSTNAME
-            
+
         # set up the kubernetes listener
         write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
@@ -588,7 +592,7 @@ EOF
 
     # write ssh/tunnel config
     write_ssh_and_tunnel_section 3080
-    
+
     # set up the database listeners
     write_database_section TELEPORT_EXTERNAL_HOSTNAME
 
@@ -767,13 +771,16 @@ EOF
 elif [[ "${TELEPORT_ROLE}" == "agent" ]]; then
     echo "agent" > ${USE_CONFD_DIR}/role.agent
     cat >${USE_CONFIG_PATH} <<EOF
+version: v3
 teleport:
   log:
     output: stderr
     severity: INFO
   data_dir: /var/lib/teleport
-  auth_token: ${TELEPORT_JOIN_TOKEN}
-  auth_servers: ['${TELEPORT_PROXY_SERVER_LB}']
+  join_params:
+    join_method: token
+    token_name: ${TELEPORT_JOIN_TOKEN}
+  proxy_server: ${TELEPORT_PROXY_SERVER_LB}
 
 auth_service:
   enabled: no

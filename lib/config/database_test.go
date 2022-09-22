@@ -25,11 +25,11 @@ import (
 func TestMakeDatabaseConfig(t *testing.T) {
 	t.Run("Global", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
-			NodeName:        "testlocal",
-			DataDir:         "/var/lib/data",
-			AuthServersAddr: []string{"localhost:3080"},
-			AuthToken:       "/tmp/token.txt",
-			CAPins:          []string{"pin-1", "pin-2"},
+			NodeName:    "testlocal",
+			DataDir:     "/var/lib/data",
+			ProxyServer: "localhost:3080",
+			AuthToken:   "/tmp/token.txt",
+			CAPins:      []string{"pin-1", "pin-2"},
 		}
 
 		configString, err := MakeDatabaseAgentConfigString(flags)
@@ -40,8 +40,8 @@ func TestMakeDatabaseConfig(t *testing.T) {
 
 		require.Equal(t, flags.NodeName, fileConfig.NodeName)
 		require.Equal(t, flags.DataDir, fileConfig.DataDir)
-		require.ElementsMatch(t, flags.AuthServersAddr, fileConfig.AuthServers)
-		require.Equal(t, flags.AuthToken, fileConfig.AuthToken)
+		require.ElementsMatch(t, flags.ProxyServer, fileConfig.ProxyServer)
+		require.Equal(t, flags.AuthToken, fileConfig.JoinParams.TokenName)
 		require.ElementsMatch(t, flags.CAPins, fileConfig.CAPin)
 	})
 

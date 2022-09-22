@@ -12,7 +12,7 @@ This guide will explain how to:
 
 - Access AWS Management Console through Teleport.
 - View Teleport users' AWS console activity in CloudTrail.
-- Access the AWS Command Line Interface (CLI) through Teleport. 
+- Access the AWS Command Line Interface (CLI) through Teleport.
 - Access applications using AWS SDKs through Teleport.
 
 ## Prerequisites
@@ -75,7 +75,7 @@ This step is only required if you are allowing access from another account. The 
 </Admonition>
 
 Teleport uses AWS [federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html) to generate sign-in URLs for users, which relies on the `AssumeRole` API
-for getting temporary security credentials. 
+for getting temporary security credentials.
 You will need to update your IAM roles' "Trusted entities" to include your AWS account ID.
 
 Go to the [Roles](https://console.aws.amazon.com/iamv2/home#/roles) list, pick
@@ -163,18 +163,20 @@ for details.
 Add AWS management console to your application service configuration:
 
 ```yaml
+version: v3
 teleport:
   # Data directory for the Application Proxy service. If running on the same
   # node as Auth/Proxy service, make sure to use different data directories.
   data_dir: /var/lib/teleport-app
   # Instructs the service to load the join token from the specified file
   # during initial registration with the cluster.
-  auth_token: /var/lib/teleport-app/token
+  join_params:
+    join_method: token
+    token_name: /var/lib/teleport-app/token
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the app service always connects to the cluster over a reverse
   # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
+  proxy_server: teleport.example.com:3080
 app_service:
   enabled: "yes"
   apps:

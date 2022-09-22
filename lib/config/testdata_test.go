@@ -20,14 +20,15 @@ const StaticConfigString = `
 #
 # Some comments
 #
+version: v3
 teleport:
   nodename: edsger.example.com
   advertise_ip: 10.10.10.1:3022
   pid_file: /var/run/teleport.pid
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
-  auth_token: xxxyyy
+  auth_server: auth0.server.example.org:3024
+  join_params:
+    join_method: token
+    token_name: xxxyyy
   log:
     output: stderr
     severity: INFO
@@ -84,14 +85,15 @@ ssh_service:
 `
 
 const SmallConfigString = `
+version: v3
 teleport:
   nodename: cat.example.com
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
-  auth_token: %v
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
+  join_params:
+    join_method: token
+    token_name: %v
+  auth_server: auth0.server.example.org:3024
   log:
     output: stderr
     severity: INFO

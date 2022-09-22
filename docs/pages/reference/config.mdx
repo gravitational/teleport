@@ -9,6 +9,37 @@ Teleport uses the YAML file format for configuration. A full configuration refer
 file is shown below, this provides comments and all available options for `teleport.yaml`
 By default, it is stored in `/etc/teleport.yaml`.
 
+<Admonition type="note" title="Config v3">
+
+Config version v3 removes both `auth_token` and `auth_servers` from the `teleport` section.
+
+To migrate from v2 to v3, change `auth_token` to `join_params.token_name`. You should change
+`auth_servers` to either `auth_server` or `proxy_server`, depending on which one is being
+specified in your config already.
+
+Before:
+
+```yaml
+version: v2
+teleport:
+  auth_token: xxxx-token-xxxx
+  auth_servers:
+    - teleport-proxy.example.com:443
+```
+
+After:
+
+```yaml
+version: v3
+teleport:
+  proxy_server: teleport-proxy.example.com:443
+  join_params:
+    join_method: token
+    token_name: xxxx-token-xxxx
+```
+
+</Admonition>
+
 <Admonition type="danger" title="Before using this reference">
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -65,8 +96,8 @@ By default, it is stored in `/etc/teleport.yaml`.
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
-# Configuration file version. The current version is "v2".
-version: v2
+# Configuration file version. The current version is "v3".
+version: v3
 
 # This section of the configuration file applies to all teleport
 # services.
@@ -83,14 +114,6 @@ teleport:
     # PID file for Teleport process
     #pid_file: /var/run/teleport.pid
 
-    # The invitation token or an absolute path to a file containing the token used
-    # to join a cluster. It is not used on subsequent starts.
-    # If using a file, it only needs to exist when teleport is first ran.
-    #
-    # File path example:
-    # auth_token: /var/lib/teleport/tokenjoin
-    auth_token: xxxx-token-xxxx
-
     # join_params are parameters to set when joining a cluster via
     # EC2, IAM or a token.
     #
@@ -99,16 +122,21 @@ teleport:
     # IAM join method documentation:
     # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
     join_params:
-        # method, when set to "token", is equivalent to using auth_token.
+        # method when set to "token", is equivalent to using auth_token.
         method: "token"|"ec2"|"iam"
-        # When method is "token", token_name is either the
-        # token or the path to a file containing the token.
+
+        # If method is "iam" or "ec2", token_name will be will be the name of
+        # the joining token resource, e.g., "ec2-token" or "iam-token" as created
+        # in the Joining Nodes via EC2 or IAM guides.
+
+        # If method is "token", token_name will be the invitation token
+        # or an absolute path to a file containing the token used to join a cluster.
+        # It is not used on subsequent starts.
+        # If using a file, it only needs to exist when teleport is first ran.
         #
-        # If method is "iam" or "ec2", token_name will be will be
-        # the name of the joining token resource, e.g., "ec2-token" or
-        # "iam-token" as created in the Joining Nodes via EC2 or IAM
-        # guides.
-        token_name:  "token-name"
+        # File path example:
+        # token_name: /var/lib/teleport/tokenjoin
+        token_name: "token-name"
 
     # Optional CA pin of the auth server. This enables a more secure way of
     # adding new nodes to a cluster. See "Adding Nodes to your Cluster"
@@ -128,14 +156,24 @@ teleport:
     # https://goteleport.com/docs/setup/reference/metrics/
     diag_addr: "127.0.0.1:3000"
 
+
+    # Only use one of auth_server or proxy_server.
+    #
+    # When you have either the application service or database service enabled,
+    # only tunneling through the proxy is supported, so you should specify proxy_server.
+    # All other services support both tunneling through the proxy and directly connecting
+    # to the auth server, so you can specify either auth_server or proxy_server.
+
     # Auth Server address and port to connect to. If you enable the Teleport
     # Auth Server to run in High Availability configuration, the address should
     # point to a Load Balancer.
-    # If adding a node located behind NAT, use the Proxy URL. e.g.
-    #  auth_servers:
-    #     - teleport-proxy.example.com:443
-    auth_servers:
-        - 10.1.0.5:3025
+    # If adding a node located behind NAT, specify `proxy_servers` instead
+    auth_server: 10.1.0.5:3025
+
+    # Proxy Server address and port to connect to. If you enable the Teleport
+    # Proxy Server to run in High Availability configuration, the address should
+    # point to a Load Balancer.
+    proxy_server: teleport-proxy.example.com:443
 
     # cache:
     #  # The cache is enabled by default, it can be disabled with this flag
