@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -221,7 +222,7 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		// "OSSCluster" requires client to use the OSS Cluster mode.
 		//
 		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
-		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == "OSSCluster" {
+		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
 			defaultMode = Cluster
 		}
 	}

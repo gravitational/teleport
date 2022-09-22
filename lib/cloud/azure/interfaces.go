@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 )
 
 // DBServersClient provides an interface for fetching Azure DB Servers.
@@ -60,26 +61,26 @@ type ARMPostgres interface {
 
 var _ ARMPostgres = (*armpostgresql.ServersClient)(nil)
 
-// TODO
-type RedisServer interface {
-	GetName() string
-	GetLocation() string
-	GetResourceID() string
-	GetHostname() string
-	GetPort() string
-	GetTags() map[string]string
-	GetClusteringPolicy() string
-	GetEngineVersion() string
-	IsSupported() (bool, error)
-	IsAvailable() (bool, error)
-}
-
 // CacheForRedisClient provides an interface for an Azure Redis For Cache client.
 type CacheForRedisClient interface {
 	// GetToken retrieves the auth token for provided resource ID.
 	GetToken(ctx context.Context, resourceID string) (string, error)
+}
+
+type RedisClient interface {
+	CacheForRedisClient
+
 	// ListAll returns all Azure Redis servers within an Azure subscription.
-	ListAll(ctx context.Context) ([]RedisServer, error)
+	ListAll(ctx context.Context) ([]*armredis.ResourceInfo, error)
 	// ListWithinGroup returns all Azure Redis servers within an Azure resource group.
-	ListWithinGroup(ctx context.Context, group string) ([]RedisServer, error)
+	ListWithinGroup(ctx context.Context, group string) ([]*armredis.ResourceInfo, error)
+}
+
+type RedisEnterpriseClient interface {
+	CacheForRedisClient
+
+	// ListAll returns all Azure Redis Enterprise clusters within an Azure subscription.
+	ListAll(ctx context.Context) ([]*RedisEnterpriseCluster, error)
+	// ListWithinGroup returns all Azure Redis Enterprise clusters within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseCluster, error)
 }

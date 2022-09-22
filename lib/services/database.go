@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -119,20 +121,26 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	return nil, trace.BadParameter("unsupported database resource version %q", h.Version)
 }
 
-// setDBName modifies the types.Metadata argument in place, setting the database name.
+// setDBNameByLabel modifies the types.Metadata argument in place, setting the database name.
 // The name is calculated based on nameParts arguments which are joined by hyphens "-".
-// If the DB name override label is present (labelTeleportDBName), it will replace the *first* name part.
-func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+// If the DB name override label is present, it will replace the *first* name part.
+func setDBNameByLabel(overrideLabel string, meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
 	nameParts := append([]string{firstNamePart}, extraNameParts...)
 
 	// apply override
-	if override, found := meta.Labels[labelTeleportDBName]; found && override != "" {
+	if override, found := meta.Labels[overrideLabel]; found && override != "" {
 		nameParts[0] = override
 	}
 
 	meta.Name = strings.Join(nameParts, "-")
 
 	return meta
+}
+func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setDBNameByLabel(labelTeleportDBName, meta, firstNamePart, extraNameParts...)
+}
+func setAzureDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setDBNameByLabel(labelTeleportDBNameAzure, meta, firstNamePart, extraNameParts...)
 }
 
 // NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
@@ -147,7 +155,7 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 	}
 
 	return types.NewDatabaseV3(
-		setDBName(types.Metadata{
+		setAzureDBName(types.Metadata{
 			Description: fmt.Sprintf("Azure %v server in %v",
 				defaults.ReadableDatabaseProtocol(server.Protocol),
 				server.Location),
@@ -161,6 +169,75 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 				ResourceID: server.ID,
 			},
 		})
+}
+
+// NewDatabaseFromAzureRedis creates a database resource from an Azure Redis server.
+func NewDatabaseFromAzureRedis(server *armredis.ResourceInfo) (types.Database, error) {
+	if server.Properties == nil { // should never happen, but checking just in case.
+		return nil, trace.BadParameter("missing properties")
+	}
+	if server.Properties.SSLPort == nil { // should never happen, but checking just in case.
+		return nil, trace.BadParameter("missing SSL port")
+	}
+	labels, err := labelsFromAzureRedis(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure %v server in %v",
+				defaults.ReadableDatabaseProtocol(defaults.ProtocolRedis),
+				stringVal(server.Location)),
+			Labels: labels,
+		}, stringVal(server.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolRedis,
+			URI:      fmt.Sprintf("%v:%v", stringVal(server.Properties.HostName), *server.Properties.SSLPort),
+			Azure: types.Azure{
+				Name:       stringVal(server.Name),
+				ResourceID: stringVal(server.ID),
+			},
+		})
+	return nil, nil
+}
+
+// NewDatabaseFromAzureRedisEnterprise creates a database resource from an Azure Redis Enterprise server.
+func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (types.Database, error) {
+	if cluster.Properties == nil || database.Properties == nil { // should never happen, but checking just in case.
+		return nil, trace.BadParameter("missing properties")
+	}
+	if database.Properties.Port == nil { // should never happen, but checking just in case.
+		return nil, trace.BadParameter("missing port")
+	}
+	labels, err := labelsFromAzureRedisEnterprise(cluster, database)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var nameSuffixes []string
+	if stringVal(database.Name) != azure.RedisEnterpriseClusterDefaultDatabase {
+		nameSuffixes = append(nameSuffixes, stringVal(database.Name))
+	}
+
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure %v Enterprise server in %v",
+				defaults.ReadableDatabaseProtocol(defaults.ProtocolRedis),
+				stringVal(cluster.Location)),
+			Labels: labels,
+		}, stringVal(cluster.Name), nameSuffixes...),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolRedis,
+			URI:      fmt.Sprintf("%v:%v", stringVal(cluster.Properties.HostName), *database.Properties.Port),
+			Azure: types.Azure{
+				Name:       strings.Join(append([]string{stringVal(cluster.Name)}, nameSuffixes...), "-"),
+				ResourceID: stringVal(database.ID),
+				Redis: types.AzureRedis{
+					ClusteringPolicy: stringVal(database.Properties.ClusteringPolicy),
+				},
+			},
+		})
+	return nil, nil
 }
 
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
@@ -547,8 +624,12 @@ func labelsFromAzureServer(server *azure.DBServer) (map[string]string, error) {
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = server.Location
 	labels[labelEngineVersion] = server.Properties.Version
+	return withLabelsFromAzureResourceID(labels, server.ID)
+}
 
-	rid, err := arm.ParseResourceID(server.ID)
+// withLabelsFromAzureResourceID adds labels extracted from the Azure resource ID.
+func withLabelsFromAzureResourceID(labels map[string]string, resourceID string) (map[string]string, error) {
+	rid, err := arm.ParseResourceID(resourceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -556,6 +637,25 @@ func labelsFromAzureServer(server *azure.DBServer) (map[string]string, error) {
 	labels[labelResourceGroup] = rid.ResourceGroupName
 	labels[labelSubscriptionID] = rid.SubscriptionID
 	return labels, nil
+}
+
+// labelsFromAzureRedis creates database labels from the provided Azure Redis instance.
+func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, error) {
+	labels := azureTagsToLabels(convertAzureTags(server.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = stringVal(server.Location)
+	labels[labelEngineVersion] = stringVal(server.Properties.RedisVersion)
+	return withLabelsFromAzureResourceID(labels, stringVal(server.ID))
+}
+
+// labelsFromAzureRedisEnterprise creates database labels from the provided Azure Redis Enterprise server.
+func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (map[string]string, error) {
+	labels := azureTagsToLabels(convertAzureTags(cluster.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = stringVal(cluster.Location)
+	labels[labelEngineVersion] = stringVal(cluster.Properties.RedisVersion)
+	labels[labelEndpointType] = stringVal(database.Properties.ClusteringPolicy)
+	return withLabelsFromAzureResourceID(labels, stringVal(database.ID))
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
@@ -877,6 +977,21 @@ func GetMySQLEngineVersion(labels map[string]string) string {
 	return version
 }
 
+func stringVal[T ~string](s *T) string {
+	if s != nil {
+		return string(*s)
+	}
+	return ""
+}
+
+func convertAzureTags(tags map[string]*string) map[string]string {
+	result := make(map[string]string, len(tags))
+	for k, v := range tags {
+		result[k] = stringVal(v)
+	}
+	return result
+}
+
 const (
 	// labelAccountID is the label key containing AWS account ID.
 	labelAccountID = "account-id"
@@ -892,6 +1007,9 @@ const (
 	labelVPCID = "vpc-id"
 	// labelTeleportDBName is the label key containing the database name override.
 	labelTeleportDBName = types.TeleportNamespace + "/database_name"
+	// labelTeleportDBNameAzure is the label key containing the database name
+	// override for Azure. Azure tags connot contain these characters: "<>%&\?/".
+	labelTeleportDBNameAzure = "TeleportDatabaseName"
 )
 
 const (

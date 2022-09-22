@@ -18,9 +18,6 @@ package azure
 
 import (
 	"context"
-	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -53,7 +50,7 @@ type redisEnterpriseClient struct {
 
 // NewRedisEnterpriseClient creates a new Azure Redis Enterprise client by
 // subscription and credentials.
-func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
+func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RedisEnterpriseClient, error) {
 	logrus.Debug("Initializing Azure Redis Enterprise client.")
 	clusterAPI, err := armredisenterprise.NewClient(subscription, cred, options)
 	if err != nil {
@@ -68,7 +65,7 @@ func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, 
 
 // NewRedisEnterpriseClientByAPI creates a new Azure Redis Enterprise client by
 // ARM API client(s).
-func NewRedisEnterpriseClientByAPI(clusterAPI armRedisEnterpriseClusterClient, databaseAPI armRedisEnterpriseDatabaseClient) CacheForRedisClient {
+func NewRedisEnterpriseClientByAPI(clusterAPI armRedisEnterpriseClusterClient, databaseAPI armRedisEnterpriseDatabaseClient) RedisEnterpriseClient {
 	return &redisEnterpriseClient{
 		clusterAPI:  clusterAPI,
 		databaseAPI: databaseAPI,
@@ -118,9 +115,9 @@ func (c *redisEnterpriseClient) getClusterAndDatabaseName(id *arm.ResourceID) (s
 	}
 }
 
-// ListAll returns all Azure Redis servers within an Azure subscription.
-func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]RedisServer, error) {
-	var servers []RedisServer
+// ListAll returns all Azure Redis Enterprise clusters within an Azure subscription.
+func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]*RedisEnterpriseCluster, error) {
+	var allClusters []*RedisEnterpriseCluster
 	pager := c.clusterAPI.NewListPager(&armredisenterprise.ClientListOptions{})
 	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
@@ -128,18 +125,18 @@ func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]RedisServer, err
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 
-		clusterServers, err := c.listByClusters(ctx, page.Value)
+		clusters, err := c.listByClusters(ctx, page.Value)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
-		servers = append(servers, clusterServers...)
+		allClusters = append(allClusters, clusters...)
 	}
-	return servers, nil
+	return allClusters, nil
 }
 
-// ListWithinGroup returns all Azure Redis servers within an Azure resource group.
-func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group string) ([]RedisServer, error) {
-	var servers []RedisServer
+// ListWithinGroup returns all Azure Redis Enterprise clusters within an Azure resource group.
+func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseCluster, error) {
+	var allClusters []*RedisEnterpriseCluster
 	pager := c.clusterAPI.NewListByResourceGroupPager(group, &armredisenterprise.ClientListByResourceGroupOptions{})
 	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
@@ -147,141 +144,72 @@ func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group strin
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 
-		clusterServers, err := c.listByClusters(ctx, page.Value)
+		clusters, err := c.listByClusters(ctx, page.Value)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
-		servers = append(servers, clusterServers...)
+		allClusters = append(allClusters, clusters...)
 	}
-	return servers, nil
+	return allClusters, nil
 }
 
-func (c *redisEnterpriseClient) listByClusters(ctx context.Context, clusters []*armredisenterprise.Cluster) ([]RedisServer, error) {
-	var servers []RedisServer
+func (c *redisEnterpriseClient) listByClusters(ctx context.Context, clusters []*armredisenterprise.Cluster) ([]*RedisEnterpriseCluster, error) {
+	allClusters := make([]*RedisEnterpriseCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		if cluster == nil { // should never happen, but checking just in case.
-			return nil, trace.BadParameter("cluster is nil")
+			continue
 		}
 
-		resourceID, err := arm.ParseResourceID(stringVal(cluster.ID))
+		// If listByCluster fails for any reason, make a log and continue to
+		// other clusters.
+		databases, err := c.listByCluster(ctx, cluster)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// It appears an Enterprise cluster always has only one "database", and
-		// the database name is always "default". However, here doing a
-		// ListByCluster (instead of a Get) just in case something changes
-		// later.
-		pager := c.databaseAPI.NewListByClusterPager(resourceID.ResourceGroupName, stringVal(cluster.Name), &armredisenterprise.DatabasesClientListByClusterOptions{})
-		for pageNum := 0; pager.More(); pageNum++ {
-			page, err := pager.NextPage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(ConvertResponseError(err))
+			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
+				logrus.Debugf("Failed to listByCluster on Redis Enterprise cluster %v: %v.", stringVal(cluster.Name), err.Error())
+			} else {
+				logrus.Warnf("Failed to listByCluster on Redis Enterprise cluster %v: %v.", stringVal(cluster.Name), err.Error())
 			}
-
-			servers = append(servers, redisEnterpriseListResultToRedisServers(page.Value, cluster)...)
-		}
-	}
-	return servers, nil
-}
-
-func (c *redisEnterpriseClient) getClusterAndDatabaseName(resourceName string) (string, string) {
-	// The resource name can be either:
-	//   - cluster resource name: <clusterName>
-	//   - database resource name: <clusterName>/databases/<databaseName>
-	//
-	// Though it appears an Enterprise cluster always has only one "database",
-	// and the database name is always "default".
-	clusterName, databaseName, ok := strings.Cut(resourceName, "/databases/")
-	if ok {
-		return clusterName, databaseName
-	}
-}
-
-// RedisEnterpriseClusterDefaultDatabase is the default database name for a
-// Redis Enterprise cluster.
-const RedisEnterpriseClusterDefaultDatabase = "default"
-
-func redisEnterpriseListResultToRedisServers(resources []*armredisenterprise.Database, cluster *armredisenterprise.Cluster) []RedisServer {
-	if cluster.Properties == nil { // should never happen, but checking just in case.
-		logrus.Debugf("Missing properties for armredisenterprise.Cluster %v.", stringVal(cluster.Name))
-		return nil
-	}
-
-	var servers []RedisServer
-	for _, database := range resources {
-		if database == nil { // should never happen, but checking just in case.
-			logrus.Debugf("Database resource is nil.")
 			continue
 		}
-		if database.Properties == nil { // should never happen, but checking just in case.
-			logrus.Debugf("Missing properties for armredisenterprise.Database %v.", stringVal(database.Name))
-			continue
-		}
-		servers = append(servers, &redisEnterpriseServer{
-			database: database,
-			cluster:  cluster,
+
+		allClusters = append(allClusters, &RedisEnterpriseCluster{
+			Cluster:   cluster,
+			Databases: databases,
 		})
 	}
-	return servers
+	return allClusters, nil
 }
 
-type redisEnterpriseServer struct {
-	database *armredisenterprise.Database
-	cluster  *armredisenterprise.Cluster
+func (c *redisEnterpriseClient) listByCluster(ctx context.Context, cluster *armredisenterprise.Cluster) ([]*armredisenterprise.Database, error) {
+	resourceID, err := arm.ParseResourceID(stringVal(cluster.ID))
+	if err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	var databases []*armredisenterprise.Database
+	pager := c.databaseAPI.NewListByClusterPager(resourceID.ResourceGroupName, stringVal(cluster.Name), &armredisenterprise.DatabasesClientListByClusterOptions{})
+	for pageNum := 0; pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+		databases = append(databases, page.Value...)
+	}
+	return databases, nil
 }
 
-func (s *redisEnterpriseServer) GetName() string {
-	if stringVal(s.database.Name) == "default" {
-		return stringVal(s.cluster.Name)
-	}
-	return fmt.Sprintf("%s-%s", stringVal(s.cluster.Name), stringVal(s.database.Name))
+// TODO
+type RedisEnterpriseCluster struct {
+	*armredisenterprise.Cluster
+
+	// TODO
+	Databases []*armredisenterprise.Database
 }
-func (s *redisEnterpriseServer) GetLocation() string {
-	return stringVal(s.cluster.Location)
-}
-func (s *redisEnterpriseServer) GetResourceID() string {
-	return stringVal(s.database.ID)
-}
-func (s *redisEnterpriseServer) GetHostname() string {
-	return stringVal(s.cluster.Properties.HostName)
-}
-func (s *redisEnterpriseServer) GetPort() string {
-	if s.database.Properties.Port != nil {
-		return strconv.Itoa(int(*s.database.Properties.Port))
-	}
-	return ""
-}
-func (s *redisEnterpriseServer) GetTags() map[string]string {
-	return convertTags(s.cluster.Tags)
-}
-func (s *redisEnterpriseServer) GetClusteringPolicy() string {
-	return stringVal(s.database.Properties.ClusteringPolicy)
-}
-func (s *redisEnterpriseServer) GetEngineVersion() string {
-	return stringVal(s.cluster.Properties.RedisVersion)
-}
-func (s *redisEnterpriseServer) IsSupported() (bool, error) {
-	if stringVal(s.database.Properties.ClientProtocol) == string(armredisenterprise.ProtocolEncrypted) {
-		return true, nil
-	}
-	return false, trace.BadParameter("protocol %v not supported", stringVal(s.database.Properties.ClientProtocol))
-}
-func (s *redisEnterpriseServer) IsAvailable() (bool, error) {
-	switch armredisenterprise.ProvisioningState(stringVal(s.database.Properties.ResourceState)) {
-	case armredisenterprise.ProvisioningStateSucceeded,
-		armredisenterprise.ProvisioningStateUpdating:
-		return true, nil
-	case armredisenterprise.ProvisioningStateCanceled,
-		armredisenterprise.ProvisioningStateCreating,
-		armredisenterprise.ProvisioningStateDeleting,
-		armredisenterprise.ProvisioningStateFailed:
-		return false, trace.BadParameter("the current provisioning state is %v", stringVal(s.database.Properties.ProvisioningState))
-	default:
-		logrus.Warnf("Unknown status type: %q. Assuming Azure Redis %q is available.",
-			stringVal(s.database.Properties.ProvisioningState),
-			s.GetName(),
-		)
-		return true, nil
-	}
-}
+
+const (
+	// RedisEnterpriseClusterDefaultDatabase is the default database name for a
+	// Redis Enterprise cluster.
+	RedisEnterpriseClusterDefaultDatabase = "default"
+	// TODO
+	RedisEnterpriseClusterPolicyOSS = string(armredisenterprise.ClusteringPolicyOSSCluster)
+)

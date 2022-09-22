@@ -18,6 +18,7 @@ package azure
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -196,6 +197,7 @@ func (m *ARMPostgresMock) NewListByResourceGroupPager(group string, _ *armpostgr
 			if len(servers) == 0 {
 				return armpostgresql.ServersClientListByResourceGroupResponse{}, trace.NotFound("Resource group '%v' could not be found.", group)
 			}
+
 			return armpostgresql.ServersClientListByResourceGroupResponse{
 				ServerListResult: armpostgresql.ServerListResult{
 					Value: servers,
@@ -207,8 +209,9 @@ func (m *ARMPostgresMock) NewListByResourceGroupPager(group string, _ *armpostgr
 
 // ARMRedisMock mocks armRedisClient.
 type ARMRedisMock struct {
-	Token  string
-	NoAuth bool
+	Token   string
+	NoAuth  bool
+	Servers []*armredis.ResourceInfo
 }
 
 func (m *ARMRedisMock) ListKeys(ctx context.Context, resourceGroupName string, name string, options *armredis.ClientListKeysOptions) (armredis.ClientListKeysResponse, error) {
@@ -221,12 +224,35 @@ func (m *ARMRedisMock) ListKeys(ctx context.Context, resourceGroupName string, n
 		},
 	}, nil
 }
+func (m *ARMRedisMock) NewListBySubscriptionPager(options *armredis.ClientListBySubscriptionOptions) *runtime.Pager[armredis.ClientListBySubscriptionResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredis.ClientListBySubscriptionResponse, error) {
+		return armredis.ClientListBySubscriptionResponse{
+			ListResult: armredis.ListResult{
+				Value: m.Servers,
+			},
+		}, nil
+	})
+}
+func (m *ARMRedisMock) NewListByResourceGroupPager(resourceGroupName string, options *armredis.ClientListByResourceGroupOptions) *runtime.Pager[armredis.ClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredis.ClientListByResourceGroupResponse, error) {
+		servers, err := filterByResourceGroup(m.Servers, resourceGroupName)
+		if err != nil {
+			return armredis.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+		}
+		return armredis.ClientListByResourceGroupResponse{
+			ListResult: armredis.ListResult{
+				Value: servers,
+			},
+		}, nil
+	})
+}
 
 // ARMRedisEnterpriseDatabaseMock mocks armRedisEnterpriseDatabaseClient.
 type ARMRedisEnterpriseDatabaseMock struct {
 	Token                string
 	TokensByDatabaseName map[string]string
 	NoAuth               bool
+	Databases            []*armredisenterprise.Database
 }
 
 func (m *ARMRedisEnterpriseDatabaseMock) ListKeys(ctx context.Context, resourceGroupName string, clusterName string, databaseName string, options *armredisenterprise.DatabasesClientListKeysOptions) (armredisenterprise.DatabasesClientListKeysResponse, error) {
@@ -247,4 +273,109 @@ func (m *ARMRedisEnterpriseDatabaseMock) ListKeys(ctx context.Context, resourceG
 			PrimaryKey: &m.Token,
 		},
 	}, nil
+}
+func (m *ARMRedisEnterpriseDatabaseMock) NewListByClusterPager(resourceGroupName string, clusterName string, options *armredisenterprise.DatabasesClientListByClusterOptions) *runtime.Pager[armredisenterprise.DatabasesClientListByClusterResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredisenterprise.DatabasesClientListByClusterResponse, error) {
+		databases, err := filterByCheckingResourceID(m.Databases, func(id *arm.ResourceID) bool {
+			return id.ResourceGroupName == resourceGroupName && id.Parent != nil && id.Parent.Name == clusterName
+		})
+		if err != nil {
+			return armredisenterprise.DatabasesClientListByClusterResponse{}, trace.Wrap(err)
+		}
+		return armredisenterprise.DatabasesClientListByClusterResponse{
+			DatabaseList: armredisenterprise.DatabaseList{
+				Value: databases,
+			},
+		}, nil
+	})
+}
+
+// ARMRedisEnterpriseClusterMock mocks armRedisEnterpriseClusterClient.
+type ARMRedisEnterpriseClusterMock struct {
+	NoAuth   bool
+	Clusters []*armredisenterprise.Cluster
+}
+
+func (m *ARMRedisEnterpriseClusterMock) NewListPager(options *armredisenterprise.ClientListOptions) *runtime.Pager[armredisenterprise.ClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredisenterprise.ClientListResponse, error) {
+		return armredisenterprise.ClientListResponse{
+			ClusterList: armredisenterprise.ClusterList{
+				Value: m.Clusters,
+			},
+		}, nil
+	})
+}
+func (m *ARMRedisEnterpriseClusterMock) NewListByResourceGroupPager(resourceGroupName string, options *armredisenterprise.ClientListByResourceGroupOptions) *runtime.Pager[armredisenterprise.ClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredisenterprise.ClientListByResourceGroupResponse, error) {
+		clusters, err := filterByResourceGroup(m.Clusters, resourceGroupName)
+		if err != nil {
+			return armredisenterprise.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+		}
+		return armredisenterprise.ClientListByResourceGroupResponse{
+			ClusterList: armredisenterprise.ClusterList{
+				Value: clusters,
+			},
+		}, nil
+	})
+}
+
+func newPagerHelper[T any](noAuth bool, newT func() (T, error)) *runtime.Pager[T] {
+	return runtime.NewPager(runtime.PagingHandler[T]{
+		More: func(_ T) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *T) (T, error) {
+			if noAuth {
+				var t T
+				return t, trace.AccessDenied("unauthorized")
+			}
+			return newT()
+		},
+	})
+}
+
+func filterByResourceGroup[T any](s []T, group string) ([]T, error) {
+	return filterByCheckingResourceID(s, func(id *arm.ResourceID) bool {
+		return id.ResourceGroupName == group
+	})
+}
+
+func filterByCheckingResourceID[T any](s []T, check func(*arm.ResourceID) bool) ([]T, error) {
+	var servers []T
+	for _, e := range s {
+		idString, err := getStringAttrFromStruct(e, "ID")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		id, err := arm.ParseResourceID(idString)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if check(id) {
+			servers = append(servers, e)
+		}
+	}
+	if len(servers) == 0 {
+		return nil, trace.NotFound("no resources found")
+	}
+	return servers, nil
+}
+
+func getStringAttrFromStruct(i interface{}, name string) (string, error) {
+	structValue := reflect.ValueOf(i)
+	if structValue.Kind() == reflect.Pointer {
+		structValue = structValue.Elem()
+	}
+
+	attrValue := structValue.FieldByName(name)
+	if !attrValue.IsValid() {
+		return "", trace.NotFound("%v field not found", name)
+	}
+	if attrValue.Kind() == reflect.Pointer {
+		attrValue = attrValue.Elem()
+	}
+	if attrValue.Kind() != reflect.String {
+		return "", trace.BadParameter("%v field is not a string", name)
+	}
+	return attrValue.String(), nil
 }

@@ -25,20 +25,31 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
+type azureListClient[DBType comparable] interface {
+	ListAll(ctx context.Context) ([]DBType, error)
+	ListWithinGroup(ctx context.Context, group string) ([]DBType, error)
+}
+
+type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] interface {
+	NewDatabasesFromServer(server DBType, log logrus.FieldLogger) types.Databases
+	GetListClient(cfg *azureFetcherConfig, subID string) (ListClient, error)
+	GetServerLocation(server DBType) string
+}
+
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
-func newAzureFetcher(config azureFetcherConfig) (*azureFetcher, error) {
+func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](config azureFetcherConfig, plugin azureFetcherPlugin[DBType, ListClient]) (Fetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher := &azureFetcher{
-		cfg: config,
+	fetcher := &azureFetcher[DBType, ListClient]{
+		azureFetcherPlugin: plugin,
+		cfg:                config,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: "watch:azure",
 			"labels":        config.Labels,
@@ -71,29 +82,13 @@ type azureFetcherConfig struct {
 }
 
 // regionMatches returns whether a given region matches the configured Regions selector
-func regionMatches(cfg *azureFetcherConfig, region string) bool {
-	if _, ok := cfg.regionSet[types.Wildcard]; ok {
+func (f *azureFetcher[DBType, ListClient]) regionMatches(region string) bool {
+	if _, ok := f.cfg.regionSet[types.Wildcard]; ok {
 		// wildcard matches all regions
 		return true
 	}
-	_, ok := cfg.regionSet[region]
+	_, ok := f.cfg.regionSet[region]
 	return ok
-}
-
-// getSubscriptions returns the subscriptions that this fetcher is configured to query.
-// This will make an API call to list subscription IDs when the fetcher is configured to match "*" subscription,
-// in order to discover and query new subscriptions.
-// Otherwise, a list containing the fetcher's non-wildcard subscription is returned.
-func getSubscriptions(ctx context.Context, cfg *azureFetcherConfig) ([]string, error) {
-	if cfg.Subscription != types.Wildcard {
-		return []string{cfg.Subscription}, nil
-	}
-	client, err := cfg.AzureClients.GetAzureSubscriptionClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	subIDs, err := client.ListSubscriptionIDs(ctx)
-	return subIDs, trace.Wrap(err)
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -103,11 +98,6 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.Type) == 0 {
 		return trace.BadParameter("missing parameter Type")
-	}
-	switch c.Type {
-	case services.AzureMatcherMySQL, services.AzureMatcherPostgres:
-	default:
-		return trace.BadParameter("unknown matcher type %q", c.Type)
 	}
 	if len(c.Subscription) == 0 {
 		return trace.BadParameter("missing parameter Subscription")
@@ -126,13 +116,15 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 }
 
 // azureFetcher retrieves Azure DB single-server databases.
-type azureFetcher struct {
+type azureFetcher[DBType comparable, ListClient azureListClient[DBType]] struct {
+	azureFetcherPlugin[DBType, ListClient]
+
 	cfg azureFetcherConfig
 	log logrus.FieldLogger
 }
 
 // Get returns Azure DB servers matching the watcher's selectors.
-func (f *azureFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.Databases, error) {
 	databases, err := f.getDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,23 +133,25 @@ func (f *azureFetcher) Get(ctx context.Context) (types.Databases, error) {
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
-// getDBServersClient returns the appropriate Azure DBServersClient for this fetcher's configured Type.
-func (f *azureFetcher) getDBServersClient(subID string) (azure.DBServersClient, error) {
-	switch f.cfg.Type {
-	case services.AzureMatcherMySQL:
-		client, err := f.cfg.AzureClients.GetAzureMySQLClient(subID)
-		return client, trace.Wrap(err)
-	case services.AzureMatcherPostgres:
-		client, err := f.cfg.AzureClients.GetAzurePostgresClient(subID)
-		return client, trace.Wrap(err)
-	default:
-		return nil, trace.BadParameter("unknown matcher type %q", f.cfg.Type)
+// getSubscriptions returns the subscriptions that this fetcher is configured to query.
+// This will make an API call to list subscription IDs when the fetcher is configured to match "*" subscription,
+// in order to discover and query new subscriptions.
+// Otherwise, a list containing the fetcher's non-wildcard subscription is returned.
+func (f *azureFetcher[DBType, ListClient]) getSubscriptions(ctx context.Context) ([]string, error) {
+	if f.cfg.Subscription != types.Wildcard {
+		return []string{f.cfg.Subscription}, nil
 	}
+	client, err := f.cfg.AzureClients.GetAzureSubscriptionClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	subIDs, err := client.ListSubscriptionIDs(ctx)
+	return subIDs, trace.Wrap(err)
 }
 
 // getDBServersInSubscription fetches Azure DB servers within a given subscription.
-func (f *azureFetcher) getDBServersInSubscription(ctx context.Context, subID string) ([]*azure.DBServer, error) {
-	client, err := f.getDBServersClient(subID)
+func (f *azureFetcher[DBType, ListClient]) getDBServersInSubscription(ctx context.Context, subID string) ([]DBType, error) {
+	client, err := f.GetListClient(&f.cfg, subID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,9 +164,9 @@ func (f *azureFetcher) getDBServersInSubscription(ctx context.Context, subID str
 }
 
 // getAllDBServers fetches Azure DB servers from all subscriptions that this fetcher is configured to query.
-func (f *azureFetcher) getAllDBServers(ctx context.Context) ([]*azure.DBServer, error) {
-	var result []*azure.DBServer
-	subIDs, err := getSubscriptions(ctx, &f.cfg)
+func (f *azureFetcher[DBType, ListClient]) getAllDBServers(ctx context.Context) ([]DBType, error) {
+	var result []DBType
+	subIDs, err := f.getSubscriptions(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,50 +185,30 @@ func (f *azureFetcher) getAllDBServers(ctx context.Context) ([]*azure.DBServer, 
 }
 
 // getDatabases returns a list of database resources representing Azure database servers.
-func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
+func (f *azureFetcher[DBType, ListClient]) getDatabases(ctx context.Context) (types.Databases, error) {
 	servers, err := f.getAllDBServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	databases := make(types.Databases, 0, len(servers))
+	var databases types.Databases
+	var nilServer DBType
 	for _, server := range servers {
-		if server == nil {
+		if server == nilServer {
 			continue
 		}
 		// azure sdk provides no way to query by region, so we have to filter results
-		if !regionMatches(&f.cfg, server.Location) {
+		if !f.regionMatches(f.GetServerLocation(server)) {
 			continue
 		}
 
-		if !server.IsSupported() {
-			f.log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
-				server.Name,
-				server.Properties.Version)
-			continue
-		}
-
-		if !server.IsAvailable() {
-			f.log.Debugf("The current status of Azure server %q is %q. Skipping.",
-				server.Name,
-				server.Properties.UserVisibleState)
-			continue
-		}
-
-		database, err := services.NewDatabaseFromAzureServer(server)
-		if err != nil {
-			f.log.Warnf("Could not convert Azure server %q to database resource: %v.",
-				server.Name,
-				err)
-			continue
-		}
-		databases = append(databases, database)
+		databases = append(databases, f.NewDatabasesFromServer(server, f.log)...)
 	}
 	return databases, nil
 }
 
 // String returns the fetcher's string description.
-func (f *azureFetcher) String() string {
+func (f *azureFetcher[DBType, ListClient]) String() string {
 	return fmt.Sprintf("azureFetcher(Type=%v, Subscription=%v, ResourceGroup=%v, Regions=%v, Labels=%v)",
 		f.cfg.Type, f.cfg.Subscription, f.cfg.ResourceGroup, f.cfg.Regions, f.cfg.Labels)
 }
