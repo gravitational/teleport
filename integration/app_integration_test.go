@@ -36,6 +36,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -53,12 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
-
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAppAccessForward tests that requests get forwarded to the target application
@@ -659,9 +659,11 @@ func TestAppServersHA(t *testing.T) {
 		publicWSAddr   string
 		appServers     []*service.TeleportProcess
 	}
+
 	testCases := map[string]struct {
-		packInfo        func(pack *pack) packInfo
-		startAppServers func(pack *pack, count int) []*service.TeleportProcess
+		packInfo          func(pack *pack) packInfo
+		startAppServers   func(pack *pack, count int) []*service.TeleportProcess
+		waitForTunnelConn func(t *testing.T, pack *pack, count int)
 	}{
 		"RootServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -675,6 +677,9 @@ func TestAppServersHA(t *testing.T) {
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startRootAppServers(t, count, []service.App{})
 			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
+			},
 		},
 		"LeafServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -687,6 +692,9 @@ func TestAppServersHA(t *testing.T) {
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startLeafAppServers(t, count, []service.App{})
+			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
 			},
 		},
 	}
@@ -720,45 +728,53 @@ func TestAppServersHA(t *testing.T) {
 		responseAssertion(t, 0, err)
 	}
 
-	pack := setupWithOptions(t, appTestOptions{rootAppServersCount: 3})
+	p := setupWithOptions(t, appTestOptions{rootAppServersCount: 3})
 
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			info := test.packInfo(pack)
-			httpCookie := pack.createAppSession(t, info.publicHTTPAddr, info.clusterName)
-			wsCookie := pack.createAppSession(t, info.publicWSAddr, info.clusterName)
+			info := test.packInfo(p)
+			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
+			wsCookie := p.createAppSession(t, info.publicWSAddr, info.clusterName)
 
-			makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
+			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 
 			// Stop all root app servers.
 			for i, appServer := range info.appServers {
 				require.NoError(t, appServer.Close())
+				require.NoError(t, appServer.Wait())
 
 				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
-					makeRequests(t, pack, httpCookie, wsCookie, responseWithError)
+					makeRequests(t, p, httpCookie, wsCookie, responseWithError)
 				} else {
 					// otherwise the request should be handled by another
 					// server.
-					makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
+					makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 				}
 			}
 
-			servers := test.startAppServers(pack, 3)
-			makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
+			servers := test.startAppServers(p, 1)
+			test.waitForTunnelConn(t, p, 1)
+			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
-			test.startAppServers(pack, 1)
+			test.startAppServers(p, 1)
+			test.waitForTunnelConn(t, p, 2)
+
 			for _, appServer := range servers {
-				require.NoError(t, appServer.Close())
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				ctx = appServer.StartShutdown(ctx)
+				require.NoError(t, appServer.Wait())
+
+				<-ctx.Done()
+				cancel()
 
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
 				// the remaining app servers.
-				makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
+				makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 			}
 		})
 	}
