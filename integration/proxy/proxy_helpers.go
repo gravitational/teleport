@@ -518,10 +518,7 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")
 	nodeConfig.SetAuthServerAddresses([]utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        authAddr,
-		},
+		*utils.MustParseAddr(authAddr),
 	})
 	nodeConfig.Auth.Enabled = false
 	nodeConfig.Proxy.Enabled = false
