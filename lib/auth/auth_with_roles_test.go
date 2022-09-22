@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -323,6 +324,98 @@ func TestSAMLAuthRequest(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
 		})
+	}
+}
+
+func TestInstaller(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	_, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, srv.Auth(), "test-read", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = CreateRole(ctx, srv.Auth(), "test-update", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = CreateRole(ctx, srv.Auth(), "test-delete", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	user, err := CreateUser(srv.Auth(), "testuser")
+	require.NoError(t, err)
+
+	inst, err := types.NewInstallerV1(installers.InstallerScriptName, "contents")
+	require.NoError(t, err)
+	err = srv.Auth().SetInstaller(ctx, inst)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		roles           []string
+		assert          require.ErrorAssertionFunc
+		installerAction func(*Client) error
+	}{{
+		roles:  []string{"test-empty"},
+		assert: require.Error,
+		installerAction: func(c *Client) error {
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}, {
+		roles:  []string{"test-read"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}, {
+		roles:  []string{"test-update"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
+			require.NoError(t, err)
+			return c.SetInstaller(ctx, inst)
+		},
+	}, {
+		roles:  []string{"test-delete"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}} {
+		user.SetRoles(tc.roles)
+		err = srv.Auth().UpsertUser(user)
+		require.NoError(t, err)
+
+		client, err := srv.NewClient(TestUser(user.GetName()))
+		require.NoError(t, err)
+		tc.assert(t, tc.installerAction(client))
 	}
 }
 

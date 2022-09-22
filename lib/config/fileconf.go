@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -429,6 +430,40 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
+
+	matchers := make([]AWSEC2Matcher, 0, len(conf.SSH.AWSMatchers))
+
+	for _, matcher := range conf.SSH.AWSMatchers {
+		if matcher.InstallParams == nil {
+			matcher.InstallParams = &InstallParams{
+				JoinParams: JoinParams{
+					TokenName: defaults.IAMInviteTokenName,
+					Method:    types.JoinMethodIAM,
+				},
+				ScriptName: installers.InstallerScriptName,
+			}
+		} else {
+			if method := matcher.InstallParams.JoinParams.Method; method == "" {
+				matcher.InstallParams.JoinParams.Method = types.JoinMethodIAM
+			} else if method != types.JoinMethodIAM {
+				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
+			}
+			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
+			}
+
+			if installer := matcher.InstallParams.ScriptName; installer == "" {
+				matcher.InstallParams.ScriptName = installers.InstallerScriptName
+			}
+		}
+
+		if matcher.SSM.DocumentName == "" {
+			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	conf.SSH.AWSMatchers = matchers
 
 	return nil
 }
@@ -1001,6 +1036,9 @@ type SSH struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
+
+	// AWSMatchers are used to match EC2 instances
+	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1198,6 +1236,38 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// SSMDocument is the ssm command document to execute for EC2
+	// installation
+	SSMDocument string `yaml:"ssm_command_document"`
+}
+
+// AWSEC2Matcher matches EC2 instances
+type AWSEC2Matcher struct {
+	// Matcher is used to match EC2 instances based on tags
+	Matcher AWSMatcher `yaml:",inline"`
+	// InstallParams sets the join method when installing on
+	// discovered EC2 nodes
+	InstallParams *InstallParams `yaml:"install,omitempty"`
+	// SSM provides options to use when sending a document command to
+	// an EC2 node
+	SSM AWSSSM `yaml:"ssm,omitempty"`
+}
+
+// InstallParams sets join method to use on discovered nodes
+type InstallParams struct {
+	// JoinParams sets the token and method to use when generating
+	// config on EC2 instances
+	JoinParams JoinParams `yaml:"join_params,omitempty"`
+	// ScriptName is the name of the teleport installer script
+	// resource for the EC2 instance to execute
+	ScriptName string `yaml:"script_name,omitempty"`
+}
+
+// AWSSSM provides options to use when executing SSM documents
+type AWSSSM struct {
+	// DocumentName is the name of the document to use when executing an
+	// SSM command
+	DocumentName string `yaml:"document_name,omitempty"`
 }
 
 // AzureMatcher matches Azure databases.

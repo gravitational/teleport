@@ -265,6 +265,10 @@ const (
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
+	// KindInstaller is a resource that holds a node installer script
+	// used to install teleport on discovered nodes
+	KindInstaller = "installer"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
