@@ -25,13 +25,16 @@ import CatchError from 'teleport/components/CatchError';
 import cfg from 'teleport/config';
 import SideNav from 'teleport/SideNav';
 import TopBar from 'teleport/TopBar';
+import { BannerList } from 'teleport/components/BannerList';
 import getFeatures from 'teleport/features';
 import localStorage from 'teleport/services/localStorage';
 import history from 'teleport/services/history';
 
+import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
-
 import useMain, { State } from './useMain';
+
+import type { BannerType } from 'teleport/components/BannerList/BannerList';
 
 export default function Container() {
   const [features] = React.useState(() => getFeatures());
@@ -40,7 +43,14 @@ export default function Container() {
 }
 
 export function Main(props: State) {
-  const { status, statusText, ctx } = props;
+  const {
+    alerts = [],
+    customBanners = [],
+    dismissAlert,
+    status,
+    statusText,
+    ctx,
+  } = props;
   const [showOnboardDiscover, setShowOnboardDiscover] = React.useState(true);
 
   if (status === 'failed') {
@@ -90,6 +100,24 @@ export function Main(props: State) {
     ctx.storeNav.getSideItems()[0]?.getLink(cfg.proxyCluster) ||
     cfg.routes.support;
 
+  // The backend defines the severity as an integer value with the current
+  // pre-defined values: LOW: 0; MEDIUM: 5; HIGH: 10
+  const mapSeverity = (severity: number) => {
+    if (severity < 5) {
+      return 'info';
+    }
+    if (severity < 10) {
+      return 'warning';
+    }
+    return 'danger';
+  };
+
+  const banners: BannerType[] = alerts.map(alert => ({
+    message: alert.spec.message,
+    severity: mapSeverity(alert.spec.severity),
+    id: alert.metadata.name,
+  }));
+
   const onboard = localStorage.getOnboardDiscover();
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
@@ -99,28 +127,25 @@ export function Main(props: State) {
       <RouterDOM.Switch>
         <Redirect exact={true} from={cfg.routes.root} to={indexRoute} />
       </RouterDOM.Switch>
-      <MainContainer>
-        <SideNav />
-        <HorizontalSplit>
-          <TopBar />
-          <Switch>{$features}</Switch>
-        </HorizontalSplit>
-      </MainContainer>
+      <BannerList
+        banners={banners}
+        customBanners={customBanners}
+        onBannerDismiss={dismissAlert}
+      >
+        <MainContainer>
+          <SideNav />
+          <HorizontalSplit>
+            <TopBar />
+            <Switch>{$features}</Switch>
+          </HorizontalSplit>
+        </MainContainer>
+      </BannerList>
       {requiresOnboarding && showOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
     </>
   );
 }
-
-export const MainContainer = styled.div`
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex: 1;
-  position: absolute;
-  min-width: 1000px;
-`;
 
 export const HorizontalSplit = styled.div`
   display: flex;
