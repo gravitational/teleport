@@ -800,8 +800,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			ctx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
 		}
 
-		if ctx.ExecRequest.GetCommand() != "" {
-			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
+		if execRequest, err := ctx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
+			emitExecAuditEvent(ctx, execRequest.GetCommand(), err)
 		}
 
 		if result != nil {
@@ -899,15 +899,20 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		ctx.WithError(err).Warn("Failed to emit session start event.")
 	}
 
+	execRequest, err := ctx.GetExecRequest()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start execution. If the program failed to start, send that result back.
 	// Note this is a partial start. Teleport will have re-exec'ed itself and
 	// wait until it's been placed in a cgroup and told to continue.
-	result, err := ctx.ExecRequest.Start(channel)
+	result, err := execRequest.Start(channel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if result != nil {
-		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest, result)
+		ctx.Debugf("Exec request (%v) result: %v.", execRequest, result)
 		ctx.SendExecResult(*result)
 	}
 
@@ -915,7 +920,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
 		Context:   ctx.srv.Context(),
-		PID:       ctx.ExecRequest.PID(),
+		PID:       execRequest.PID(),
 		Emitter:   s.recorder,
 		Namespace: ctx.srv.GetNamespace(),
 		SessionID: string(s.id),
@@ -926,7 +931,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	}
 	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
-		ctx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
+		ctx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", execRequest.GetCommand(), err)
 		return trace.Wrap(err)
 	}
 
@@ -937,11 +942,11 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	}
 
 	// Process has been placed in a cgroup, continue execution.
-	ctx.ExecRequest.Continue()
+	execRequest.Continue()
 
 	// Process is running, wait for it to stop.
 	go func() {
-		result = ctx.ExecRequest.Wait()
+		result = execRequest.Wait()
 		if result != nil {
 			ctx.SendExecResult(*result)
 		}
