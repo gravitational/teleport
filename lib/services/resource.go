@@ -171,6 +171,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWindowsDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
+	case types.KindInstaller:
+		return types.KindInstaller, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

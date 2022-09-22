@@ -2303,6 +2303,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
+			regular.SetAWSMatchers(cfg.SSH.AWSMatchers),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3451,7 +3452,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterFeatures:  process.getClusterFeatures(),
 			ProxySettings:    proxySettings,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
+			PublicProxyAddr:  process.proxyPublicAddr().Addr,
 		}
+
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
 			return trace.Wrap(err)

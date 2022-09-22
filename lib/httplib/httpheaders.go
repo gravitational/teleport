@@ -95,3 +95,9 @@ func SetWebConfigHeaders(h http.Header) {
 	SetStaticFileHeaders(h)
 	h.Set("Content-Type", "application/javascript")
 }
+
+// SetScriptHeaders sets headers for the teleport install script
+func SetScriptHeaders(h http.Header) {
+	SetStaticFileHeaders(h)
+	h.Set("Content-Type", "text/x-shellscript")
+}
