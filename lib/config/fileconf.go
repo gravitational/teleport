@@ -85,6 +85,10 @@ type FileConfig struct {
 
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
+
+	// Discovery is the "discovery_service" section in the Teleport
+	// configuration file
+	Discovery Discovery `yaml:"discovery_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -431,9 +435,19 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	matchers := make([]AWSEC2Matcher, 0, len(conf.SSH.AWSMatchers))
+	matchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
 
-	for _, matcher := range conf.SSH.AWSMatchers {
+	for _, matcher := range conf.Discovery.AWSMatchers {
+		for _, serviceType := range matcher.Types {
+			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
+				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
+					serviceType, constants.SupportedAWSDiscoveryServices)
+			}
+		}
+		if matcher.Tags == nil || len(matcher.Tags) == 0 {
+			matcher.Tags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+		}
+
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
 				JoinParams: JoinParams{
@@ -463,7 +477,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		matchers = append(matchers, matcher)
 	}
 
-	conf.SSH.AWSMatchers = matchers
+	conf.Discovery.AWSMatchers = matchers
 
 	return nil
 }
@@ -1036,9 +1050,6 @@ type SSH struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
-
-	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1099,6 +1110,14 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+// Discovery represents a discovery_service section in the config file.
+type Discovery struct {
+	Service `yaml:",inline"`
+
+	// AWSMatchers are used to match EC2 instances
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1227,24 +1246,15 @@ type ResourceMatcher struct {
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
-// AWSMatcher matches AWS databases.
+// AWSMatcher matches AWS EC2 instances and AWS Databases
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", "elasticache",
+	// Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
 	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
-	// SSMDocument is the ssm command document to execute for EC2
-	// installation
-	SSMDocument string `yaml:"ssm_command_document"`
-}
-
-// AWSEC2Matcher matches EC2 instances
-type AWSEC2Matcher struct {
-	// Matcher is used to match EC2 instances based on tags
-	Matcher AWSMatcher `yaml:",inline"`
 	// InstallParams sets the join method when installing on
 	// discovered EC2 nodes
 	InstallParams *InstallParams `yaml:"install,omitempty"`

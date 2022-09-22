@@ -230,6 +230,7 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
 	}
+
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
@@ -314,6 +315,19 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForDiscovery sets up watch configuration for discovery servers.
+func ForDiscovery(cfg Config) Config {
+	cfg.target = "discovery"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindNode},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
 }
 
