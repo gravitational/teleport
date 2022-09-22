@@ -822,7 +822,7 @@ const (
 )
 
 // TeleportConfigVersions is an exported slice of the allowed versions in the config file,
-//for convenience (looping through, etc)
+// for convenience (looping through, etc)
 var TeleportConfigVersions = []string{
 	TeleportConfigVersionV1,
 	TeleportConfigVersionV2,
