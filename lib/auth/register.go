@@ -178,7 +178,14 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	if !params.ProxyServer.IsEmpty() {
 		log.WithField("proxy-server", params.ProxyServer).Debugf("Registering node to the cluster.")
 
-		registerMethods = []registerMethod{registerThroughProxy}
+		registerMethods = []registerMethod{}
+
+		if proxyServerIsAuth(params.ProxyServer) {
+			log.Debugf("The specified proxy server appears to be an auth server.")
+			registerMethods = append(registerMethods, registerThroughAuth)
+		}
+
+		registerMethods = append(registerMethods, registerThroughProxy)
 	} else {
 		log.WithField("auth-servers", params.AuthServers).Debugf("Registering node to the cluster.")
 
@@ -214,6 +221,13 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 	}
 	port := servers[0].Port(0)
 	return port == defaults.HTTPListenPort || port == teleport.StandardHTTPSPort
+}
+
+// proxyServerIsAuth returns true if the address given to register with
+// appears to be an auth server.
+func proxyServerIsAuth(server utils.NetAddr) bool {
+	port := server.Port(0)
+	return port == defaults.AuthListenPort
 }
 
 // registerThroughProxy is used to register through the proxy server.
