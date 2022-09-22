@@ -3441,7 +3441,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 	return response, nil
 }
 
-// directLogin asks for a password + HOTP token, makes a request to CA via proxy
+// directLogin asks for a password + OTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
 	password, err := tc.AskPassword(ctx)
 	if err != nil {
