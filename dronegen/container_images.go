@@ -35,6 +35,7 @@ package main
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -631,9 +632,14 @@ func (p *Product) GetBuildStepName(arch string, version *releaseVersion) string 
 	return fmt.Sprintf("Build %s image %q", p.Name, telportImageName.GetDisplayName())
 }
 
+func cleanBuilderName(builderName string) string {
+	var invalidBuildxCharExpression = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
+	return invalidBuildxCharExpression.ReplaceAllString(builderName, "-")
+}
+
 func (p *Product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
 	localRegistryImage := p.GetLocalRegistryImage(arch, version)
-	builderName := fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName())
+	builderName := cleanBuilderName(fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName()))
 
 	buildxConfigFileDir := path.Join("/tmp", builderName)
 	buildxConfigFilePath := path.Join(buildxConfigFileDir, "buildkitd.toml")
