@@ -1311,6 +1311,7 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	time.Sleep(time.Second * 2)
 	value, err := services.MarshalAppServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
