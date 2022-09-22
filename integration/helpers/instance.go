@@ -618,8 +618,11 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	tconf.DataDir = dataDir
 
-	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
-	tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer))
+	if tconf.ProxyServer.IsEmpty() {
+		authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
+		tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer))
+	}
+
 	tconf.SetToken("token")
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = service.CachePolicy{
