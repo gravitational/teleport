@@ -513,13 +513,12 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	return lp
 }
 
-func makeNodeConfig(nodeName, authAddr string) *service.Config {
+func makeNodeConfig(nodeName, proxyAddr string) *service.Config {
 	nodeConfig := service.MakeDefaultConfig()
+	nodeConfig.Version = defaults.TeleportConfigVersionV3
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")
-	nodeConfig.SetAuthServerAddresses([]utils.NetAddr{
-		*utils.MustParseAddr(authAddr),
-	})
+	nodeConfig.ProxyServer = *utils.MustParseAddr(proxyAddr)
 	nodeConfig.Auth.Enabled = false
 	nodeConfig.Proxy.Enabled = false
 	nodeConfig.SSH.Enabled = true
