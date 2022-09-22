@@ -793,6 +793,90 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
+# Generated at dronegen/tag.go (main.tagCleanupPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: clean-up-previous-build
+environment:
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-justinas.8
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+clone:
+  disable: true
+steps:
+- name: Check if commit is tagged
+  image: alpine
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Pull relcli
+  image: docker:git
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull $RELCLI_IMAGE
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_DEFAULT_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Cleanup previously built artifacts
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/creds
+  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+  - trap "rm -rf /tmpfs/creds" EXIT
+  - |-
+    docker run -i -v /tmpfs/creds:/tmpfs/creds \
+      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      $RELCLI_IMAGE relcli auto_destroy -f -v 6
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_CERT: /tmpfs/creds/releases.crt
+    RELCLI_KEY: /tmpfs/creds/releases.key
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: tmpfs
+  temp:
+    medium: memory
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
 # Generated at dronegen/windows.go (main.newWindowsPipeline)
 ################################################
 
@@ -816,6 +900,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 concurrency:
   limit: 1
 steps:
@@ -1728,6 +1814,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1888,6 +1976,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2047,6 +2137,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2219,6 +2311,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2375,6 +2469,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-centos7
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2566,6 +2661,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-centos7-fips
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2754,6 +2850,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2937,6 +3034,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-fips
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3112,6 +3210,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3268,6 +3368,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-386
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3459,6 +3560,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-386
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3637,6 +3739,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 concurrency:
   limit: 1
 steps:
@@ -4212,6 +4316,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4369,6 +4475,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4525,6 +4633,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4702,6 +4811,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4879,6 +4989,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -5070,6 +5181,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -5262,6 +5374,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -6772,7 +6886,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.65
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-justinas.8
 trigger:
   event:
     include:
@@ -7070,6 +7184,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 7b7d31e66af47b880a44b1c977363bb7e17d33adbbc135742902300bb7ed4e8c
+hmac: 57536d801a9db7f043c67b80e2c4b74dd1f5c12c27539974314d9d7ece592eda
 
 ...
