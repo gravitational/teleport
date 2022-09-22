@@ -18,16 +18,13 @@
 package winwebauthn
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"syscall"
 	"unsafe"
 
 	"github.com/duo-labs/webauthn/protocol"
-	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
@@ -48,10 +45,7 @@ var (
 	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
 )
 
-var (
-	clientOnce sync.Once
-	clientVar  *client
-)
+var native nativeWebauthn = initClient()
 
 type client struct {
 	version           int
@@ -60,45 +54,32 @@ type client struct {
 	hasPlatformUV     bool
 }
 
-// getOrCreateClient uses package variable to store client connection.
-// Client is cached between invocations to avoid user-visible delays.
+// initClient creates client which contains diagnostics info.
 // Diagnostics are safe to cache because dll isn't something that
 // could change during program invocation.
 // Client will be alaways created, even if dll is missing on system.
-func getOrCreateClient() *client {
-	new := func() (*client, error) {
-		v, err := checkIfDLLExistsAndGetAPIVersionNumber()
-		if err != nil {
-			// TODO: return typed error
-			return nil, err
-		}
-		uvPlatform, err := isUVPlatformAuthenticatorAvailable()
-		if err != nil {
-			return nil, err
-		}
-
+func initClient() *client {
+	v, err := checkIfDLLExistsAndGetAPIVersionNumber()
+	if err != nil {
+		log.WithError(err).Warn("Windows webauthn failed to check version")
 		return &client{
-			version:           v,
 			hasCompileSupport: true,
-			hasPlatformUV:     uvPlatform,
-			isAvailable:       v > 0 && v <= 4,
-		}, nil
+			isAvailable:       false,
+		}
+	}
+	uvPlatform, err := isUVPlatformAuthenticatorAvailable()
+	if err != nil {
+		// This should not happen if dll exists, however we are fine with
+		// to proceed without uvPlatform.
+		log.WithError(err).Warn("Windows webauthn failed to check isUVPlatformAuthenticatorAvailable")
 	}
 
-	clientOnce.Do(func() {
-		c, err := new()
-		if err != nil {
-			// If not able to create client, log warning and create client which
-			// just retrun IsAvailable false.
-			log.WithError(err).Warn("Windows webauthn creating client failed")
-			c = &client{
-				hasCompileSupport: true,
-				isAvailable:       false,
-			}
-		}
-		clientVar = c
-	})
-	return clientVar
+	return &client{
+		version:           v,
+		hasCompileSupport: true,
+		hasPlatformUV:     uvPlatform,
+		isAvailable:       v > 0 && v <= 4,
+	}
 }
 
 const (
@@ -108,59 +89,13 @@ const (
 	apiVersion4 = 4
 )
 
-func checkSupport() *CheckSupportResult {
-	cli := getOrCreateClient()
-	return &CheckSupportResult{
-		HasCompileSupport: cli.hasCompileSupport,
-		IsAvailable:       cli.isAvailable,
-		HasPlatformUV:     cli.hasPlatformUV,
-		APIVersion:        cli.version,
+func (c client) CheckSupport() CheckSupportResult {
+	return CheckSupportResult{
+		HasCompileSupport: c.hasCompileSupport,
+		IsAvailable:       c.isAvailable,
+		HasPlatformUV:     c.hasPlatformUV,
+		APIVersion:        c.version,
 	}
-}
-
-func login(
-	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion,
-	loginOpts *LoginOpts,
-) (*proto.MFAAuthenticateResponse, string, error) {
-	cli := getOrCreateClient()
-	for _, ac := range assertion.Response.AllowedCredentials {
-		log.Debugf("WIN_WEBAUTHN: Allow creds type %s: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID), ac.Type)
-	}
-	log.Debugf("WIN_WEBAUTHN: Ext %v\n", assertion.Response.Extensions)
-	log.Debugf("WIN_WEBAUTHN: UV %v\n", assertion.Response.UserVerification)
-	resp, err := cli.GetAssertion(origin, assertion.Response, loginOpts)
-	if err != nil {
-		return nil, "", err
-	}
-	// TODO(tobiaszheller): return user.
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
-		},
-	}, "", nil
-}
-
-func register(
-	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation,
-) (*proto.MFARegisterResponse, error) {
-	cli := getOrCreateClient()
-	for _, ac := range cc.Response.CredentialExcludeList {
-		log.Debugf("WIN_WEBAUTHN: Excluded creds type %s: %s\n", base64.RawURLEncoding.EncodeToString(ac.CredentialID), ac.Type)
-	}
-	log.Debugf("WIN_WEBAUTHN: Ext %v\n", cc.Response.Extensions)
-	log.Debugf("WIN_WEBAUTHN: UV %v, RRK %v ATTACHMENT %v \n", cc.Response.AuthenticatorSelection.UserVerification, cc.Response.AuthenticatorSelection.RequireResidentKey, cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
-	log.Debugf("WIN_WEBAUTHN: ATT %v\n", cc.Response.Attestation)
-	resp, err := cli.MakeCredential(origin, cc.Response)
-	if err != nil {
-		return nil, err
-	}
-	return &proto.MFARegisterResponse{
-		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(resp),
-		},
-	}, nil
 }
 
 // GetAssertion calls WebAuthNAuthenticatorGetAssertion endpoiont from

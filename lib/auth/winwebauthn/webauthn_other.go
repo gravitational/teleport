@@ -25,24 +25,21 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
+var native nativeWebauthn = noopNative{}
+
 var errUnavailable = errors.New("windows webauthn unavailable in current build")
 
-func login(
-	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, opts *LoginOpts,
-) (*proto.MFAAuthenticateResponse, string, error) {
-	return nil, "", errUnavailable
-}
+type noopNative struct{}
 
-func register(
-	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation,
-) (*proto.MFARegisterResponse, error) {
-	return nil, errUnavailable
-}
-
-func checkSupport() *CheckSupportResult {
-	return &CheckSupportResult{
+func (n noopNative) CheckSupport() CheckSupportResult {
+	return CheckSupportResult{
 		HasCompileSupport: false,
 	}
+}
+
+func (n noopNative) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+	return nil, errUnavailable
+}
+func (n noopNative) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
+	return nil, errUnavailable
 }

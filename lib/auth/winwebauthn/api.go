@@ -50,14 +50,19 @@ const (
 	AttachmentPlatform
 )
 
+// nativeWebauthn represents the native windows webauthn interface.
+// Implementors must provide a global variable called `native`.
+type nativeWebauthn interface {
+	CheckSupport() CheckSupportResult
+	GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error)
+	MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error)
+}
+
 // Login implements Login for Windows Webauthn API.
 // It returns an MFAAuthenticateResponse.
 // Most callers should call Login directly, as it is correctly guarded by
 // IsAvailable.
-func Login(ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion,
-	opts *LoginOpts,
-) (*proto.MFAAuthenticateResponse, string, error) {
+func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, opts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 	switch {
 	case origin == "":
 		return nil, "", trace.BadParameter("origin required")
@@ -68,7 +73,17 @@ func Login(ctx context.Context,
 	case assertion.Response.RelyingPartyID == "":
 		return nil, "", trace.BadParameter("assertion relying party ID required")
 	}
-	return login(ctx, origin, assertion, opts)
+	resp, err := native.GetAssertion(origin, assertion.Response, opts)
+	if err != nil {
+		// TODO(tobiaszheller): proper error
+		return nil, "", err
+	}
+
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+		},
+	}, "", nil
 }
 
 // Register implements Register for Windows Webauthn API.
@@ -88,7 +103,18 @@ func Register(
 	case cc.Response.RelyingParty.ID == "":
 		return nil, trace.BadParameter("credential creation relying party ID required")
 	}
-	return register(ctx, origin, cc)
+
+	resp, err := native.MakeCredential(origin, cc.Response)
+	if err != nil {
+		// TODO(tobiaszheller): proper error
+		return nil, err
+	}
+
+	return &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_Webauthn{
+			Webauthn: wanlib.CredentialCreationResponseToProto(resp),
+		},
+	}, nil
 }
 
 // CheckSupport is the result from a Windows webauthn support check.
@@ -109,8 +135,8 @@ func IsAvailable() bool {
 
 // CheckSupport return information whether Windows Webauthn is supported and
 // information about API version.
-func CheckSupport() *CheckSupportResult {
-	return checkSupport()
+func CheckSupport() CheckSupportResult {
+	return native.CheckSupport()
 }
 
 type RunDiagnosticsResult struct {
