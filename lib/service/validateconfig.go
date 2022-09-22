@@ -19,6 +19,7 @@ package service
 import (
 	"io"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -105,18 +106,18 @@ func validateAuthOrProxyServices(cfg *Config) error {
 		}
 
 		if haveProxyServer {
-			port := cfg.ProxyServer.Port(defaults.HTTPListenPort)
+			port := cfg.ProxyServer.Port(0)
 			if port == defaults.AuthListenPort {
-				cfg.Log.Warnf("config: your proxy_server is pointing to port %d, have you specified your auth server instead?", defaults.AuthListenPort)
+				cfg.Log.Warnf("config: proxy_server is pointing to port %d, is this the auth server address?", defaults.AuthListenPort)
 			}
 		}
 
 		if haveAuthServers {
-			authServerPort := cfg.authServers[0].Port(defaults.AuthListenPort)
-			checkPorts := []int{defaults.HTTPListenPort, 443}
+			authServerPort := cfg.authServers[0].Port(0)
+			checkPorts := []int{defaults.HTTPListenPort, teleport.StandardHTTPSPort}
 			for _, port := range checkPorts {
 				if authServerPort == port {
-					cfg.Log.Warnf("config: your auth_server is pointing to port %d, have you specified your proxy address instead?", port)
+					cfg.Log.Warnf("config: auth_server is pointing to port %d, is this the proxy server address?", port)
 				}
 			}
 		}
