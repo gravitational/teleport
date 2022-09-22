@@ -16,17 +16,21 @@ package proxy
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 // kubeDetails contain the cluster-related details including authentication.
 type kubeDetails struct {
-	*kubeCreds
+	kubeCreds
 	// dynamicLabels is the dynamic labels executor for this cluster.
 	dynamicLabels *labels.Dynamic
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
@@ -34,12 +38,12 @@ type kubeDetails struct {
 }
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
-func newClusterDetails(ctx context.Context, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*kubeDetails, error) {
+func newClusterDetails(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*kubeDetails, error) {
 	var (
 		dynLabels *labels.Dynamic
 	)
 
-	creds, err := parseKubeClusterCredentials(ctx, cluster, log, checker)
+	creds, err := getKubeClusterCredentials(ctx, cloudClients, cluster, log, checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,22 +73,52 @@ func (k *kubeDetails) Close() {
 	if k.dynamicLabels != nil {
 		k.dynamicLabels.Close()
 	}
+	// it is safe to call close even for static creds.
+	k.kubeCreds.close()
 }
 
-// parseKubeClusterCredentials generates kube credentials for dynamic clusters.
-// TODO(tigrato): add support for aws and azure logins via token
-func parseKubeClusterCredentials(ctx context.Context, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*kubeCreds, error) {
+// getKubeClusterCredentials generates kube credentials for dynamic clusters.
+// TODO(tigrato): add support for aws logins via token
+func getKubeClusterCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (kubeCreds, error) {
 	switch {
-	case len(cluster.GetKubeconfig()) > 0:
-		return parseKubeConfig(ctx, cluster, log, checker)
+	case cluster.IsKubeconfig():
+		return getStaticCredentialsFromKubeconfig(ctx, cluster, log, checker)
+	case cluster.IsAzure():
+		return getAzureCredentials(ctx, cloudClients, cluster, log, checker)
 	default:
 		return nil, trace.BadParameter("authentication method provided for cluster %q not supported", cluster.GetName())
 	}
 }
 
-// parseKubeConfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
+// getAzureCredentials creates a dynamicCreds that generates and updates the access credentials to a kubernetes cluster.
+func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicCreds, error) {
+	// create a client that returns the credentials for kubeCluster
+	client := azureRestConfigClient(cloudClients)
+
+	creds, err := newDynamicCreds(ctx, cluster, log, client, checker)
+	return creds, trace.Wrap(err)
+}
+
+// azureRestConfigClient creates a dynamicCredsClient that generates returns credentials to AKS clusters.
+func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
+	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
+		aksClient, err := cloudClients.GetAzureKubernetesClient(cluster.GetAzureConfig().SubscriptionID)
+		if err != nil {
+			return nil, time.Time{}, trace.Wrap(err)
+		}
+		cfg, exp, err := aksClient.ClusterCredentials(ctx, azure.ClusterCredentialsConfig{
+			ResourceGroup:                   cluster.GetAzureConfig().ResourceGroup,
+			ResourceName:                    cluster.GetAzureConfig().ResourceName,
+			TenantID:                        cluster.GetAzureConfig().TenantID,
+			ImpersonationPermissionsChecker: checkImpersonationPermissions,
+		})
+		return cfg, exp, trace.Wrap(err)
+	}
+}
+
+// getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
 // If the config defines multiple contexts, it will pick one (the order is not guaranteed).
-func parseKubeConfig(ctx context.Context, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*kubeCreds, error) {
+func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	config, err := clientcmd.Load(cluster.GetKubeconfig())
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "unable to parse kubeconfig for cluster %q", cluster.GetName())

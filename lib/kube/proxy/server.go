@@ -27,6 +27,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -64,6 +65,8 @@ type TLSServerConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile is called after each kube_cluster resource reconciliation.
 	OnReconcile func(types.KubeClusters)
+	// CloudClients is a set of cloud clients that Teleport supports.
+	CloudClients cloud.Clients
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -90,10 +93,12 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
+	if c.CloudClients == nil {
+		c.CloudClients = cloud.NewClients()
+	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
-
 	return nil
 }
 
@@ -281,7 +286,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 		addr = t.listener.Addr().String()
 	}
 
-	cluster, err := t.fwd.findKubeClusterByName(name)
+	cluster, err := t.findKubeClusterByNameWithoutCredentials(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -305,7 +310,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 			Hostname: addr,
 			HostID:   t.TLSServerConfig.HostID,
 			Rotation: t.getRotationState(),
-			Cluster:  cluster.Copy(),
+			Cluster:  cluster,
 			ProxyIDs: t.ConnectedProxyGetter.GetProxyIDs(),
 		},
 	)
@@ -314,6 +319,24 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	return srv, nil
+}
+
+// findKubeClusterByNameWithoutCredentials finds the kube cluster by name and strips the credentials
+// for Azure, AWS and Kubeconfig in order to avoid sharing them via heartbeat.
+func (t *TLSServer) findKubeClusterByNameWithoutCredentials(name string) (*types.KubernetesClusterV3, error) {
+	cluster, err := t.fwd.findKubeClusterByName(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterWithoutCreds, err := types.NewKubernetesClusterV3(
+		cluster.GetMetadata(),
+		types.KubernetesClusterSpecV3{
+			DynamicLabels: types.LabelsToV2(cluster.GetDynamicLabels()),
+		},
+	)
+
+	return clusterWithoutCreds, trace.Wrap(err)
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.

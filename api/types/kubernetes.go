@@ -50,6 +50,14 @@ type KubeCluster interface {
 	String() string
 	// GetDescription returns the kube cluster description.
 	GetDescription() string
+	// GetAzureConfig gets the Azure config.
+	GetAzureConfig() KubeAzure
+	// SetAzureConfig sets the Azure config.
+	SetAzureConfig(KubeAzure)
+	// IsAzure indentifies if the KubeCluster contains Azure details.
+	IsAzure() bool
+	// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
+	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
 	Copy() *KubernetesClusterV3
 }
@@ -207,6 +215,28 @@ func (k *KubernetesClusterV3) GetDescription() string {
 	return k.Metadata.Description
 }
 
+// GetAzureConfig gets the Azure config.
+func (k *KubernetesClusterV3) GetAzureConfig() KubeAzure {
+	return k.Spec.Azure
+}
+
+// SetAzureConfig sets the Azure config.
+func (k *KubernetesClusterV3) SetAzureConfig(cfg KubeAzure) {
+	k.Spec.Azure = cfg
+}
+
+// IsAzure indentifies if the KubeCluster contains Azure details.
+func (k *KubernetesClusterV3) IsAzure() bool {
+	// on protobuf default values are not encoded.
+	// the empty structure returns no storage.
+	return k.Spec.Azure.Size() != 0
+}
+
+// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
+func (k *KubernetesClusterV3) IsKubeconfig() bool {
+	return len(k.Spec.Kubeconfig) > 0
+}
+
 // String returns the string representation.
 func (k *KubernetesClusterV3) String() string {
 	return fmt.Sprintf("KubernetesCluster(Name=%v, Labels=%v)",
@@ -241,6 +271,26 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("kubernetes cluster %q invalid label key: %q", k.GetName(), key)
 		}
+	}
+
+	if err := k.Spec.Azure.CheckAndSetDefaults(); err != nil && k.IsAzure() {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (k KubeAzure) CheckAndSetDefaults() error {
+	if len(k.ResourceGroup) == 0 {
+		return trace.BadParameter("invalid Azure ResourceGroup")
+	}
+
+	if len(k.ResourceName) == 0 {
+		return trace.BadParameter("invalid Azure ResourceName")
+	}
+
+	if len(k.SubscriptionID) == 0 {
+		return trace.BadParameter("invalid Azure SubscriptionID")
 	}
 
 	return nil

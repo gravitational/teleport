@@ -18,8 +18,11 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -159,4 +162,56 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported kube cluster resource version %q", h.Version)
+}
+
+const (
+	// labelTeleportKubeClusterName is the label key containing the kubernetes cluster name override.
+	labelTeleportKubeClusterName = types.TeleportNamespace + "/kubernetes_name"
+)
+
+// setKubeName modifies the types.Metadata argument in place, setting the kubernetes cluster name.
+// The name is calculated based on nameParts arguments which are joined by hyphens "-".
+// If the kube_cluster name override label is present (setKubeName), it will replace the *first* name part.
+func setKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	nameParts := append([]string{firstNamePart}, extraNameParts...)
+
+	// apply override
+	if override, found := meta.Labels[labelTeleportKubeClusterName]; found && override != "" {
+		nameParts[0] = override
+	}
+
+	meta.Name = strings.Join(nameParts, "-")
+
+	return meta
+}
+
+// NewKubeClusterFromAzureAKS creates a kube_cluster resource from an AKSCluster.
+func NewKubeClusterFromAzureAKS(cluster *azure.AKSCluster) (types.KubeCluster, error) {
+	labels := labelsFromAzureKubeCluster(cluster)
+	return types.NewKubernetesClusterV3(
+		setKubeName(types.Metadata{
+			Description: fmt.Sprintf("Azure AKS cluster %q in %v",
+				cluster.Name,
+				cluster.Location),
+			Labels: labels,
+		}, cluster.Name),
+		types.KubernetesClusterSpecV3{
+			Azure: types.KubeAzure{
+				ResourceName:   cluster.Name,
+				ResourceGroup:  cluster.GroupName,
+				TenantID:       cluster.TenantID,
+				SubscriptionID: cluster.SubscriptionID,
+			},
+		})
+}
+
+// labelsFromAzureKubeCluster creates kube cluster labels.
+func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
+	labels := azureTagsToLabels(cluster.Tags)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = cluster.Location
+
+	labels[labelResourceGroup] = cluster.GroupName
+	labels[labelSubscriptionID] = cluster.SubscriptionID
+	return labels
 }
