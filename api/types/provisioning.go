@@ -504,7 +504,7 @@ func (a *ProvisionTokenSpecV3GitHub) checkAndSetDefaults() error {
 		specificRepoSet := rule.Repository != "" && rule.RepositoryOwner != ""
 		// Sub sufficiently uniquely identifies a workflow and repository.
 		subSet := rule.Sub != ""
-		if subSet || specificRepoSet {
+		if !(subSet || specificRepoSet) {
 			return trace.BadParameter(
 				`allow rule for %q must abide by secure guidelines. check documentation.`,
 				JoinMethodGitHub,

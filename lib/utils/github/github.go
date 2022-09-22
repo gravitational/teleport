@@ -77,7 +77,7 @@ func (ip *IdentityProvider) GetIDToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	req.Header.Set("Authorization", requestToken)
+	req.Header.Set("Authorization", "Bearer "+requestToken)
 	req.Header.Set("Accept", "application/json; api-version=2.0")
 	req.Header.Set("Content-Type", "application/json")
 	res, err := ip.client.Do(req)
