@@ -1,3 +1,12 @@
+<div align="left">
+   <a href="https://goteleport.com/teleport-connect-2022/?utm_campaign=eg&utm_medium=web&utm_source=github">
+       Join us for our inaugural user conference - Teleport Connect!
+   </a>
+   <br/>
+   <br/>
+   <br/>
+</div>
+
 <div align="center">
    <img src="./assets/img/readme-header.png" width=750/>
    <div align="center" style="padding: 25px">
