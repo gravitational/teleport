@@ -333,16 +333,23 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Ses
 
 	token, err := client.GetToken(ctx, resourceID.ResourceGroupName, resourceID.Name)
 	if err != nil {
-		if trace.IsAccessDenied(err) {
-			// Some Azure error messages are long, multi-lined, and may even
-			// contain divider lines like "------". It's unreadable in
-			// redis-cli as the message has to be merged to a single line
-			// string. Thus logging the original error as debug and returning a
-			// more user friendly message.
-			a.cfg.Log.WithError(err).Debugf("Failed to get token for Azure Redis %q.", sessionCtx.Database.GetName())
+		// Some Azure error messages are long, multi-lined, and may even
+		// contain divider lines like "------". It's unreadable in redis-cli as
+		// the message has to be merged to a single line string. Thus logging
+		// the original error as debug and returning a more user friendly
+		// message.
+		a.cfg.Log.WithError(err).Debugf("Failed to get token for Azure Redis %q.", sessionCtx.Database.GetName())
+		switch {
+		case trace.IsAccessDenied(err):
 			return "", trace.AccessDenied("Failed to get token for Azure Redis %q. Please make sure the database agent has the \"listKeys\" permission to the database.", sessionCtx.Database.GetName())
+		case trace.IsNotFound(err):
+			// Note that Azure Cache for Redis should always have both keys
+			// generated at all time. Here just checking in case something
+			// wrong with the API.
+			return "", trace.AccessDenied("Failed to get token for Azure Redis %q. Please make sure either the primary key or the secondary key is generated.", sessionCtx.Database.GetName())
+		default:
+			return "", trace.Errorf("Failed to get token for Azure Redis %q.", sessionCtx.Database.GetName())
 		}
-		return "", trace.Wrap(err)
 	}
 	return token, nil
 }
@@ -510,10 +517,7 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
 	// Azure Cache for Redis certificates are signed by DigiCert Global Root G2.
-	if sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis {
-		return true
-	}
-	return false
+	return sessionCtx.Database.IsAzure() && sessionCtx.Database.GetProtocol() == defaults.ProtocolRedis
 }
 
 // setupTLSConfigServerName initializes the server name for the provided

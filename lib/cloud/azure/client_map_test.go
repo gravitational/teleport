@@ -36,6 +36,8 @@ func TestClientMap(t *testing.T) {
 	}
 	clientMap := NewClientMap(mockNewClientFunc)
 
+	// Note that some test cases (e.g. "get from cache") depend on previous
+	// test cases. Thus running in sequence.
 	t.Run("get credentials failed", func(t *testing.T) {
 		client, err := clientMap.Get("some-sub", func() (azcore.TokenCredential, error) {
 			return nil, trace.AccessDenied("failed to get credentials")

@@ -31,6 +31,9 @@ import (
 
 // TestRegisterEngine verifies database engine registration.
 func TestRegisterEngine(t *testing.T) {
+	// Cleanup "test" engine in case this test is run in a loop.
+	RegisterEngine(nil, "test")
+
 	ec := EngineConfig{
 		Context:      context.Background(),
 		Clock:        clockwork.NewFakeClock(),
