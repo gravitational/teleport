@@ -101,9 +101,6 @@ func buildContainerImagePipelines() []pipeline {
 	return pipelines
 }
 
-// TODO consider a fan-in step for all structs requiring setup steps to reduce
-// dependency complexity
-
 type TriggerInfo struct {
 	Trigger           trigger
 	Name              string

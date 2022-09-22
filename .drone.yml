@@ -5186,7 +5186,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:230
+# Generated at dronegen/container_images.go:227
 ################################################
 
 kind: pipeline
@@ -5406,19 +5406,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10') | sed
+    's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
+    "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10') | sed
     's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10') | sed
     's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10') | sed
-    's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -5585,11 +5585,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5611,13 +5611,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
@@ -5653,11 +5653,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5811,11 +5811,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5837,13 +5837,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
+    sed 's/v//' | cut -d'.' -f 1)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
+    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
     sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
-    sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
@@ -6099,13 +6099,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
+    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
@@ -6130,13 +6130,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
+    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
@@ -6169,11 +6169,11 @@ steps:
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -6270,13 +6270,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
+    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
-    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
@@ -6346,11 +6346,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6462,13 +6462,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
@@ -6496,13 +6496,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
@@ -6721,19 +6721,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
+    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -6922,19 +6922,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-fips-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7106,19 +7106,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
+    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7137,19 +7137,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
+    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7176,11 +7176,11 @@ steps:
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7311,13 +7311,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
+    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
-    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
@@ -7345,13 +7345,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
-    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
+    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
@@ -7477,11 +7477,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7503,13 +7503,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
+    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
@@ -7741,11 +7741,11 @@ steps:
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7764,19 +7764,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7803,11 +7803,11 @@ steps:
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7980,11 +7980,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8139,11 +8139,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8165,19 +8165,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
+    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8292,7 +8292,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:230
+# Generated at dronegen/container_images.go:227
 ################################################
 
 kind: pipeline
@@ -8906,19 +8906,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
+    sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
+    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
     sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
     sed 's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
-    sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8940,13 +8940,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
-    sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
     sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
     sed 's/v//' | cut -d'.' -f 1,2)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
+    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10') |
+    sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v10')
@@ -9272,11 +9272,11 @@ steps:
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9373,19 +9373,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
+    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
-    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9415,11 +9415,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9565,19 +9565,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9607,11 +9607,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9641,11 +9641,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10279,11 +10279,11 @@ steps:
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10380,13 +10380,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
+    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
-    '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
@@ -10572,19 +10572,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10606,13 +10606,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v10')-arm"
+    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
@@ -10648,11 +10648,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10836,19 +10836,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
+    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10867,13 +10867,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
@@ -11007,13 +11007,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
@@ -11041,13 +11041,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
@@ -11083,11 +11083,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11234,19 +11234,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v10')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11395,7 +11395,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:230
+# Generated at dronegen/container_images.go:227
 ################################################
 
 kind: pipeline
@@ -11642,13 +11642,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
+    's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
+    "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
     's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
     's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
-    "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
-    's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v9')
@@ -11816,13 +11816,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
@@ -11974,19 +11974,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
+    's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
     's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
     's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9') | sed
-    's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12372,11 +12372,11 @@ steps:
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v9') |
     sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -12473,19 +12473,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
-    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
+    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12507,13 +12507,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
+    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
-    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
@@ -12665,19 +12665,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12707,11 +12707,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13017,13 +13017,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
+    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
-    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
@@ -13124,13 +13124,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v9')
@@ -13316,11 +13316,11 @@ steps:
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -13370,19 +13370,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9') |
-    sed 's/v//' | cut -d'.' -f 1)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
-    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9') |
     sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
+    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9') |
+    sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -13513,19 +13513,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
+    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
-    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
+    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
-    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13547,13 +13547,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
+    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-arm64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
-    '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
@@ -13671,19 +13671,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13713,11 +13713,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13935,19 +13935,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
+    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -14140,13 +14140,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
@@ -14174,13 +14174,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
@@ -14299,19 +14299,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -14333,19 +14333,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
+    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -14367,19 +14367,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
+    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v9')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -14494,7 +14494,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:230
+# Generated at dronegen/container_images.go:227
 ################################################
 
 kind: pipeline
@@ -14710,13 +14710,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v8') | sed
+    's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
+    "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v8') | sed
     's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v8') | sed
     's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
-    "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v8') | sed
-    's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $(cat '/go/vars/full-version/v8')
@@ -14881,13 +14881,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
@@ -14923,11 +14923,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
-    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
+    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -15149,11 +15149,11 @@ steps:
     "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8') | sed
     's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -15409,11 +15409,11 @@ steps:
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -15432,13 +15432,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
-    sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
-    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
+    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
+    sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
@@ -15463,13 +15463,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
-    sed 's/v//' | cut -d'.' -f 1)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
-    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
+    "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8') |
+    sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
@@ -15614,11 +15614,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -15798,13 +15798,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
@@ -16116,19 +16116,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
+    '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
     '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo $(cat
-    '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-fips-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -16223,13 +16223,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
+    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $(cat '/go/vars/full-version/v8')
@@ -16415,11 +16415,11 @@ steps:
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -16446,11 +16446,11 @@ steps:
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -16469,19 +16469,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8') |
+    sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
+    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8') |
     sed 's/v//' | cut -d'.' -f 1,2)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
-    "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8') |
-    sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -16578,13 +16578,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
+    '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-amd64"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
-    '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
@@ -16620,11 +16620,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
+    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
-    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -16654,11 +16654,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo $(cat
     '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
-    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
+    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -16838,19 +16838,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
+    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$(cat '/go/vars/full-version/v8')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -17073,11 +17073,11 @@ steps:
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -17096,13 +17096,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
+    "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
@@ -17239,13 +17239,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
+    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
@@ -17281,11 +17281,11 @@ steps:
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $(cat '/go/vars/full-version/v8') | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -17466,13 +17466,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
+    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
+    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
-    | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
     | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $(cat '/go/vars/full-version/v8')
@@ -17593,7 +17593,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:230
+# Generated at dronegen/container_images.go:227
 ################################################
 
 kind: pipeline
@@ -17876,17 +17876,17 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/fred_heinecke/teleport:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/fred_heinecke/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/fred_heinecke/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/fred_heinecke/teleport:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm64"
+  - docker push "quay.io/fred_heinecke/teleport:$(echo $DRONE_TAG | sed 's/v//' |
+    cut -d'.' -f 1,2,3)-arm64"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $DRONE_TAG | sed 's/v//' |
     cut -d'.' -f 1)-arm64"
   - docker push "quay.io/fred_heinecke/teleport:$(echo $DRONE_TAG | sed 's/v//' |
     cut -d'.' -f 1,2)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport:$(echo $DRONE_TAG | sed 's/v//' |
-    cut -d'.' -f 1,2,3)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -18010,11 +18010,11 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
@@ -18041,11 +18041,11 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(echo
@@ -18153,17 +18153,17 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1,2)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2,3)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1,2)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -18184,11 +18184,11 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
@@ -18215,17 +18215,17 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -18470,17 +18470,17 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1,2,3)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -18504,11 +18504,11 @@ steps:
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "quay.io/fred_heinecke/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1)-arm"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2)-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2,3)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -18629,11 +18629,11 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
@@ -18660,17 +18660,17 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -18691,17 +18691,17 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -18803,17 +18803,17 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1,2)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2,3)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1,2)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -18834,11 +18834,11 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
@@ -18871,11 +18871,11 @@ steps:
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1,2,3)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -19056,11 +19056,11 @@ steps:
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1)-fips-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2)-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2,3)-fips-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1)-fips-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -19141,11 +19141,11 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(echo
@@ -19242,11 +19242,11 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:$(echo $DRONE_TAG | sed 's/v//'
@@ -19429,11 +19429,11 @@ steps:
   - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-lab:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1,2)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-amd64"
+  - docker push "quay.io/fred_heinecke/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1,2)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -19613,11 +19613,11 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:$(echo
@@ -19787,11 +19787,11 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
@@ -19824,11 +19824,11 @@ steps:
   - docker tag "drone-docker-registry:5000/teleport-lab:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
+    | cut -d'.' -f 1)-arm64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1,2,3)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:$(echo $DRONE_TAG | sed 's/v//'
-    | cut -d'.' -f 1)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -20011,11 +20011,11 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-operator:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "quay.io/fred_heinecke/teleport-operator:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $DRONE_TAG | sed 's/v//'
@@ -20039,11 +20039,11 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "quay.io/fred_heinecke/teleport-operator:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "quay.io/fred_heinecke/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "quay.io/fred_heinecke/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "quay.io/fred_heinecke/teleport-operator:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $DRONE_TAG | sed 's/v//'
     | cut -d'.' -f 1)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(echo $DRONE_TAG | sed 's/v//'
@@ -20170,11 +20170,11 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
@@ -20201,11 +20201,11 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
@@ -20232,17 +20232,17 @@ steps:
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -20345,17 +20345,17 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
-    's/v//' | cut -d'.' -f 1)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
     's/v//' | cut -d'.' -f 1,2)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
     's/v//' | cut -d'.' -f 1,2,3)-amd64"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
+    's/v//' | cut -d'.' -f 1)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -20382,11 +20382,11 @@ steps:
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
+    's/v//' | cut -d'.' -f 1,2,3)-arm"
+  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
     's/v//' | cut -d'.' -f 1)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
     's/v//' | cut -d'.' -f 1,2)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
-    's/v//' | cut -d'.' -f 1,2,3)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -20407,11 +20407,11 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
+    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
     $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1,2,3)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo
-    $DRONE_TAG | sed 's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
     's/v//' | cut -d'.' -f 1)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(echo $DRONE_TAG | sed
@@ -21003,6 +21003,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 0ae0882646d70297f1ad8ca1b57d3ef8d2a6d04da4ffd5d7524df022478bbf6a
+hmac: e60c67e9659bf2595021b229314a30bde0ece8b816aeb32f7ec1fbfcce090a56
 
 ...
