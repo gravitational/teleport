@@ -12,17 +12,6 @@ RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
 CLOUD_DOCKERFILE ?= ../build.assets/charts/Dockerfile
 
-ifeq ("$(OS)","linux")
-# ARM builds need to specify the correct C compiler
-ifeq ("$(ARCH)","arm")
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
-endif
-# ARM64 builds need to specify the correct C compiler
-ifeq ("$(ARCH)","arm64")
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
-endif
-endif
-
 DOCKER_IMAGE_ENT_QUAY ?= quay.io/gravitational/teleport-ent
 DOCKER_IMAGE_ENT_ECR ?= public.ecr.aws/gravitational/teleport-ent
 DOCKER_IMAGE_ENT_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent
@@ -30,11 +19,11 @@ DOCKER_IMAGE_ENT_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravita
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
-FIPS_ENT_MESSAGE := "without FIPS support"
+FIPS_ENT_MESSAGE := "without-FIPS-support"
 # FIPS support must be requested at build time.
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
-FIPS_ENT_MESSAGE := "with FIPS support"
+FIPS_ENT_MESSAGE := "with-FIPS-support"
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 # See the comment in tool/modules/fips.go.hide for explanation.
 $(shell ln -sf fips.go.hide tool/modules/fips.go)
@@ -43,14 +32,14 @@ else
 $(shell rm -f tool/modules/fips.go)
 endif
 
-PAM_ENT_MESSAGE := "without PAM support"
+PAM_ENT_MESSAGE := "without-PAM-support"
 # PAM support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG = pam
-PAM_ENT_MESSAGE := "with PAM support"
+PAM_ENT_MESSAGE := "with-PAM-support"
 endif
 
-BPF_ENT_MESSAGE := "without BPF support"
+BPF_ENT_MESSAGE := "without-BPF-support"
 # We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
 # have compilation issues that require fixing.
 with_bpf := no
@@ -59,10 +48,10 @@ ifeq ("$(ARCH)","amd64")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
-BPF_ENT_MESSAGE := "with BPF support"
+BPF_ENT_MESSAGE := "with-BPF-support"
 INCLUDES :=
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic"
+STATIC_LIBS += -lbpf -lelf -lz
 endif
 endif
 endif
@@ -72,7 +61,7 @@ CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
 with_rdpclient := no
-RDPCLIENT_ENT_MESSAGE := "without Windows RDP client"
+RDPCLIENT_ENT_MESSAGE := "without-Windows-RDP-client"
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
@@ -89,7 +78,7 @@ ifneq ($(CHECK_CARGO),)
 ifneq ("$(ARCH)","arm")
 # Do not build RDP client on ARM.
 with_rdpclient := yes
-RDPCLIENT_ENT_MESSAGE := "with Windows RDP client"
+RDPCLIENT_ENT_MESSAGE := "with-Windows-RDP-client"
 RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
@@ -98,19 +87,38 @@ endif
 # Build tsh against libfido2?
 # Only build if FIDO2=yes, each platform we support must make this decision
 # explicitly.
-LIBFIDO2_MESSAGE := without libfido2
+LIBFIDO2_MESSAGE := without-libfido2
 ifeq ("$(FIDO2)", "yes")
-LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_MESSAGE := with-libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
 endif
 
 # Enable Touch ID builds?
 # Only build if TOUCHID=yes to avoid issues when cross-compiling to 'darwin'
 # from other systems.
-TOUCHID_MESSAGE := without Touch ID
+TOUCHID_MESSAGE := without-Touch-ID
 ifeq ("$(TOUCHID)", "yes")
-TOUCHID_MESSAGE := with Touch ID
+TOUCHID_MESSAGE := with-Touch-ID
 TOUCHID_TAG := touchid
+endif
+
+# Build teleport/api against libpcsclite? This is used for PIV functionality.
+#
+# LIBPCSCLITE=yes and LIBPCSCLITE=static enable static libpcsclite builds. This is used
+# by the build process to link a static library of libpcsclite for piv-go to connect to.
+#
+# LIBPCSCLITE=dynamic enables dynamic libpcsclite builds. This can be used for local
+# builds and runs utilizing a dynamic libpcsclite library - `apt get install libpcsclite-dev`
+LIBPCSCLITE_MESSAGE := without-PIV-support
+ifneq (, $(filter $(LIBPCSCLITE), yes static dynamic))
+LIBPCSCLITE_MESSAGE := with-PIV-support
+LIBPCSCLITE_BUILD_TAG := libpcsclite
+ifneq ("$(LIBPCSCLITE)", "dynamic")
+# Link static pcsc libary. By default, piv-go will look for the dynamic library.
+# https://github.com/go-piv/piv-go/blob/master/piv/pcsc_unix.go#L23
+STATIC_LIBS += -lpcsclite
+STATIC_LIBS_TSH += -lpcsclite
+endif
 endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
@@ -125,7 +133,36 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and $(PAM_ENT_MESSAGE) and $(FIPS_ENT_MESSAGE) and $(BPF_ENT_MESSAGE) and $(RDPCLIENT_ENT_MESSAGE) and $(LIBFIDO2_MESSAGE) and $(TOUCHID_MESSAGE)."
+# Joins elements of the list in arg 2 with the given separator.
+#   1. Element separator.
+#   2. The list.
+EMPTY :=
+SPACE := $(EMPTY) $(EMPTY)
+join-with = $(subst $(SPACE),$1,$(strip $2))
+
+# Separate TAG messages into comma-separated WITH and WITHOUT lists for readability.
+COMMA := ,
+MESSAGES := $(PAM_ENT_MESSAGE) $(FIPS_ENT_MESSAGE) $(BPF_ENT_MESSAGE) $(RDPCLIENT_ENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(LIBPCSCLITE_MESSAGE)
+WITH := $(subst -," ",$(call join-with,$(COMMA) ,$(subst with-,,$(filter with-%,$(MESSAGES)))))
+WITHOUT := $(subst -," ",$(call join-with,$(COMMA) ,$(subst without-,,$(filter without-%,$(MESSAGES)))))
+RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and with $(WITH) and without $(WITHOUT)."
+
+# Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+# Link static version of libraries (bpf, pcsc) to reduce system dependencies.
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic"
+CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic"
+else ifeq ("$(ARCH)","arm")
+# ARM builds need to specify the correct C compiler
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+else ifeq ("$(ARCH)","arm64")
+# ARM64 builds need to specify the correct C compiler
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
+
+CGOFLAG_TSH ?= $(CGOFLAG)
 
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
 # over tsh from OSS.
@@ -141,15 +178,15 @@ all:
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBPCSCLITE_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: bpf-bytecode-e ensure-webassets-e teleport-fips-check rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(LIBPCSCLITE_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(LIBPCSCLITE_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
