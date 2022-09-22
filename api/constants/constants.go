@@ -328,3 +328,12 @@ const (
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
 )
+
+// Constants for AWS discovery
+const (
+	AWSServiceTypeEC2 = "ec2"
+)
+
+// SupportedAWSDiscoveryServices is list of AWS services currently
+// supported by the Teleport discovery service
+var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}

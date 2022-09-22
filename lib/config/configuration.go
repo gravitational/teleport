@@ -443,6 +443,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.Discovery.Enabled() {
+		applyDiscoveryConfig(fc, cfg)
+	}
+
 	return nil
 }
 
@@ -1046,12 +1050,17 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
-	for _, matcher := range fc.SSH.AWSMatchers {
-		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
+	return nil
+}
+
+func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
+	cfg.Discovery.Enabled = fc.Discovery.Enabled()
+	for _, matcher := range fc.Discovery.AWSMatchers {
+		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			services.AWSMatcher{
-				Types:   matcher.Matcher.Types,
-				Regions: matcher.Matcher.Regions,
-				Tags:    matcher.Matcher.Tags,
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
 				Params: services.InstallerParams{
 					JoinMethod: matcher.InstallParams.JoinParams.Method,
 					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
@@ -1060,8 +1069,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
-
-	return nil
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
@@ -2128,7 +2135,8 @@ func validateRoles(roles string) error {
 			defaults.RoleProxy,
 			defaults.RoleApp,
 			defaults.RoleDatabase,
-			defaults.RoleWindowsDesktop:
+			defaults.RoleWindowsDesktop,
+			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
