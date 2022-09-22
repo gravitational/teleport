@@ -39,11 +39,12 @@ type TermHandlers struct {
 // channel of the context.
 func (t *TermHandlers) HandleExec(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
 	// Save the request within the context.
-	scx.request = req
+	if err := scx.SetSSHRequest(req); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Parse the exec request and store it in the context.
-	_, err := parseExecRequest(req, scx)
-	if err != nil {
+	if _, err := parseExecRequest(req, scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -110,11 +111,16 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	var err error
 
 	// Save the request within the context.
-	scx.request = req
+	if err := scx.SetSSHRequest(req); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Creating an empty exec request implies a interactive shell was requested.
-	scx.ExecRequest, err = NewExecRequest(scx, "")
+	execRequest, err := NewExecRequest(scx, "")
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := scx.SetExecRequest(execRequest); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := t.SessionRegistry.OpenSession(ctx, ch, scx); err != nil {
@@ -172,12 +178,15 @@ func parseExecRequest(req *ssh.Request, ctx *ServerContext) (Exec, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx.ExecRequest, err = NewExecRequest(ctx, r.Command)
+	execRequest, err := NewExecRequest(ctx, r.Command)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := ctx.SetExecRequest(execRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return ctx.ExecRequest, nil
+	return execRequest, nil
 }
 
 func parsePTYReq(req *ssh.Request) (*sshutils.PTYReqParams, error) {
