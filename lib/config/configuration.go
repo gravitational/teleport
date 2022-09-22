@@ -906,7 +906,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		switch fc.Version {
 		case defaults.TeleportConfigVersionV2, defaults.TeleportConfigVersionV3:
 			// Always enable kube service if using config v2 onwards (TLS routing is supported)
-			cfg.Proxy.Kube.Enabled = true
+			if fc.Version != defaults.TeleportConfigVersionV1 {
+				cfg.Proxy.Kube.Enabled = true
+			}
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
@@ -1002,9 +1004,8 @@ func getPostgresDefaultPort(cfg *service.Config) int {
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
-	switch cfg.Version {
-	case defaults.TeleportConfigVersionV2, defaults.TeleportConfigVersionV3:
-		// From v2 onwards. if an address is not provided don't fall back to the default values.
+	// From v2 onwards. if an address is not provided don't fall back to the default values.
+	if cfg.Version != defaults.TeleportConfigVersionV1 {
 		return
 	}
 

@@ -317,8 +317,8 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 			a.LicenseFile = flags.LicensePath
 		}
 
-		switch flags.Version {
-		case defaults.TeleportConfigVersionV2, defaults.TeleportConfigVersionV3:
+		// from config v2 onwards, we support `proxy_listener_mode`, so we set it to `multiplex`
+		if flags.Version != defaults.TeleportConfigVersionV1 {
 			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
 		}
 	} else {
