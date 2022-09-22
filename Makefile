@@ -155,21 +155,26 @@ TOUCHID_TAG := touchid
 endif
 
 # Enable libpcsclite for testing?
-# Eargerly enable if we detect the package, we want to test as much as possible.
+# Eargerly enable if we detect the dynamic library, we want to test as much as possible.
 ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
+# This test tag should not be used for builds/releases, only tests.
 LIBPCSCLITE_TEST_TAG := libpcsclite
 endif
 
-# Build teleport/api against libsclite?
-# LIBPCSCLITE=yes and LIBPCSCLITE=static enable static libsclite builds.
-# LIBPCSCLITE=dynamic enables dynamic libsclite builds.
-# This is used for PIV functionality.
+# Build teleport/api against libpcsclite? This is used for PIV functionality.
+#
+# LIBPCSCLITE=yes and LIBPCSCLITE=static enable static libpcsclite builds. This is used
+# by the build process to link a static library of libpcsclite for piv-go to connect to.
+#
+# LIBPCSCLITE=dynamic enables dynamic libpcsclite builds. This can be used for local
+# builds and runs utilizing a dynamic libpcsclite library - `apt get install libpcsclite-dev`
 LIBPCSCLITE_MESSAGE := without-PIV-support
 ifneq (, $(filter $(LIBPCSCLITE), yes static dynamic))
 LIBPCSCLITE_MESSAGE := with-PIV-support
 LIBPCSCLITE_BUILD_TAG := libpcsclite
 ifneq ("$(LIBPCSCLITE)", "dynamic")
-# Link static pcsc libary
+# Link static pcsc libary. By default, piv-go will look for the dynamic library.
+# https://github.com/go-piv/piv-go/blob/master/piv/pcsc_unix.go#L23
 STATIC_LIBS += -lpcsclite
 STATIC_LIBS_TSH += -lpcsclite
 endif
