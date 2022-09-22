@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -102,6 +103,23 @@ func Register(
 		return nil, trace.BadParameter("credential creation challenge required")
 	case cc.Response.RelyingParty.ID == "":
 		return nil, trace.BadParameter("credential creation relying party ID required")
+	}
+
+	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	log.Debugf("WINWEBAUTHN: registration: resident key=%v", rrk)
+	if rrk {
+		// Be more pedantic with resident keys, some of this info gets recorded with
+		// the credential.
+		switch {
+		case len(cc.Response.RelyingParty.Name) == 0:
+			return nil, trace.BadParameter("relying party name required for resident credential")
+		case len(cc.Response.User.Name) == 0:
+			return nil, trace.BadParameter("user name required for resident credential")
+		case len(cc.Response.User.DisplayName) == 0:
+			return nil, trace.BadParameter("user display name required for resident credential")
+		case len(cc.Response.User.ID) == 0:
+			return nil, trace.BadParameter("user ID required for resident credential")
+		}
 	}
 
 	resp, err := native.MakeCredential(origin, cc.Response)

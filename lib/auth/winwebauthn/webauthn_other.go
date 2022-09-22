@@ -18,10 +18,9 @@
 package winwebauthn
 
 import (
-	"context"
 	"errors"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/duo-labs/webauthn/protocol"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -40,6 +39,7 @@ func (n noopNative) CheckSupport() CheckSupportResult {
 func (n noopNative) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	return nil, errUnavailable
 }
+
 func (n noopNative) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
 	return nil, errUnavailable
 }
