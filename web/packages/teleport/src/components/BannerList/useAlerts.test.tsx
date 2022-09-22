@@ -33,6 +33,7 @@ const ALERTS = [
       labels: {
         'teleport.internal/alert-on-login': 'yes',
         'teleport.internal/alert-permit-all': 'yes',
+        'teleport.internal/link': 'some-URL',
       },
       expires: '2022-08-31T17:26:05.728149Z',
     },
