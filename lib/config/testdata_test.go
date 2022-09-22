@@ -27,7 +27,7 @@ teleport:
   pid_file: /var/run/teleport.pid
   auth_server: auth0.server.example.org:3024
   join_params:
-    join_method: token
+    method: token
     token_name: xxxyyy
   log:
     output: stderr
@@ -91,7 +91,7 @@ teleport:
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   join_params:
-    join_method: token
+    method: token
     token_name: %v
   auth_server: auth0.server.example.org:3024
   log:

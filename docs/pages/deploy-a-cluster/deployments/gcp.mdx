@@ -191,7 +191,7 @@ Save the following configuration file as `/etc/teleport.yaml` on the Proxy Serve
 version: v3
 teleport:
   join_params:
-    join_method: token
+    method: token
     token_name: EXAMPLE-PROXY-JOIN-TOKEN
   # We recommend using a TCP load balancer pointed to the auth servers when
   # setting up in High Availability mode.
@@ -219,7 +219,7 @@ Save the following configuration file as `/etc/teleport.yaml` on the Node:
 version: v3
 teleport:
   join_params:
-    join_method: token
+    method: token
     token_name: EXAMPLE-NODE-JOIN-TOKEN
   # Nodes and other agents can be joined to the cluster via the proxy's public address.
   # This will establish a reverse tunnel between the proxy and the node which is used for all traffic.

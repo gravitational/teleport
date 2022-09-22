@@ -78,7 +78,7 @@ On the node where you will run the Teleport Database Service, run
 version: v3
 teleport:
   join_params:
-    join_method: token
+    method: token
     token_name: "/tmp/token"
   proxy_server: teleport.example.com:443
 db_service:
@@ -127,7 +127,7 @@ On the node where you will run the Teleport Database Service, run
 version: v3
 teleport:
   join_params:
-    join_method: token
+    method: token
     token_name: "/tmp/token"
   proxy_server: mytenant.teleport.sh
 db_service:

@@ -4,7 +4,7 @@ teleport:
   nodename: node-on-second-cluster
   auth_server: two-auth
   join_params:
-    join_method: token
+    method: token
     token_name: foo
   advertise_ip: 172.10.1.4
   log:

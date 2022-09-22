@@ -2,7 +2,7 @@ version: v3
 teleport:
   auth_server: one
   join_params:
-    join_method: token
+    method: token
     token_name: foo
   log:
     output: /var/lib/teleport/teleport.log

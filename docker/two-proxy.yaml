@@ -4,7 +4,7 @@ teleport:
   nodename: two-proxy
   auth_server: two-auth
   join_params:
-    join_method: token
+    method: token
     token_name: foo
   log:
     output: stdout

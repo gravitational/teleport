@@ -2,7 +2,7 @@
 version: v3
 teleport:
   join_params:
-    join_method: token
+    method: token
     token_name: foo
   nodename: one-proxy
   advertise_ip: 172.10.1.10

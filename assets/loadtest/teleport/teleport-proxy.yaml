@@ -8,7 +8,7 @@ teleport:
   data_dir: /var/lib/teleport
   auth_server: auth:3025
   join_params:
-    join_method: token
+    method: token
     token_name: "proxy-${PROXY_TOKEN}"
   cache:
     type: in-memory

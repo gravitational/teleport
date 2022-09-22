@@ -44,7 +44,7 @@ teleport:
   data_dir: {{ .DataDir }}
   proxy_server: {{ .ProxyServer }}
   join_params: 
-    join_method: token
+    method: token
     token_name: {{ .AuthToken }}
   {{- if .CAPins }}
   ca_pin:

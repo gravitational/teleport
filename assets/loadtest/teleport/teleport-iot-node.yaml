@@ -9,7 +9,7 @@ teleport:
     type: dir
   proxy_server: ${PROXY_HOST}:3080
   join_params:
-    join_method: token
+    method: token
     token_name: "node-${NODE_TOKEN}"
 auth_service:
   enabled: false

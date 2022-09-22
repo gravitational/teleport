@@ -418,7 +418,7 @@ version: v3
 teleport:
   nodename: ${NODENAME}
   join_params:
-    join_method: token
+    method: token
     token_name: ${JOIN_TOKEN}
 ${CA_PINS_CONFIG}
   proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}

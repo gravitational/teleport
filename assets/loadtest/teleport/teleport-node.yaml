@@ -9,7 +9,7 @@ teleport:
     type: dir
   auth_server: auth:3025
   join_params:
-    join_method: token
+    method: token
     token_name: "node-${NODE_TOKEN}"
 auth_service:
   enabled: false

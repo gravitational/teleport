@@ -212,7 +212,7 @@ teleport:
   nodename: hvostongo.example.org
   auth_servers: auth.server.example.org:3024
   join_params:
-    join_method: token
+    method: token
     token_name: xxxyyy
   log:
     output: stderr

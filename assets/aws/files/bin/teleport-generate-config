@@ -310,7 +310,7 @@ elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
 version: v3
 teleport:
   join_params:
-    join_method: token
+    method: token
     token_name: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
@@ -379,7 +379,7 @@ elif [[ "${TELEPORT_ROLE}" == "node" ]]; then
 version: v3
 teleport:
   join_params:
-      join_method: token
+      method: token
       token_name: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
@@ -778,7 +778,7 @@ teleport:
     severity: INFO
   data_dir: /var/lib/teleport
   join_params:
-    join_method: token
+    method: token
     token_name: ${TELEPORT_JOIN_TOKEN}
   proxy_server: ${TELEPORT_PROXY_SERVER_LB}
 

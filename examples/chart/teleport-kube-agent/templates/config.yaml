@@ -22,7 +22,7 @@ data:
     version: v3
     teleport:
       join_params:
-        join_method: token
+        method: token
         token_name: "/etc/teleport-secrets/auth-token"
       proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
       {{- if .Values.caPin }}
