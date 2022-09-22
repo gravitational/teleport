@@ -232,10 +232,10 @@ func (f fakeNative) CheckSupport() winwebauthn.CheckSupportResult {
 	}
 }
 
-func (n fakeNative) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *winwebauthn.LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (f fakeNative) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *winwebauthn.LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	return nil, fmt.Errorf("not implemented in fakeNative")
 }
 
-func (n fakeNative) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
+func (f fakeNative) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
 	return nil, fmt.Errorf("not implemented in fakeNative")
 }

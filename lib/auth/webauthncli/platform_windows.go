@@ -17,6 +17,5 @@ package webauthncli
 // HasPlatformSupport returns true if the platform supports client-side
 // WebAuthn-compatible logins.
 func HasPlatformSupport() bool {
-	// TODO(tobiaszheller): probaqbly can remove whole chgeck.
 	return true
 }
