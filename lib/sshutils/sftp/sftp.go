@@ -142,11 +142,11 @@ func (c *Config) TransferFiles(sshClient *ssh.Client) error {
 		dstFS.c = sftpClient
 	}
 
-	return trace.Wrap(c.transfer(sftpClient))
+	return trace.Wrap(c.transfer())
 }
 
 // transfer preforms file transfers
-func (c *Config) transfer(client *sftp.Client) error {
+func (c *Config) transfer() error {
 	// if there are multiple source paths, ensure the destination path
 	// is a directory
 	var dirMode bool
@@ -162,7 +162,7 @@ func (c *Config) transfer(client *sftp.Client) error {
 		} else if !fi.IsDir() {
 			return trace.BadParameter("%s file %q is not a directory, but multiple source files were specified",
 				c.dstFS.Type(),
-				c.dstFS,
+				c.dstPath,
 			)
 		}
 		dirMode = true
@@ -179,7 +179,7 @@ func (c *Config) transfer(client *sftp.Client) error {
 			// Note: using any other error constructor (e.g. BadParameter)
 			// might lead to relogin attempt and a completely obscure
 			// error message
-			return trace.BadParameter("%q is a directory, use -r flag to copy recursively", fi.Name())
+			return trace.BadParameter("%q is a directory, but the recursive option was not passed", c.srcPaths[i])
 		}
 		fileInfos[i] = fi
 	}
@@ -200,8 +200,6 @@ func (c *Config) transfer(client *sftp.Client) error {
 			}
 		}
 	}
-
-	c.Log.Debug("Send completed.")
 
 	return nil
 }
