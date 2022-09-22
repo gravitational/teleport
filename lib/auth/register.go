@@ -91,8 +91,10 @@ type RegisterParams struct {
 	Token string
 	// ID is identity ID
 	ID IdentityID
-	// Servers is a list of auth servers to dial
-	Servers []utils.NetAddr
+	// AuthServers is a list of auth servers to dial
+	AuthServers []utils.NetAddr
+	// ProxyServer is a proxy server to dial
+	ProxyServer utils.NetAddr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
@@ -163,22 +165,30 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	}
 
-	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
-
 	type registerMethod struct {
 		call func(token string, params RegisterParams) (*proto.Certs, error)
 		desc string
 	}
+
 	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
 	registerThroughProxy := registerMethod{registerThroughProxy, "via proxy server"}
 
 	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
-	if params.GetHostCredentials == nil {
-		log.Debugf("Missing client, it is not possible to register through proxy.")
-		registerMethods = []registerMethod{registerThroughAuth}
-	} else if authServerIsProxy(params.Servers) {
-		log.Debugf("The first specified auth server appears to be a proxy.")
-		registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
+
+	if !params.ProxyServer.IsEmpty() {
+		log.WithField("proxy-server", params.ProxyServer).Debugf("Registering node to the cluster.")
+
+		registerMethods = []registerMethod{registerThroughProxy}
+	} else {
+		log.WithField("auth-servers", params.AuthServers).Debugf("Registering node to the cluster.")
+
+		if params.GetHostCredentials == nil {
+			log.Debugf("Missing client, it is not possible to register through proxy.")
+			registerMethods = []registerMethod{registerThroughAuth}
+		} else if authServerIsProxy(params.AuthServers) {
+			log.Debugf("The first specified auth server appears to be a proxy.")
+			registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
+		}
 	}
 
 	var collectedErrs []error
@@ -208,8 +218,8 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
-	if len(params.Servers) == 0 {
-		return nil, trace.BadParameter("no auth servers set")
+	if err := verifyAuthOrProxyAddress(params); err != nil {
+		return nil, trace.BadParameter("no auth or proxy servers set")
 	}
 
 	var certs *proto.Certs
@@ -228,7 +238,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		// params to call proxy HTTP endpoint
 		var err error
 		certs, err = params.GetHostCredentials(context.Background(),
-			params.Servers[0].String(),
+			getHostAddresses(params)[0],
 			lib.IsInsecureDevMode(),
 			types.RegisterUsingTokenRequest{
 				Token:                token,
@@ -246,6 +256,22 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		}
 	}
 	return certs, nil
+}
+
+func verifyAuthOrProxyAddress(params RegisterParams) error {
+	if len(params.AuthServers) == 0 && params.ProxyServer.IsEmpty() {
+		return trace.BadParameter("no auth or proxy servers set")
+	}
+
+	return nil
+}
+
+func getHostAddresses(params RegisterParams) []string {
+	if !params.ProxyServer.IsEmpty() {
+		return []string{params.ProxyServer.String()}
+	}
+
+	return utils.NetAddrsToStrings(params.AuthServers)
 }
 
 // registerThroughAuth is used to register through the auth server.
@@ -295,8 +321,8 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
 func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
-	if len(params.Servers) == 0 {
-		return nil, trace.BadParameter("no auth servers set")
+	if err := verifyAuthOrProxyAddress(params); err != nil {
+		return nil, trace.BadParameter("no auth or proxy servers set")
 	}
 
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
@@ -310,7 +336,7 @@ func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, e
 	}
 
 	conn, err := grpc.Dial(
-		params.Servers[0].String(),
+		getHostAddresses(params)[0],
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
@@ -353,7 +379,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	}
 
 	client, err := NewClient(client.Config{
-		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -392,7 +418,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.Time = params.Clock.Now
 	authClient, err := NewClient(client.Config{
-		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -443,7 +469,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig.RootCAs = certPool
 
 	authClient, err = NewClient(client.Config{
-		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},

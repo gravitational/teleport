@@ -594,7 +594,8 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		certs, err := auth.Register(auth.RegisterParams{
 			Token:                token,
 			ID:                   id,
-			Servers:              process.Config.AuthServerAddresses(),
+			AuthServers:          process.Config.AuthServerAddresses(),
+			ProxyServer:          process.Config.ProxyServer,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
 			PublicTLSKey:         keyPair.PublicTLSKey,
