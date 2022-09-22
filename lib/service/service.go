@@ -146,6 +146,9 @@ const (
 	// Server.
 	WindowsDesktopIdentityEvent = "WindowsDesktopIdentity"
 
+	// DiscoveryIdentityEvent is generated when the identity of the
+	DiscoveryIdentityEvent = "DiscoveryIdentityEvent"
+
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"
@@ -201,6 +204,10 @@ const (
 	// InstanceReady is generated when the teleport instance control handle has
 	// been set up.
 	InstanceReady = "InstanceReady"
+
+	// DiscoveryReady is generated when the Teleport database proxy service
+	// is ready to start accepting connections.
+	DiscoveryReady = "DiscoveryReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -806,12 +813,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	// TODO(espadolini): DELETE IN 11.0, replace with
-	// os.RemoveAll(filepath.Join(cfg.DataDir, "cache")), because no stable v10
-	// should ever use the cache directory, and 11 requires upgrading from 10
-	if fi, err := os.Stat(filepath.Join(cfg.DataDir, "cache")); err == nil && fi.IsDir() {
-		cfg.Log.Warnf("An old cache directory exists at %q. It can be safely deleted after ensuring that no other Teleport instance is running.", filepath.Join(cfg.DataDir, "cache"))
-	}
+	// no stable v10 should ever use the cache directory, and 11 requires
+	// upgrading from 10, so any leftover "cache" directory is not in active use
+	// and can be deleted
+	// TODO(espadolini): DELETE IN 12.0, v11 will have deleted any "cache"
+	// directory by then
+	_ = os.RemoveAll(filepath.Join(cfg.DataDir, "cache"))
 
 	if len(cfg.FileDescriptors) == 0 {
 		cfg.FileDescriptors, err = importFileDescriptors(cfg.Log)
@@ -1046,6 +1053,9 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if cfg.Tracing.Enabled {
 		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
+	if cfg.Discovery.Enabled {
+		eventMapping.In = append(eventMapping.In, DiscoveryReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -1118,6 +1128,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.log)
+	}
+
+	if process.shouldInitDiscovery() {
+		process.initDiscovery()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
 	}
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
@@ -1973,6 +1990,19 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cache
 	return auth.NewDatabaseWrapper(clt, cache), nil
 }
 
+// newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
+func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+	cache, err := process.newLocalCache(clt, cache.ForDiscovery, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.NewDiscoveryWrapper(clt, cache), nil
+}
+
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
 	// if caching is disabled, return access point
@@ -2300,7 +2330,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
-			regular.SetAWSMatchers(cfg.SSH.AWSMatchers),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2560,6 +2589,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = pool
+		//nolint:staticcheck // Keep BuildNameToCertificate to avoid changes in legacy behavior.
 		tlsConfig.BuildNameToCertificate()
 
 		listener = tls.NewListener(listener, tlsConfig)
@@ -4195,6 +4225,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *Config) {
 	if cfg.WindowsDesktop.Enabled {
 		process.setExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	}
+
+	if cfg.Discovery.Enabled {
+		process.setExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
+	}
 }
 
 // appDependEvents is a list of events that the application service depends on.
@@ -4598,9 +4632,9 @@ func (process *TeleportProcess) Close() error {
 }
 
 func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled {
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled && !cfg.Discovery.Enabled {
 		return trace.BadParameter(
-			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service or windows_desktop_service")
+			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service")
 	}
 
 	if cfg.DataDir == "" {
