@@ -585,6 +585,12 @@ type Global struct {
 
 	// v1, v2
 	AuthServers []string `yaml:"auth_servers,omitempty"`
+	// AuthToken is the old way of configuring the token to be used by the
+	// node to join the Teleport cluster. `JoinParams.TokenName` should be
+	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
+	// This field will error if set with config version v3
+	AuthToken string `yaml:"auth_token,omitempty"`
+
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
