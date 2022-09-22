@@ -279,14 +279,14 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 //
 // Conformant clients (tsh, openssh) will never try to do this, but we must
 // correctly handle the case where an attacker would try to send multiple
-// commands over the same channel to try to cover there tracks by abusing the
-// audit log.
+// commands over the same channel to try to cover their tracks in the audit log
+// or do other nefarious things.
 //
 // We make sure that:
 //   - the first command is correctly added to the audit log
 //   - the second command does not appear in the audit log (as a proxy for testing
 //     that it was blocked/not executed)
-//   - there are no panics or unexected errors
+//   - there are no panics or unexpected errors
 //   - and we give the race detector a chance to detect any possible race
 //     conditions on this code path.
 func TestMultipleExecCommands(t *testing.T) {
