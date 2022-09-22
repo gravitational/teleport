@@ -3,7 +3,7 @@ onboarding:
   token: xxyzz
   ca_path: ""
   ca_pins:
-  - sha256:capindata
+    - sha256:capindata
   join_method: token
 storage:
   directory:

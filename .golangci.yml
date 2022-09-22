@@ -40,6 +40,7 @@ linters-settings:
     - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
     - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
     - go.uber.org/atomic: 'use "sync/atomic" instead'
+    - gopkg.in/yaml.v2: 'use "gopkg.in/yaml.v3" instead'
   misspell:
     locale: US
 output:

@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // .tsh config must go in a subdir as all .yaml files in .tsh get

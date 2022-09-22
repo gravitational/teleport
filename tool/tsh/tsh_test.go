@@ -40,7 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	yamlv2 "gopkg.in/yaml.v2"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -250,7 +250,7 @@ func TestAlias(t *testing.T) {
 
 			// write config to use
 			config := &TshConfig{Aliases: tt.aliases}
-			configBytes, err := yamlv2.Marshal(config)
+			configBytes, err := yamlv3.Marshal(config)
 			require.NoError(t, err)
 			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
 			require.NoError(t, err)
