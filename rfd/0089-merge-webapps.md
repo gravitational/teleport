@@ -45,10 +45,10 @@ To work on the enterprise version of the application the developer will have to
 check out the enterprise version of Teleport which will bring with it the
 appropriate webapp assets.
 
-In the event that multiple developers are working on the same feature across
-the back and frontend work may need to be done on the same branch or the
-developer may want to clone Teleport into another folder to build and update
-the backend binaries separate from the frontend.
+Merging these repositories may cause some disruption when multiple developers
+are working on the same feature across the back and frontend. Using a
+[git worktree](https://git-scm.com/docs/git-worktree) to create a worktree of
+the webapps folder is an elegant way of approaching this issue
 
 ### Backports
 
@@ -107,15 +107,15 @@ The git histories of each branch will be maintained while merging. [Merging repo
 
 #### Actions
 
-- Remove `/webassets` submodule
+- [ ] Remove `/webassets` submodule
   - This submodule is no longer required as the web UI will be built on demand.
-- Clone the [Webapps repository](https://github.com/gravitational/webapps) into
-  the Teleport root. [Maintaining their respective git histories](https://stackoverflow.com/questions/13040958/merge-two-git-repositories-without-breaking-file-history)
-  - This will need to be done for every respective version branch (v9, v10, v11)
-- update targets that use the `packages/webapps.e` submodule to point points to
-  the correct version in the `teleport.e/webapps` folder.
-- only require teleport build processes to run on teleport paths and the webapp
-  ones to run on the webapp paths
+- [ ] Clone the [Webapps repository](https://github.com/gravitational/webapps) into
+      the Teleport root. [Maintaining their respective git histories](https://stackoverflow.com/questions/13040958/merge-two-git-repositories-without-breaking-file-history)
+  - [ ] This will need to be done for every respective version branch (v9, v10, v11)
+- [ ] Update targets that use the `packages/webapps.e` submodule to point points to
+      the correct version in the `teleport.e/webapps` folder.
+- [ ] Only require teleport build processes to run on teleport paths and the webapp
+      ones to run on the webapp paths
 -
 - Archive the [Webapps repository](https://github.com/gravitational/webapps).
 
@@ -140,8 +140,8 @@ The git histories of each branch will be maintained while merging. [Merging repo
 - **Code scanning results / CodeQL**
   - No changes
 - **webapps-build**
-  - Instead of having this job build webassets it should ensure that it can be
-    built.
+  - Instead of having this job build webassets and push it, it should ensure
+    that it can be built.
 - **webapps-test**
   - Migrate from the webapps repository to the teleport repository
   - Only run for changes in the `/webapp` path.
@@ -153,11 +153,11 @@ The git histories of each branch will be maintained while merging. [Merging repo
 
 #### Actions
 
-- Clone the [Webapps.e repository](https://github.com/gravitational/webapps.e)
-  into the Teleport.e root. [Maintaining their respective git histories](https://stackoverflow.com/questions/13040958/merge-two-git-repositories-without-breaking-file-history)
-  - This will need to be done for every respective version branch (v9, v10, v11)
-- only require teleport build processes to run on teleport paths and the webapp
-  ones to run on the webapp paths
+- [ ] Clone the [Webapps.e repository](https://github.com/gravitational/webapps.e)
+      into the Teleport.e root. [Maintaining their respective git histories](https://stackoverflow.com/questions/13040958/merge-two-git-repositories-without-breaking-file-history)
+  - [ ] This will need to be done for every respective version branch (v9, v10, v11)
+- [ ] Only require teleport build processes to run on teleport paths and the
+      webapp ones to run on the webapp paths
 -
 - [ ] Archive webapps.e repository
 
@@ -177,8 +177,8 @@ The git histories of each branch will be maintained while merging. [Merging repo
 - **Code scanning results / CodeQL**
   - No changes
 - **webapps-build**
-  - Instead of having this job build webassets it should ensure that it can be
-    built.
+  - Instead of having this job build webassets and push it, it should ensure
+    that it can be built.
 - **webapps-test**
   - Migrate from the webapps repository to the teleport repository
   - Only run for changes in the `/webapp` path.
