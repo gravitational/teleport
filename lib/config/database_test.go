@@ -40,7 +40,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 
 		require.Equal(t, flags.NodeName, fileConfig.NodeName)
 		require.Equal(t, flags.DataDir, fileConfig.DataDir)
-		require.ElementsMatch(t, flags.ProxyServer, fileConfig.ProxyServer)
+		require.Equal(t, flags.ProxyServer, fileConfig.ProxyServer)
 		require.Equal(t, flags.AuthToken, fileConfig.JoinParams.TokenName)
 		require.ElementsMatch(t, flags.CAPins, fileConfig.CAPin)
 	})
