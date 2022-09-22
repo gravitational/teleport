@@ -137,9 +137,9 @@ type CheckSupportResult struct {
 	APIVersion        int
 }
 
-// IsAvailable returns true if Touch ID is available in the system.
-// Typically, a series of checks is performed in an attempt to avoid false
-// positives.
+// IsAvailable returns true if Windows webauthn library is available in the
+// system. Typically, a series of checks is performed in an attempt to avoid f
+// alse positives.
 // See CheckSupport.
 func IsAvailable() bool {
 	return CheckSupport().IsAvailable
