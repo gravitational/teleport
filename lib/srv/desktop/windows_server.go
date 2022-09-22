@@ -127,8 +127,6 @@ type WindowsService struct {
 
 	closeCtx context.Context
 	close    func()
-
-	labels map[string]string
 }
 
 // WindowsServiceConfig contains all necessary configuration values for a
