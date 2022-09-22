@@ -1078,7 +1078,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	}
 
 	switch process.Config.Version {
-	// for config v1 and v2, attempt to directly connect to the auth server and fall back to tunnelling
+	// for config v1 and v2, attempt to directly connect to the auth server and fall back to tunneling
 	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
 		// if we don't have a proxy address, try to connect to the auth server directly
 		logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
@@ -1126,7 +1126,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 
 			tunnelClient, err := process.newClientThroughTunnel([]utils.NetAddr{proxyServer}, tlsConfig, sshClientConfig)
 			if err != nil {
-				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel.")
+				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
 
 			logger.Debug("Connected to Proxy Server through tunnel.")
