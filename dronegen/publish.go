@@ -1,6 +1,6 @@
 package main
 
-const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.65"
+const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-justinas.9"
 
 func publishReleasePipeline() pipeline {
 	p := newKubePipeline("publish-rlz")
