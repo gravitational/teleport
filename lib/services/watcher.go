@@ -1008,20 +1008,20 @@ type kubeCollector struct {
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (c *kubeCollector) isInitialized() bool {
-	c.lock.RUnlock()
-	defer c.lock.RUnlock()
-	return c.initialized
+func (k *kubeCollector) isInitialized() bool {
+	k.lock.RUnlock()
+	defer k.lock.RUnlock()
+	return k.initialized
 }
 
 // resourceKind specifies the resource kind to watch.
-func (p *kubeCollector) resourceKind() string {
+func (k *kubeCollector) resourceKind() string {
 	return types.KindKubernetesCluster
 }
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (p *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	clusters, err := p.KubernetesGetter.GetKubernetesClusters(ctx)
+func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	clusters, err := k.KubernetesGetter.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1029,51 +1029,51 @@ func (p *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	for _, cluster := range clusters {
 		newCurrent[cluster.GetName()] = cluster
 	}
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.current = newCurrent
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	k.current = newCurrent
 
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
-	case p.KubeClustersC <- clusters:
+	case k.KubeClustersC <- clusters:
 	}
-	p.initialized = true
+	k.initialized = true
 	return nil
 }
 
 // processEventAndUpdateCurrent is called when a watcher event is received.
-func (p *kubeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+func (k *kubeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
 	if event.Resource == nil || event.Resource.GetKind() != types.KindKubernetesCluster {
-		p.Log.Warnf("Unexpected event: %v.", event)
+		k.Log.Warnf("Unexpected event: %v.", event)
 		return
 	}
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		delete(p.current, event.Resource.GetName())
-		p.KubeClustersC <- resourcesToSlice(p.current)
+		delete(k.current, event.Resource.GetName())
+		k.KubeClustersC <- resourcesToSlice(k.current)
 
 		select {
 		case <-ctx.Done():
-		case p.KubeClustersC <- resourcesToSlice(p.current):
+		case k.KubeClustersC <- resourcesToSlice(k.current):
 		}
 
 	case types.OpPut:
 		cluster, ok := event.Resource.(types.KubeCluster)
 		if !ok {
-			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			k.Log.Warnf("Unexpected resource type %T.", event.Resource)
 			return
 		}
-		p.current[cluster.GetName()] = cluster
+		k.current[cluster.GetName()] = cluster
 
 		select {
 		case <-ctx.Done():
-		case p.KubeClustersC <- resourcesToSlice(p.current):
+		case k.KubeClustersC <- resourcesToSlice(k.current):
 		}
 	default:
-		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		k.Log.Warnf("Unsupported event type %s.", event.Type)
 		return
 	}
 }
