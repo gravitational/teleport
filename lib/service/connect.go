@@ -1067,14 +1067,14 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	authServers := process.Config.AuthServerAddresses()
 	connectToAuthServer := func(logger *logrus.Entry) (*auth.Client, error) {
 		logger.Debug("Attempting to connect to Auth Server directly.")
-		directClient, directErr := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
-		if directErr != nil {
+		client, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
+		if err != nil {
 			logger.Debug("Failed to connect to Auth Server directly.")
-			return nil, directErr
+			return nil, err
 		}
 
 		logger.Debug("Connected to Auth Server with direct connection.")
-		return directClient, nil
+		return client, nil
 	}
 
 	switch process.Config.Version {
