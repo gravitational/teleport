@@ -137,6 +137,8 @@ type Client struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 
+	img *image.RGBA
+
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
 }
@@ -567,15 +569,31 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).
 	//
-	// Also, always force Alpha value to 100% (opaque). On some Windows
-	// versions it's sent as 0% after decompression for some reason.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
+	//
 	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
+		data[i], data[i+2] = data[i+2], data[i]
 	}
-	img := image.NewNRGBA(image.Rectangle{
+
+	rect := image.Rectangle{
 		Min: image.Pt(int(cb.dest_left), int(cb.dest_top)),
 		Max: image.Pt(int(cb.dest_right)+1, int(cb.dest_bottom)+1),
-	})
+	}
+
+	var img *image.RGBA
+	isFullBitmap := cb.dest_right-cb.dest_left == 63 &&
+		cb.dest_bottom-cb.dest_top == 63
+	if isFullBitmap {
+		if c.img == nil {
+			c.img = image.NewRGBA(rect)
+		} else {
+			c.img.Rect = rect
+		}
+		img = c.img
+	} else {
+		img = image.NewRGBA(rect)
+	}
+
 	copy(img.Pix, data)
 
 	if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
