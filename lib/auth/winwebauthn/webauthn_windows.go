@@ -45,6 +45,8 @@ var (
 	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
 )
 
+var native nativeWebauthn = initClient()
+
 type client struct {
 	version           int
 	hasCompileSupport bool
