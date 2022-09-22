@@ -792,10 +792,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
-		mfaParams := services.AccessMFAParams{
-			Verified:       identity.MFAVerified != "",
-			AlwaysRequired: authPref.GetRequireSessionMFA(),
-		}
+		mfaParams := authCtx.MFAParams(authPref.GetRequireMFAType())
 		return authCtx.Checker.CheckAccess(
 			desktop,
 			mfaParams,
