@@ -273,7 +273,7 @@ func getErrorName(in hresult, originCode uintptr) error {
 		uintptr(in),
 	)
 	if err != syscall.Errno(0) {
-		return fmt.Errorf("Could not check error name for %x because of: %x", ret, err)
+		return fmt.Errorf("could not check error name for %x because of: %x", ret, err)
 	}
 	errString := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(ret)))
 	return fmt.Errorf("Webauthn err for code %v: %s", originCode, errString)
@@ -319,10 +319,8 @@ func (c client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptio
 	}
 
 	return &_WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS{
-		dwVersion:             dwVersion,
-		dwTimeoutMilliseconds: uint32(in.Timeout),
-		// TODO(tobiaszheller): map extensions.
-		// Extensions:                        *exstList,
+		dwVersion:                     dwVersion,
+		dwTimeoutMilliseconds:         uint32(in.Timeout),
 		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
 		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
 		// TODO(tobiaszheller): check if we need to support U2fAppId.
@@ -581,10 +579,8 @@ func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOp
 	// to dependency issues.
 	var bPreferResidentKey uint32
 	return &_WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS{
-		dwVersion:             dwVersion,
-		dwTimeoutMilliseconds: uint32(in.Timeout),
-		// TODO(tobiaszheller): map extensions.
-		// Extensions:                        *exstList,
+		dwVersion:                         dwVersion,
+		dwTimeoutMilliseconds:             uint32(in.Timeout),
 		dwAuthenticatorAttachment:         attachmentToCType(in.AuthenticatorSelection.AuthenticatorAttachment),
 		dwAttestationConveyancePreference: conveyancePreferenceToCType(in.Attestation),
 		bRequireResidentKey:               requireResidentKeyToCType(in.AuthenticatorSelection.RequireResidentKey),

@@ -21,7 +21,6 @@ package winwebauthn
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -30,11 +29,6 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-)
-
-var (
-	// TODO(tobiaszheller): use that types error.
-	ErrNotAllowed = errors.New("NotAllowed error")
 )
 
 // LoginOpts groups non-mandatory options for Login.
