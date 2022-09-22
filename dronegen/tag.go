@@ -24,6 +24,10 @@ const (
 	rpmPackage = "rpm"
 	// debPackage is the DEB package type
 	debPackage = "deb"
+
+	// tagCleanupPipelineName is the name of the pipeline that cleans up
+	// artifacts from a previous partially-failed build
+	tagCleanupPipelineName = "clean-up-previous-build"
 )
 
 const releasesHost = "https://releases-staging.platform.teleport.sh"
@@ -244,6 +248,8 @@ func tagPipelines() []pipeline {
 
 	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
 	ps = append(ps, windowsTagPipeline())
+
+	ps = append(ps, tagCleanupPipeline())
 	return ps
 }
 
@@ -288,6 +294,7 @@ func tagPipeline(b buildType) pipeline {
 		"RUNTIME":          goRuntime,
 	}
 	p.Trigger = triggerTag
+	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = dockerVolumes()
 	p.Services = []service{
@@ -503,7 +510,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Trigger = triggerTag
-	p.DependsOn = []string{dependentPipeline}
+	p.DependsOn = []string{dependentPipeline, tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = packageDockerVolumes
 	p.Services = []service{
@@ -559,5 +566,37 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			},
 		},
 	}
+	return p
+}
+
+func tagCleanupPipeline() pipeline {
+	p := newKubePipeline(tagCleanupPipelineName)
+	p.Environment = map[string]value{
+		"RELCLI_IMAGE": {raw: relcliImage},
+	}
+	p.Trigger = triggerTag
+
+	p.Steps = []step{
+		{
+			Name:  "Check if commit is tagged",
+			Image: "alpine",
+			Commands: []string{
+				`[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)`,
+			},
+		},
+		pullRelcliStep(),
+		executeRelcliStep("Cleanup previously built artifacts", "relcli auto_destroy -f -v 6"),
+	}
+	p.Services = []service{
+		dockerService(volumeRef{
+			Name: "tmpfs",
+			Path: "/tmpfs",
+		}),
+	}
+	p.Volumes = dockerVolumes(volume{
+		Name: "tmpfs",
+		Temp: &volumeTemp{Medium: "memory"},
+	})
+
 	return p
 }
