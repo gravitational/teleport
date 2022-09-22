@@ -138,8 +138,8 @@ type CheckSupportResult struct {
 }
 
 // IsAvailable returns true if Windows webauthn library is available in the
-// system. Typically, a series of checks is performed in an attempt to avoid f
-// alse positives.
+// system. Typically, a series of checks is performed in an attempt to avoid
+// false positives.
 // See CheckSupport.
 func IsAvailable() bool {
 	return CheckSupport().IsAvailable
