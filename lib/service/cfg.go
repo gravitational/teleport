@@ -287,18 +287,7 @@ type Config struct {
 // will return just the first (as only one should be set) address for config versions v3
 // onwards.
 func (cfg *Config) AuthServerAddresses() []utils.NetAddr {
-	switch cfg.Version {
-	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
-		return cfg.authServers
-
-	// we only want to return one auth server if the config version is v3 or above
-	case defaults.TeleportConfigVersionV3:
-		if len(cfg.authServers) > 0 {
-			return cfg.authServers[0:1]
-		}
-	}
-
-	return []utils.NetAddr{}
+	return cfg.authServers
 }
 
 // SetAuthServerAddresses sets the value of authServers, filtering out any empty addresses
