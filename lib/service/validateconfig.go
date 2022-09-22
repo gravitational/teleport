@@ -31,7 +31,7 @@ import (
 func validateConfig(cfg *Config) error {
 	applyDefaults(cfg)
 
-	if err := defaults.ValidateVersion(cfg.Version); err != nil {
+	if err := defaults.ValidateConfigVersion(cfg.Version); err != nil {
 		return err
 	}
 

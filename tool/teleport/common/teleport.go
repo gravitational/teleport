@@ -496,7 +496,7 @@ func checkConfigurationFileVersion(version string) error {
 		return nil
 	}
 
-	return defaults.ValidateVersion(version)
+	return defaults.ValidateConfigVersion(version)
 }
 
 // onConfigDump is the handler for "configure" CLI command

@@ -41,7 +41,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Version: "v1.1",
 			},
-			err: fmt.Sprintf("version must be one of %s", strings.Join(defaults.TeleportVersions, ", ")),
+			err: fmt.Sprintf("version must be one of %s", strings.Join(defaults.TeleportConfigVersions, ", ")),
 		},
 		{
 			desc: "no service enabled",

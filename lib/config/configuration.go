@@ -489,7 +489,7 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			
+
 			cfg.ProxyServer = *addr
 		}
 	}

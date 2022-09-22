@@ -821,18 +821,18 @@ const (
 	TeleportConfigVersionV3 string = "v3"
 )
 
-// TeleportVersions is an exported slice of the allowed versions in the config file,
+// TeleportConfigVersions is an exported slice of the allowed versions in the config file,
 //for convenience (looping through, etc)
-var TeleportVersions = []string{
+var TeleportConfigVersions = []string{
 	TeleportConfigVersionV1,
 	TeleportConfigVersionV2,
 	TeleportConfigVersionV3,
 }
 
-func ValidateVersion(version string) error {
-	hasVersion := apiutils.SliceContainsStr(TeleportVersions, version)
+func ValidateConfigVersion(version string) error {
+	hasVersion := apiutils.SliceContainsStr(TeleportConfigVersions, version)
 	if !hasVersion {
-		return trace.BadParameter("version must be one of %s", strings.Join(TeleportVersions, ", "))
+		return trace.BadParameter("version must be one of %s", strings.Join(TeleportConfigVersions, ", "))
 	}
 
 	return nil
