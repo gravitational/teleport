@@ -1009,7 +1009,7 @@ type kubeCollector struct {
 // isInitialized is used to check that the cache has done its initial
 // sync
 func (k *kubeCollector) isInitialized() bool {
-	k.lock.RUnlock()
+	k.lock.RLock()
 	defer k.lock.RUnlock()
 	return k.initialized
 }
