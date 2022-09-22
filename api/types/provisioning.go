@@ -467,7 +467,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 	case "":
 		return trace.BadParameter(`"join_method" must be specified`)
 	default:
-		return trace.BadParameter(`"join_method" specified not recognized`)
+		return trace.BadParameter(`join method %q not recognized. check documentation for valid values.`, p.Spec.JoinMethod)
 
 	}
 	return nil
