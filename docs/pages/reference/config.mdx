@@ -11,7 +11,7 @@ By default, it is stored in `/etc/teleport.yaml`.
 
 <Admonition type="note" title="Config v3">
 
-Config version v3 removes both `auth_token` and `auth_servers` from the `teleport` section.
+Teleport 11 introduces config version v3, which removes both `auth_token` and `auth_servers` from the `teleport` section.
 
 To migrate from v2 to v3, change `auth_token` to `join_params.token_name`. You should change
 `auth_servers` to either `auth_server` or `proxy_server`, depending on which one is being
@@ -37,6 +37,8 @@ teleport:
     method: token
     token_name: xxxx-token-xxxx
 ```
+
+[View the config changelog here.](#changelog)
 
 </Admonition>
 
@@ -811,3 +813,19 @@ kubernetes_service:
 # This section configures the windows desktop service
 (!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```
+
+## Changelog
+
+### v3
+
+**Introduced in Teleport v11**
+
+Replaced `teleport.auth_servers` with either `teleport.auth_server` or `teleport.proxy_address`.
+
+Removed `teleport.auth_token` in favor of `teleport.join_params.token_name`.
+
+### v2
+
+**Introduced in Teleport v8**
+
+Added support for multiplexing via `auth_service.proxy_listener_mode`.
