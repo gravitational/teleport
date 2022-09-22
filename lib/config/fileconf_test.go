@@ -47,6 +47,9 @@ auth_service:
 
 ssh_service:
   enabled: yes
+
+discovery_service:
+  enabled: false
 `
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
@@ -489,7 +492,6 @@ func TestSSHSection(t *testing.T) {
 		expectEnabled             require.BoolAssertionFunc
 		expectAllowsTCPForwarding require.BoolAssertionFunc
 		expectFileCopying         require.BoolAssertionFunc
-		expectedAWSSection        []AWSEC2Matcher
 	}{
 		{
 			desc:                      "default",
@@ -557,131 +559,6 @@ func TestSSHSection(t *testing.T) {
 			expectError:       require.NoError,
 			expectEnabled:     require.True,
 			expectFileCopying: require.True,
-		}, {
-			desc:        "AWS section is filled with defaults",
-			expectError: require.NoError,
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":   []string{"ec2"},
-						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
-			},
-			expectedAWSSection: []AWSEC2Matcher{
-				{
-					Matcher: AWSMatcher{
-						Types:   []string{"ec2"},
-						Regions: []string{"eu-central-1"},
-						Tags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-					},
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
-							TokenName: defaults.IAMInviteTokenName,
-							Method:    types.JoinMethodIAM,
-						},
-						ScriptName: installers.InstallerScriptName,
-					},
-					SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
-				},
-			},
-		}, {
-			desc:        "AWS section is filled with custom configs",
-			expectError: require.NoError,
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":   []string{"ec2"},
-						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "hello-iam-a-token",
-								"method":     "iam",
-							},
-							"script_name": "installer-custom",
-						},
-						"ssm": cfgMap{
-							"document_name": "hello_document",
-						},
-					},
-				}
-			},
-			expectedAWSSection: []AWSEC2Matcher{
-				{
-					Matcher: AWSMatcher{
-						Types:   []string{"ec2"},
-						Regions: []string{"eu-central-1"},
-						Tags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-					},
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
-							TokenName: "hello-iam-a-token",
-							Method:    types.JoinMethodIAM,
-						},
-						ScriptName: "installer-custom",
-					},
-					SSM: AWSSSM{DocumentName: "hello_document"},
-				},
-			},
-		}, {
-			desc:        "AWS section is filled with invalid join method",
-			expectError: require.Error,
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "hello-iam-a-token",
-								"method":     "token",
-							},
-						},
-					},
-				}
-			},
-			expectedAWSSection: nil,
-		},
-		{
-			desc:        "AWS section is filled with no token",
-			expectError: require.NoError,
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
-				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"method": "iam",
-							},
-						},
-					},
-				}
-			},
-			expectedAWSSection: []AWSEC2Matcher{
-				{
-					SSM: AWSSSM{
-						DocumentName: defaults.AWSInstallerDocument,
-					},
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
-							TokenName: defaults.IAMInviteTokenName,
-							Method:    types.JoinMethodIAM,
-						},
-						ScriptName: installers.InstallerScriptName,
-					},
-				},
-			},
 		},
 	}
 
@@ -704,9 +581,170 @@ func TestSSHSection(t *testing.T) {
 				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
 			}
 
-			if testCase.expectedAWSSection != nil {
-				require.Equal(t, testCase.expectedAWSSection, cfg.SSH.AWSMatchers)
+		})
+	}
+}
+
+func TestDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc                     string
+		mutate                   func(cfgMap)
+		expectError              require.ErrorAssertionFunc
+		expectEnabled            require.BoolAssertionFunc
+		expectedDiscoverySection Discovery
+	}{
+		{
+			desc:          "default",
+			mutate:        func(cfgMap) {},
+			expectError:   require.NoError,
+			expectEnabled: require.False,
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{},
+			},
+		},
+		{
+			desc:          "AWS section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: defaults.IAMInviteTokenName,
+								Method:    types.JoinMethodIAM,
+							},
+							ScriptName: installers.InstallerScriptName,
+						},
+						SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
+					},
+				}},
+		}, {
+			desc:          "AWS section is filled with custom configs",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "iam",
+							},
+							"script_name": "installer-custom",
+						},
+						"ssm": cfgMap{
+							"document_name": "hello_document",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "hello-iam-a-token",
+								Method:    types.JoinMethodIAM,
+							},
+							ScriptName: "installer-custom",
+						},
+						SSM: AWSSSM{DocumentName: "hello_document"},
+					},
+				},
+			},
+		}, {
+			desc:          "AWS section is filled with invalid join method",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "token",
+							},
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		}, {
+			desc:          "AWS section is filled with no token",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						SSM: AWSSSM{
+							DocumentName: defaults.AWSInstallerDocument,
+						},
+						Tags: map[string]apiutils.Strings{"*": {"*"}},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: defaults.IAMInviteTokenName,
+								Method:    types.JoinMethodIAM,
+							},
+							ScriptName: installers.InstallerScriptName,
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, testCase.mutate))
+			cfg, err := ReadConfig(text)
+			testCase.expectError(t, err)
+			if cfg == nil {
+				return
 			}
+			testCase.expectEnabled(t, cfg.Discovery.Enabled())
+			require.Equal(t, testCase.expectedDiscoverySection.AWSMatchers, cfg.Discovery.AWSMatchers)
 		})
 	}
 }

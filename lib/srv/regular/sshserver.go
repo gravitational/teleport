@@ -39,7 +39,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -52,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -222,14 +220,6 @@ type Server struct {
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
 
-	// cloudWatcher periodically retrieves cloud resources, currently
-	// only EC2
-	cloudWatcher *server.Watcher
-	// awsMatchers are used to match EC2 instances
-	awsMatchers []services.AWSMatcher
-	// clients is used to retrieve clients used for AWS EC2 discovery
-	clients cloud.Clients
-
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
@@ -350,6 +340,7 @@ func (s *Server) close() {
 	if s.users != nil {
 		s.users.Shutdown()
 	}
+
 }
 
 // Close closes listening socket and stops accepting connections
@@ -697,22 +688,6 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	}
 }
 
-// SetCloudClients returns a server option that sets cloud API clients
-func SetCloudClients(clients cloud.Clients) ServerOption {
-	return func(s *Server) error {
-		s.clients = clients
-		return nil
-	}
-}
-
-// SetAWSMatchers sets the matchers used for matching EC2 instances
-func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
-	return func(s *Server) error {
-		s.awsMatchers = matchers
-		return nil
-	}
-}
-
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -832,17 +807,6 @@ func New(addr utils.NetAddr,
 	// common term handlers
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.reg,
-	}
-
-	if len(s.awsMatchers) != 0 {
-		if s.clients == nil {
-			s.clients = cloud.NewClients()
-		}
-
-		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.awsMatchers, s.clients)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	server, err := sshutils.NewServer(
