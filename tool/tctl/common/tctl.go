@@ -223,6 +223,10 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 	}
 	cfg.Log = log.StandardLogger()
 
+	if cfg.Version == "" {
+		cfg.Version = defaults.TeleportConfigVersionV1
+	}
+
 	// If the config file path provided is not a blank string, load the file and apply its values
 	var fileConf *config.FileConfig
 	var err error
