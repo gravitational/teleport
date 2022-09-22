@@ -38,6 +38,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -68,15 +76,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/kingpin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -418,14 +417,6 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 	return trace.Wrap(cmd.Run())
 }
 
-type exitCodeError struct {
-	code int
-}
-
-func (e *exitCodeError) Error() string {
-	return fmt.Sprintf("exit code %d", e.code)
-}
-
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -447,9 +438,9 @@ func main() {
 	err := Run(ctx, cmdLine)
 	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
 	if err != nil {
-		var exitError *exitCodeError
+		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
-			os.Exit(exitError.code)
+			os.Exit(exitError.Code)
 		}
 		utils.FatalError(err)
 	}
@@ -895,7 +886,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// handle: help command, --help flag, version command, ...
 	if shouldTerminate != nil {
-		os.Exit(*shouldTerminate)
+		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
 	cf.command = command
@@ -1755,7 +1746,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2691,7 +2682,7 @@ func onSSH(cf *CLIConf) error {
 				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 				fmt.Fprintf(os.Stderr, "\n")
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2699,7 +2690,7 @@ func onSSH(cf *CLIConf) error {
 	})
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
-		var exitErr *exitCodeError
+		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
@@ -2708,7 +2699,7 @@ func onSSH(cf *CLIConf) error {
 			// Print the error here so we don't lose it when returning the exitCodeError.
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		}
-		err = &exitCodeError{code: tc.ExitStatus}
+		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
@@ -2728,7 +2719,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: 255})
+		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -2802,7 +2793,7 @@ func onSCP(cf *CLIConf) error {
 	// exit with the same exit status as the failed command:
 	if tc.ExitStatus != 0 {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
+		return trace.Wrap(&common.ExitCodeError{Code: tc.ExitStatus})
 	}
 	return trace.Wrap(err)
 }

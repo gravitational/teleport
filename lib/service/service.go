@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
@@ -145,6 +146,9 @@ const (
 	// Server.
 	WindowsDesktopIdentityEvent = "WindowsDesktopIdentity"
 
+	// DiscoveryIdentityEvent is generated when the identity of the
+	DiscoveryIdentityEvent = "DiscoveryIdentityEvent"
+
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"
@@ -200,6 +204,10 @@ const (
 	// InstanceReady is generated when the teleport instance control handle has
 	// been set up.
 	InstanceReady = "InstanceReady"
+
+	// DiscoveryReady is generated when the Teleport database proxy service
+	// is ready to start accepting connections.
+	DiscoveryReady = "DiscoveryReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -1045,6 +1053,9 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if cfg.Tracing.Enabled {
 		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
+	if cfg.Discovery.Enabled {
+		eventMapping.In = append(eventMapping.In, DiscoveryReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -1117,6 +1128,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.log)
+	}
+
+	if process.shouldInitDiscovery() {
+		process.initDiscovery()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
 	}
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
@@ -1314,7 +1332,7 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
+func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, log logrus.FieldLogger) (events.IAuditLog, error) {
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
@@ -1358,7 +1376,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 				return nil, trace.Wrap(err)
 			}
 
-			logger, err := dynamoevents.New(ctx, cfg, backend)
+			logger, err := dynamoevents.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1462,7 +1480,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log, process.backend)
+		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1562,6 +1580,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
+		FIPS:                    cfg.FIPS,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1912,6 +1931,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Presence:         cfg.services,
 		Restrictions:     cfg.services,
 		Apps:             cfg.services,
+		Kubernetes:       cfg.services,
 		Databases:        cfg.services,
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,
@@ -1968,6 +1988,19 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cache
 	}
 
 	return auth.NewDatabaseWrapper(clt, cache), nil
+}
+
+// newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
+func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+	cache, err := process.newLocalCache(clt, cache.ForDiscovery, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.NewDiscoveryWrapper(clt, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
@@ -2297,7 +2330,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
-			regular.SetAWSMatchers(cfg.SSH.AWSMatchers),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2557,6 +2589,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = pool
+		//nolint:staticcheck // Keep BuildNameToCertificate to avoid changes in legacy behavior.
 		tlsConfig.BuildNameToCertificate()
 
 		listener = tls.NewListener(listener, tlsConfig)
@@ -3476,7 +3509,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		webServer = &http.Server{
-			Handler:           proxyLimiter,
+			Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 		}
@@ -3966,7 +3999,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	})
 
 	minimalWebServer = &http.Server{
-		Handler:           minimalProxyLimiter,
+		Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 	}
@@ -4191,6 +4224,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *Config) {
 
 	if cfg.WindowsDesktop.Enabled {
 		process.setExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
+	}
+
+	if cfg.Discovery.Enabled {
+		process.setExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
 	}
 }
 
@@ -4595,9 +4632,9 @@ func (process *TeleportProcess) Close() error {
 }
 
 func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled {
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled && !cfg.Discovery.Enabled {
 		return trace.BadParameter(
-			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service or windows_desktop_service")
+			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service")
 	}
 
 	if cfg.DataDir == "" {

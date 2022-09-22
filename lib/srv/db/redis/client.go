@@ -189,11 +189,11 @@ func authConnection(ctx context.Context, conn *redis.Conn, username, password st
 // go-redis `Process()` function which doesn't handel all Cluster commands like for ex. DBSIZE, FLUSHDB, etc.
 // This function provides additional processing for those commands enabling more Redis commands in Cluster mode.
 // Commands are override by a simple rule:
-// * If command work only on a single slot (one shard) without any modifications and returns a CROSSSLOT error if executed on
-//   multiple keys it's send the Redis client as it is, and it's the client responsibility to make sure keys are in a single slot.
-// * If a command returns incorrect result in the Cluster mode (for ex. DBSIZE as it would return only size of one shard not whole cluster)
-//   then it's handled by Teleport or blocked if reasonable processing is not possible.
-// * Otherwise a commands is sent to Redis without any modifications.
+//   - If command work only on a single slot (one shard) without any modifications and returns a CROSSSLOT error if executed on
+//     multiple keys it's send the Redis client as it is, and it's the client responsibility to make sure keys are in a single slot.
+//   - If a command returns incorrect result in the Cluster mode (for ex. DBSIZE as it would return only size of one shard not whole cluster)
+//     then it's handled by Teleport or blocked if reasonable processing is not possible.
+//   - Otherwise a commands is sent to Redis without any modifications.
 func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 	cmd, ok := inCmd.(*redis.Cmd)
 	if !ok {

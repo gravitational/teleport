@@ -106,6 +106,8 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	if !exists {
 		err = teleportClient.CreateUser(ctx, teleportResource)
 	} else {
+		// We don't want to lose the "created_by" data populated on creation
+		teleportResource.SetCreatedBy(existingResource.GetCreatedBy())
 		err = teleportClient.UpdateUser(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.
