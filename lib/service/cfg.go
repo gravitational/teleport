@@ -290,24 +290,26 @@ func (cfg *Config) AuthServerAddresses() []utils.NetAddr {
 	return cfg.authServers
 }
 
-// SetAuthServerAddresses sets the value of authServers, filtering out any empty addresses
+// SetAuthServerAddresses sets the value of authServers
 // If the config version is v1 or v2, it will set the value to all the given addresses (as
 // multiple can be specified).
-// If the config version is v3 or onwards, it'll only the first non-empty address.
-func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) {
-	cfg.authServers = []utils.NetAddr{}
-
-	for _, addr := range addrs {
-		if !addr.IsEmpty() {
-			cfg.authServers = append(cfg.authServers, addr)
-
-			switch cfg.Version {
-			case defaults.TeleportConfigVersionV3:
-				// we only want to allow one auth server to be set when the config version is v3 or above
-				return
-			}
+// If the config version is v3 or onwards, it'll error if more than one address is given.
+func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
+	// from config v3 onwards, we will error if more than one address is given
+	if cfg.Version != defaults.TeleportConfigVersionV1 && cfg.Version != defaults.TeleportConfigVersionV2 {
+		if len(addrs) > 1 {
+			return trace.BadParameter("only one auth server address should be set from config v3 onwards")
 		}
 	}
+
+	cfg.authServers = addrs
+
+	return nil
+}
+
+// SetAuthServerAddress sets the value of authServers to a single value
+func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
+	cfg.authServers = []utils.NetAddr{addr}
 }
 
 // Token returns token needed to join the auth server

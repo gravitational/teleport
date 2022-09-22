@@ -78,7 +78,9 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.SetAuthServerAddresses(authServers)
+	if err := cfg.SetAuthServerAddresses(authServers); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// read the host UUID only in case the identity was not provided,
 	// because it will be used for reading local auth server identity

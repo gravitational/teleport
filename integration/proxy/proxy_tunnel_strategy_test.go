@@ -329,7 +329,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := service.MakeDefaultConfig()
-	conf.SetAuthServerAddresses(append(conf.AuthServerAddresses(), *authAddr))
+	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
@@ -372,7 +372,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.SetAuthServerAddresses(append(conf.AuthServerAddresses(), utils.FromAddr(p.lb.Addr())))
+	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
@@ -414,7 +414,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.SetAuthServerAddresses(append(conf.AuthServerAddresses(), utils.FromAddr(p.lb.Addr())))
+	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 

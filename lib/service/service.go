@@ -970,14 +970,14 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
 	if process.Config.Auth.Enabled && len(process.Config.AuthServerAddresses()) == 0 {
-		process.Config.SetAuthServerAddresses([]utils.NetAddr{process.Config.Auth.ListenAddr})
+		process.Config.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	}
 
 	if len(process.Config.AuthServerAddresses()) != 0 && process.Config.AuthServerAddresses()[0].Port(0) == 0 {
 		// port appears undefined, attempt early listener creation so that we can get the real port
 		listener, err := process.importOrCreateListener(ListenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
-			process.Config.SetAuthServerAddresses([]utils.NetAddr{utils.FromAddr(listener.Addr())})
+			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
 		}
 	}
 

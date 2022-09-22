@@ -458,7 +458,9 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
 				parsedAddresses = append(parsedAddresses, *addr)
 			}
 
-			cfg.SetAuthServerAddresses(parsedAddresses)
+			if err := cfg.SetAuthServerAddresses(parsedAddresses); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 
 		if fc.AuthServer != "" {
@@ -481,7 +483,7 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
 				return trace.Wrap(err)
 			}
 
-			cfg.SetAuthServerAddresses([]utils.NetAddr{*addr})
+			cfg.SetAuthServerAddress(*addr)
 		}
 
 		if fc.ProxyServer != "" {
@@ -590,7 +592,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.ListenAddr = *addr
-		cfg.SetAuthServerAddresses(append(cfg.AuthServerAddresses(), *addr))
+		if err := cfg.SetAuthServerAddresses(append(cfg.AuthServerAddresses(), *addr)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
 		tun, err := t.ConvertAndValidate()
@@ -2027,13 +2031,18 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
 		}
-		cfg.SetAuthServerAddresses(make([]utils.NetAddr, 0, len(clf.AuthServerAddr)))
+
+		authServerAddresses := make([]utils.NetAddr, 0, len(clf.AuthServerAddr))
 		for _, as := range clf.AuthServerAddr {
 			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
 			if err != nil {
 				return trace.BadParameter("cannot parse auth server address: '%v'", as)
 			}
-			cfg.SetAuthServerAddresses(append(cfg.AuthServerAddresses(), *addr))
+			authServerAddresses = append(authServerAddresses, *addr)
+		}
+
+		if err := cfg.SetAuthServerAddresses(authServerAddresses); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -2082,7 +2091,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServerAddresses()) == 0 && cfg.Auth.Enabled {
-		cfg.SetAuthServerAddresses([]utils.NetAddr{cfg.Auth.ListenAddr})
+		cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
 	}
 
 	// add data_dir to the backend config:

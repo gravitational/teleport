@@ -178,11 +178,9 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
-		tconf.SetAuthServerAddresses([]utils.NetAddr{
-			{
-				AddrNetwork: "tcp",
-				Addr:        p.leaf.Web,
-			},
+		tconf.SetAuthServerAddress(utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        p.leaf.Web,
 		})
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false

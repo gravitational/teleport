@@ -109,11 +109,9 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = filepath.Join(t.TempDir(), pack.name)
 	conf.SetToken("static-token-value")
-	conf.SetAuthServerAddresses([]utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        pack.Cluster.Web,
-		},
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        pack.Cluster.Web,
 	})
 	conf.Databases.Enabled = true
 	conf.Databases.Databases = []service.Database{
@@ -400,11 +398,9 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.DataDir = t.TempDir()
 	conf.SetToken("static-token-value")
 	conf.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
-	conf.SetAuthServerAddresses([]utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        p.Root.Cluster.Web,
-		},
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        p.Root.Cluster.Web,
 	})
 	conf.Clock = p.clock
 	conf.Databases.Enabled = true

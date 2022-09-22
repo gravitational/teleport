@@ -257,7 +257,9 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 			return nil, trace.Wrap(err)
 		}
 		// Overwrite any existing configuration with flag values.
-		cfg.SetAuthServerAddresses(authServers)
+		if err := cfg.SetAuthServerAddresses(authServers); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Config file should take precedence, if available.
@@ -282,7 +284,9 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 			return nil, trace.Wrap(err)
 		}
 
-		cfg.SetAuthServerAddresses(authServers)
+		if err := cfg.SetAuthServerAddresses(authServers); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	authConfig := new(authclient.Config)
@@ -428,7 +432,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 			return nil, trace.Wrap(err)
 		}
 		log.Debugf("Setting auth server to web proxy %v.", webProxyAddr)
-		cfg.SetAuthServerAddresses([]utils.NetAddr{*webProxyAddr})
+		cfg.SetAuthServerAddress(*webProxyAddr)
 	}
 	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log

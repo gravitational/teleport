@@ -63,7 +63,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
-	config.SetAuthServerAddresses(append(config.AuthServerAddresses(), authAddr))
+	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
@@ -84,7 +84,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.Proxy.EnableProxyProtocol = true
 
 	config.DataDir = t.TempDir()
-	config.SetAuthServerAddresses(append(config.AuthServerAddresses(), authAddr))
+	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
@@ -107,7 +107,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.SetAuthServerAddresses(append(config.AuthServerAddresses(), config.Auth.ListenAddr))
+	config.SetAuthServerAddress(config.Auth.ListenAddr)
 	config.Auth.StorageConfig = storageConfig
 	config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -342,7 +342,7 @@ func TestEC2Labels(t *testing.T) {
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
 	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), tconf.Auth.ListenAddr))
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
@@ -447,7 +447,7 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
 	tconf.Auth.StorageConfig = storageConfig
 	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), tconf.Auth.ListenAddr))
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)

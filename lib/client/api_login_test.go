@@ -370,7 +370,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.SetAuthServerAddresses([]utils.NetAddr{randomAddr}) // must be present
+	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -453,7 +453,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.SetAuthServerAddresses([]utils.NetAddr{*authAddr})
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.WebAddr = randomAddr

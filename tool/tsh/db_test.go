@@ -370,7 +370,7 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cfg.SetAuthServerAddresses([]utils.NetAddr{*proxyAddr})
+	cfg.SetAuthServerAddress(*proxyAddr)
 
 	token, err := proxy.Config.Token()
 	require.NoError(t, err)

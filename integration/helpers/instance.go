@@ -508,7 +508,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			tconf.Proxy.MongoAddr.Addr = i.Mongo
 		}
 	}
-	tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), tconf.Auth.ListenAddr))
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   lite.GetName(),
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
@@ -620,7 +620,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	if tconf.ProxyServer.IsEmpty() {
 		authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
-		tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer))
+		tconf.SetAuthServerAddress(*authServer)
 	}
 
 	tconf.SetToken("token")
@@ -674,11 +674,9 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.SetAuthServerAddresses([]utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
@@ -726,11 +724,9 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 			}
 
 			cfg.DataDir = dataDir
-			cfg.SetAuthServerAddresses([]utils.NetAddr{
-				{
-					AddrNetwork: "tcp",
-					Addr:        i.Web,
-				},
+			cfg.SetAuthServerAddress(utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        i.Web,
 			})
 			cfg.SetToken("token")
 			cfg.UploadEventsC = i.UploadEventsC
@@ -790,11 +786,9 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.SetAuthServerAddresses([]utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
@@ -853,11 +847,9 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.SetAuthServerAddresses([]utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
 	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
@@ -906,7 +898,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
-	tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer))
+	tconf.SetAuthServerAddress(*authServer)
 	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
@@ -997,7 +989,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	tconf.Console = nil
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
-	tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer))
+	tconf.SetAuthServerAddress(*authServer)
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
