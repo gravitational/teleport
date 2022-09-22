@@ -156,7 +156,6 @@ func crossPlatformLogin(
 		inOpts := &winwebauthn.LoginOpts{}
 		if opts != nil {
 			inOpts.AuthenticatorAttachment = winwebauthn.AuthenticatorAttachment(opts.AuthenticatorAttachment)
-			inOpts.User = opts.User
 		}
 		return winwebauthn.Login(ctx, origin, assertion, inOpts)
 	}
@@ -174,7 +173,6 @@ func platformLogin(ctx context.Context, origin, user string, assertion *wanlib.C
 		inOpts := &winwebauthn.LoginOpts{}
 		if opts != nil {
 			inOpts.AuthenticatorAttachment = winwebauthn.AuthenticatorAttachment(opts.AuthenticatorAttachment)
-			inOpts.User = opts.User
 		}
 		return winwebauthn.Login(ctx, origin, assertion, inOpts)
 	}

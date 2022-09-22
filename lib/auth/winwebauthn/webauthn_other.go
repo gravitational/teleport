@@ -41,12 +41,8 @@ func register(
 	return nil, errUnavailable
 }
 
-func isAvailable() bool {
-	return false
-}
-
-func checkSupport() (*CheckSupportResult, error) {
+func checkSupport() *CheckSupportResult {
 	return &CheckSupportResult{
 		HasCompileSupport: false,
-	}, nil
+	}
 }

@@ -108,26 +108,14 @@ const (
 	apiVersion4 = 4
 )
 
-// IsAvailable returns true if Windows Webauthn is available in the system.
-// Typically, a series of checks is performed in an attempt to avoid false
-// positives.
-// See checkSupport.
-func isAvailable() bool {
-	// IsAvailable guards most of the public APIs, so results are cached between
-	// invocations to avoid user-visible delays.
-	// Diagnostics are safe to cache because dll isn't something that
-	// could change during program invocation.
-	return getOrCreateClient().isAvailable
-}
-
-func checkSupport() (*CheckSupportResult, error) {
+func checkSupport() *CheckSupportResult {
 	cli := getOrCreateClient()
 	return &CheckSupportResult{
 		HasCompileSupport: cli.hasCompileSupport,
 		IsAvailable:       cli.isAvailable,
 		HasPlatformUV:     cli.hasPlatformUV,
 		APIVersion:        cli.version,
-	}, nil
+	}
 }
 
 func login(

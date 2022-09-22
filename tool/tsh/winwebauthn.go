@@ -50,21 +50,13 @@ func newWinwebauthnSupportCommand(app *kingpin.CmdClause) *winwebauthnSupportCom
 }
 
 func (w *winwebauthnSupportCommand) run(cf *CLIConf) error {
-	diag, err := winwebauthn.CheckSupport()
-	// Abort if we got a nil diagnostic, otherwise print as much as we can.
-	if diag == nil {
-		return trace.Wrap(err)
-	}
-
+	diag := winwebauthn.CheckSupport()
 	fmt.Printf("\nWinwebauthn available: %v\n", diag.HasCompileSupport)
 	fmt.Printf("Compiple support: %v\n", diag.IsAvailable)
 	fmt.Printf("API version: %v\n", diag.APIVersion)
 	fmt.Printf("Has platform UV: %v\n", diag.HasPlatformUV)
-	if err != nil {
-		fmt.Println()
-	}
 
-	return trace.Wrap(err)
+	return nil
 }
 
 type winwebauthnDiagnosticsCommand struct {

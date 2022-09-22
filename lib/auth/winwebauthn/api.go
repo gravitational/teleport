@@ -16,6 +16,7 @@
 // It loads system webauthn.dll and uses it's method.
 // It supports API versions 1-4.
 // API definition: https://github.com/microsoft/webauthn/blob/master/webauthn.h
+// As Windows Webauthn device can be used both Windows Hello and FIDO devices.
 package winwebauthn
 
 import (
@@ -37,10 +38,6 @@ var (
 
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
-	// User is the desired credential username for login.
-	// If empty, Login may either choose a credential or prompt the user for input
-	// (via LoginPrompt).
-	User string
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment AuthenticatorAttachment
 }
@@ -53,27 +50,44 @@ const (
 	AttachmentPlatform
 )
 
-// Login implements Login for WindowsHello, CTAP1 and CTAP2 devices.
-// The informed user is used to disambiguate credentials in case of passwordless
-// logins.
-// It returns an MFAAuthenticateResponse and the credential user, if a resident
-// credential is used.
+// Login implements Login for Windows Webauthn API.
+// It returns an MFAAuthenticateResponse.
 // Most callers should call Login directly, as it is correctly guarded by
 // IsAvailable.
 func Login(ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion,
 	opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
+	switch {
+	case origin == "":
+		return nil, "", trace.BadParameter("origin required")
+	case assertion == nil:
+		return nil, "", trace.BadParameter("assertion required")
+	case len(assertion.Response.Challenge) == 0:
+		return nil, "", trace.BadParameter("assertion challenge required")
+	case assertion.Response.RelyingPartyID == "":
+		return nil, "", trace.BadParameter("assertion relying party ID required")
+	}
 	return login(ctx, origin, assertion, opts)
 }
 
-// Register implements Register for WindowsHello, CTAP1 and CTAP2 devices.
+// Register implements Register for Windows Webauthn API.
 // Most callers should call Register directly, as it is correctly guarded by
 // IsAvailable.
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation,
 ) (*proto.MFARegisterResponse, error) {
+	switch {
+	case origin == "":
+		return nil, trace.BadParameter("origin required")
+	case cc == nil:
+		return nil, trace.BadParameter("credential creation required")
+	case len(cc.Response.Challenge) == 0:
+		return nil, trace.BadParameter("credential creation challenge required")
+	case cc.Response.RelyingParty.ID == "":
+		return nil, trace.BadParameter("credential creation relying party ID required")
+	}
 	return register(ctx, origin, cc)
 }
 
@@ -90,11 +104,12 @@ type CheckSupportResult struct {
 // positives.
 // See CheckSupport.
 func IsAvailable() bool {
-	return isAvailable()
+	return CheckSupport().IsAvailable
 }
 
-// CheckSupport return information whether Windows Webauthn is supported.
-func CheckSupport() (*CheckSupportResult, error) {
+// CheckSupport return information whether Windows Webauthn is supported and
+// information about API version.
+func CheckSupport() *CheckSupportResult {
 	return checkSupport()
 }
 
@@ -107,7 +122,7 @@ type RunDiagnosticsResult struct {
 // User interaction is required.
 func RunDiagnostics(ctx context.Context, promptOut io.Writer) (*RunDiagnosticsResult, error) {
 	res := &RunDiagnosticsResult{}
-	if !isAvailable() {
+	if !IsAvailable() {
 		return res, nil
 	}
 	res.Available = true
