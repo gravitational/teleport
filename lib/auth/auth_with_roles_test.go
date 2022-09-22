@@ -3799,6 +3799,9 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, role := range types.LocalServiceMappings() {
+		if role == types.RoleAuth {
+			continue
+		}
 		t.Run(role.String(), func(t *testing.T) {
 			ctx := context.Background()
 
