@@ -601,8 +601,8 @@ You can optionally override this to use a different published Teleport Docker im
 
 See these links for information on Docker image versions:
 
-- [Community Docker image information](../../management/guides/docker.mdx#step-14-pick-your-image)
-- [Enterprise Docker image information](../../deploy-a-cluster/teleport-enterprise/getting-started.mdx#run-teleport-enterprise-using-docker)
+- [Community Docker image information](../../installation.mdx?scope=oss#docker)
+- [Enterprise Docker image information](../../installation.mdx?scope=enterprise#docker)
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1143,6 +1143,8 @@ See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for mo
 
 `tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
 This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
+This can also be used to trust private CAs when contacting an OIDC provider, an S3-compatible backend, or any external service without
+modifying the Teleport base image.
 
 This is likely to be needed
 if Teleport fails to start when `tls.existingSecretName` is set with a `User Message: unable to verify HTTPS certificate chain` error

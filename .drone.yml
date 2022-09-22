@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -150,7 +150,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -253,7 +253,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -360,7 +360,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -525,7 +525,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.6
+    RUNTIME: go1.19.1
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -936,6 +936,25 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Register artifacts
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $ProgressPreference = 'SilentlyContinue'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $OutputsDir = "$Workspace/outputs"
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-beta.2-windows.exe'
+  - $relcliSha256 = '6b96852a5e9704b66025cffc71cfe7fe7a2aa7131277a96bccce7e890a2d5a0c'
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
+  - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -960,7 +979,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -1063,7 +1082,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -1694,7 +1713,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -1854,7 +1873,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -2013,7 +2032,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -2185,7 +2204,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -3078,7 +3097,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -3661,7 +3680,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.6
+    RUNTIME: go1.19.1
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -4178,7 +4197,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -4335,7 +4354,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -5228,7 +5247,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -7054,6 +7073,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 122d13c57fd07c1ea1baf781df66fe8f867338f089eb2a4636a7aef23a3dee30
+hmac: 734ceb1c15b758c1f8ef2b9e2ff12c15a238b5a3ff4dfcd1965f6dab65c69b6b
 
 ...

@@ -601,9 +601,10 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 
 // Creates or gets Aptly repos for all permutations of the provided requirements.
 // Returns a list of repo objects describing the Aptly repos, regardless of if they
-//   already existed.
+// already existed.
+//
 // supportedOSInfo should be a dictionary keyed by OS name, with values being a list of
-//   supported OS version codenames.
+// supported OS version codenames.
 func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][]string,
 	releaseChannel string, majorVersion string) ([]*Repo, error) {
 	logrus.Infoln("Creating new repos from artifact requirements:")
