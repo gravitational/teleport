@@ -175,14 +175,10 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	credentialCreation, sessionData, err := web.BeginRegistration(u, wan.WithExclusions(exclusions))
+	cc, sessionData, err := web.BeginRegistration(u, wan.WithExclusions(exclusions))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Copy settings manually, the framework doesn't do it.
-	credentialCreation.Response.AuthenticatorSelection = web.Config.AuthenticatorSelection
-	sessionData.UserVerification = web.Config.AuthenticatorSelection.UserVerification
 
 	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
 	//  detect duplicate devices.
@@ -195,7 +191,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialCreation)(credentialCreation), nil
+	return (*CredentialCreation)(cc), nil
 }
 
 func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIdentity) ([]byte, error) {
