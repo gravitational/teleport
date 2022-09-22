@@ -148,19 +148,12 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Discovery.Enabled,
 	}
 
-	has := false
 	for _, item := range enabled {
 		if item {
-			has = true
-
-			break
+			return nil
 		}
 	}
 
-	if !has {
-		return trace.BadParameter(
-			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discover_service")
-	}
-
-	return nil
+	return trace.BadParameter(
+		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discover_service")
 }
