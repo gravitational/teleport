@@ -1896,6 +1896,10 @@ func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
 
 // handleRecordingProxy responds to global out-of-band with a bool which
 // indicates if it is in recording mode or not.
+//
+// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+// cluster information.
+// TODO(tross):DELETE IN 12.0
 func (s *Server) handleRecordingProxy(ctx context.Context, req *ssh.Request) {
 	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
 

@@ -1751,7 +1751,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
+	details, err := proxy.clusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1760,7 +1760,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
+	if details.RecordingProxy {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}

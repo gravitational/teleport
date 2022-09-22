@@ -295,6 +295,10 @@ const (
 
 	// RecordingProxyReqType is the name of a global request which returns if
 	// the proxy is recording sessions or not.
+	//
+	// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+	// cluster information.
+	// TODO(tross):DELETE IN 12.0
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like
