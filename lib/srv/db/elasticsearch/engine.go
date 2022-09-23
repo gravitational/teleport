@@ -87,7 +87,6 @@ func (e *Engine) SendError(err error) {
 	if trace.IsAccessDenied(err) {
 		statusCode = http.StatusUnauthorized
 		cause.Type = "access_denied_exception"
-
 	}
 
 	jsonBody, err := json.Marshal(cause)
@@ -269,6 +268,10 @@ func (e *Engine) getQueryFromRequestBody(contentType string, body []byte) string
 		return ""
 
 	case "application/yaml":
+		if len(body) == 0 {
+			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
+			return ""
+		}
 		err := yaml.Unmarshal(body, &q)
 		if err != nil {
 			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
@@ -276,6 +279,10 @@ func (e *Engine) getQueryFromRequestBody(contentType string, body []byte) string
 		}
 
 	case "application/json":
+		if len(body) == 0 {
+			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
+			return ""
+		}
 		err := json.Unmarshal(body, &q)
 		if err != nil {
 			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
@@ -284,6 +291,11 @@ func (e *Engine) getQueryFromRequestBody(contentType string, body []byte) string
 
 	default:
 		e.Log.Warnf("Unknown or missing 'Content-Type': %q, assuming 'application/json'.", contentType)
+		if len(body) == 0 {
+			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
+			return ""
+		}
+
 		err := json.Unmarshal(body, &q)
 		if err != nil {
 			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
