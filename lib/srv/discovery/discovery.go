@@ -107,9 +107,43 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		cancelfn: cancelfn,
 	}
 
+	var (
+		ec2Matcher []services.AWSMatcher
+	)
+
+	for _, matcher := range cfg.AWSMatchers {
+	typeLoop:
+		for _, t := range matcher.Types {
+			for _, region := range matcher.Regions {
+				switch t {
+				case constants.AWSServiceTypeEC2:
+					ec2Matcher = append(ec2Matcher, matcher)
+					continue typeLoop
+				case constants.AWSServiceTypeEKS:
+					client, err := cfg.Clients.GetAWSEKSClient(region)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					fetcher, err := fetchers.NewEKSFetcher(
+						fetchers.EKSFetcherConfig{
+							Client:       client,
+							Region:       region,
+							FilterLabels: matcher.Tags,
+							Log:          cfg.Log,
+						},
+					)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					s.kubeFetchers = append(s.kubeFetchers, fetcher)
+				}
+			}
+		}
+	}
+
 	var err error
-	if len(cfg.AWSMatchers) > 0 {
-		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, cfg.AWSMatchers, s.Clients)
+	if len(ec2Matcher) > 0 {
+		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, ec2Matcher, s.Clients)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

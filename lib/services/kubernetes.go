@@ -21,9 +21,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
@@ -213,5 +217,52 @@ func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
 
 	labels[labelResourceGroup] = cluster.GroupName
 	labels[labelSubscriptionID] = cluster.SubscriptionID
+	return labels
+}
+
+// NewKubeClusterFromAWSEKS creates a database resource from an EKS cluster.
+func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(cluster.Arn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	labels := labelsFromAWSKubeCluster(cluster, parsedARN)
+
+	return types.NewKubernetesClusterV3(
+		setKubeName(types.Metadata{
+			Description: fmt.Sprintf("AWS EKS cluster %q in %s",
+				aws.StringValue(cluster.Name),
+				parsedARN.Region),
+			Labels: labels,
+		}, aws.StringValue(cluster.Name)),
+		types.KubernetesClusterSpecV3{
+			AWS: types.KubeAWS{
+				Name:      aws.StringValue(cluster.Name),
+				AccountID: parsedARN.AccountID,
+				Region:    parsedARN.Region,
+			},
+		})
+}
+
+// labelsFromAWSKubeCluster creates kube cluster labels.
+func labelsFromAWSKubeCluster(cluster *eks.Cluster, parsedARN arn.ARN) map[string]string {
+	labels := awsEKSTagsToLabels(cluster.Tags)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = parsedARN.Region
+
+	labels[labelAccountID] = parsedARN.AccountID
+	return labels
+}
+
+// awsEKSTagsToLabels converts AWS tags to a labels map.
+func awsEKSTagsToLabels(tags map[string]*string) map[string]string {
+	labels := make(map[string]string)
+	for key, val := range tags {
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(val)
+		} else {
+			log.Debugf("Skipping EKS tag %q, not a valid label key.", key)
+		}
+	}
 	return labels
 }
