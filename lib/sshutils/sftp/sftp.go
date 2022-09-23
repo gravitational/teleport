@@ -227,13 +227,6 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 		return trace.Wrap(err)
 	}
 
-	if c.opts.PreserveAttrs {
-		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if err := c.dstFS.Chmod(dstPath, srcFileInfo.Mode()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -255,6 +248,15 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 			if err := c.transferFile(ctx, dstSubPath, lSubPath, info); err != nil {
 				return trace.Wrap(err)
 			}
+		}
+	}
+
+	// set modification and access times last so creating sub dirs/files
+	// doesn't update the times
+	if c.opts.PreserveAttrs {
+		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
