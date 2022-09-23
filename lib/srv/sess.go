@@ -31,11 +31,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1604,16 +1606,27 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 	}
 
 	s.log.Debug("Creating session tracker")
-	var err error
 
 	// if doing proxy recording, don't propagate tracker to the cluster level
 	if s.registry.Srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
-		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, nil)
+		bk, err := memory.New(memory.Config{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		trackerRemote, err := local.NewSessionTrackerService(bk)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, trackerRemote)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	} else {
+		var err error
 		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
-	}
-	if err != nil {
-		return trace.Wrap(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	go func() {
