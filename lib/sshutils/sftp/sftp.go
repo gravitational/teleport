@@ -303,16 +303,16 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 		return trace.Errorf("short write: written %v, expected %v", n, srcFileInfo.Size())
 	}
 
+	err = c.dstFS.Chmod(dstPath, srcFileInfo.Mode())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if c.opts.PreserveAttrs {
 		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	err = c.dstFS.Chmod(dstPath, srcFileInfo.Mode())
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil

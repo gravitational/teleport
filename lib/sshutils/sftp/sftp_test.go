@@ -330,8 +330,9 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 	if !dstInfo.IsDir() && len(srcs) > 1 {
 		t.Fatalf("multiple src files specified, but dst is not a directory")
 	}
+	// if dst is file, just compare src and dst files
 	if !dstInfo.IsDir() {
-		compareFiles(t, preserveAttrs, dstInfo, nil, dst, srcs[0])
+		compareFiles(t, preserveAttrs, true, dstInfo, nil, dst, srcs[0])
 		return
 	}
 
@@ -351,7 +352,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 			if dstSubInfo.IsDir() {
 				t.Fatalf("dst file is directory: %q", dstSubPath)
 			}
-			compareFiles(t, preserveAttrs, dstSubInfo, srcInfo, dstSubPath, src)
+			compareFiles(t, preserveAttrs, true, dstSubInfo, srcInfo, dstSubPath, src)
 			continue
 		}
 
@@ -372,10 +373,11 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 				t.Fatalf("expected %q IsDir=%t, got %t", dstPath, info.IsDir(), dstInfo.IsDir())
 			}
 
+			// don't check access times, filepath.Walk may have changed them
 			if dstInfo.IsDir() {
-				compareFileInfos(t, preserveAttrs, dstInfo, info, dstPath, path)
+				compareFileInfos(t, preserveAttrs, false, dstInfo, info, dstPath, path)
 			} else {
-				compareFiles(t, preserveAttrs, dstInfo, info, dstPath, path)
+				compareFiles(t, preserveAttrs, false, dstInfo, info, dstPath, path)
 			}
 
 			return nil
@@ -386,7 +388,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 	}
 }
 
-func compareFiles(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
+func compareFiles(t *testing.T, preserveAttrs, checkAtime bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
 	var err error
 	if srcInfo == nil {
 		srcInfo, err = os.Stat(src)
@@ -395,7 +397,7 @@ func compareFiles(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo
 		}
 	}
 
-	compareFileInfos(t, preserveAttrs, dstInfo, srcInfo, dst, src)
+	compareFileInfos(t, preserveAttrs, checkAtime, dstInfo, srcInfo, dst, src)
 
 	dstBytes, err := os.ReadFile(dst)
 	if err != nil {
@@ -410,7 +412,7 @@ func compareFiles(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo
 	}
 }
 
-func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
+func compareFileInfos(t *testing.T, preserveAttrs, checkAtime bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
 	if dstInfo.Size() != srcInfo.Size() {
 		t.Fatalf("%q and %q sizes not equal", dst, src)
 	}
@@ -422,7 +424,7 @@ func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.File
 		if !dstInfo.ModTime().Equal(srcInfo.ModTime()) {
 			t.Errorf("%q and %q mod times not equal", dst, src)
 		}
-		if !getAtime(dstInfo).Equal(getAtime(srcInfo)) {
+		if checkAtime && !getAtime(dstInfo).Equal(getAtime(srcInfo)) {
 			t.Errorf("%q and %q access times not equal", dst, src)
 		}
 	}
