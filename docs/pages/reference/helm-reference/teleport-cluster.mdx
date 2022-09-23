@@ -1104,6 +1104,31 @@ Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-man
   </TabItem>
 </Tabs>
 
+## `highAvailability.minReadySeconds`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - | - |
+| `integer` | `15` | ✅ |
+
+Amount of time to wait during a pod rollout before moving to the next pod.
+[See Kubernetes documentation](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#min-ready-seconds).
+
+This is used to give time for the agents to connect back to newly created pods before continuing the rollout.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    minReadySeconds: 15
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.minReadySeconds=15
+  ```
+  </TabItem>
+</Tabs>
+
 ## `tls.existingSecretName`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
