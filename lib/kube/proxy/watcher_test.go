@@ -42,7 +42,7 @@ func TestWatcher(t *testing.T) {
 
 	ctx := context.Background()
 
-	reconcileCh := make(chan types.KubeClusters, 2)
+	reconcileCh := make(chan types.KubeClusters)
 	// Setup kubernetes server that proxies one static kube cluster and
 	// watches for kube_clusters with label group=a.
 	testCtx := setupTestContext(ctx, t, testConfig{

@@ -194,12 +194,11 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 	s.fwd.removeKubeDetails(name)
 	errs = append(errs, s.deleteKubernetesServer(ctx, name))
 
-	// TODO: check if we should close running sessions
 	s.fwd.mu.Lock()
 	// close active sessions
 	for _, sess := range s.fwd.sessions {
 		if sess.ctx.kubeCluster == name {
-			// TODO: check if we should send errors to each client
+			// TODO(tigrato): check if we should send errors to each client
 			errs = append(errs, sess.Close())
 		}
 	}
