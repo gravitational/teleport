@@ -59,19 +59,19 @@ type Engine struct {
 	sessionCtx *common.Session
 	// handshakeTriggered is set to true if handshake was triggered and
 	// used to indicated that custom errors should be sent to the client.
-	// Cassandra wire protocol relays on streamID to that needs to match the request value
+	// Cassandra wire protocol relies on streamID to that needs to match the request value
 	// so sending a custom error to the client requires to read a first message send by the client.
 	handshakeTriggered bool
 }
 
 // SendError send a Cassandra ServerError to  error to the client if handshake was not yet initialized by the client.
-// Cassandra wire protocol relays on streamID to that are set by the client and server response needs to
+// Cassandra wire protocol relies on streamID to that are set by the client and server response needs to
 // set the correct streamID in order to get streamID SendError reads a first message send by the client.
 func (e *Engine) SendError(sErr error) {
 	if utils.IsOKNetworkError(sErr) || sErr == nil {
 		return
 	}
-	e.Log.Debug("cassandra connection error: %v", sErr)
+	e.Log.Debugf("cassandra connection error: %v", sErr)
 	if e.handshakeTriggered {
 		return
 	}

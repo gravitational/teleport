@@ -465,9 +465,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.Spec.URI == "" {
 		switch {
-		case d.IsAWSCassandra():
+		case d.IsAWSCassandra() && d.Spec.URI == "":
 			// In case of AWS Hosted Cassandra allow to omit URI.
 			// The URL will be constructed from the database resource based on the region and account ID.
+			d.Spec.URI = fmt.Sprintf("cassandra.%s.amazonaws.com:9142", d.Spec.AWS.Region)
 		default:
 			return trace.BadParameter("database %q URI is empty", d.GetName())
 		}
@@ -537,8 +538,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
-	case d.IsAWSCassandra():
-		d.Spec.URI = fmt.Sprintf("cassandra.%s.amazonaws.com:9142", d.Spec.AWS.Region)
 	}
 	return nil
 }
