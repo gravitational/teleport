@@ -143,8 +143,12 @@ func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
-	go teleAgent.Serve()
-
+	closeC := make(chan struct{})
+	go func() {
+		close(closeC)
+		teleAgent.Serve()
+	}()
+	<-closeC
 	return teleAgent, teleAgent.Dir, teleAgent.Path, nil
 }
 

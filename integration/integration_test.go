@@ -3458,14 +3458,14 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 
 // TestControlMaster checks if multiple SSH channels can be created over the
 // same connection. This is frequently used by tools like Ansible.
-func testControlMaster(t *testing.T, suite *integrationTestSuite) {
+func testControlMaster(m2 *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	// Only run this test if we have access to the external SSH binary.
 	_, err := exec.LookPath("ssh")
 	if err != nil {
-		t.Skip("Skipping TestControlMaster, no external SSH binary found.")
+		m2.Skip("Skipping TestControlMaster, no external SSH binary found.")
 		return
 	}
 
@@ -3483,73 +3483,82 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		controlDir, err := os.MkdirTemp("", "teleport-")
-		require.NoError(t, err)
-		defer os.RemoveAll(controlDir)
-		controlPath := filepath.Join(controlDir, "control-path")
-
-		// Create a Teleport instance with auth, proxy, and node.
-		makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
-			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-				Mode: tt.inRecordLocation,
-			})
+		m2.Run(tt.inRecordLocation, func(t *testing.T) {
+			controlDir, err := os.MkdirTemp("", "tt")
 			require.NoError(t, err)
-
-			tconf := suite.defaultServiceConfig()
-			tconf.Auth.Enabled = true
-			tconf.Auth.SessionRecordingConfig = recConfig
-
-			tconf.Proxy.Enabled = true
-			tconf.Proxy.DisableWebService = true
-			tconf.Proxy.DisableWebInterface = true
-
-			tconf.SSH.Enabled = true
-
-			return t, nil, nil, tconf
-		}
-		teleport := suite.NewTeleportWithConfig(makeConfig())
-		defer teleport.StopAll()
-
-		// Generate certificates for the user simulating login.
-		creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-			Process:  teleport.Process,
-			Username: suite.Me.Username,
-		})
-		require.NoError(t, err)
-
-		// Start (and defer close) a agent that runs during this integration test.
-		teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
-		require.NoError(t, err)
-		defer helpers.CloseAgent(teleAgent, socketDirPath)
-
-		// Create and run an exec command twice with the passed in ControlPath. This
-		// will cause re-use of the connection and creation of two sessions within
-		// the connection.
-		for i := 0; i < 2; i++ {
-			execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
-				ForcePTY:     true,
-				ForwardAgent: true,
-				ControlPath:  controlPath,
-				SocketPath:   socketPath,
-				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
-				NodePort:     helpers.PortStr(t, teleport.SSH),
-				Command:      "echo hello",
+			t.Cleanup(func() {
+				os.RemoveAll(controlDir)
 			})
-			require.NoError(t, err)
+			controlPath := filepath.Join(controlDir, "control-path")
 
-			// Execute SSH command and check the output is what we expect.
-			output, err := execCmd.Output()
-			if err != nil {
-				// If an *exec.ExitError is returned, parse it and return stderr. If this
-				// is not done then c.Assert will just print a byte array for the error.
-				er, ok := err.(*exec.ExitError)
-				if ok {
-					t.Fatalf("Unexpected error: %v", string(er.Stderr))
-				}
+			// Create a Teleport instance with auth, proxy, and node.
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+					Mode: tt.inRecordLocation,
+				})
+				require.NoError(t, err)
+
+				tconf := suite.defaultServiceConfig()
+				tconf.Auth.Enabled = true
+				tconf.Auth.SessionRecordingConfig = recConfig
+
+				tconf.Proxy.Enabled = true
+				tconf.Proxy.DisableWebService = true
+				tconf.Proxy.DisableWebInterface = true
+
+				tconf.SSH.Enabled = true
+
+				return t, nil, nil, tconf
 			}
+			teleport := suite.NewTeleportWithConfig(makeConfig())
+			t.Cleanup(func() {
+				teleport.StopAll()
+			})
+
+			// Generate certificates for the user simulating login.
+			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+				Process:  teleport.Process,
+				Username: suite.Me.Username,
+			})
 			require.NoError(t, err)
-			require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
-		}
+
+			// Start (and defer close) a agent that runs during this integration test.
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				helpers.CloseAgent(teleAgent, socketDirPath)
+			})
+			// Create and run an exec command twice with the passed in ControlPath. This
+			// will cause re-use of the connection and creation of two sessions within
+			// the connection.
+			for i := 0; i < 2; i++ {
+				execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+					ForcePTY:     true,
+					ForwardAgent: true,
+					ControlPath:  controlPath,
+					SocketPath:   socketPath,
+					ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
+					NodePort:     helpers.PortStr(t, teleport.SSH),
+					Command:      "echo hello",
+				})
+				require.NoError(t, err)
+
+				// Execute SSH command and check the output is what we expect.
+				output, err := execCmd.Output()
+
+				if err != nil {
+					// If an *exec.ExitError is returned, parse it and return stderr. If this
+					// is not done then c.Assert will just print a byte array for the error.
+					er, ok := err.(*exec.ExitError)
+					if ok {
+						t.Fatalf("Unexpected error: %v %v %v ", string(er.Error()), string(er.Stderr), string(output))
+					}
+				}
+				require.NoError(t, err)
+				require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
+			}
+		},
+		)
 	}
 }
 
