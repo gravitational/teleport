@@ -1,4 +1,4 @@
-.version: &version "11.0.0-justinas.45"
+.version: &version "11.0.0-justinas.46"
 
 name: teleport-cluster
 apiVersion: v2
