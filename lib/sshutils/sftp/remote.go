@@ -17,6 +17,7 @@ limitations under the License.
 package sftp
 
 import (
+	"context"
 	"io"
 	"os"
 	"time"
@@ -29,7 +30,12 @@ import (
 // remoteFS provides API for accessing the files on
 // the local file system
 type remoteFS struct {
-	c *sftp.Client
+	ctx context.Context
+	c   *sftp.Client
+}
+
+func (r *remoteFS) SetContext(ctx context.Context) {
+	r.ctx = ctx
 }
 
 func (r *remoteFS) Type() string {
@@ -37,6 +43,10 @@ func (r *remoteFS) Type() string {
 }
 
 func (r *remoteFS) Stat(path string) (os.FileInfo, error) {
+	if err := r.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	fi, err := r.c.Stat(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,6 +56,10 @@ func (r *remoteFS) Stat(path string) (os.FileInfo, error) {
 }
 
 func (r *remoteFS) ReadDir(path string) ([]os.FileInfo, error) {
+	if err := r.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	fileInfos, err := r.c.ReadDir(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,6 +69,10 @@ func (r *remoteFS) ReadDir(path string) ([]os.FileInfo, error) {
 }
 
 func (r *remoteFS) Open(path string) (io.ReadCloser, error) {
+	if err := r.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	f, err := r.c.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -64,6 +82,10 @@ func (r *remoteFS) Open(path string) (io.ReadCloser, error) {
 }
 
 func (r *remoteFS) Create(path string, _ uint64) (io.WriteCloser, error) {
+	if err := r.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	f, err := r.c.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -73,6 +95,10 @@ func (r *remoteFS) Create(path string, _ uint64) (io.WriteCloser, error) {
 }
 
 func (r *remoteFS) Mkdir(path string) error {
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
+
 	err := r.c.Mkdir(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -82,9 +108,17 @@ func (r *remoteFS) Mkdir(path string) error {
 }
 
 func (r *remoteFS) Chmod(path string, mode os.FileMode) error {
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
+
 	return trace.Wrap(r.c.Chmod(path, mode))
 }
 
 func (r *remoteFS) Chtimes(path string, atime, mtime time.Time) error {
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
+
 	return trace.Wrap(r.c.Chtimes(path, atime, mtime))
 }

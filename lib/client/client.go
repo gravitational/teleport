@@ -1931,14 +1931,14 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 
 // TransferFiles transfers files over SFTP.
 func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
-	_, span := c.Tracer.Start(
+	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/TransferFiles",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
 
-	return trace.Wrap(cfg.TransferFiles(c.Client.Client))
+	return trace.Wrap(cfg.TransferFiles(ctx, c.Client.Client))
 }
 
 type netDialer interface {

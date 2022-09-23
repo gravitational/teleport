@@ -17,6 +17,7 @@ limitations under the License.
 package sftp
 
 import (
+	"context"
 	"io"
 	"os"
 	"time"
@@ -26,13 +27,23 @@ import (
 
 // localFS provides API for accessing the files on
 // the local file system
-type localFS struct{}
+type localFS struct {
+	ctx context.Context
+}
 
-func (l localFS) Type() string {
+func (l *localFS) SetContext(ctx context.Context) {
+	l.ctx = ctx
+}
+
+func (l *localFS) Type() string {
 	return "local"
 }
 
-func (l localFS) Stat(path string) (os.FileInfo, error) {
+func (l *localFS) Stat(path string) (os.FileInfo, error) {
+	if err := l.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	fi, err := os.Stat(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -41,7 +52,11 @@ func (l localFS) Stat(path string) (os.FileInfo, error) {
 	return fi, nil
 }
 
-func (l localFS) ReadDir(path string) ([]os.FileInfo, error) {
+func (l *localFS) ReadDir(path string) ([]os.FileInfo, error) {
+	if err := l.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// normally os.ReadDir would be used as it's potentially more efficient,
 	// but because we want os.FileInfos of every file this is easier
 	f, err := os.Open(path)
@@ -58,7 +73,11 @@ func (l localFS) ReadDir(path string) ([]os.FileInfo, error) {
 	return fileInfos, nil
 }
 
-func (l localFS) Open(path string) (io.ReadCloser, error) {
+func (l *localFS) Open(path string) (io.ReadCloser, error) {
+	if err := l.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -67,7 +86,11 @@ func (l localFS) Open(path string) (io.ReadCloser, error) {
 	return f, nil
 }
 
-func (l localFS) Create(path string, length uint64) (io.WriteCloser, error) {
+func (l *localFS) Create(path string, length uint64) (io.WriteCloser, error) {
+	if err := l.ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	f, err := os.Create(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,7 +99,11 @@ func (l localFS) Create(path string, length uint64) (io.WriteCloser, error) {
 	return f, nil
 }
 
-func (l localFS) Mkdir(path string) error {
+func (l *localFS) Mkdir(path string) error {
+	if err := l.ctx.Err(); err != nil {
+		return err
+	}
+
 	// the permissions used here are somewhat arbitrary, they should
 	// get modified after this is called
 	err := os.Mkdir(path, 0750)
@@ -87,14 +114,14 @@ func (l localFS) Mkdir(path string) error {
 	return nil
 }
 
-func (l localFS) Chmod(path string, mode os.FileMode) error {
-	if err := os.Chmod(path, mode); err != nil {
-		return trace.Wrap(err)
+func (l *localFS) Chmod(path string, mode os.FileMode) error {
+	if err := l.ctx.Err(); err != nil {
+		return err
 	}
 
-	return nil
+	return trace.Wrap(os.Chmod(path, mode))
 }
 
-func (l localFS) Chtimes(path string, atime, mtime time.Time) error {
+func (l *localFS) Chtimes(path string, atime, mtime time.Time) error {
 	return trace.ConvertSystemError(os.Chtimes(path, atime, mtime))
 }

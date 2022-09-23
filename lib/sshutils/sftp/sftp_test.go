@@ -17,6 +17,7 @@ package sftp
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -175,10 +176,13 @@ func TestUpload(t *testing.T) {
 			}
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
+			ctx := context.Background()
 			cfg := CreateUploadConfig(tt.srcPaths, tt.dstPath, tt.opts)
+			// use all local filesystems to avoid SSH overhead
 			cfg.dstFS = &localFS{}
+			cfg.initFS(ctx, nil)
 
-			err := cfg.transfer()
+			err := cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, tt.srcPaths...)
@@ -255,10 +259,13 @@ func TestDownload(t *testing.T) {
 			tt.srcPath = filepath.Join(tempDir, tt.srcPath)
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
+			ctx := context.Background()
 			cfg := CreateDownloadConfig(tt.srcPath, tt.dstPath, tt.opts)
+			// use all local filesystems to avoid SSH overhead
 			cfg.srcFS = &localFS{}
+			cfg.initFS(ctx, nil)
 
-			err := cfg.transfer()
+			err := cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, tt.srcPath)

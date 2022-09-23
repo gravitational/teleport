@@ -18,6 +18,7 @@ limitations under the License.
 package sftp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -27,10 +28,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils/scp"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/pkg/sftp"
+	"github.com/schollz/progressbar/v3"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -61,6 +62,8 @@ type Config struct {
 
 // FileSystem describes file operations to be done either locally or over SFTP
 type FileSystem interface {
+	// SetContext sets the context for the filesystem used for cancellation
+	SetContext(ctx context.Context)
 	// Type returns whether the filesystem is "local" or "remote"
 	Type() string
 	// Stat returns info about a file
@@ -127,26 +130,40 @@ func (c *Config) setDefaults() {
 
 // TransferFiles transfers files from the configured source paths to the
 // configured destination path over SFTP
-func (c *Config) TransferFiles(sshClient *ssh.Client) error {
+func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error {
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	c.initFS(ctx, sftpClient)
 
+	transferErr := c.transfer(ctx)
+	closeErr := sftpClient.Close()
+	if transferErr != nil {
+		return trace.Wrap(transferErr)
+	}
+	if closeErr != nil {
+		return trace.Wrap(closeErr)
+	}
+	return nil
+}
+
+// initFS ensures the source and destination filesystems are ready to transfer
+func (c *Config) initFS(ctx context.Context, client *sftp.Client) {
 	srcFS, ok := c.srcFS.(*remoteFS)
 	if ok {
-		srcFS.c = sftpClient
+		srcFS.c = client
 	}
 	dstFS, ok := c.dstFS.(*remoteFS)
 	if ok {
-		dstFS.c = sftpClient
+		dstFS.c = client
 	}
-
-	return trace.Wrap(c.transfer())
+	c.srcFS.SetContext(ctx)
+	c.dstFS.SetContext(ctx)
 }
 
 // transfer preforms file transfers
-func (c *Config) transfer() error {
+func (c *Config) transfer(ctx context.Context) error {
 	// if there are multiple source paths, ensure the destination path
 	// is a directory
 	var dirMode bool
@@ -191,11 +208,11 @@ func (c *Config) transfer() error {
 		}
 
 		if fi.IsDir() {
-			if err := c.transferDir(dstPath, c.srcPaths[i], fi); err != nil {
+			if err := c.transferDir(ctx, dstPath, c.srcPaths[i], fi); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
-			if err := c.transferFile(dstPath, c.srcPaths[i], fi); err != nil {
+			if err := c.transferFile(ctx, dstPath, c.srcPaths[i], fi); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -205,7 +222,7 @@ func (c *Config) transfer() error {
 }
 
 // transferDir transfers a directory
-func (c *Config) transferDir(dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	// TODO: update sftp to propagate os.ErrExist
 	err := c.dstFS.Mkdir(dstPath)
 	if err != nil && !strings.Contains(err.Error(), "file exists") {
@@ -233,11 +250,11 @@ func (c *Config) transferDir(dstPath, srcPath string, srcFileInfo os.FileInfo) e
 		lSubPath := path.Join(srcPath, info.Name())
 
 		if info.IsDir() {
-			if err := c.transferDir(dstSubPath, lSubPath, info); err != nil {
+			if err := c.transferDir(ctx, dstSubPath, lSubPath, info); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
-			if err := c.transferFile(dstSubPath, lSubPath, info); err != nil {
+			if err := c.transferFile(ctx, dstSubPath, lSubPath, info); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -247,7 +264,7 @@ func (c *Config) transferDir(dstPath, srcPath string, srcFileInfo os.FileInfo) e
 }
 
 // transferFile transfers a file
-func (c *Config) transferFile(dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	srcFile, err := c.srcFS.Open(srcPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -261,7 +278,21 @@ func (c *Config) transferFile(dstPath, srcPath string, srcFileInfo os.FileInfo) 
 	}
 	defer dstFile.Close()
 
-	n, err := io.Copy(dstFile, srcFile)
+	// write to canceler first so if the context is canceled the transferring
+	// can stop immediately
+	var writer io.Writer
+	canceler := &cancelWriter{
+		ctx: ctx,
+	}
+	// if a progress writer was set, write file transfer progress
+	if c.ProgressWriter != nil {
+		progressBar := newProgressBar(srcFileInfo.Size(), srcFileInfo.Name(), c.ProgressWriter)
+		writer = io.MultiWriter(canceler, dstFile, progressBar)
+	} else {
+		writer = io.MultiWriter(canceler, dstFile)
+	}
+
+	n, err := io.Copy(writer, srcFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -281,12 +312,6 @@ func (c *Config) transferFile(dstPath, srcPath string, srcFileInfo os.FileInfo) 
 		return trace.Wrap(err)
 	}
 
-	// report progress
-	if c.ProgressWriter != nil {
-		statusMessage := fmt.Sprintf("-> %s (%d)", srcFileInfo.Name(), srcFileInfo.Size())
-		defer fmt.Fprintf(c.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
-	}
-
 	return nil
 }
 
@@ -300,4 +325,36 @@ func getAtime(fi os.FileInfo) time.Time {
 	}
 
 	return time.Time{}
+}
+
+type cancelWriter struct {
+	ctx context.Context
+}
+
+func (c *cancelWriter) Write(b []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+// newProgressBar returns a new progress bar that writes to writer.
+func newProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
+	// this is necessary because progressbar.DefaultBytes doesn't allow
+	// the caller to specify a writer
+	return progressbar.NewOptions64(
+		size,
+		progressbar.OptionSetDescription(desc),
+		progressbar.OptionSetWriter(writer),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetWidth(10),
+		progressbar.OptionThrottle(100*time.Millisecond),
+		progressbar.OptionShowCount(),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprint(writer, "\n")
+		}),
+		progressbar.OptionSpinnerType(14),
+		progressbar.OptionFullWidth(),
+		progressbar.OptionSetRenderBlankState(true),
+	)
 }
