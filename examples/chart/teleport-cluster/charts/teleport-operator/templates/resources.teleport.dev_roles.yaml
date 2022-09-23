@@ -859,8 +859,14 @@ spec:
                       users what they aught to
                     type: string
                   require_session_mfa:
-                    description: RequireSessionMFA specifies whether a user is required
-                      to do an MFA check for every session.
+                    description: RequireMFAType is the type of MFA requirement enforced
+                      for this user.
+                    format: int32
+                    type: integer
+                  ssh_file_copy:
+                    description: SSHFileCopy indicates whether remote file operations
+                      via SCP or SFTP are allowed over an SSH session. It defaults
+                      to true unless explicitly set to false.
                     type: boolean
                 type: object
             type: object

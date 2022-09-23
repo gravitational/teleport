@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
@@ -191,11 +190,8 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       e.sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
 
+	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		e.sessionCtx.Database.GetProtocol(),
 		e.sessionCtx.DatabaseUser,

@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -191,11 +190,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
 
+	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		sessionCtx.Database.GetProtocol(),
 		sessionCtx.DatabaseUser,

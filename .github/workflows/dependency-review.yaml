@@ -1,0 +1,14 @@
+name: Dependency Review
+
+on:
+  push:
+    branches:
+      - master
+      - branch/*
+  pull_request:
+
+jobs:
+  dependency-review:
+    uses: gravitational/shared-workflows/.github/workflows/dependency-review.yaml@main
+    permissions:
+      contents: read
