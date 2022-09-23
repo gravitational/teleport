@@ -146,21 +146,30 @@ export default class MainProcess {
       return this.resolvedChildProcessAddresses;
     });
 
+    // the handler can remove a single kube config file or entire directory for given cluster
     ipcMain.handle(
       'main-process-remove-kube-config',
-      (_, kubeConfigName: string) => {
+      (
+        _,
+        options: {
+          relativePath: string;
+          isDirectory?: boolean;
+        }
+      ) => {
         const { kubeConfigsDir } = this.settings;
-        const filePath = path.join(kubeConfigsDir, kubeConfigName);
+        const filePath = path.join(kubeConfigsDir, options.relativePath);
         const isOutOfRoot = filePath.indexOf(kubeConfigsDir) !== 0;
 
         if (isOutOfRoot) {
           return Promise.reject('Invalid path');
         }
-        return fs.rm(filePath).catch(error => {
-          if (error.code !== 'ENOENT') {
-            throw error;
-          }
-        });
+        return fs
+          .rm(filePath, { recursive: !!options.isDirectory })
+          .catch(error => {
+            if (error.code !== 'ENOENT') {
+              throw error;
+            }
+          });
       }
     );
 

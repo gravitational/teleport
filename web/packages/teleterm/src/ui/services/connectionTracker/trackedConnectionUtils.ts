@@ -91,7 +91,7 @@ export function createKubeConnection(
     connected: document.status === 'connected',
     id: unique(),
     title: document.title,
-    kubeConfigName: document.kubeConfigName,
+    kubeConfigRelativePath: document.kubeConfigRelativePath,
     kubeUri: document.kubeUri,
   };
 }

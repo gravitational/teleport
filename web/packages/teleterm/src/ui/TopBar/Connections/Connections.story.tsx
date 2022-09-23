@@ -46,7 +46,7 @@ export function ExpanderConnections() {
     },
     async activateItem() {},
     async disconnectItem() {},
-    removeItem() {},
+    async removeItem() {},
     useState() {
       return null;
     },

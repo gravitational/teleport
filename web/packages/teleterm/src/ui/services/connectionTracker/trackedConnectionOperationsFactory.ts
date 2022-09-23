@@ -71,6 +71,7 @@ export class TrackedConnectionOperationsFactory {
             documentsService.close(document.uri);
           });
       },
+      remove: async () => {},
     };
   }
 
@@ -123,6 +124,7 @@ export class TrackedConnectionOperationsFactory {
               });
           });
       },
+      remove: async () => {},
     };
   }
 
@@ -151,7 +153,7 @@ export class TrackedConnectionOperationsFactory {
         if (!kubeConn) {
           kubeConn = documentsService.createTshKubeDocument({
             kubeUri: connection.kubeUri,
-            kubeConfigName: connection.kubeConfigName,
+            kubeConfigRelativePath: connection.kubeConfigRelativePath,
           });
 
           documentsService.add(kubeConn);
@@ -167,7 +169,9 @@ export class TrackedConnectionOperationsFactory {
           });
       },
       remove: () => {
-        this._clustersService.removeKubeConfig(connection.kubeConfigName);
+        return this._clustersService.removeKubeConfig(
+          connection.kubeConfigRelativePath
+        );
       },
     };
   }
@@ -203,5 +207,5 @@ interface TrackedConnectionOperations {
 
   disconnect(): Promise<void>;
 
-  remove?(): void;
+  remove(): Promise<void>;
 }

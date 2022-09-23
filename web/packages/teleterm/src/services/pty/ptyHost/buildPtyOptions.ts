@@ -87,7 +87,14 @@ function getPtyProcessOptions(
         ' ',
         isWindows ? '` ' : '\\ '
       );
-      const kubeLoginCommand = `${escapedBinaryPath} --proxy=${cmd.rootClusterId} kube login ${cmd.kubeId} --cluster=${cmd.clusterName}`;
+      const kubeLoginCommand = [
+        escapedBinaryPath,
+        `--proxy=${cmd.rootClusterId}`,
+        `kube login ${cmd.kubeId} --cluster=${cmd.clusterName}`,
+        settings.tshd.insecure && '--insecure',
+      ]
+        .filter(Boolean)
+        .join(' ');
       const bashCommandArgs = ['-c', `${kubeLoginCommand};$SHELL`];
       const powershellCommandArgs = ['-NoExit', '-c', kubeLoginCommand];
       return {
@@ -127,5 +134,5 @@ function getKubeConfigFilePath(
   command: TshKubeLoginCommand,
   settings: RuntimeSettings
 ): string {
-  return path.join(settings.kubeConfigsDir, command.kubeConfigName);
+  return path.join(settings.kubeConfigsDir, command.kubeConfigRelativePath);
 }

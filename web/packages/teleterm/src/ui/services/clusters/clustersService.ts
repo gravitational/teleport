@@ -61,9 +61,12 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 
   async logout(clusterUri: string) {
+    // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
     await this.syncClusterInfo(clusterUri);
     this.removeResources(clusterUri);
+    await this.removeCluster(clusterUri);
+    await this.removeClusterKubeConfigs(clusterUri);
   }
 
   async loginLocal(params: LoginLocalParams, abortSignal: tsh.TshAbortSignal) {
@@ -591,8 +594,20 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return await this.client.listDatabaseUsers(dbUri);
   }
 
-  async removeKubeConfig(kubeConfigName: string): Promise<void> {
-    return this.mainProcessClient.removeKubeConfig(kubeConfigName);
+  async removeClusterKubeConfigs(clusterUri: string): Promise<void> {
+    const {
+      params: { rootClusterId },
+    } = routing.parseClusterUri(clusterUri);
+    return this.mainProcessClient.removeKubeConfig({
+      relativePath: rootClusterId,
+      isDirectory: true,
+    });
+  }
+
+  async removeKubeConfig(kubeConfigRelativePath: string): Promise<void> {
+    return this.mainProcessClient.removeKubeConfig({
+      relativePath: kubeConfigRelativePath,
+    });
   }
 
   useState() {

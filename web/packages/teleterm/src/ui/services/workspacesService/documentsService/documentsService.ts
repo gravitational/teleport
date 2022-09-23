@@ -74,7 +74,12 @@ export class DocumentsService {
       leafClusterId: params.leafClusterId,
       kubeId: params.kubeId,
       kubeUri: options.kubeUri,
-      kubeConfigName: options.kubeConfigName || `${params.kubeId}-${unique(5)}`,
+      kubeConfigRelativePath:
+        options.kubeConfigRelativePath ||
+        // We prepend the name with `rootClusterId/` to create a kube config
+        // inside this directory. When the user logs out of the cluster,
+        // the entire directory is deleted.
+        `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
       title: params.kubeId,
     };
   }

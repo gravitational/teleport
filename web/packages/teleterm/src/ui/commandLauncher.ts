@@ -100,7 +100,8 @@ const commands = {
       ) as TrackedKubeConnection;
       documentsService.add({
         ...kubeDoc,
-        kubeConfigName: connection?.kubeConfigName || kubeDoc.kubeConfigName,
+        kubeConfigRelativePath:
+          connection?.kubeConfigRelativePath || kubeDoc.kubeConfigRelativePath,
       });
       documentsService.open(kubeDoc.uri);
     },

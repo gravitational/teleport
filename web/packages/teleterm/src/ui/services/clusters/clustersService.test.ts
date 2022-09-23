@@ -1,6 +1,7 @@
 import { tsh, SyncStatus } from 'teleterm/ui/services/clusters/types';
 
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { MainProcessClient } from 'teleterm/mainProcess/types';
 
 import { ClustersService } from './clustersService';
 
@@ -95,7 +96,9 @@ function createService(
 ): ClustersService {
   return new ClustersService(
     client as tsh.TshClient,
-    undefined,
+    {
+      removeKubeConfig: jest.fn().mockResolvedValueOnce(undefined),
+    } as unknown as MainProcessClient,
     notificationsService
   );
 }
@@ -206,9 +209,10 @@ test('login into cluster and sync resources', async () => {
 });
 
 test('logout from cluster and clean its resources', async () => {
-  const { logout } = getClientMocks();
+  const { logout, removeCluster } = getClientMocks();
   const service = createService({
     logout,
+    removeCluster,
     getCluster: () => Promise.resolve({ ...clusterMock, connected: false }),
   });
   service.setState(draftState => {
@@ -218,7 +222,7 @@ test('logout from cluster and clean its resources', async () => {
   await service.logout(clusterUri);
 
   expect(logout).toHaveBeenCalledWith(clusterUri);
-  expect(service.findCluster(clusterUri).connected).toBe(false);
+  expect(service.findCluster(clusterUri)).toBeUndefined();
   testIfClusterResourcesHaveBeenCleared(service);
 });
 
