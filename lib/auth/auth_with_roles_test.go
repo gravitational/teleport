@@ -35,6 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -54,7 +55,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -143,7 +144,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1041,7 +1042,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := native.GenerateKeyPair()
+			_, pub, err := testauthority.New().GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1139,7 +1140,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -2361,7 +2362,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 		req                *proto.IsMFARequiredRequest
 	}{
 		{
-			name:       "RequireSessionMFA enabled MySQL protocol doesn't match database name",
+			name:       "RequireSessionMFA on MySQL protocol doesn't match database name",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2375,7 +2376,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2385,7 +2386,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.True,
 		},
 		{
-			name:       "RequireSessionMFA disabled",
+			name:       "RequireSessionMFA off",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2399,7 +2400,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = false
+				roleOpt.RequireMFAType = types.RequireMFAType_OFF
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2409,7 +2410,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name doesn't match",
+			name:       "RequireSessionMFA on Postgres protocol database name doesn't match",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2423,7 +2424,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2433,7 +2434,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name matches",
+			name:       "RequireSessionMFA on Postgres protocol database name matches",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2447,7 +2448,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -3655,7 +3656,7 @@ func TestGenerateHostCert(t *testing.T) {
 
 	clusterName := srv.ClusterName()
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	noError := func(err error) bool {

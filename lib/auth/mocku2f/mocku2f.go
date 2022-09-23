@@ -22,7 +22,6 @@ package mocku2f
  */
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -30,16 +29,12 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
-	"github.com/tstranex/u2f"
 )
 
 // u2fRegistrationFlags is fixed by the U2F standard.
@@ -72,19 +67,6 @@ type Key struct {
 	AllowResidentKey bool
 
 	counter uint32
-}
-
-// The "websafe-base64 encoding" in the U2F specifications removes the padding
-func decodeBase64(s string) ([]byte, error) {
-	for i := 0; i < len(s)%4; i++ {
-		s += "="
-	}
-	return base64.URLEncoding.DecodeString(s)
-}
-
-func encodeBase64(buf []byte) string {
-	s := base64.URLEncoding.EncodeToString(buf)
-	return strings.TrimRight(s, "=")
 }
 
 func selfSignPublicKey(keyToSign *ecdsa.PublicKey) (cert []byte, err error) {
@@ -151,31 +133,6 @@ func (muk *Key) SetPasswordless() {
 	muk.SetUV = true                    // UV required for passwordless.
 }
 
-func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterResponse, error) {
-	appIDHash := sha256.Sum256([]byte(req.AppID))
-
-	clientData := u2f.ClientData{
-		Typ:       "navigator.id.finishEnrollment",
-		Challenge: req.Challenge,
-		Origin:    req.AppID,
-	}
-	clientDataJSON, err := json.Marshal(clientData)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clientDataHash := sha256.Sum256(clientDataJSON)
-
-	res, err := muk.signRegister(appIDHash[:], clientDataHash[:])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &u2f.RegisterResponse{
-		RegistrationData: encodeBase64(res.RawResp),
-		ClientData:       encodeBase64(clientDataJSON),
-	}, nil
-}
-
 // RegisterRaw signs low-level U2F registration data.
 // Most callers should use either RegisterResponse or SignCredentialCreation.
 func (muk *Key) RegisterRaw(appHash, challengeHash []byte) ([]byte, error) {
@@ -226,39 +183,6 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 	return &signRegisterResult{
 		RawResp:   regData,
 		Signature: sig,
-	}, nil
-}
-
-func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
-	rawKeyHandle, err := decodeBase64(req.KeyHandle)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !bytes.Equal(rawKeyHandle, muk.KeyHandle) {
-		return nil, trace.CompareFailed("wrong keyHandle")
-	}
-	appIDHash := sha256.Sum256([]byte(req.AppID))
-
-	clientData := u2f.ClientData{
-		Typ:       "navigator.id.getAssertion",
-		Challenge: req.Challenge,
-		Origin:    req.AppID,
-	}
-	clientDataJSON, err := json.Marshal(clientData)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clientDataHash := sha256.Sum256(clientDataJSON)
-
-	res, err := muk.signAuthn(appIDHash[:], clientDataHash[:])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &u2f.SignResponse{
-		KeyHandle:     req.KeyHandle,
-		SignatureData: encodeBase64(res.SignData),
-		ClientData:    encodeBase64(clientDataJSON),
 	}, nil
 }
 

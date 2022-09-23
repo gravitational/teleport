@@ -63,6 +63,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -480,7 +481,7 @@ func (a *Server) runPeriodicOperations() {
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
-		Jitter:   utils.NewSeventhJitter(),
+		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
 	missedKeepAliveCount := 0
@@ -502,7 +503,7 @@ func (a *Server) runPeriodicOperations() {
 	releaseCheck := interval.New(interval.Config{
 		Duration:      time.Hour * 24,
 		FirstDuration: firstReleaseCheck,
-		Jitter:        utils.NewFullJitter(),
+		Jitter:        retryutils.NewFullJitter(),
 	})
 	defer releaseCheck.Stop()
 	for {
@@ -3284,10 +3285,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		return nil, trace.Wrap(err)
 	}
 
-	if pref.GetRequireSessionMFA() {
-		// Cluster always requires MFA, regardless of roles.
+	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
+	case services.MFARequiredNever:
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
+
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:

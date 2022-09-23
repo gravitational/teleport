@@ -29,7 +29,6 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 
-	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 )
 
@@ -91,14 +90,6 @@ type Identity interface {
 
 	// GetPasswordHash returns the password hash for a given user
 	GetPasswordHash(user string) ([]byte, error)
-
-	// UpsertHOTP upserts HOTP state for user
-	// Deprecated: HOTP use is deprecated, use UpsertTOTP instead.
-	UpsertHOTP(user string, otp *hotp.HOTP) error
-
-	// GetHOTP gets HOTP token state for a user
-	// Deprecated: HOTP use is deprecated, use GetTOTP instead.
-	GetHOTP(user string) (*hotp.HOTP, error)
 
 	// UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
 	// during the 30 second window it's valid.

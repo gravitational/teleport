@@ -57,7 +57,9 @@ func TestExecKubeService(t *testing.T) {
 	testCtx := setupTestContext(
 		context.Background(),
 		t,
-		kubeClusterConfig{name: kubeCluster, apiEndpoint: kubeMock.URL},
+		testConfig{
+			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		},
 	)
 
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })

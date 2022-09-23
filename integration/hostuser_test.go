@@ -1,4 +1,3 @@
-// go:build linux
 //go:build linux
 // +build linux
 
@@ -29,7 +28,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cloudflare/cfssl/log"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -39,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const testuser = "teleport-testuser"
