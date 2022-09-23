@@ -406,6 +406,7 @@ exports[`render failed 1`] = `
               >
                 <div
                   class="c14"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -890,6 +891,7 @@ exports[`render loaded 1`] = `
               >
                 <div
                   class="c13"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1374,6 +1376,7 @@ exports[`render processing 1`] = `
               >
                 <div
                   class="c13"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1882,6 +1885,7 @@ exports[`render with token generated 1`] = `
               >
                 <div
                   class="c13"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -2002,6 +2006,7 @@ exports[`render with token generated 1`] = `
                 >
                   <div
                     class="c13"
+                    style="user-select: none;"
                   >
                     $
                   </div>

@@ -254,6 +254,7 @@ exports[`kube connect dialogue local 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -289,6 +290,7 @@ exports[`kube connect dialogue local 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -323,6 +325,7 @@ exports[`kube connect dialogue local 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -357,6 +360,7 @@ exports[`kube connect dialogue local 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -644,6 +648,7 @@ exports[`kube connect dialogue sso 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -679,6 +684,7 @@ exports[`kube connect dialogue sso 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -713,6 +719,7 @@ exports[`kube connect dialogue sso 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -747,6 +754,7 @@ exports[`kube connect dialogue sso 1`] = `
               >
                 <div
                   class="c11"
+                  style="user-select: none;"
                 >
                   $
                 </div>

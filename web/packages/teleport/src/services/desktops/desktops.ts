@@ -18,15 +18,17 @@ import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import { AgentResponse } from 'teleport/services/agents';
 
-import { Desktop } from './types';
-import makeDesktop from './makeDesktop';
+import { makeDesktop, makeDesktopService } from './makeDesktop';
+
+import type { Desktop, WindowsDesktopService } from './types';
 
 class DesktopService {
   fetchDesktops(
     clusterId: string,
-    params: UrlResourcesParams
+    params: UrlResourcesParams,
+    signal?: AbortSignal
   ): Promise<AgentResponse<Desktop>> {
-    return api.get(cfg.getDesktopsUrl(clusterId, params)).then(json => {
+    return api.get(cfg.getDesktopsUrl(clusterId, params), signal).then(json => {
       const items = json?.items || [];
 
       return {
@@ -35,6 +37,24 @@ class DesktopService {
         totalCount: json?.totalCount,
       };
     });
+  }
+
+  fetchDesktopServices(
+    clusterId: string,
+    params: UrlResourcesParams,
+    signal?: AbortSignal
+  ): Promise<AgentResponse<WindowsDesktopService>> {
+    return api
+      .get(cfg.getDesktopServicesUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
+
+        return {
+          agents: items.map(makeDesktopService),
+          startKey: json?.startKey,
+          totalCount: json?.totalCount,
+        };
+      });
   }
 
   fetchDesktop(clusterId: string, desktopPath: string) {

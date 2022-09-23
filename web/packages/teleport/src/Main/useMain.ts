@@ -14,17 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
 import { Feature } from 'teleport/types';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 
-export default function useMain(features: Feature[]) {
+import type { ClusterAlert } from 'teleport/services/alerts';
+
+export interface UseMainConfig {
+  features: Feature[];
+  customBanners?: React.ReactNode[];
+  initialAlerts?: ClusterAlert[];
+}
+
+export default function useMain(config: UseMainConfig) {
   const ctx = useTeleport();
   const { attempt, setAttempt, run } = useAttempt('processing');
-  const { alerts, dismissAlert } = useAlerts();
+  const { alerts, dismissAlert } = useAlerts(config.initialAlerts);
 
   useEffect(() => {
     // Two routes that uses this hook that can trigger this effect:
@@ -42,12 +50,12 @@ export default function useMain(features: Feature[]) {
       return;
     }
 
-    run(() => ctx.init(features));
+    run(() => ctx.init(config.features));
   }, []);
 
   return {
     alerts,
-    customBanners: [],
+    customBanners: config.customBanners || [],
     ctx,
     dismissAlert,
     status: attempt.status,

@@ -35,13 +35,39 @@ import { desktops } from 'teleport/Desktops/fixtures';
 import { userContext } from './fixtures';
 import { Main } from './Main';
 
+function createTeleportContext() {
+  const ctx = new Context();
+
+  // mock services
+  ctx.isEnterprise = false;
+  ctx.auditService.fetchEvents = () =>
+    Promise.resolve({ events, startKey: '' });
+  ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
+  ctx.nodeService.fetchNodes = () => Promise.resolve({ agents: nodes });
+  ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
+  ctx.appService.fetchApps = () => Promise.resolve({ agents: apps });
+  ctx.kubeService.fetchKubernetes = () => Promise.resolve({ agents: kubes });
+  ctx.databaseService.fetchDatabases = () =>
+    Promise.resolve({ agents: databases });
+  ctx.desktopService.fetchDesktops = () =>
+    Promise.resolve({ agents: desktops });
+  ctx.storeUser.setState(userContext);
+  getFeatures().forEach(f => f.register(ctx));
+
+  return ctx;
+}
+
 export function OSS() {
-  const state = useMainStory();
+  const history = createMemoryHistory({
+    initialEntries: ['/web/cluster/one/nodes'],
+  });
+  const ctx = createTeleportContext();
+
   return (
     <Flex my={-3} mx={-4}>
-      <ContextProvider ctx={state.ctx}>
-        <Router history={state.history}>
-          <Main customBanners={[]} {...state} />
+      <ContextProvider ctx={ctx}>
+        <Router history={history}>
+          <Main customBanners={[]} />
         </Router>
       </ContextProvider>
     </Flex>
@@ -53,43 +79,3 @@ OSS.storyName = 'Main';
 export default {
   title: 'Teleport/Main',
 };
-
-function useMainStory() {
-  const [history] = React.useState(() => {
-    return createMemoryHistory({
-      initialEntries: ['/web/cluster/one/nodes'],
-    });
-  });
-
-  const [ctx] = React.useState(() => {
-    const ctx = new Context();
-    // mock services
-    ctx.isEnterprise = false;
-    ctx.auditService.fetchEvents = () =>
-      Promise.resolve({ events, startKey: '' });
-    ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
-    ctx.nodeService.fetchNodes = () => Promise.resolve({ agents: nodes });
-    ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
-    ctx.appService.fetchApps = () => Promise.resolve({ agents: apps });
-    ctx.kubeService.fetchKubernetes = () => Promise.resolve({ agents: kubes });
-    ctx.databaseService.fetchDatabases = () =>
-      Promise.resolve({ agents: databases });
-    ctx.desktopService.fetchDesktops = () =>
-      Promise.resolve({ agents: desktops });
-    ctx.storeUser.setState(userContext);
-    getFeatures().forEach(f => f.register(ctx));
-    return ctx;
-  });
-
-  const status = 'success' as const;
-  const statusText = '';
-
-  return {
-    alerts: [],
-    history,
-    ctx,
-    dismissAlert: () => {},
-    status,
-    statusText,
-  };
-}

@@ -21,7 +21,7 @@ import { Router, Route, Switch } from 'teleport/components/Router';
 import CatchError from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
 
-import Main from './Main';
+import { Main } from './Main';
 import Welcome from './Welcome';
 import Login, { LoginSuccess, LoginFailed } from './Login';
 import AppLauncher from './AppLauncher';

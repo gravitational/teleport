@@ -259,6 +259,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
             >
               <div
                 class="c11"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -293,6 +294,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
             >
               <div
                 class="c11"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -327,6 +329,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
             >
               <div
                 class="c11"
+                style="user-select: none;"
               >
                 $
               </div>

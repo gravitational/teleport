@@ -1425,6 +1425,7 @@ exports[`render manual tab with local user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1459,6 +1460,7 @@ exports[`render manual tab with local user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1493,6 +1495,7 @@ exports[`render manual tab with local user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1527,6 +1530,7 @@ exports[`render manual tab with local user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1893,6 +1897,7 @@ exports[`render manual tab with sso user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1927,6 +1932,7 @@ exports[`render manual tab with sso user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1961,6 +1967,7 @@ exports[`render manual tab with sso user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -1995,6 +2002,7 @@ exports[`render manual tab with sso user 1`] = `
               >
                 <div
                   class="c15"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -2394,6 +2402,7 @@ exports[`render manual tab with token 1`] = `
               >
                 <div
                   class="c16"
+                  style="user-select: none;"
                 >
                   $
                 </div>
@@ -2438,6 +2447,7 @@ exports[`render manual tab with token 1`] = `
               >
                 <div
                   class="c16"
+                  style="user-select: none;"
                 >
                   $
                 </div>

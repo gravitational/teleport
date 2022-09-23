@@ -14,6 +14,4 @@
  * limitations under the License.
  */
 
-import Discover from './Discover';
-
-export { Discover };
+export { Discover } from './Discover';

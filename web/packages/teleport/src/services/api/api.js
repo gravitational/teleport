@@ -22,10 +22,11 @@ const api = {
     return api.fetchJson(url, { signal: abortSignal });
   },
 
-  post(url, data) {
+  post(url, data, abortSignal) {
     return api.fetchJson(url, {
       body: JSON.stringify(data),
       method: 'POST',
+      signal: abortSignal,
     });
   },
 

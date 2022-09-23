@@ -22,8 +22,9 @@ import { render, screen } from 'design/utils/testing';
 
 import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import { Access, Acl, makeUserContext } from 'teleport/services/user';
-
-import type { AgentKind } from '../useDiscover';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 const fullAccess: Access = {
   list: true,
@@ -75,28 +76,30 @@ const userContextJson = {
 };
 
 describe('select resource', () => {
-  function create(resource: AgentKind, userAcl: Acl) {
-    const userContext = makeUserContext({
+  function create(kind: ResourceKind, userAcl: Acl) {
+    const ctx = new TeleportContext();
+
+    ctx.storeUser.state = makeUserContext({
       ...userContextJson,
       userAcl,
     });
 
     return render(
       <MemoryRouter>
-        <SelectResource
-          userContext={userContext}
-          isEnterprise={false}
-          nextStep={() => null}
-          selectedResource={resource}
-          onSelectResource={() => null}
-        />
+        <TeleportContextProvider ctx={ctx}>
+          <SelectResource
+            selectedResourceKind={kind}
+            onSelect={() => null}
+            onNext={() => null}
+          />
+        </TeleportContextProvider>
       </MemoryRouter>
     );
   }
 
   describe('server', () => {
     test('shows permissions error when lacking tokens.create', () => {
-      create('server', {
+      create(ResourceKind.Server, {
         ...fullAcl,
         tokens: {
           ...fullAccess,
@@ -116,7 +119,7 @@ describe('select resource', () => {
     });
 
     test('shows permissions error when lacking nodes.list', () => {
-      create('server', {
+      create(ResourceKind.Server, {
         ...fullAcl,
         nodes: {
           ...fullAccess,
@@ -136,7 +139,7 @@ describe('select resource', () => {
     });
 
     test('shows the teleport versions when having correct permissions', () => {
-      create('server', fullAcl);
+      create(ResourceKind.Server, fullAcl);
 
       expect(
         screen.getByText(
@@ -149,7 +152,7 @@ describe('select resource', () => {
 
   describe('database', () => {
     test('shows permissions error when lacking tokens.create', () => {
-      create('database', {
+      create(ResourceKind.Database, {
         ...fullAcl,
         tokens: {
           ...fullAccess,
@@ -169,7 +172,7 @@ describe('select resource', () => {
     });
 
     test('shows permissions error when lacking dbServers.read', () => {
-      create('database', {
+      create(ResourceKind.Database, {
         ...fullAcl,
         dbServers: {
           ...fullAccess,
@@ -189,7 +192,7 @@ describe('select resource', () => {
     });
 
     test('has the proceed button enabled when having correct permissions', () => {
-      create('database', fullAcl);
+      create(ResourceKind.Database, fullAcl);
 
       expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
     });
@@ -197,7 +200,7 @@ describe('select resource', () => {
 
   describe('kubernetes', () => {
     test('shows permissions error when lacking tokens.create', () => {
-      create('kubernetes', {
+      create(ResourceKind.Kubernetes, {
         ...fullAcl,
         tokens: {
           ...fullAccess,
@@ -217,7 +220,7 @@ describe('select resource', () => {
     });
 
     test('shows permissions error when lacking kubeServers.read', () => {
-      create('kubernetes', {
+      create(ResourceKind.Kubernetes, {
         ...fullAcl,
         kubeServers: {
           ...fullAccess,
@@ -237,7 +240,7 @@ describe('select resource', () => {
     });
 
     test('has the proceed button enabled when having correct permissions', () => {
-      create('kubernetes', fullAcl);
+      create(ResourceKind.Kubernetes, fullAcl);
 
       expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
     });
@@ -245,7 +248,7 @@ describe('select resource', () => {
 
   describe('application', () => {
     test('shows permissions error when lacking tokens.create', () => {
-      create('application', {
+      create(ResourceKind.Application, {
         ...fullAcl,
         tokens: {
           ...fullAccess,
@@ -265,7 +268,7 @@ describe('select resource', () => {
     });
 
     test('shows permissions error when lacking appServers.read', () => {
-      create('application', {
+      create(ResourceKind.Application, {
         ...fullAcl,
         appServers: {
           ...fullAccess,
@@ -285,7 +288,7 @@ describe('select resource', () => {
     });
 
     test('has the proceed button enabled when having correct permissions', () => {
-      create('application', fullAcl);
+      create(ResourceKind.Application, fullAcl);
 
       expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
     });
@@ -293,7 +296,7 @@ describe('select resource', () => {
 
   describe('desktop', () => {
     test('shows permissions error when lacking tokens.create', () => {
-      create('desktop', {
+      create(ResourceKind.Desktop, {
         ...fullAcl,
         tokens: {
           ...fullAccess,
@@ -309,10 +312,11 @@ describe('select resource', () => {
           /Your Teleport Enterprise license does not include Desktop Access/
         )
       ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     });
 
     test('shows permissions error when lacking desktops.read', () => {
-      create('desktop', {
+      create(ResourceKind.Desktop, {
         ...fullAcl,
         desktops: {
           ...fullAccess,
@@ -328,13 +332,22 @@ describe('select resource', () => {
           /Your Teleport Enterprise license does not include Desktop Access/
         )
       ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     });
 
-    test('has the view documentation button visible', () => {
-      create('desktop', fullAcl);
+    test('has the proceed button enabled when having correct permissions', () => {
+      create(ResourceKind.Desktop, fullAcl);
+
+      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    });
+
+    test('has the Active Directory note visible when having correct permissions', () => {
+      create(ResourceKind.Desktop, fullAcl);
 
       expect(
-        screen.getByRole('link', { name: 'View Documentation' })
+        screen.getByText(
+          /Teleport Desktop Access currently only supports Windows Desktops managed by Active Directory \(AD\)/
+        )
       ).toBeInTheDocument();
     });
   });

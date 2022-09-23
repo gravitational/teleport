@@ -28,14 +28,19 @@ class JoinTokenService {
     joinMethod: JoinMethod = 'token',
     // rules is a list of allow rules associated with the join token
     // and the node using this token must match one of the rules.
-    rules: JoinRule[] = []
+    rules: JoinRule[] = [],
+    signal: AbortSignal = null
   ): Promise<JoinToken> {
     return api
-      .post(cfg.getJoinTokenUrl(), {
-        roles,
-        join_method: joinMethod,
-        allow: makeAllowField(rules),
-      })
+      .post(
+        cfg.getJoinTokenUrl(),
+        {
+          roles,
+          join_method: joinMethod,
+          allow: makeAllowField(rules),
+        },
+        signal
+      )
       .then(makeJoinToken);
   }
 }

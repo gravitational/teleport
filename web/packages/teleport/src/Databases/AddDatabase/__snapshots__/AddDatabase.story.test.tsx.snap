@@ -622,6 +622,7 @@ exports[`render with token 1`] = `
             >
               <div
                 class="c18"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -662,6 +663,7 @@ exports[`render with token 1`] = `
             >
               <div
                 class="c18"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1089,6 +1091,7 @@ exports[`render without token 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1123,6 +1126,7 @@ exports[`render without token 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1240,6 +1244,7 @@ exports[`render without token 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1274,6 +1279,7 @@ exports[`render without token 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1701,6 +1707,7 @@ exports[`render without token with SSO auth 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1735,6 +1742,7 @@ exports[`render without token with SSO auth 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1852,6 +1860,7 @@ exports[`render without token with SSO auth 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>
@@ -1886,6 +1895,7 @@ exports[`render without token with SSO auth 1`] = `
             >
               <div
                 class="c14"
+                style="user-select: none;"
               >
                 $
               </div>

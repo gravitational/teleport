@@ -35,6 +35,7 @@
     "@types/node": "^16.11.10",
     "@types/react": "^16.8.19",
     "@types/react-router-dom": "^4.3.3",
+    "@types/react-transition-group": "^4.4.5",
     "@types/webpack": "^5.28.0",
     "@types/webpack-dev-server": "^4.5.0",
     "@typescript-eslint/eslint-plugin": "^5.4.0",

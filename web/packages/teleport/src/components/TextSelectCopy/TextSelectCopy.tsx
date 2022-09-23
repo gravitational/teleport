@@ -23,6 +23,8 @@ import { useTheme } from 'styled-components';
 export default function TextSelectCopy({
   text,
   fontFamily,
+  allowMultiline,
+  onCopy,
   bash = true,
   ...styles
 }: Props) {
@@ -33,21 +35,23 @@ export default function TextSelectCopy({
   function onCopyClick() {
     copyToClipboard(text).then(() => setCopyCmd('Copied'));
     selectElementContent(ref.current);
+    onCopy && onCopy();
   }
 
-  const boxStyles = bash
-    ? {
-        overflow: 'auto',
-        whiteSpace: 'pre',
-        wordBreak: 'break-all',
-        fontSize: '12px',
-        fontFamily: font,
-      }
-    : {
-        wordBreak: 'break-all',
-        fontSize: '12px',
-        fontFamily: font,
-      };
+  const boxStyles =
+    bash && !allowMultiline
+      ? {
+          overflow: 'auto',
+          whiteSpace: 'pre',
+          wordBreak: 'break-all',
+          fontSize: '12px',
+          fontFamily: font,
+        }
+      : {
+          wordBreak: 'break-all',
+          fontSize: '12px',
+          fontFamily: font,
+        };
 
   return (
     <Flex
@@ -59,7 +63,7 @@ export default function TextSelectCopy({
       {...styles}
     >
       <Flex mr="2" style={boxStyles}>
-        {bash && <Box mr="1">{`$`}</Box>}
+        {bash && <Box mr="1" style={{ userSelect: 'none' }}>{`$`}</Box>}
         <div ref={ref}>{text}</div>
       </Flex>
       <ButtonPrimary
@@ -81,6 +85,8 @@ export default function TextSelectCopy({
 type Props = {
   text: string;
   bash?: boolean;
+  onCopy?: () => void;
+  allowMultiline?: boolean;
   // handles styles
   [key: string]: any;
 };

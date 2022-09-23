@@ -43,8 +43,8 @@ type DismissedAlert = {
   [alertName: string]: string;
 };
 
-export function useAlerts() {
-  const [alerts, setAlerts] = useState<ClusterAlert[]>([]);
+export function useAlerts(initialAlerts: ClusterAlert[] = []) {
+  const [alerts, setAlerts] = useState<ClusterAlert[]>(initialAlerts);
   const [dismissedAlerts, setDismissedAlerts] = useState<DismissedAlert[]>([]);
   const { clusterId } = useStickyClusterId();
 

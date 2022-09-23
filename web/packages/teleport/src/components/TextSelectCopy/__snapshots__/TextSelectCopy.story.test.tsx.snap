@@ -160,6 +160,7 @@ exports[`default, renders $ sign 1`] = `
     >
       <div
         class="c2"
+        style="user-select: none;"
       >
         $
       </div>
