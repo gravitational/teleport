@@ -77,7 +77,9 @@ const (
 )
 
 func buildContainerImagePipelines() []pipeline {
-	// These need to be updated on each major release.
+	// *************************************************************
+	// ****** These need to be updated on each major release. ******
+	// *************************************************************
 	latestMajorVersions := []string{"v10", "v9", "v8"}
 	branchMajorVersion := "v10"
 

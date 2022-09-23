@@ -12,7 +12,7 @@ This checklist is to be run after cutting a release.
 ### Major releases only
 
 - [ ] Update support matrix in docs FAQ page
-- [ ] Update `teleportVersions` and other previous versions in Dronegen `/dronegen/container_images.go cronBuildContainerImagePipelines` function
+- [ ] Update `teleportVersions` and other previous versions in Dronegen `/dronegen/container_images.go buildContainerImagePipelines` function
   - Example: https://github.com/gravitational/teleport/pull/4602
 - [ ] Create PR to update default Teleport image referenced in docker/teleport-quickstart.yml and docker/teleport-ent-quickstart.yml
   - Example: https://github.com/gravitational/teleport/pull/4655
