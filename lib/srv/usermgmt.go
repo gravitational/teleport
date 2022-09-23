@@ -134,7 +134,9 @@ type HostUserManagement struct {
 var _ HostUsers = &HostUserManagement{}
 
 // Under the section "Including other files from within sudoers":
-//           https://man7.org/linux/man-pages/man5/sudoers.5.html
+//
+//	https://man7.org/linux/man-pages/man5/sudoers.5.html
+//
 // '.', '~' and '/' will cause a file not to be read and these can be
 // included in a username, removing slash to avoid escaping a
 // directory

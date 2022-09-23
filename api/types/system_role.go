@@ -68,6 +68,8 @@ const (
 	// contexts such as multi-role certs where there is no particular system role that
 	// is "primary".
 	RoleInstance SystemRole = "Instance"
+	// RoleDiscovery is a role for discovery nodes in the cluster
+	RoleDiscovery SystemRole = "Discovery"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -91,6 +93,7 @@ var roleMappings = map[string]SystemRole{
 	"windows_desktop": RoleWindowsDesktop,
 	"bot":             RoleBot,
 	"instance":        RoleInstance,
+	"discovery":       RoleDiscovery,
 }
 
 // localServiceMappings is the subset of role mappings which happen to be true
@@ -104,6 +107,7 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleApp:            {},
 	RoleDatabase:       {},
 	RoleWindowsDesktop: {},
+	RoleDiscovery:      {},
 }
 
 // NewTeleportRoles return a list of teleport roles from slice of strings

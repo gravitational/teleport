@@ -2955,7 +2955,8 @@ message OneOf {
     events.KubernetesClusterCreate KubernetesClusterCreate = 96;
     events.KubernetesClusterUpdate KubernetesClusterUpdate = 97;
     events.KubernetesClusterDelete KubernetesClusterDelete = 98;
-    events.ElasticsearchRequest ElasticsearchRequest = 99;
+    events.SSMRun SSMRun = 99;
+    events.ElasticsearchRequest ElasticsearchRequest = 100;
   }
 }
 
@@ -3825,4 +3826,32 @@ message KubernetesClusterDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// SSMRun is emitted after an AWS SSM document completes execution.
+message SSMRun {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CommandID is the id of the SSM command that was run.
+  string CommandID = 2 [(gogoproto.jsontag) = "command_id"];
+
+  // InstanceID is the id of the EC2 instance the command was run on.
+  string InstanceID = 3 [(gogoproto.jsontag) = "instance_id"];
+
+  // ExitCode is the exit code resulting from the script run.
+  int64 ExitCode = 4 [(gogoproto.jsontag) = "exit_code"];
+
+  // Status represents the success or failure status of a script run.
+  string Status = 5 [(gogoproto.jsontag) = "status"];
+
+  // AccountID is the id of the AWS account that ran the command.
+  string AccountID = 6 [(gogoproto.jsontag) = "account_id"];
+
+  // Region is the AWS region the command was ran in.
+  string Region = 7 [(gogoproto.jsontag) = "region"];
 }
