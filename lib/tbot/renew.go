@@ -25,10 +25,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -40,8 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // generateKeys generates TLS and SSH keypairs.
@@ -674,7 +676,7 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
-	jitter := utils.NewJitter()
+	jitter := retryutils.NewJitter()
 	defer ticker.Stop()
 	for {
 		var err error

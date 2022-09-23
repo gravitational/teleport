@@ -691,6 +691,9 @@ type KubeConfig struct {
 	// CheckImpersonationPermissions is an optional override to the default
 	// impersonation permissions check, for use in testing.
 	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
+
+	// ResourceMatchers match dynamic kube_cluster resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // DatabasesConfig configures the database proxy service.
