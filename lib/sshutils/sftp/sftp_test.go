@@ -66,6 +66,20 @@ func TestUpload(t *testing.T) {
 			},
 		},
 		{
+			name: "one file to dir",
+			srcPaths: []string{
+				"file",
+			},
+			dstPath: "dst/",
+			opts: Options{
+				PreserveAttrs: true,
+			},
+			files: []string{
+				"file",
+				"dst/",
+			},
+		},
+		{
 			name: "one dir",
 			srcPaths: []string{
 				"src/",
@@ -342,16 +356,13 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 		}
 
 		// src is dir, compare dir trees
+		srcDir := filepath.Dir(src)
 		err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			// skip comparing the root src dir
-			if path == src {
-				return nil
-			}
 
-			relPath := strings.TrimPrefix(path, src)
+			relPath := strings.TrimPrefix(path, srcDir)
 			dstPath := filepath.Join(dst, relPath)
 			dstInfo, err := os.Stat(dstPath)
 			if err != nil {

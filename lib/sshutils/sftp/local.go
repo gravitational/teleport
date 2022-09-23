@@ -106,7 +106,7 @@ func (l *localFS) Mkdir(path string) error {
 
 	// the permissions used here are somewhat arbitrary, they should
 	// get modified after this is called
-	err := os.Mkdir(path, 0750)
+	err := os.MkdirAll(path, 0750)
 	if err != nil && !os.IsExist(err) {
 		return trace.ConvertSystemError(err)
 	}

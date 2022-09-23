@@ -163,25 +163,29 @@ func (c *Config) initFS(ctx context.Context, client *sftp.Client) {
 
 // transfer preforms file transfers
 func (c *Config) transfer(ctx context.Context) error {
-	// if there are multiple source paths, ensure the destination path
-	// is a directory
-	var dirMode bool
-	if len(c.srcPaths) > 1 {
-		fi, err := c.dstFS.Stat(c.dstPath)
-		if err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
-				return trace.Errorf("error accessing %s path %q: %v", c.dstFS.Type(), c.dstPath, err)
-			}
+	var dstIsDir bool
+	dstInfo, err := c.dstFS.Stat(c.dstPath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return trace.Errorf("error accessing %s path %q: %v", c.dstFS.Type(), c.dstPath, err)
+		}
+		// if there are multiple source paths and the destination path
+		// doesn't exist, create it as a directory
+		if len(c.srcPaths) > 1 {
 			if err := c.dstFS.Mkdir(c.dstPath); err != nil {
 				return trace.Wrap(err)
 			}
-		} else if !fi.IsDir() {
-			return trace.BadParameter("%s file %q is not a directory, but multiple source files were specified",
-				c.dstFS.Type(),
-				c.dstPath,
-			)
+			dstIsDir = true
 		}
-		dirMode = true
+	} else if len(c.srcPaths) > 1 && !dstInfo.IsDir() {
+		// if there are multiple source paths, ensure the destination path
+		// is a directory
+		return trace.BadParameter("%s file %q is not a directory, but multiple source files were specified",
+			c.dstFS.Type(),
+			c.dstPath,
+		)
+	} else if dstInfo.IsDir() {
+		dstIsDir = true
 	}
 
 	// get info of source files and ensure appropriate options were passed
@@ -202,7 +206,7 @@ func (c *Config) transfer(ctx context.Context) error {
 
 	for i, fi := range fileInfos {
 		dstPath := c.dstPath
-		if dirMode {
+		if dstIsDir || fi.IsDir() {
 			dstPath = path.Join(dstPath, fi.Name())
 		}
 

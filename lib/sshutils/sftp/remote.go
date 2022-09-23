@@ -99,7 +99,7 @@ func (r *remoteFS) Mkdir(path string) error {
 		return err
 	}
 
-	err := r.c.Mkdir(path)
+	err := r.c.MkdirAll(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
