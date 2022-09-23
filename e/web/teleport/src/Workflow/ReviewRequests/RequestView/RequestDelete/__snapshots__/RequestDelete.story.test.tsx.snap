@@ -370,6 +370,7 @@ exports[`approved role escalation 1`] = `
           >
             <div
               class="c16"
+              style="user-select: none;"
             >
               $
             </div>

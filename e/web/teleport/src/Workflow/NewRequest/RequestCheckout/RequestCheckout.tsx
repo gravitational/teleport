@@ -26,6 +26,8 @@ import shieldCheck from './shield-check.png';
 import { SelectReviewers } from './SelectReviewers';
 import { State, useRequestCheckout } from './useRequestCheckout';
 
+import type { TransitionStatus } from 'react-transition-group';
+
 type CreateOption = Option & {
   isDisabled?: boolean;
   isSelected?: boolean;
@@ -363,7 +365,7 @@ type Props = {
   toggleResource: NewRequestState['addOrRemoveResource'];
   addedResources: NewRequestState['addedResources'];
   reset: NewRequestState['clearAddedResources'];
-  transitionState: 'entering' | 'entered' | 'exiting' | 'exited';
+  transitionState: TransitionStatus;
 };
 
 export type RequestCheckoutProps = Omit<

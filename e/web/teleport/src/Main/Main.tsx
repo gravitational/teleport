@@ -1,24 +1,21 @@
-import React, { useMemo } from 'react';
-import useMain from 'teleport/Main/useMain';
+import React from 'react';
+
 import { Main } from 'teleport/Main/Main';
 
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import useTeleport from 'e-teleport/useTeleportE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
 
-import getFeatures from '../features';
-
 export default function Container() {
   const ctx = useTeleport();
-  const features = useMemo(() => getFeatures(), []);
-  const state = useMain(features);
   const { license } = useBanner();
 
-  // XXX In the near future the license warning will come over the same cluster
-  // alerts endpoint and this check along with the `useBanner` call can be
-  // removed.
+  // TODO(hatch): In the near future the license warning will come over the same cluster
+  //              alerts endpoint and this check along with the `useBanner` call can be
+  //              removed.
+  const initialAlerts = [];
   if (license) {
-    state.alerts.push({
+    initialAlerts.push({
       kind: 'license-warning',
       version: 'v1',
       metadata: {
@@ -34,12 +31,12 @@ export default function Container() {
     });
   }
 
-  let customBanners = [];
+  const customBanners = [];
   if (ctx.storeAccessRequests.getSessionExpiry()) {
     customBanners.push(
       <SwitchBack key="access-request-banner" data-testid="banner" />
     );
   }
 
-  return <Main {...state} customBanners={customBanners} />;
+  return <Main initialAlerts={initialAlerts} customBanners={customBanners} />;
 }
