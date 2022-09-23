@@ -782,7 +782,7 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 		delete(p.current, event.Resource.GetName())
 		select {
 		case <-ctx.Done():
-		case p.DatabasesC <- databasesToSlice(p.current):
+		case p.DatabasesC <- resourcesToSlice(p.current):
 		}
 	case types.OpPut:
 		database, ok := event.Resource.(types.Database)
@@ -793,7 +793,7 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 		p.current[database.GetName()] = database
 		select {
 		case <-ctx.Done():
-		case p.DatabasesC <- databasesToSlice(p.current):
+		case p.DatabasesC <- resourcesToSlice(p.current):
 		}
 
 	default:
@@ -803,13 +803,6 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 }
 
 func (*databaseCollector) notifyStale() {}
-
-func databasesToSlice(databases map[string]types.Database) (slice []types.Database) {
-	for _, database := range databases {
-		slice = append(slice, database)
-	}
-	return slice
-}
 
 // AppWatcherConfig is an AppWatcher configuration.
 type AppWatcherConfig struct {
@@ -918,11 +911,11 @@ func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event t
 	switch event.Type {
 	case types.OpDelete:
 		delete(p.current, event.Resource.GetName())
-		p.AppsC <- appsToSlice(p.current)
+		p.AppsC <- resourcesToSlice(p.current)
 
 		select {
 		case <-ctx.Done():
-		case p.AppsC <- appsToSlice(p.current):
+		case p.AppsC <- resourcesToSlice(p.current):
 		}
 
 	case types.OpPut:
@@ -935,7 +928,7 @@ func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event t
 
 		select {
 		case <-ctx.Done():
-		case p.AppsC <- appsToSlice(p.current):
+		case p.AppsC <- resourcesToSlice(p.current):
 		}
 	default:
 		p.Log.Warnf("Unsupported event type %s.", event.Type)
@@ -945,12 +938,147 @@ func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event t
 
 func (*appCollector) notifyStale() {}
 
-func appsToSlice(apps map[string]types.Application) (slice []types.Application) {
-	for _, app := range apps {
-		slice = append(slice, app)
+func resourcesToSlice[T any](resources map[string]T) (slice []T) {
+	for _, resource := range resources {
+		slice = append(slice, resource)
 	}
 	return slice
 }
+
+// KubeClusterWatcherConfig is an KubeClusterWatcher configuration.
+type KubeClusterWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// KubernetesGetter is responsible for fetching kube_cluster resources.
+	KubernetesGetter
+	// KubeClustersC receives up-to-date list of all kube_cluster resources.
+	KubeClustersC chan types.KubeClusters
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *KubeClusterWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.KubernetesGetter == nil {
+		getter, ok := cfg.Client.(KubernetesGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter KubernetesGetter and Client not usable as KubernetesGetter")
+		}
+		cfg.KubernetesGetter = getter
+	}
+	if cfg.KubeClustersC == nil {
+		cfg.KubeClustersC = make(chan types.KubeClusters)
+	}
+	return nil
+}
+
+// NewKubeClusterWatcher returns a new instance of KubeClusterWatcher.
+func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*KubeClusterWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &kubeCollector{
+		KubeClusterWatcherConfig: cfg,
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &KubeClusterWatcher{watcher, collector}, nil
+}
+
+// KubeClusterWatcher is built on top of resourceWatcher to monitor kube_cluster resources.
+type KubeClusterWatcher struct {
+	*resourceWatcher
+	*kubeCollector
+}
+
+// kubeCollector accompanies resourceWatcher when monitoring kube_cluster resources.
+type kubeCollector struct {
+	// KubeClusterWatcherConfig is the watcher configuration.
+	KubeClusterWatcherConfig
+	// current holds a map of the currently known kube_cluster resources.
+	current map[string]types.KubeCluster
+	// lock protects the "current" map.
+	lock sync.RWMutex
+	// initialized is used to check whether the initial sync has completed
+	initialized bool
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (k *kubeCollector) isInitialized() bool {
+	k.lock.RLock()
+	defer k.lock.RUnlock()
+	return k.initialized
+}
+
+// resourceKind specifies the resource kind to watch.
+func (k *kubeCollector) resourceKind() string {
+	return types.KindKubernetesCluster
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	clusters, err := k.KubernetesGetter.GetKubernetesClusters(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.KubeCluster, len(clusters))
+	for _, cluster := range clusters {
+		newCurrent[cluster.GetName()] = cluster
+	}
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	k.current = newCurrent
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case k.KubeClustersC <- clusters:
+	}
+	k.initialized = true
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (k *kubeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindKubernetesCluster {
+		k.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(k.current, event.Resource.GetName())
+		k.KubeClustersC <- resourcesToSlice(k.current)
+
+		select {
+		case <-ctx.Done():
+		case k.KubeClustersC <- resourcesToSlice(k.current):
+		}
+
+	case types.OpPut:
+		cluster, ok := event.Resource.(types.KubeCluster)
+		if !ok {
+			k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		k.current[cluster.GetName()] = cluster
+
+		select {
+		case <-ctx.Done():
+		case k.KubeClustersC <- resourcesToSlice(k.current):
+		}
+	default:
+		k.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*kubeCollector) notifyStale() {}
 
 // CertAuthorityWatcherConfig is a CertAuthorityWatcher configuration.
 type CertAuthorityWatcherConfig struct {
