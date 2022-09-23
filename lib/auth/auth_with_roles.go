@@ -1263,11 +1263,11 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
 	case types.Database:
 		return r.CheckAccess(rr, mfaParams)
+	case types.Server:
+		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktop:
 		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktopService:
-		return r.CheckAccess(rr, mfaParams)
-	case types.Server:
 		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
