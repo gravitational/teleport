@@ -59,8 +59,10 @@ const (
 	mssqlBin = "mssql-cli"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
-	// curlBin is the path to `curl`, which is used as Elasticsearch client.
+	// curlBin is the program name for `curl`, which is used as Elasticsearch client if other options are unavailable.
 	curlBin = "curl"
+	// elasticsearchSqlBin is the Elasticsearch SQL client program name.
+	elasticsearchSqlBin = "elasticsearch-sql-cli"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -343,6 +345,30 @@ func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 	return err == nil
 }
 
+// isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isElasticsearchSqlBinAvailable() bool {
+	_, err := c.options.exe.LookPath(elasticsearchSqlBin)
+	return err == nil
+}
+
+// findPythonBin attempts to find a Python interpreter binary.
+func (c *CLICommandBuilder) findPythonBin() (string, bool) {
+	names := []string{"python", "python3", "python2"}
+	for _, name := range names {
+		_, err := c.options.exe.LookPath(name)
+		if err == nil {
+			return name, true
+		}
+	}
+	return "", false
+}
+
+// checkPythonPackage verifies given Python package is available.
+func (c *CLICommandBuilder) checkPythonPackage(pythonBin string, pythonPackage string) bool {
+	_, err := c.options.exe.RunCommand(pythonBin, "-c", fmt.Sprintf("import %v", pythonPackage))
+	return err == nil
+}
+
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
 // true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
@@ -515,32 +541,103 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	return cmd
 }
 
+// pythonStringLiteral produces Python string literal, which may require escaping some characters.
+func pythonStringLiteral(lit string) string {
+	escaped := strings.Replace(lit, "'", "\\'", -1)
+	return "'''" + escaped + "'''"
+}
+
+// pythonKeywordArgs formats provided map as keyword arguments in a Python function call invocation.
+func pythonKeywordArgs(args map[string]string) string {
+	var els []string
+
+	for key, value := range args {
+		els = append(els, fmt.Sprintf(",%v=%v", key, value))
+	}
+
+	return strings.Join(els, " ")
+}
+
+// getElasticsearchCommand returns a command to connect to Elasticsearch.
+// - we default to `elasticsearch-sql-cli` if we can find it;
+// - a first fallback option is Python with `elasticsearch` package available;
+// - the last option is a `curl` command.
 func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
+	if c.isElasticsearchSqlBinAvailable() {
+		if c.options.noTLS {
+			return c.options.exe.Command(elasticsearchSqlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+		} else {
+			c.options.log.Warnf("%v is only supported in --tunnel mode, moving to next client.", elasticsearchSqlBin)
+		}
+	}
+
+	var curlCommand *exec.Cmd
+
 	if c.options.noTLS {
-		return c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+		curlCommand = c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	} else {
+		args := []string{
+			fmt.Sprintf("https://%v:%v/", c.host, c.port),
+			"--key", c.profile.KeyPath(),
+			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		}
+
+		if c.tc.InsecureSkipVerify {
+			args = append(args, "--insecure")
+		}
+
+		if c.options.caPath != "" {
+			args = append(args, []string{"--cacert", c.options.caPath}...)
+		}
+
+		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise HTTP2 can
+		// be negotiated which breaks the engine.
+		if c.options.localProxyHost == "" {
+			args = append(args, "--http1.1")
+		}
+
+		curlCommand = c.options.exe.Command(curlBin, args...)
 	}
 
-	args := []string{
-		fmt.Sprintf("https://%v:%v/", c.host, c.port),
-		"--key", c.profile.KeyPath(),
-		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+	if pythonBin, found := c.findPythonBin(); found {
+		if c.checkPythonPackage(pythonBin, "elasticsearch") {
+			kwArgs := map[string]string{}
+
+			var esHost string
+			if c.options.noTLS {
+				esHost = fmt.Sprintf("http://%v:%v/", c.host, c.port)
+			} else {
+				esHost = fmt.Sprintf("https://%v:%v/", c.host, c.port)
+				kwArgs["client_key"] = pythonStringLiteral(c.profile.KeyPath())
+				kwArgs["client_cert"] = pythonStringLiteral(c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
+
+				if c.options.caPath != "" {
+					kwArgs["ca_certs"] = pythonStringLiteral(c.options.caPath)
+				}
+				if c.tc.InsecureSkipVerify {
+					kwArgs["verify_certs"] = "False"
+				}
+			}
+
+			esPart := fmt.Sprintf("es = Elasticsearch(%v%v)", pythonStringLiteral(esHost), pythonKeywordArgs(kwArgs))
+			script := `
+from elasticsearch import Elasticsearch
+print("# To connect with curl:", %v)
+%v
+print("es =", es)
+print("es.search(): ", es.search())
+`
+
+			script = fmt.Sprintf(script, pythonStringLiteral(curlCommand.String()), esPart)
+			pythonCommand := c.options.exe.Command(pythonBin, "-i", "-c", script)
+
+			c.options.log.Debugf("Final Python invocation for Elasticsearch access: %v", pythonCommand.String())
+
+			return pythonCommand
+		}
 	}
 
-	if c.tc.InsecureSkipVerify {
-		args = append(args, "--insecure")
-	}
-
-	if c.options.caPath != "" {
-		args = append(args, []string{"--cacert", c.options.caPath}...)
-	}
-
-	// Force HTTP 1.1 when connecting to remote web proxy. Otherwise HTTP2 can
-	// be negotiated which breaks the engine.
-	if c.options.localProxyHost == "" {
-		args = append(args, "--http1.1")
-	}
-
-	return c.options.exe.Command(curlBin, args...)
+	return curlCommand
 }
 
 type connectionCommandOpts struct {

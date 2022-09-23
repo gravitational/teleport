@@ -514,6 +514,73 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd:          []string{"curl", "http://localhost:12345/"},
 			wantErr:      false,
 		},
+		{
+			name:       "elasticsearch no TLS, python client",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"python": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: []string{"python", "-i", "-c", `
+from elasticsearch import Elasticsearch
+print("# To connect with curl:", '''/usr/bin/curl http://localhost:12345/''')
+es = Elasticsearch('''http://localhost:12345/''')
+print("es =", es)
+print("es.search(): ", es.search())
+`},
+			wantErr: false,
+		},
+		{
+			name:       "elasticsearch with TLS, python client",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"python": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: []string{"python", "-i", "-c", `
+from elasticsearch import Elasticsearch
+print("# To connect with curl:", '''/usr/bin/curl https://localhost:12345/ --key /tmp/keys/example.com/bob --cert /tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem''')
+es = Elasticsearch('''https://localhost:12345/''',client_key='''/tmp/keys/example.com/bob''' ,client_cert='''/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem''')
+print("es =", es)
+print("es.search(): ", es.search())
+`},
+			wantErr: false,
+		},
+		{
+			name:       "elasticsearch no TLS, use elasticsearch-sql-cli",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"elasticsearch-sql-cli": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd:          []string{"elasticsearch-sql-cli", "http://localhost:12345/"},
+			wantErr:      false,
+		},
+		{
+			name:       "elasticsearch with proxy, don't use elasticsearch-sql-cli",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"elasticsearch-sql-cli": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: []string{"curl",
+				"https://localhost:12345/",
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -625,4 +692,66 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)
 	require.Equal(t, "psql postgres://myUser@localhost:12345/mydb", got.String())
+}
+
+func TestPythonStringLiteral(t *testing.T) {
+	tests := []struct {
+		name    string
+		arg     string
+		escaped string
+	}{
+		{
+			name:    "empty",
+			arg:     "",
+			escaped: "''''''",
+		},
+		{
+			name:    "a few words",
+			arg:     "foo bar baz",
+			escaped: "'''foo bar baz'''",
+		},
+		{
+			name:    "a string which needs escaping",
+			arg:     "foo 'bar' baz",
+			escaped: "'''foo \\'bar\\' baz'''",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.escaped, pythonStringLiteral(tt.arg))
+		})
+	}
+}
+
+func TestPythonKeywordArgs(t *testing.T) {
+	tests := []struct {
+		name string
+		args map[string]string
+		want string
+	}{
+		{
+			name: "empty",
+			args: nil,
+			want: "",
+		},
+		{
+			name: "single argument",
+			args: map[string]string{"foo": "False"},
+			want: ",foo=False",
+		},
+		{
+			name: "several arguments",
+			args: map[string]string{
+				"foo": "False",
+				"bar": "123",
+				"baz": "'''dummy'''",
+			},
+			want: ",foo=False ,bar=123 ,baz='''dummy'''",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, pythonKeywordArgs(tt.args))
+		})
+	}
 }
