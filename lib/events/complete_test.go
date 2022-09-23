@@ -150,9 +150,15 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			mu := NewMemoryUploader()
 			mu.Clock = clock
 			startTime := clock.Now().UTC()
+			endTime := startTime.Add(2 * time.Minute)
+
+			test.startEvent.SetTime(startTime)
 
 			log := &mockAuditLog{
-				sessionEvents: []apievents.AuditEvent{test.startEvent},
+				sessionEvents: []apievents.AuditEvent{
+					test.startEvent,
+					&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},
+				},
 			}
 
 			uc, err := NewUploadCompleter(UploadCompleterConfig{
@@ -178,7 +184,6 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			// advance the clock to force the asynchronous session end event emission
 			clock.BlockUntil(1)
 			clock.Advance(3 * time.Minute)
-			endTime := clock.Now().UTC()
 
 			// expect two events - a session end and a session upload
 			// the session end is done asynchronously, so wait for that

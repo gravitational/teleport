@@ -256,6 +256,17 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
+	// Make sure _all_ credentials in the session are accounted for by the user.
+	// webauthn.ValidateLogin requires it.
+	for _, allowedCred := range sessionData.AllowedCredentialIDs {
+		if bytes.Equal(parsedResp.RawID, allowedCred) {
+			continue
+		}
+		u.credentials = append(u.credentials, wan.Credential{
+			ID: allowedCred,
+		})
+	}
+
 	// Create a WebAuthn matching the expected RPID and Origin, then verify the
 	// signed challenge.
 	web, err := newWebAuthn(webAuthnParams{
