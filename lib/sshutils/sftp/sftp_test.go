@@ -332,7 +332,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 	}
 	// if dst is file, just compare src and dst files
 	if !dstInfo.IsDir() {
-		compareFiles(t, preserveAttrs, true, dstInfo, nil, dst, srcs[0])
+		compareFiles(t, preserveAttrs, dstInfo, nil, dst, srcs[0])
 		return
 	}
 
@@ -352,7 +352,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 			if dstSubInfo.IsDir() {
 				t.Fatalf("dst file is directory: %q", dstSubPath)
 			}
-			compareFiles(t, preserveAttrs, true, dstSubInfo, srcInfo, dstSubPath, src)
+			compareFiles(t, preserveAttrs, dstSubInfo, srcInfo, dstSubPath, src)
 			continue
 		}
 
@@ -373,11 +373,10 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 				t.Fatalf("expected %q IsDir=%t, got %t", dstPath, info.IsDir(), dstInfo.IsDir())
 			}
 
-			// don't check access times, filepath.Walk may have changed them
 			if dstInfo.IsDir() {
-				compareFileInfos(t, preserveAttrs, false, dstInfo, info, dstPath, path)
+				compareFileInfos(t, preserveAttrs, dstInfo, info, dstPath, path)
 			} else {
-				compareFiles(t, preserveAttrs, false, dstInfo, info, dstPath, path)
+				compareFiles(t, preserveAttrs, dstInfo, info, dstPath, path)
 			}
 
 			return nil
@@ -388,7 +387,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 	}
 }
 
-func compareFiles(t *testing.T, preserveAttrs, checkAtime bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
+func compareFiles(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
 	var err error
 	if srcInfo == nil {
 		srcInfo, err = os.Stat(src)
@@ -397,7 +396,7 @@ func compareFiles(t *testing.T, preserveAttrs, checkAtime bool, dstInfo, srcInfo
 		}
 	}
 
-	compareFileInfos(t, preserveAttrs, checkAtime, dstInfo, srcInfo, dst, src)
+	compareFileInfos(t, preserveAttrs, dstInfo, srcInfo, dst, src)
 
 	dstBytes, err := os.ReadFile(dst)
 	if err != nil {
@@ -412,7 +411,7 @@ func compareFiles(t *testing.T, preserveAttrs, checkAtime bool, dstInfo, srcInfo
 	}
 }
 
-func compareFileInfos(t *testing.T, preserveAttrs, checkAtime bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
+func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
 	if dstInfo.Size() != srcInfo.Size() {
 		t.Fatalf("%q and %q sizes not equal", dst, src)
 	}
@@ -424,8 +423,7 @@ func compareFileInfos(t *testing.T, preserveAttrs, checkAtime bool, dstInfo, src
 		if !dstInfo.ModTime().Equal(srcInfo.ModTime()) {
 			t.Errorf("%q and %q mod times not equal", dst, src)
 		}
-		if checkAtime && !getAtime(dstInfo).Equal(getAtime(srcInfo)) {
-			t.Errorf("%q and %q access times not equal", dst, src)
-		}
+		// don't check access times, locally they line up but they are
+		// often different when run in CI
 	}
 }
