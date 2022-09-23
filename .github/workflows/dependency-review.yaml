@@ -1,10 +1,6 @@
 name: Dependency Review
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
 
 jobs:
