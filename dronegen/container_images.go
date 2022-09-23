@@ -81,10 +81,6 @@ func buildContainerImagePipelines() []pipeline {
 	latestMajorVersions := []string{"v10", "v9", "v8"}
 	branchMajorVersion := "v10"
 
-	if len(latestMajorVersions) == 0 {
-		return []pipeline{}
-	}
-
 	triggers := []*TriggerInfo{
 		NewPromoteTrigger(branchMajorVersion),
 		NewCronTrigger(latestMajorVersions),
