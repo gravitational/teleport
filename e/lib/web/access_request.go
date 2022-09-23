@@ -10,11 +10,29 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
+
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 )
 
-func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+type getAccessRequestConfig struct {
+	clusterClientProvider web.ClusterClientProvider
+}
+
+func defaultGetAccessRequestConfig() *getAccessRequestConfig {
+	return &getAccessRequestConfig{}
+}
+
+type getAccessRequestOption func(cfg *getAccessRequestConfig)
+
+func withClusterClientProvider(clusterClientProvider web.ClusterClientProvider) getAccessRequestOption {
+	return func(cfg *getAccessRequestConfig) {
+		cfg.clusterClientProvider = clusterClientProvider
+	}
+}
+
+func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -25,10 +43,15 @@ func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return createAccessRequest(r.Context(), clt, *req, ctx.GetUser())
+	return createAccessRequest(r.Context(), clt, *req, ctx.GetUser(), withClusterClientProvider(clusterClientProvider))
 }
 
-func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, request accessRequestParameters, user string) (*ui.AccessRequest, error) {
+func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, request accessRequestParameters, user string, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
+	cfg := defaultGetAccessRequestConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	var err error
 	var req types.AccessRequest
 
@@ -67,10 +90,10 @@ func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reques
 		return nil, trace.Wrap(err)
 	}
 
-	return getAccessRequest(ctx, clt, req.GetMetadata().Name)
+	return getAccessRequest(ctx, clt, req.GetMetadata().Name, opts...)
 }
 
-func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -78,10 +101,15 @@ func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, 
 
 	requestID := params.ByName("requestId")
 
-	return getAccessRequest(r.Context(), clt, requestID)
+	return getAccessRequest(r.Context(), clt, requestID, withClusterClientProvider(clusterClientProvider))
 }
 
-func getAccessRequest(ctx context.Context, clt accessRequestAPIGetter, requestID string) (*ui.AccessRequest, error) {
+func getAccessRequest(ctx context.Context, clt accessRequestAPIGetter, requestID string, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
+	cfg := defaultGetAccessRequestConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	if requestID == "" {
 		return nil, trace.BadParameter("missing request id")
 	}
@@ -98,8 +126,74 @@ func getAccessRequest(ctx context.Context, clt accessRequestAPIGetter, requestID
 	if len(reqs) < 1 {
 		return nil, trace.NotFound("access request %q not found", requestID)
 	}
+	req := reqs[0]
 
-	return ui.NewAccessRequest(reqs[0])
+	resourceDetails, err := getResourceDetails(ctx, req, cfg)
+	if err != nil {
+		// This error is unexpected, but we don't want to break the API filling
+		// in optional details
+		logrus.WithError(err).Info("Unexpected error in getAccessRequest while fetching resource details")
+		return ui.NewAccessRequest(req)
+	}
+
+	return ui.NewAccessRequest(req, ui.WithResourceDetails(resourceDetails))
+}
+
+// getResourceDetails returns a map of resource details keyed by the string
+// form of the resourceID created by types.ResourceIDToString
+func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAccessRequestConfig) (map[string]ui.ResourceDetails, error) {
+	if cfg.clusterClientProvider == nil {
+		// We have no way to get resource details, but this is not an error.
+		// Some APIs (the list endpoint) do not need details. A nil map is a
+		// valid result which will return empty details (the default value) for
+		// all keys.
+		return nil, nil
+	}
+
+	resourceIDsByCluster := make(map[string][]types.ResourceID)
+	for _, resourceID := range req.GetRequestedResourceIDs() {
+		if resourceID.Kind != types.KindNode {
+			// The only detail we want, for now, is the server hostname, so we
+			// can skip all other resource kinds as a minor optimization.
+			continue
+		}
+		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
+	}
+
+	resourceDetails := make(map[string]ui.ResourceDetails)
+	for clusterName, resourceIDs := range resourceIDsByCluster {
+		clt, err := cfg.clusterClientProvider.UserClientForCluster(clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources, err := services.GetResourcesByResourceIDs(ctx, clt, resourceIDs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			hostname := ""
+			if r, ok := resource.(interface{ GetHostname() string }); ok {
+				hostname = r.GetHostname()
+			} else {
+				// The only detail we want, for now, is the server hostname.
+				continue
+			}
+
+			id := types.ResourceID{
+				ClusterName: clusterName,
+				Kind:        resource.GetKind(),
+				Name:        resource.GetName(),
+			}
+			key := types.ResourceIDToString(id)
+			resourceDetails[key] = ui.ResourceDetails{
+				Hostname: hostname,
+			}
+		}
+	}
+
+	return resourceDetails, nil
 }
 
 func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
@@ -136,7 +230,7 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestAPIGett
 	return uiReqs, nil
 }
 
-func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,10 +241,15 @@ func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return reviewAccessRequest(r.Context(), clt, *req)
+	return reviewAccessRequest(r.Context(), clt, *req, withClusterClientProvider(clusterClientProvider))
 }
 
-func reviewAccessRequest(ctx context.Context, clt accessRequestAPIGetter, review accessRequestParameters) (*ui.AccessRequest, error) {
+func reviewAccessRequest(ctx context.Context, clt accessRequestAPIGetter, review accessRequestParameters, opts ...getAccessRequestOption) (*ui.AccessRequest, error) {
+	cfg := defaultGetAccessRequestConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	var reviewState types.RequestState
 	if err := reviewState.Parse(review.State); err != nil {
 		return nil, trace.Wrap(err)
@@ -176,7 +275,15 @@ func reviewAccessRequest(ctx context.Context, clt accessRequestAPIGetter, review
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewAccessRequest(updatedRequest)
+	resourceDetails, err := getResourceDetails(ctx, updatedRequest, cfg)
+	if err != nil {
+		// This error is unexpected, but we don't want to break the API filling
+		// in optional details
+		logrus.WithError(err).Info("Unexpected error in reviewAccessRequest while fetching resource details")
+		return ui.NewAccessRequest(updatedRequest)
+	}
+
+	return ui.NewAccessRequest(updatedRequest, ui.WithResourceDetails(resourceDetails))
 }
 
 func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {

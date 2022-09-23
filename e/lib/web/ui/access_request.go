@@ -32,6 +32,11 @@ type AccessRequest struct {
 	SuggestedReviewers []string `json:"suggestedReviewers"`
 	// ThresholdNames is a list of threshold names.
 	ThresholdNames []string `json:"thresholdNames"`
+	// Resources is the list of resources for a Resource Access Request
+	Resources []Resource `json:"resources"`
+
+	// TODO(nic): delete this after webassets are updated to not read
+	// ResourceIDs
 	// ResourceID is a unique identifier for a teleport resource.
 	ResourceIDs []ResourceID `json:"resourceIds"`
 }
@@ -50,14 +55,44 @@ type AccessRequestReview struct {
 	Created time.Time `json:"created"`
 }
 
+type Resource struct {
+	ID      ResourceID      `json:"id"`
+	Details ResourceDetails `json:"details"`
+}
+
 type ResourceID struct {
 	Kind        string `json:"kind"`
 	Name        string `json:"name"`
 	ClusterName string `json:"clusterName"`
 }
 
+type ResourceDetails struct {
+	Hostname string `json:"hostname"`
+}
+
+type NewAccessRequestConfig struct {
+	resourceDetails map[string]ResourceDetails
+}
+
+func defaultNewAccessRequestConfig() *NewAccessRequestConfig {
+	return &NewAccessRequestConfig{}
+}
+
+type NewAccessRequestOption func(*NewAccessRequestConfig)
+
+func WithResourceDetails(resourceDetails map[string]ResourceDetails) NewAccessRequestOption {
+	return func(cfg *NewAccessRequestConfig) {
+		cfg.resourceDetails = resourceDetails
+	}
+}
+
 // NewAccessRequest creates a UI access request object.
-func NewAccessRequest(request types.AccessRequest) (*AccessRequest, error) {
+func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOption) (*AccessRequest, error) {
+	cfg := defaultNewAccessRequestConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	if request == nil {
 		return nil, trace.BadParameter("nil request")
 	}
@@ -80,13 +115,30 @@ func NewAccessRequest(request types.AccessRequest) (*AccessRequest, error) {
 		}
 	}
 
-	requestedResourceIDs := make([]ResourceID, 0, len(request.GetRequestedResourceIDs()))
-	for _, r := range request.GetRequestedResourceIDs() {
-		requestedResourceIDs = append(requestedResourceIDs, ResourceID{
+	requestedResourceIDs := request.GetRequestedResourceIDs()
+	resources := make([]Resource, len(requestedResourceIDs))
+	for i, r := range requestedResourceIDs {
+		resources[i] = Resource{
+			ID: ResourceID{
+				ClusterName: r.ClusterName,
+				Kind:        r.Kind,
+				Name:        r.Name,
+			},
+			// If there are no details for this resource, the map lookup returns
+			// the default value which is empty details
+			Details: cfg.resourceDetails[types.ResourceIDToString(r)],
+		}
+	}
+
+	// TODO(nic): delete this after webassets are updated to not read
+	// ResourceIDs
+	resourceIDs := make([]ResourceID, len(requestedResourceIDs))
+	for i, r := range request.GetRequestedResourceIDs() {
+		resourceIDs[i] = ResourceID{
 			ClusterName: r.ClusterName,
 			Kind:        r.Kind,
 			Name:        r.Name,
-		})
+		}
 	}
 
 	return &AccessRequest{
@@ -101,7 +153,10 @@ func NewAccessRequest(request types.AccessRequest) (*AccessRequest, error) {
 		Reviews:            reviews,
 		SuggestedReviewers: request.GetSuggestedReviewers(),
 		ThresholdNames:     thresholdNames,
-		ResourceIDs:        requestedResourceIDs,
+		Resources:          resources,
+		// TODO(nic): delete this after webassets are updated to not read
+		// ResourceIDs
+		ResourceIDs: resourceIDs,
 	}, nil
 }
 

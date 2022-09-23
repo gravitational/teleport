@@ -4,9 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -74,32 +77,288 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 	require.Equal(t, req.State, types.RequestState_PENDING.String())
 }
 
+type mockAuthClient struct {
+	auth.ClientI
+	resources []types.ResourceWithLabels
+}
+
+func (m *mockAuthClient) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	return &types.ListResourcesResponse{
+		Resources: m.resources,
+	}, nil
+}
+
+type mockClusterClientProvider struct {
+	resourcesByCluster map[string][]types.ResourceWithLabels
+}
+
+func (m *mockClusterClientProvider) UserClientForCluster(clusterName string) (auth.ClientI, error) {
+	return &mockAuthClient{
+		resources: m.resourcesByCluster[clusterName],
+	}, nil
+}
+
+type mockResource struct {
+	types.ResourceWithLabels
+	kind, name string
+}
+
+func (m *mockResource) GetKind() string {
+	return m.kind
+}
+
+func (m *mockResource) GetName() string {
+	return m.name
+}
+
+type mockResourceWithHostname struct {
+	mockResource
+	hostname string
+}
+
+func (m *mockResourceWithHostname) GetHostname() string {
+	return m.hostname
+}
+
 func TestGetAccessRequest(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	m := &mockedAccessRequestAPIGetter{}
 
-	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-		require.Equal(t, filter.ID, "1234")
+	noRequestID := ""
+	wrongRequestID := "asdf"
 
-		req, err := services.NewAccessRequest("foo", []string{"*"}...)
-		require.Nil(t, err)
-		return []types.AccessRequest{req}, nil
+	for _, tc := range []struct {
+		desc               string
+		requestedRoles     []string
+		requestedResources []types.ResourceID
+		requestIDOverride  *string
+		resourcesByCluster map[string][]types.ResourceWithLabels
+		expectError        bool
+		resultAssertion    func(*testing.T, *ui.AccessRequest)
+	}{
+		{
+			desc:           "basic",
+			requestedRoles: []string{"*"},
+		},
+		{
+			desc:              "empty request ID",
+			requestedRoles:    []string{"*"},
+			requestIDOverride: &noRequestID,
+			expectError:       true,
+		},
+		{
+			desc:              "no such request",
+			requestedRoles:    []string{"*"},
+			requestIDOverride: &wrongRequestID,
+			expectError:       true,
+		},
+		{
+			desc: "with requested node",
+			requestedResources: []types.ResourceID{{
+				ClusterName: "test-cluster",
+				Kind:        types.KindNode,
+				Name:        "test-node",
+			}},
+			resourcesByCluster: map[string][]types.ResourceWithLabels{
+				"test-cluster": {
+					&mockResourceWithHostname{
+						mockResource: mockResource{
+							kind: types.KindNode,
+							name: "test-node",
+						},
+						hostname: "test-hostname",
+					},
+				},
+			},
+			resultAssertion: func(t *testing.T, res *ui.AccessRequest) {
+				require.Len(t, res.Resources, 1)
+				require.Equal(t, "test-hostname", res.Resources[0].Details.Hostname)
+			},
+		},
+		{
+			// Tests the case where requested resources are in multiple
+			// different clusters.
+			desc: "multiple clusters",
+			requestedResources: []types.ResourceID{
+				{
+					ClusterName: "test-cluster-1",
+					Kind:        types.KindNode,
+					Name:        "test-node-1",
+				},
+				{
+					ClusterName: "test-cluster-2",
+					Kind:        types.KindNode,
+					Name:        "test-node-2",
+				},
+			},
+			resourcesByCluster: map[string][]types.ResourceWithLabels{
+				"test-cluster-1": {
+					&mockResourceWithHostname{
+						mockResource: mockResource{
+							kind: types.KindNode,
+							name: "test-node-1",
+						},
+						hostname: "test-hostname-1",
+					},
+				},
+				"test-cluster-2": {
+					&mockResourceWithHostname{
+						mockResource: mockResource{
+							kind: types.KindNode,
+							name: "test-node-2",
+						},
+						hostname: "test-hostname-2",
+					},
+				},
+			},
+			resultAssertion: func(t *testing.T, res *ui.AccessRequest) {
+				require.Len(t, res.Resources, 2)
+				require.Equal(t, "test-node-1", res.Resources[0].ID.Name)
+				require.Equal(t, "test-hostname-1", res.Resources[0].Details.Hostname)
+				require.Equal(t, "test-node-2", res.Resources[1].ID.Name)
+				require.Equal(t, "test-hostname-2", res.Resources[1].Details.Hostname)
+			},
+		},
+		{
+			// Tests the case where the reviewer does not have permission to
+			// list one of the resources.
+			desc: "missing resource",
+			requestedResources: []types.ResourceID{
+				{
+					ClusterName: "test-cluster-1",
+					Kind:        types.KindNode,
+					Name:        "test-node-1",
+				},
+				{
+					ClusterName: "test-cluster-2",
+					Kind:        types.KindNode,
+					Name:        "test-node-2",
+				},
+			},
+			resourcesByCluster: map[string][]types.ResourceWithLabels{
+				"test-cluster-1": {
+					&mockResourceWithHostname{
+						mockResource: mockResource{
+							kind: types.KindNode,
+							name: "test-node-1",
+						},
+						hostname: "test-hostname-1",
+					},
+				},
+			},
+			resultAssertion: func(t *testing.T, res *ui.AccessRequest) {
+				require.Len(t, res.Resources, 2)
+				require.Equal(t, "test-node-1", res.Resources[0].ID.Name)
+				require.Equal(t, "test-hostname-1", res.Resources[0].Details.Hostname)
+
+				// test-node-2 should be included but the hostname should be missing
+				require.Equal(t, "test-node-2", res.Resources[1].ID.Name)
+				require.Equal(t, "", res.Resources[1].Details.Hostname)
+			},
+		},
+		{
+			// Tests the case where requested resources are of multiple
+			// different kinds
+			desc: "multiple resource kinds",
+			requestedResources: []types.ResourceID{
+				{
+					ClusterName: "test-cluster-1",
+					Kind:        types.KindNode,
+					Name:        "test-node-1",
+				},
+				{
+					ClusterName: "test-cluster-1",
+					Kind:        types.KindApp,
+					Name:        "test-app-1",
+				},
+				{
+					ClusterName: "test-cluster-1",
+					Kind:        types.KindKubernetesCluster,
+					Name:        "test-kube-1",
+				},
+			},
+			resourcesByCluster: map[string][]types.ResourceWithLabels{
+				"test-cluster-1": {
+					&mockResourceWithHostname{
+						mockResource: mockResource{
+							kind: types.KindNode,
+							name: "test-node-1",
+						},
+						hostname: "test-hostname-1",
+					},
+					&mockResource{
+						kind: types.KindApp,
+						name: "test-app-1",
+					},
+					&mockResource{
+						kind: types.KindKubernetesCluster,
+						name: "test-kube-1",
+					},
+				},
+			},
+			resultAssertion: func(t *testing.T, req *ui.AccessRequest) {
+				// Node should have a hostname, others shouldn't
+				require.Len(t, req.Resources, 3)
+				require.Equal(t, "test-node-1", req.Resources[0].ID.Name)
+				require.Equal(t, "test-hostname-1", req.Resources[0].Details.Hostname)
+				require.Equal(t, "test-app-1", req.Resources[1].ID.Name)
+				require.Equal(t, "", req.Resources[1].Details.Hostname)
+				require.Equal(t, "test-kube-1", req.Resources[2].ID.Name)
+				require.Equal(t, "", req.Resources[2].Details.Hostname)
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req, err := services.NewAccessRequestWithResources("alice", tc.requestedRoles, tc.requestedResources)
+			require.NoError(t, err)
+
+			m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+				if filter.ID == req.GetName() {
+					return []types.AccessRequest{req}, nil
+				}
+				return nil, trace.NotFound("no such access request")
+			}
+
+			clusterClientProvider := &mockClusterClientProvider{
+				resourcesByCluster: tc.resourcesByCluster,
+			}
+
+			requestID := req.GetName()
+			if tc.requestIDOverride != nil {
+				requestID = *tc.requestIDOverride
+			}
+
+			result, err := getAccessRequest(ctx, m, requestID, withClusterClientProvider(clusterClientProvider))
+			if tc.expectError {
+				require.Error(t, err)
+				require.Nil(t, result)
+				return
+			}
+			require.NoError(t, err)
+
+			require.Equal(t, req.GetName(), result.ID)
+			require.Equal(t, "alice", result.User)
+
+			require.Len(t, result.Resources, len(tc.requestedResources))
+			for i := range tc.requestedResources {
+				require.Equal(t, tc.requestedResources[i].ClusterName, result.Resources[i].ID.ClusterName)
+				require.Equal(t, tc.requestedResources[i].Kind, result.Resources[i].ID.Kind)
+				require.Equal(t, tc.requestedResources[i].Name, result.Resources[i].ID.Name)
+
+				// TODO(nic): delete this after webassets are updated to not
+				// read result.ResourceIDs
+				require.Equal(t, tc.requestedResources[i].ClusterName, result.ResourceIDs[i].ClusterName)
+				require.Equal(t, tc.requestedResources[i].Kind, result.ResourceIDs[i].Kind)
+				require.Equal(t, tc.requestedResources[i].Name, result.ResourceIDs[i].Name)
+			}
+
+			if tc.resultAssertion != nil {
+				tc.resultAssertion(t, result)
+			}
+		})
 	}
-
-	_, err := getAccessRequest(context.Background(), m, "1234")
-	require.Nil(t, err)
-
-	// Test empty request id.
-	req, err := getAccessRequest(context.Background(), m, "")
-	require.Nil(t, req)
-	require.True(t, trace.IsBadParameter(err))
-
-	// Test no request found.
-	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-		return []types.AccessRequest{}, nil
-	}
-	req, err = getAccessRequest(context.Background(), m, "1234")
-	require.Nil(t, req)
-	require.True(t, trace.IsNotFound(err))
 }
 
 func TestGetAccessRequests(t *testing.T) {
