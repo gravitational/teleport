@@ -642,8 +642,9 @@ func TestAppServersHA(t *testing.T) {
 		appServers     []*service.TeleportProcess
 	}
 	testCases := map[string]struct {
-		packInfo        func(pack *pack) packInfo
-		startAppServers func(pack *pack, count int) []*service.TeleportProcess
+		packInfo          func(pack *pack) packInfo
+		startAppServers   func(pack *pack, count int) []*service.TeleportProcess
+		waitForTunnelConn func(t *testing.T, pack *pack, count int)
 	}{
 		"RootServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -657,6 +658,9 @@ func TestAppServersHA(t *testing.T) {
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startRootAppServers(t, count, []service.App{})
 			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
+			},
 		},
 		"LeafServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -669,6 +673,9 @@ func TestAppServersHA(t *testing.T) {
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startLeafAppServers(t, count, []service.App{})
+			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
 			},
 		},
 	}
@@ -707,7 +714,6 @@ func TestAppServersHA(t *testing.T) {
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
 			info := test.packInfo(pack)
 			httpCookie := pack.createAppSession(t, info.publicHTTPAddr, info.clusterName)
 			wsCookie := pack.createAppSession(t, info.publicWSAddr, info.clusterName)
@@ -728,12 +734,14 @@ func TestAppServersHA(t *testing.T) {
 				}
 			}
 
-			servers := test.startAppServers(pack, 3)
+			servers := test.startAppServers(pack, 1)
+			test.waitForTunnelConn(t, pack, 1)
 			makeRequests(t, pack, httpCookie, wsCookie, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
 			test.startAppServers(pack, 1)
+			test.waitForTunnelConn(t, pack, 2)
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
 
