@@ -811,10 +811,22 @@ func selectDevice(
 			log.WithError(err).Tracef("FIDO2: Device cancel")
 		}
 	}
+
+	// Do not wait for cancels forever.
+	// A device that ignores/fails Cancel will lock the program.
+	timer := time.NewTimer(1 * time.Second)
+	defer timer.Stop()
+
 	for i := 0; i < numGoroutines; i++ {
-		cancelResp := <-respC
-		if err := cancelResp.err; err != nil && !errors.Is(err, libfido2.ErrKeepaliveCancel) {
-			log.WithError(err).Debugf("FIDO2: Device errored on cancel")
+		select {
+		case cancelResp := <-respC:
+			if err := cancelResp.err; err != nil && !errors.Is(err, libfido2.ErrKeepaliveCancel) {
+				log.WithError(err).Debugf("FIDO2: Device errored on cancel")
+			}
+		case <-timer.C:
+			log.Warnf("FIDO2: " +
+				"Timed out waiting for device cancels. " +
+				"It's possible some devices are left blinking.")
 		}
 	}
 
