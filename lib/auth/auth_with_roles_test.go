@@ -3068,16 +3068,6 @@ func TestListNodesBuiltinRole(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestRemoteBuiltin(types.RoleProxy, "remote").I))
-	require.NoError(t, err)
-
-	s := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
-		alog:       srv.AuditLog,
-		context:    *authContext,
-	}
-
 	for i := 0; i < 3; i++ {
 		node, err := types.NewServer(fmt.Sprintf("node-%v", i), types.KindNode, types.ServerSpecV2{
 			Addr:     fmt.Sprintf("192.168.1.%v", i),
@@ -3088,12 +3078,30 @@ func TestListNodesBuiltinRole(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	res, err := s.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Limit:        10,
-	})
-	require.NoError(t, err)
-	require.Len(t, res.Resources, 3)
+	identities := []TestIdentity{
+		TestBuiltin(types.RoleAdmin),
+		TestBuiltin(types.RoleProxy),
+		TestRemoteBuiltin(types.RoleProxy, "remote"),
+	}
+
+	for _, ident := range identities {
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, ident.I))
+		require.NoError(t, err)
+
+		s := &ServerWithRoles{
+			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
+			alog:       srv.AuditLog,
+			context:    *authContext,
+		}
+
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 3)
+	}
 }
 
 func TestDeleteUserAppSessions(t *testing.T) {
