@@ -214,7 +214,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 			} else if trace.IsAccessDenied(err) {
 				// don't print stack trace, just log the warning
 				log.Warn(err)
-			} else if _, parseErr := keys.ParsePrivateKeyPolicyError(trace.Unwrap(err)); parseErr == nil {
+			} else if keys.IsPrivateKeyPolicyError(err) {
 				// private key policy errors should be returned to the client
 				// unaltered so that they know to reauthenticate with a valid key.
 				return nil, trace.Unwrap(err)

@@ -424,7 +424,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 			f.log.Warn(err)
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		default:
-			if _, parseErr := keys.ParsePrivateKeyPolicyError(trace.Unwrap(err)); parseErr == nil {
+			if keys.IsPrivateKeyPolicyError(err) {
 				// private key policy errors should be returned to the client
 				// unaltered so that they know to reauthenticate with a valid key.
 				return nil, trace.Unwrap(err)

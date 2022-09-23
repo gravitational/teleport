@@ -14,12 +14,13 @@ limitations under the License.
 package keys
 
 import (
-	"strings"
+	"fmt"
+	"regexp"
 
 	"github.com/gravitational/trace"
 )
 
-// PrivateKeyPolicy is the mode required for client private key storage.
+// PrivateKeyPolicy is a requirement for client private key storage.
 type PrivateKeyPolicy string
 
 const (
@@ -62,23 +63,29 @@ func (p PrivateKeyPolicy) validate() error {
 	return trace.BadParameter("%q is not a valid key policy", p)
 }
 
+var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not met: (\w+)`)
+
+func newPrivateKeyPolicyError(p PrivateKeyPolicy) error {
+	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
+}
+
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy
 // error and returns the contained unmet PrivateKeyPolicy.
 func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
-	if !trace.IsBadParameter(err) {
+	// subMatches should have two groups - the full string and the policy "(\w+)"
+	subMatches := privateKeyPolicyErrRegex.FindStringSubmatch(err.Error())
+	if subMatches == nil || len(subMatches) != 2 {
 		return "", trace.BadParameter("provided error is not a key policy error")
 	}
 
-	policyStr := strings.ReplaceAll(err.Error(), privateKeyPolicyErrMsg, "")
-	policy := PrivateKeyPolicy(policyStr)
+	policy := PrivateKeyPolicy(subMatches[1])
 	if err := policy.validate(); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return policy, nil
 }
 
-const privateKeyPolicyErrMsg string = "private key policy not met: "
-
-func newPrivateKeyPolicyError(p PrivateKeyPolicy) error {
-	return trace.BadParameter(privateKeyPolicyErrMsg + string(p))
+// IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
+func IsPrivateKeyPolicyError(err error) bool {
+	return privateKeyPolicyErrRegex.MatchString(err.Error())
 }
