@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
+import { ResourceKind } from 'teleport/Discover/Shared';
+
 import { State } from './useDiscover';
 
 export type AgentStepProps = {
   // agentMeta describes fields specific to an agent kind.
-  agentMeta: State['agentMeta'];
+  agentMeta?: State['agentMeta'];
   // updateAgentMeta updates the data specific to agent kinds
   // as needed as we move through the step.
-  updateAgentMeta: State['updateAgentMeta'];
+  updateAgentMeta?: State['updateAgentMeta'];
   // nextStep increments the `currentStep` to go to the next step.
-  nextStep: State['nextStep'];
-  selectedAgentKind: State['selectedAgentKind'];
-  onSelectResource: State['onSelectResource'];
+  nextStep?: State['nextStep'];
+  selectedResource?: State['selectedResource'];
+  selectedResourceKind?: ResourceKind;
+  onSelectResource?: State['onSelectResource'];
 };
 
 export type AgentStepComponent = (props: AgentStepProps) => JSX.Element;

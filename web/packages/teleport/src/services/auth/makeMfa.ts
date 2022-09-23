@@ -114,6 +114,7 @@ export function makeWebauthnAssertionResponse(res) {
   }
 
   const clientExtentions = res.getClientExtensionResults();
+
   return {
     id: res.id,
     type: res.type,

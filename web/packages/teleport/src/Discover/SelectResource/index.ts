@@ -14,5 +14,4 @@
  * limitations under the License.
  */
 
-import SelectResource from './SelectResource';
-export { SelectResource };
+export { SelectResource } from './SelectResource';

@@ -80,12 +80,13 @@ const LogoItem = styled(Flex)(
 export const Nav = styled.nav`
   background: ${props => props.theme.colors.primary.light};
   border-right: 1px solid ${props => props.theme.colors.primary.dark};
-  min-width: 240px;
-  width: 240px;
   overflow: auto;
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-width: var(--sidebar-width);
+  width: var(--sidebar-width);
+  box-sizing: border-box;
 `;
 
 export const Content = styled.div`

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import * as RouterDOM from 'react-router-dom';
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
@@ -30,29 +30,29 @@ import getFeatures from 'teleport/features';
 import localStorage from 'teleport/services/localStorage';
 import history from 'teleport/services/history';
 
-import { LINK_LABEL } from 'teleport/services/alerts/alerts';
+import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
-import useMain, { State } from './useMain';
+import useMain from './useMain';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
 
-export default function Container() {
-  const [features] = React.useState(() => getFeatures());
-  const state = useMain(features);
-  return <Main {...state} />;
+interface MainProps {
+  initialAlerts?: ClusterAlert[];
+  customBanners?: React.ReactNode[];
 }
 
-export function Main(props: State) {
-  const {
-    alerts = [],
-    customBanners = [],
-    dismissAlert,
-    status,
-    statusText,
-    ctx,
-  } = props;
+export function Main(props: MainProps) {
+  const [features] = useState(() => getFeatures());
+
+  const { alerts, ctx, customBanners, dismissAlert, status, statusText } =
+    useMain({
+      features,
+      initialAlerts: props.initialAlerts,
+      customBanners: props.customBanners,
+    });
+
   const [showOnboardDiscover, setShowOnboardDiscover] = React.useState(true);
 
   if (status === 'failed') {
@@ -138,8 +138,10 @@ export function Main(props: State) {
         <MainContainer>
           <SideNav />
           <HorizontalSplit>
-            <TopBar />
-            <Switch>{$features}</Switch>
+            <ContentMinWidth>
+              <TopBar />
+              <Switch>{$features}</Switch>
+            </ContentMinWidth>
           </HorizontalSplit>
         </MainContainer>
       </BannerList>
@@ -150,14 +152,15 @@ export function Main(props: State) {
   );
 }
 
+export const ContentMinWidth = styled.div`
+  min-width: calc(1250px - var(--sidebar-width));
+`;
+
 export const HorizontalSplit = styled.div`
   display: flex;
   flex-direction: column;
-  width: 100%;
-  height: 100%;
-
-  // Allows shrinking beyond content size on flexed childrens.
-  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
 `;
 
 export const StyledIndicator = styled(HorizontalSplit)`

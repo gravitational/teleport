@@ -164,6 +164,7 @@ export const Google = makeFontIcon('Google', 'icon-google-plus');
 export const Graph = makeFontIcon('Graph', 'icon-graph');
 export const Home = makeFontIcon('Home', 'icon-home3');
 export const Info = makeFontIcon('Info', 'icon-info_outline');
+export const InfoFilled = makeFontIcon('Info', 'icon-info');
 export const Key = makeFontIcon('Key', 'icon-key');
 export const Keypair = makeFontIcon('Keypair', 'icon-keypair');
 export const Kubernetes = makeFontIcon('Kubernetes', 'icon-kubernetes');
