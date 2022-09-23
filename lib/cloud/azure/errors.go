@@ -52,8 +52,8 @@ func parseMetadataClientError(statusCode int, body []byte) error {
 	azureError := struct {
 		Error string `json:"error"`
 	}{}
-	if err2 := json.Unmarshal(body, &azureError); err2 != nil {
-		return err
+	if json.Unmarshal(body, &azureError) != nil {
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(err, azureError.Error)
 }

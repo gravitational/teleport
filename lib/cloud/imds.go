@@ -26,6 +26,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	// discoverInstanceMetadataTimeout is the maximum amount of time allowed
+	// to discover an instance metadata service. The timeout is short to
+	// minimize Teleport's startup time when it isn't running on any cloud
+	// instance. Checking for instance metadata typically takes less than 30ms.
+	discoverInstanceMetadataTimeout = 500 * time.Millisecond
+)
+
 // InstanceMetadata is an interface for fetching information from a cloud
 // service's instance metadata.
 type InstanceMetadata interface {
@@ -59,7 +67,7 @@ func initAzure(ctx context.Context) (InstanceMetadata, error) {
 // DiscoverInstanceMetadata checks which cloud instance type Teleport is
 // running on, if any.
 func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
-	ctx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, discoverInstanceMetadataTimeout)
 	defer cancel()
 
 	c := make(chan InstanceMetadata)
@@ -85,6 +93,6 @@ func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
 	case client := <-c:
 		return client, nil
 	case <-ctx.Done():
-		return nil, trace.NotFound("No instance metadata service found")
+		return nil, trace.NotFound("no instance metadata service found")
 	}
 }

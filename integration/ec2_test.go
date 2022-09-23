@@ -394,7 +394,7 @@ func TestEC2Labels(t *testing.T) {
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
 
-	tagName := fmt.Sprintf("%s/Name", labels.AWSNamespace)
+	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
 
 	// Check that EC2 labels were applied.
 	require.Eventually(t, func() bool {

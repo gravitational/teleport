@@ -18,6 +18,7 @@ package azure
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -37,6 +38,8 @@ const (
 type InstanceMetadataClient struct {
 	baseURL    string
 	apiVersion string
+
+	mu sync.RWMutex
 }
 
 // InstanceMetadataClientOption allows setting options as functional arguments to an InstanceMetadataClient.
@@ -62,6 +65,15 @@ func NewInstanceMetadataClient(opts ...InstanceMetadataClientOption) *InstanceMe
 	return client
 }
 
+// GetAPIVersion gets the Azure instance metadata API version this client
+// is using.
+func (client *InstanceMetadataClient) GetAPIVersion() string {
+	client.mu.RLock()
+	defer client.mu.RUnlock()
+	return client.apiVersion
+}
+
+// GetType gets the cloud instance type.
 func (client *InstanceMetadataClient) GetType() types.InstanceMetadataType {
 	return types.InstanceMetadataTypeAzure
 }
@@ -77,6 +89,9 @@ func (client *InstanceMetadataClient) selectVersion(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	client.mu.Lock()
+	defer client.mu.Unlock()
 	client.apiVersion = targetVersion
 	return nil
 }
@@ -95,8 +110,9 @@ func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route 
 	req.Header.Add("Metadata", "True")
 	query := req.URL.Query()
 	query.Add("format", "json")
-	if client.apiVersion != "" {
-		query.Add("api-version", client.apiVersion)
+	apiVersion := client.GetAPIVersion()
+	if apiVersion != "" {
+		query.Add("api-version", apiVersion)
 	}
 	req.URL.RawQuery = query.Encode()
 
@@ -133,7 +149,7 @@ func (client *InstanceMetadataClient) getVersions(ctx context.Context) ([]string
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	if client.apiVersion != "" {
+	if client.GetAPIVersion() != "" {
 		return true
 	}
 
@@ -144,7 +160,7 @@ func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 // GetTags gets all of the Azure instance's tags.
 func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]string, error) {
 	if !client.IsAvailable(ctx) {
-		return nil, trace.NotFound("Instance metadata not available")
+		return nil, trace.NotFound("Instance metadata is not available")
 	}
 
 	rawTags := []struct {
@@ -175,7 +191,7 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 	}
 	value, ok := tags[types.CloudHostnameTag]
 	if !ok {
-		return "", trace.NotFound("Tag %q not found", types.CloudHostnameTag)
+		return "", trace.NotFound("tag %q not found", types.CloudHostnameTag)
 	}
 	return value, nil
 }
@@ -184,12 +200,12 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 // a minimum version. Versions are represented as dates of the form YYYY-MM-DD.
 func selectVersion(versions []string, minimumVersion string) (string, error) {
 	if len(versions) == 0 {
-		return "", trace.BadParameter("No versions provided")
+		return "", trace.BadParameter("No versions to select from")
 	}
 	// Versions are in ascending order.
 	targetVersion := versions[len(versions)-1]
 	if targetVersion < minimumVersion {
-		return "", trace.NotImplemented("Tags not supported (requires minimum api version %v)", minimumVersion)
+		return "", trace.NotImplemented("tags not supported (requires minimum API version %v, current version is %v)", minimumVersion, targetVersion)
 	}
 	return targetVersion, nil
 }

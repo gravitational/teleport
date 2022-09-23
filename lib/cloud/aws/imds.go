@@ -65,6 +65,7 @@ func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClie
 	return clt, nil
 }
 
+// GetType gets the cloud instance type.
 func (client *InstanceMetadataClient) GetType() types.InstanceMetadataType {
 	return types.InstanceMetadataTypeEC2
 }
@@ -136,6 +137,7 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 	return value, trace.Wrap(err)
 }
 
+// GetRegion gets the EC2 instance's region.
 func (client *InstanceMetadataClient) GetRegion(ctx context.Context) (string, error) {
 	getRegionOutput, err := client.c.GetRegion(ctx, nil)
 	if err != nil {

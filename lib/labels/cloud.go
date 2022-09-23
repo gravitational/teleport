@@ -30,12 +30,12 @@ import (
 )
 
 const (
-	// AWSNamespace is used as the namespace prefix for any labels
+	// AWSLabelNamespace is used as the namespace prefix for any labels
 	// imported from AWS.
-	AWSNamespace = "aws"
-	// AzureNamespace is used as the namespace prefix for any labels
+	AWSLabelNamespace = "aws"
+	// AzureLabelNamespace is used as the namespace prefix for any labels
 	// imported from Azure.
-	AzureNamespace = "azure"
+	AzureLabelNamespace = "azure"
 	// labelUpdatePeriod is the period for updating cloud labels.
 	labelUpdatePeriod = time.Hour
 )
@@ -56,13 +56,13 @@ type CloudConfig struct {
 
 func (conf *CloudConfig) checkAndSetDefaults() error {
 	if conf.Client == nil {
-		return trace.BadParameter("Missing parameter: Client")
+		return trace.BadParameter("missing parameter: Client")
 	}
 	if conf.Clock == nil {
 		conf.Clock = clockwork.NewRealClock()
 	}
 	if conf.Log == nil {
-		conf.Log = logrus.WithField(trace.Component, "ec2labels")
+		conf.Log = logrus.WithField(trace.Component, "cloudlabels")
 	}
 	return nil
 }
@@ -81,6 +81,7 @@ type CloudImporter struct {
 	instanceTagsNotFoundOnce sync.Once
 }
 
+// NewCloudImporter creates a new cloud label importer.
 func NewCloudImporter(ctx context.Context, c *CloudConfig) (*CloudImporter, error) {
 	if err := c.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -100,12 +101,12 @@ func NewCloudImporter(ctx context.Context, c *CloudConfig) (*CloudImporter, erro
 }
 
 func (l *CloudImporter) initEC2() {
-	l.namespace = AWSNamespace
+	l.namespace = AWSLabelNamespace
 	l.instanceMetadataHint = awsErrorMessage
 }
 
 func (l *CloudImporter) initAzure() {
-	l.namespace = AzureNamespace
+	l.namespace = AzureLabelNamespace
 	l.instanceMetadataHint = azureErrorMessage
 }
 
