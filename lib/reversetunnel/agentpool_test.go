@@ -21,14 +21,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 type mockAgent struct {
@@ -84,7 +86,7 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	})
 	require.NoError(t, err)
 
-	pool.backoff, err = utils.NewLinear(utils.LinearConfig{
+	pool.backoff, err = retryutils.NewLinear(retryutils.LinearConfig{
 		Step: time.Millisecond,
 		Max:  time.Millisecond,
 	})
