@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -223,9 +222,8 @@ func (c *Config) transfer(ctx context.Context) error {
 
 // transferDir transfers a directory
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	// TODO: update sftp to propagate os.ErrExist
 	err := c.dstFS.Mkdir(dstPath)
-	if err != nil && !strings.Contains(err.Error(), "file exists") {
+	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Wrap(err)
 	}
 
@@ -271,7 +269,6 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer srcFile.Close()
 
-	// TODO: sftp Open flags not getting emitted
 	dstFile, err := c.dstFS.Create(dstPath, uint64(srcFileInfo.Size()))
 	if err != nil {
 		return trace.Wrap(err)
