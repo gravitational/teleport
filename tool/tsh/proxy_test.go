@@ -291,9 +291,9 @@ proxy_templates:
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
 	os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
 Host *
-  HostName %%h
+  HostName %%n
   StrictHostKeyChecking no
-  ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
+  ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%n:%%p
 `, tshPath)), 0644)
 
 	// Connect to "localnode" with OpenSSH.
