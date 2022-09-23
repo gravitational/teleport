@@ -119,7 +119,14 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	assertion, sessionData, err := beginLogin(passwordless, web, u, opts...)
+
+	var assertion *protocol.CredentialAssertion
+	var sessionData *wan.SessionData
+	if passwordless {
+		assertion, sessionData, err = web.BeginDiscoverableLogin(opts...)
+	} else {
+		assertion, sessionData, err = web.BeginLogin(u, opts...)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,36 +152,6 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return wla.UserID, nil
-}
-
-func beginLogin(
-	passwordless bool,
-	web *wan.WebAuthn, user *webUser, opts ...wan.LoginOption) (*protocol.CredentialAssertion, *wan.SessionData, error) {
-	// web.BeginLogin does a length check in the users' credentials, but we have
-	// no known credentials at this stage for passwordless logins.
-	// This leaves us with two options: copy and modify BeginLogin, or code
-	// around it so passwordless goes through. Since copying makes it harder to
-	// apply or benefit from future library updates, coding around it is the
-	// option of choice.
-
-	if passwordless {
-		// Add a mock credential to pass the BeginLogin check.
-		user.credentials = append(user.credentials, wan.Credential{})
-		defer func() { user.credentials = nil }()
-	}
-
-	assertion, sessionData, err := web.BeginLogin(user, opts...)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	if passwordless {
-		// Remove mock credential from resources.
-		assertion.Response.AllowedCredentials = nil
-		sessionData.AllowedCredentialIDs = nil
-	}
-
-	return assertion, sessionData, nil
 }
 
 func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
@@ -212,7 +189,6 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 		}
 		user = teleportUser
 	} else {
-		var err error
 		webID, err = f.getWebID(ctx, user)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -251,9 +227,6 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	if passwordless {
-		sessionDataPB.UserId = webID // Not known on Begin, so can't be recorded.
-	}
 	sessionData := sessionFromPB(sessionDataPB)
 
 	// Make sure _all_ credentials in the session are accounted for by the user.
@@ -278,7 +251,14 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	credential, err := web.ValidateLogin(u, *sessionData, parsedResp)
+
+	var credential *wan.Credential
+	if passwordless {
+		discoverUser := func(_, _ []byte) (wan.User, error) { return u, nil }
+		credential, err = web.ValidateDiscoverableLogin(discoverUser, *sessionData, parsedResp)
+	} else {
+		credential, err = web.ValidateLogin(u, *sessionData, parsedResp)
+	}
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
