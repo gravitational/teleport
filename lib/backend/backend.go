@@ -122,7 +122,6 @@ type Batch interface {
 // lease, err := backend.Create(ctx, item)
 // expires := time.Now().Add(20 * time.Second)
 // err = backend.KeepAlive(ctx, lease, expires)
-//
 type Lease struct {
 	// Key is an object representing lease
 	Key []byte

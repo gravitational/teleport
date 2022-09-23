@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/gravitational/teleport/api/types"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
 
@@ -63,13 +64,13 @@ type kubeCreds struct {
 type ImpersonationPermissionsChecker func(ctx context.Context, clusterName string,
 	sarClient authztypes.SelfSubjectAccessReviewInterface) error
 
-// getKubeCreds fetches the kubernetes API credentials.
+// getKubeDetails fetches the kubernetes API credentials.
 //
 // There are 2 possible sources of credentials:
-// - pod service account credentials: files in hardcoded paths when running
-//   inside of a k8s pod; this is used when kubeClusterName is set
-// - kubeconfig: a file with a set of k8s endpoints and credentials mapped to
-//   them this is used when kubeconfigPath is set
+//   - pod service account credentials: files in hardcoded paths when running
+//     inside of a k8s pod; this is used when kubeClusterName is set
+//   - kubeconfig: a file with a set of k8s endpoints and credentials mapped to
+//     them this is used when kubeconfigPath is set
 //
 // serviceType changes the loading behavior:
 // - LegacyProxyService:
@@ -77,29 +78,31 @@ type ImpersonationPermissionsChecker func(ctx context.Context, clusterName strin
 //     returned map key matches tpClusterName
 //   - if no credentials are loaded, no error is returned
 //   - permission self-test failures are only logged
+//
 // - ProxyService:
 //   - no credentials are loaded and no error is returned
+//
 // - KubeService:
 //   - if loading from kubeconfig, all contexts are returned
 //   - if no credentials are loaded, returns an error
 //   - permission self-test failures cause an error to be returned
-func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType, checkImpersonation ImpersonationPermissionsChecker) (map[string]*kubeCreds, error) {
+func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType, checkImpersonation ImpersonationPermissionsChecker) (map[string]*kubeDetails, error) {
 	log.
 		WithField("kubeconfigPath", kubeconfigPath).
 		WithField("kubeClusterName", kubeClusterName).
 		WithField("serviceType", serviceType).
-		Debug("Reading Kubernetes creds.")
+		Debug("Reading Kubernetes details.")
 
 	// Proxy service should never have creds, forwards to kube service
 	if serviceType == ProxyService {
-		return map[string]*kubeCreds{}, nil
+		return map[string]*kubeDetails{}, nil
 	}
 
 	// Load kubeconfig or local pod credentials.
 	loadAll := serviceType == KubeService
 	cfg, err := kubeutils.GetKubeConfig(kubeconfigPath, loadAll, kubeClusterName)
 	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+		return map[string]*kubeDetails{}, trace.Wrap(err)
 	}
 
 	if trace.IsNotFound(err) || len(cfg.Contexts) == 0 {
@@ -109,7 +112,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 		case LegacyProxyService:
 			log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
 		}
-		return map[string]*kubeCreds{}, nil
+		return map[string]*kubeDetails{}, nil
 	}
 
 	if serviceType == LegacyProxyService {
@@ -127,20 +130,32 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 		}
 	}
 
-	res := make(map[string]*kubeCreds, len(cfg.Contexts))
+	res := make(map[string]*kubeDetails, len(cfg.Contexts))
 	// Convert kubeconfig contexts into kubeCreds.
 	for cluster, clientCfg := range cfg.Contexts {
-		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, serviceType, kubeconfigPath, log, checkImpersonation)
+		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, log, checkImpersonation)
 		if err != nil {
 			log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
 			continue
 		}
-		res[cluster] = clusterCreds
+		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+			Name: cluster,
+		}, types.KubernetesClusterSpecV3{})
+		if err != nil {
+			log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
+			continue
+		}
+		res[cluster] = &kubeDetails{
+			kubeCreds: clusterCreds,
+			// kubeconfig does not allow labels so we don't define static and dynamic labels for the cluster.
+			// those will be inherited from the service later.
+			kubeCluster: kubeCluster,
+		}
 	}
 	return res, nil
 }
 
-func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, serviceType KubeServiceType, kubeconfigPath string, log logrus.FieldLogger, checkPermissions ImpersonationPermissionsChecker) (*kubeCreds, error) {
+func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions ImpersonationPermissionsChecker) (*kubeCreds, error) {
 	log = log.WithField("cluster", cluster)
 
 	log.Debug("Checking Kubernetes impersonation permissions.")
@@ -153,15 +168,6 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	// check only logs when permissions are not configured, but does not fail startup.
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
 		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.")
-		if serviceType != KubeService && kubeconfigPath != "" {
-			// We used to recommend users to set a dummy kubeconfig on root
-			// proxies to get kubernetes support working for leaf clusters:
-			// https://community.goteleport.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
-			//
-			// Since this is no longer necessary, recommend them to clean up
-			// via logs.
-			log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
-		}
 	} else {
 		log.Debug("Have all necessary Kubernetes impersonation permissions.")
 	}

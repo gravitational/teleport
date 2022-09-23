@@ -20,14 +20,22 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
-      # Checkout master branch of Teleport repository. This is to prevent an
-      # attacker from submitting their own bot logic.
-      - name: Checkout master branch
-        uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3
         with:
           ref: master
-      - name: Installing the latest version of Go.
-        uses: actions/setup-go@v2
-      # Run "backport" subcommand on bot.
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.SHARED_WORKFLOWS_GITHUB_TOKEN }}
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+      - name: Installing Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: .github/shared-workflows/bot/go.mod
+        # Run "check" subcommand on bot.
       - name: Backport PR
-        run: cd .github/workflows/robot && go run main.go -workflow=backport -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

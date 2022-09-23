@@ -183,7 +183,7 @@ func createLinks(linkMap map[string]string) error {
 }
 
 // This could potentially be made more efficient by running `os.RemoveAll` in a goroutine
-//  as random access on storage devices performs better at a higher queue depth
+// as random access on storage devices performs better at a higher queue depth
 func deleteAllFilesInDirectory(dir string) error {
 	// Note that os.ReadDir does not follow/eval links which is important here
 	dirEntries, err := os.ReadDir(dir)

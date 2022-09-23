@@ -63,6 +63,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -93,6 +94,11 @@ const (
 
 	// MaxFailedAttemptsErrMsg is a user friendly error message that tells a user that they are locked.
 	MaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
+)
+
+const (
+	// githubCacheTimeout is how long Github org entries are cached.
+	githubCacheTimeout = time.Hour
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -138,6 +144,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
+	}
+	if cfg.Kubernetes == nil {
+		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
 	}
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
@@ -205,6 +214,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ClusterConfiguration:  cfg.ClusterConfiguration,
 		Restrictions:          cfg.Restrictions,
 		Apps:                  cfg.Apps,
+		Kubernetes:            cfg.Kubernetes,
 		Databases:             cfg.Databases,
 		IAuditLog:             cfg.AuditLog,
 		Events:                cfg.Events,
@@ -236,6 +246,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence),
 		traceClient:     cfg.TraceClient,
+		fips:            cfg.FIPS,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -244,6 +255,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
+	}
+	as.githubOrgSSOCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: githubCacheTimeout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &as, nil
@@ -259,6 +276,7 @@ type Services struct {
 	services.ClusterConfiguration
 	services.Restrictions
 	services.Apps
+	services.Kubernetes
 	services.Databases
 	services.WindowsDesktops
 	services.SessionTrackerService
@@ -414,9 +432,16 @@ type Server struct {
 
 	inventory *inventory.Controller
 
+	// githubOrgSSOCache is used to cache whether Github organizations use
+	// external SSO or not.
+	githubOrgSSOCache *utils.FnCache
+
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
+
+	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	fips bool
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -456,7 +481,7 @@ func (a *Server) runPeriodicOperations() {
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
-		Jitter:   utils.NewSeventhJitter(),
+		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
 	missedKeepAliveCount := 0
@@ -478,7 +503,7 @@ func (a *Server) runPeriodicOperations() {
 	releaseCheck := interval.New(interval.Config{
 		Duration:      time.Hour * 24,
 		FirstDuration: firstReleaseCheck,
-		Jitter:        utils.NewFullJitter(),
+		Jitter:        retryutils.NewFullJitter(),
 	})
 	defer releaseCheck.Stop()
 	for {
@@ -3186,16 +3211,87 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 	return a.Cache.ListResources(ctx, req)
 }
 
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := a.Services.CreateKubernetesCluster(ctx, kubeCluster); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterCreate{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterCreateEvent,
+			Code: events.KubernetesClusterCreateCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    kubeCluster.GetName(),
+			Expires: kubeCluster.Expiry(),
+		},
+		KubeClusterMetadata: apievents.KubeClusterMetadata{
+			KubeLabels: kubeCluster.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit kube cluster create event.")
+	}
+	return nil
+}
+
+// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
+func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := a.Kubernetes.UpdateKubernetesCluster(ctx, kubeCluster); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterUpdateEvent,
+			Code: events.KubernetesClusterUpdateCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    kubeCluster.GetName(),
+			Expires: kubeCluster.Expiry(),
+		},
+		KubeClusterMetadata: apievents.KubeClusterMetadata{
+			KubeLabels: kubeCluster.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit kube cluster update event.")
+	}
+	return nil
+}
+
+// DeleteKubernetesCluster deletes a kubernetes cluster resource.
+func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	if err := a.Kubernetes.DeleteKubernetesCluster(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterDeleteEvent,
+			Code: events.KubernetesClusterDeleteCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit kube cluster delete event.")
+	}
+	return nil
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if pref.GetRequireSessionMFA() {
-		// Cluster always requires MFA, regardless of roles.
+	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
+	case services.MFARequiredNever:
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
+
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:

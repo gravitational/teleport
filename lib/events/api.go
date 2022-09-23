@@ -481,6 +481,10 @@ const (
 	// RPC request command.
 	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
 
+	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
+	// a generic request.
+	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
@@ -498,6 +502,13 @@ const (
 	// KubeRequestEvent fires when a proxy handles a generic kubernetes
 	// request.
 	KubeRequestEvent = "kube.request"
+
+	// KubernetesClusterCreateEvent is emitted when a kubernetes cluster resource is created.
+	KubernetesClusterCreateEvent = "kube.create"
+	// KubernetesClusterUpdateEvent is emitted when a kubernetes cluster resource is updated.
+	KubernetesClusterUpdateEvent = "kube.update"
+	// KubernetesClusterDeleteEvent is emitted when a kubernetes cluster resource is deleted.
+	KubernetesClusterDeleteEvent = "kube.delete"
 
 	// MFADeviceAddEvent is an event type for users adding MFA devices.
 	MFADeviceAddEvent = "mfa.add"
@@ -539,13 +550,16 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
-
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
+
+	// SSMRunEvent is emitted when a run of an install script
+	// completes on a discovered EC2 node
+	SSMRunEvent = "ssm.run"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
