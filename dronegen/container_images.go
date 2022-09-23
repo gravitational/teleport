@@ -63,9 +63,9 @@ const (
 	TestingSecretPrefix       string = "TEST_"
 	TestingQuayRegistryOrg    string = "fred_heinecke"
 	TestingECRRegistryOrg     string = "u8j2q1d9"
-	TestingEcrRegion          string = "us-east-2"
+	TestingECRRegion          string = "us-east-2"
 	PRBranch                  string = "fred/arm-container-images"
-	ECRTestingDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+	TestingECRDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com"
 )
 
 const (
@@ -732,8 +732,8 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		registryOrg = TestingECRRegistryOrg
 
 		if isStaging {
-			domain = ECRTestingDomain
-			ecrRegion = TestingEcrRegion
+			domain = TestingECRDomain
+			ecrRegion = TestingECRRegion
 		}
 	}
 
