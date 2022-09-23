@@ -35,6 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -54,7 +55,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -143,7 +144,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1041,7 +1042,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := native.GenerateKeyPair()
+			_, pub, err := testauthority.New().GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1139,7 +1140,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -3059,6 +3060,50 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	})
 }
 
+// TestListNodesBuiltinRole makes sure that remote proxy builin role has
+// permissions to list nodes.
+func TestListNodesBuiltinRole(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		node, err := types.NewServer(fmt.Sprintf("node-%v", i), types.KindNode, types.ServerSpecV2{
+			Addr:     fmt.Sprintf("192.168.1.%v", i),
+			Hostname: fmt.Sprintf("node-%v", i),
+		})
+		require.NoError(t, err)
+		_, err = srv.AuthServer.UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	identities := []TestIdentity{
+		TestBuiltin(types.RoleAdmin),
+		TestBuiltin(types.RoleProxy),
+		TestRemoteBuiltin(types.RoleProxy, "remote"),
+	}
+
+	for _, ident := range identities {
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, ident.I))
+		require.NoError(t, err)
+
+		s := &ServerWithRoles{
+			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
+			alog:       srv.AuditLog,
+			context:    *authContext,
+		}
+
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 3)
+	}
+}
+
 func TestDeleteUserAppSessions(t *testing.T) {
 	ctx := context.Background()
 
@@ -3533,7 +3578,7 @@ func TestGenerateHostCert(t *testing.T) {
 
 	clusterName := srv.ClusterName()
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	noError := func(err error) bool {

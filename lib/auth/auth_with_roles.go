@@ -1403,13 +1403,33 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService:
 		return newKubeChecker(a.context), nil
+	case types.KindNode:
+		return newNodeChecker(a), nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
+}
+
+type nodeChecker struct {
+	s *ServerWithRoles
+}
+
+func newNodeChecker(s *ServerWithRoles) *nodeChecker {
+	return &nodeChecker{
+		s: s,
+	}
+}
+
+func (c *nodeChecker) CanAccess(resource types.Resource) error {
+	server, ok := resource.(types.Server)
+	if !ok {
+		return trace.BadParameter("expected types.Server, got %T", resource)
+	}
+	return c.s.checkAccessToNode(server)
 }
 
 // listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
@@ -3824,15 +3844,15 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//  - Cluster administrator using "tctl auth sign --format=db" command locally
-//    on the auth server to produce a certificate for configuring a self-hosted
-//    database.
-//  - Remote user using "tctl auth sign --format=db" command with a remote
-//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//    role Db.
-//  - Database service when initiating connection to a database instance to
-//    produce a client certificate.
-//  - Proxy service when generating mTLS files to a database
+//   - Cluster administrator using "tctl auth sign --format=db" command locally
+//     on the auth server to produce a certificate for configuring a self-hosted
+//     database.
+//   - Remote user using "tctl auth sign --format=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//     role Db.
+//   - Database service when initiating connection to a database instance to
+//     produce a client certificate.
+//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if the User can `create` DatabaseCertificates
 	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
