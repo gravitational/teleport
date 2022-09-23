@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -48,7 +49,7 @@ var (
 	triggerPromote = trigger{
 		Event:  triggerRef{Include: []string{"promote"}},
 		Target: triggerRef{Include: []string{"production"}},
-		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
 	}
 
 	volumeDocker = volume{
@@ -94,6 +95,24 @@ func pushTriggerForBranch(branches ...string) trigger {
 	}
 	t.Branch.Include = append(t.Branch.Include, branches...)
 	return t
+}
+
+func cronTrigger(cronJobNames []string) trigger {
+	return trigger{
+		Cron: triggerRef{Include: cronJobNames},
+		Repo: triggerRef{Include: []string{"gravitational/teleport"}},
+	}
+}
+
+func cloneRepoCommands(cloneDirectory, commit string) []string {
+	return []string{
+		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
+		fmt.Sprintf("cd %q", cloneDirectory),
+		"git init",
+		"git remote add origin ${DRONE_REMOTE_URL}",
+		"git fetch origin",
+		fmt.Sprintf("git checkout -qf %q", commit),
+	}
 }
 
 type buildType struct {
@@ -196,6 +215,19 @@ func dockerService(v ...volumeRef) service {
 	}
 }
 
+// Starts a container registry service at `drone-docker-registry:5000`
+// This can be pushed/pulled to via `docker push/pull drone-docker-registry:5000/image:tag`
+func dockerRegistryService() service {
+	// The name of this service must match k8s.io/apimachinery/pkg/util/validation `IsDNS1123Subdomain`
+	// so that it is resolvable
+	// See https://github.com/drone-runners/drone-runner-kube/blob/master/engine/compiler/compiler.go#L398
+	// for details
+	return service{
+		Name:  "drone-docker-registry",
+		Image: "registry:2",
+	}
+}
+
 // dockerVolumes returns a slice of volumes
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerVolumes(v ...volume) []volume {
@@ -241,5 +273,56 @@ func waitForDockerStep() step {
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
 		Volumes: dockerVolumeRefs(),
+	}
+}
+
+// waitForDockerStep returns a step which checks that the Docker registry is ready
+func waitForDockerRegistryStep() step {
+	return step{
+		Name:  "Wait for docker registry",
+		Image: "alpine",
+		Commands: []string{
+			"apk add curl",
+			`timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)" != "200" ]; do sleep 1; done'`,
+		},
+	}
+}
+
+func verifyValidPromoteRunSteps() []step {
+	tagStep := verifyTaggedStep()
+	verifyStep := verifyNotPrereleaseStep()
+
+	return []step{tagStep, verifyStep}
+}
+
+func verifyTaggedStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
+}
+
+// Note that tags are also valid here as a tag refers to a specific commit
+func cloneRepoStep(clonePath, commit string) step {
+	return step{
+		Name:     "Check out code",
+		Image:    "alpine/git:latest",
+		Commands: cloneRepoCommands(clonePath, commit),
+	}
+}
+
+func verifyNotPrereleaseStep() step {
+	clonePath := "/tmp/repo"
+	return step{
+		Name:  "Check if tag is prerelease",
+		Image: "golang:1.18-alpine",
+		Commands: append(
+			cloneRepoCommands(clonePath, "${DRONE_TAG}"),
+			fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
+			"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
+		),
 	}
 }
