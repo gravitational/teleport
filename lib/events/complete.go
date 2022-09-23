@@ -344,6 +344,8 @@ loop:
 
 	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
 
+	sessionEndEvent.SetTime(lastEvent.GetTime())
+
 	// Check and set event fields
 	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {
 		return trace.Wrap(err)
