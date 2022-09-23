@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
@@ -322,19 +323,115 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	return newGateway, nil
 }
 
-// ListServers returns cluster servers
-func (s *Service) ListServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
+// GetAllServers returns a full list of nodes without pagination or sorting.
+func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
 	cluster, err := s.ResolveCluster(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := cluster.GetServers(ctx)
+	servers, err := cluster.GetAllServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return servers, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination
+func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetServers(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
+}
+
+func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetRequestableRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.GetRequestableRolesResponse{
+		Roles: response,
+	}, nil
+}
+
+// GetAccessRequests returns all access requests with filtered input
+func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]clusters.AccessRequest, error) {
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := cluster.GetAccessRequests(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
+}
+
+// CreateAccessRequest creates an access request
+func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*clusters.AccessRequest, error) {
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	request, err := cluster.CreateAccessRequest(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return request, nil
+}
+
+func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*clusters.AccessRequest, error) {
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := cluster.ReviewAccessRequest(ctx, req)
+	return response, nil
+}
+
+func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) error {
+	cluster, err := s.ResolveCluster((req.ClusterUri))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = cluster.DeleteAccessRequest(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = cluster.AssumeRole(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ListServers returns cluster servers

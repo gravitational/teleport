@@ -64,6 +64,11 @@ export class LoggedInUser extends jspb.Message {
     setSshLoginsList(value: Array<string>): LoggedInUser;
     addSshLogins(value: string, index?: number): string;
 
+    clearActiveRequestsList(): void;
+    getActiveRequestsList(): Array<string>;
+    setActiveRequestsList(value: Array<string>): LoggedInUser;
+    addActiveRequests(value: string, index?: number): string;
+
 
     hasAcl(): boolean;
     clearAcl(): void;
@@ -86,6 +91,7 @@ export namespace LoggedInUser {
         name: string,
         rolesList: Array<string>,
         sshLoginsList: Array<string>,
+        activeRequestsList: Array<string>,
         acl?: ACL.AsObject,
     }
 }
