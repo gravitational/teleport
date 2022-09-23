@@ -1621,6 +1621,15 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		go func() {
+			err := s.tracker.WaitOnState(s.serverCtx, types.SessionState_SessionStateTerminated)
+			if err != nil {
+				s.log.WithError(err).Error("Failed to wait on session state.")
+			}
+
+			bk.Close()
+		}()
 	} else {
 		var err error
 		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
