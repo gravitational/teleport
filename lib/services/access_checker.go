@@ -183,7 +183,8 @@ type AccessChecker interface {
 	// MFAParams returns MFA params for the given use given their roles, the cluster
 	// auth preference, and whether mfa has been verified.
 	MFAParams(authPrefMFARequirement types.RequireMFAType) AccessMFAParams
-	// PrivateKeyPolicy returns the enforced private key policy for this role set.
+	// PrivateKeyPolicy returns the enforced private key policy for this role set,
+	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
 }
 

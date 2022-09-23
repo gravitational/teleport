@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -423,6 +424,12 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 			f.log.Warn(err)
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		default:
+			if _, parseErr := keys.ParsePrivateKeyPolicyError(trace.Unwrap(err)); parseErr == nil {
+				// private key policy errors should be returned to the client
+				// unaltered so that they know to reauthenticate with a valid key.
+				return nil, trace.Unwrap(err)
+			}
+
 			f.log.Warn(trace.DebugReport(err))
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		}

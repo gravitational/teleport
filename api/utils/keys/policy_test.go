@@ -42,45 +42,37 @@ func TestVerifyPolicy(t *testing.T) {
 	})
 }
 
-// TestPrivateKeyPolicyError tests private key policy error logic.
-func TestPrivateKeyPolicyError(t *testing.T) {
+// TestParsePrivateKeyPolicyError tests ParsePrivateKeyPolicyError.
+func TestParsePrivateKeyPolicyError(t *testing.T) {
 	for _, tc := range []struct {
 		desc               string
 		errIn              error
-		expectIsKeyPolicy  bool
 		expectKeyPolicyErr bool
 		expectKeyPolicy    PrivateKeyPolicy
 	}{
 		{
 			desc:               "random error",
 			errIn:              trace.BadParameter("random error"),
-			expectIsKeyPolicy:  false,
 			expectKeyPolicyErr: true,
 		}, {
 			desc:               "unkown_key_policy",
 			errIn:              newPrivateKeyPolicyError("unkown_key_policy"),
-			expectIsKeyPolicy:  true,
 			expectKeyPolicyErr: true,
 		}, {
-			desc:              string(PrivateKeyPolicyNone),
-			errIn:             newPrivateKeyPolicyError(PrivateKeyPolicyNone),
-			expectIsKeyPolicy: true,
-			expectKeyPolicy:   PrivateKeyPolicyNone,
+			desc:            string(PrivateKeyPolicyNone),
+			errIn:           newPrivateKeyPolicyError(PrivateKeyPolicyNone),
+			expectKeyPolicy: PrivateKeyPolicyNone,
 		}, {
-			desc:              string(PrivateKeyPolicyHardwareKey),
-			errIn:             newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKey),
-			expectIsKeyPolicy: true,
-			expectKeyPolicy:   PrivateKeyPolicyHardwareKey,
+			desc:            string(PrivateKeyPolicyHardwareKey),
+			errIn:           newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKey),
+			expectKeyPolicy: PrivateKeyPolicyHardwareKey,
 		}, {
-			desc:              string(PrivateKeyPolicyHardwareKeyTouch),
-			errIn:             newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch),
-			expectIsKeyPolicy: true,
-			expectKeyPolicy:   PrivateKeyPolicyHardwareKeyTouch,
+			desc:            string(PrivateKeyPolicyHardwareKeyTouch),
+			errIn:           newPrivateKeyPolicyError(PrivateKeyPolicyHardwareKeyTouch),
+			expectKeyPolicy: PrivateKeyPolicyHardwareKeyTouch,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			require.Equal(t, tc.expectIsKeyPolicy, IsPrivateKeyPolicyError(tc.errIn))
-
 			keyPolicy, err := ParsePrivateKeyPolicyError(tc.errIn)
 			if tc.expectKeyPolicyErr {
 				require.Error(t, err)

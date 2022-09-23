@@ -54,27 +54,19 @@ func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 	return newPrivateKeyPolicyError(p)
 }
 
-var privateKeyPolicyErrMsg = "private key policy not met: "
-
-func newPrivateKeyPolicyError(p PrivateKeyPolicy) error {
-	return trace.BadParameter(privateKeyPolicyErrMsg + string(p))
-}
-
-// IsPrivateKeyPolicyError returns whether this error is a private key policy
-// error, in the form "private key policy not met: unmet-policy".
-func IsPrivateKeyPolicyError(err error) bool {
-	if trace.IsBadParameter(err) {
-		return strings.Contains(err.Error(), privateKeyPolicyErrMsg)
+func (p PrivateKeyPolicy) validate() error {
+	switch p {
+	case PrivateKeyPolicyNone, PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
+		return nil
 	}
-	return false
+	return trace.BadParameter("%q is not a valid key policy", p)
 }
 
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy
-// error and returns the contained PrivateKeyPolicy.
+// error and returns the contained unmet PrivateKeyPolicy.
 func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
-	if !IsPrivateKeyPolicyError(err) {
+	if !trace.IsBadParameter(err) {
 		return "", trace.BadParameter("provided error is not a key policy error")
-
 	}
 
 	policyStr := strings.ReplaceAll(err.Error(), privateKeyPolicyErrMsg, "")
@@ -85,10 +77,8 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	return policy, nil
 }
 
-func (p PrivateKeyPolicy) validate() error {
-	switch p {
-	case PrivateKeyPolicyNone, PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
-		return nil
-	}
-	return trace.BadParameter("%q is not a valid key policy", p)
+const privateKeyPolicyErrMsg string = "private key policy not met: "
+
+func newPrivateKeyPolicyError(p PrivateKeyPolicy) error {
+	return trace.BadParameter(privateKeyPolicyErrMsg + string(p))
 }

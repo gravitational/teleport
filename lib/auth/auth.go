@@ -1191,6 +1191,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
+	// verify that the required private key policy for the requesting identity
+	// is met by the provided attestation request.
 	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	privateKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationRequest, cryptoPubKey, sessionTTL)
 	if err != nil {

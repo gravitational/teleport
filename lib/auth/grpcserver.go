@@ -4587,10 +4587,10 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		} else if trace.IsAccessDenied(err) {
 			// don't print stack trace, just log the warning
 			log.Warn(err)
-		} else if keys.IsPrivateKeyPolicyError(err) {
+		} else if _, parseErr := keys.ParsePrivateKeyPolicyError(trace.Unwrap(err)); parseErr == nil {
 			// private key policy errors should be returned to the client
 			// unaltered so that they know to reauthenticate with a valid key.
-			return nil, trace.Wrap(err)
+			return nil, trace.Unwrap(err)
 		} else {
 			log.Warn(trace.DebugReport(err))
 		}

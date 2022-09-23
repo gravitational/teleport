@@ -201,6 +201,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, trace.Wrap(lockErr)
 	}
 
+	// Enforce required private key policy if set.
 	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,6 +216,8 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 		return nil
 	}
 
+	// Check that the required private key policy, defined by roles and auth pref,
+	// are met by this Identity's certificates.
 	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
 	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	if err := requiredPolicy.VerifyPolicy(identityPolicy); err != nil {

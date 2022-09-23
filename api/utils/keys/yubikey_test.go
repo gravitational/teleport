@@ -54,7 +54,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	require.Equal(t, priv, retrieveKey)
 }
 
-// resetYubikey connectsx to the first yubiKey and resets it to defaults.
+// resetYubikey connects to the first yubiKey and resets it to defaults.
 func resetYubikey(ctx context.Context, t *testing.T) {
 	y, err := findYubiKey(ctx, 0)
 	require.NoError(t, err)
