@@ -718,7 +718,7 @@ func TestHostUniqueCheck(t *testing.T) {
 		{
 			role: types.RoleWindowsDesktop,
 			upserter: func(name string) {
-				wds, err := types.NewWindowsDesktopServiceV3(instance1.account+"-"+instance1.instanceID,
+				wds, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: instance1.account + "-" + instance1.instanceID},
 					types.WindowsDesktopServiceSpecV3{
 						Addr:            "localhost:3028",
 						TeleportVersion: "10.2.2",
