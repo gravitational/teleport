@@ -1698,6 +1698,8 @@ func (m *Metrics) MTLSEnabled() bool {
 // WindowsDesktopService contains configuration for windows_desktop_service.
 type WindowsDesktopService struct {
 	Service `yaml:",inline"`
+	// Labels are the configured windows deesktops service labels.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
