@@ -252,6 +252,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
 		GetRotation:          process.getRotation,
 		ConnectedProxyGetter: proxyGetter,
+		ResourceMatchers:     cfg.Kube.ResourceMatchers,
 	})
 	if err != nil {
 		return trace.Wrap(err)
