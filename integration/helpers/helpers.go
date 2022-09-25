@@ -28,6 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -38,13 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh/agent"
 )
 
-// commandOptions controls how the SSH command is built.
+// CommandOptions controls how the SSH command is built.
 type CommandOptions struct {
 	ForwardAgent bool
 	ForcePTY     bool
@@ -68,7 +68,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	// ControlMaster is often used by applications like Ansible.
 	if o.ControlPath != "" {
 		execArgs = append(execArgs, "-oControlMaster=auto")
-		execArgs = append(execArgs, "-oControlPersist=1s")
+		execArgs = append(execArgs, "-oControlPersist=no")
 		execArgs = append(execArgs, "-oConnectTimeout=2")
 		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
 	}
@@ -82,18 +82,20 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	// Connect to node on the passed in port.
 	execArgs = append(execArgs, fmt.Sprintf("-p %v", o.NodePort))
 
-	// Build proxy command.
-	proxyCommand := []string{"ssh"}
-	proxyCommand = append(proxyCommand, "-oStrictHostKeyChecking=no")
-	proxyCommand = append(proxyCommand, "-oUserKnownHostsFile=/dev/null")
-	if o.ForwardAgent {
-		proxyCommand = append(proxyCommand, "-oForwardAgent=yes")
-	}
-	proxyCommand = append(proxyCommand, fmt.Sprintf("-p %v", o.ProxyPort))
-	proxyCommand = append(proxyCommand, `%r@localhost -s proxy:%h:%p`)
+	if o.ProxyPort != "" {
+		// Build proxy command.
+		proxyCommand := []string{"ssh"}
+		proxyCommand = append(proxyCommand, "-oStrictHostKeyChecking=no")
+		proxyCommand = append(proxyCommand, "-oUserKnownHostsFile=/dev/null")
+		if o.ForwardAgent {
+			proxyCommand = append(proxyCommand, "-oForwardAgent=yes")
+		}
+		proxyCommand = append(proxyCommand, fmt.Sprintf("-p %v", o.ProxyPort))
+		proxyCommand = append(proxyCommand, `%r@localhost -s proxy:%h:%p`)
 
-	// Add in ProxyCommand option, needed for all Teleport connections.
-	execArgs = append(execArgs, fmt.Sprintf("-oProxyCommand=%v", strings.Join(proxyCommand, " ")))
+		// Add in ProxyCommand option, needed for all Teleport connections.
+		execArgs = append(execArgs, fmt.Sprintf("-oProxyCommand=%v", strings.Join(proxyCommand, " ")))
+	}
 
 	// Add in the host to connect to and the command to run when connected.
 	execArgs = append(execArgs, Host)
@@ -110,9 +112,47 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.SocketPath)}
+	if o.SocketPath != "" {
+		cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.SocketPath)}
+	}
 
 	return cmd, nil
+}
+
+func MustWaitForControlMaster(t *testing.T, controlPath string, port string) {
+	require.Eventually(t, func() bool {
+		err := mustRunControlMasterCtlCmd(controlPath, "check", port)
+		if err != nil {
+			t.Log("Failed to check control master:", err)
+			return false
+		}
+		return true
+	}, time.Second*3, time.Millisecond*500, "failed to wait for control master")
+}
+
+func MustCancelForControlMaster(t *testing.T, controlPath string, port string) {
+	err := mustRunControlMasterCtlCmd(controlPath, "cancel", port)
+	require.NoError(t, err)
+}
+
+func mustRunControlMasterCtlCmd(controlPath string, ctrlCmd string, port string) error {
+	var execArgs []string
+	execArgs = append(execArgs, fmt.Sprintf("-O%s", ctrlCmd))
+	execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", controlPath))
+	execArgs = append(execArgs, fmt.Sprintf("-p %v", port))
+	execArgs = append(execArgs, Host)
+	execArgs = append(execArgs, "-v")
+
+	sshBin, err := exec.LookPath("ssh")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cmd := exec.Command(sshBin, execArgs...)
+	fmt.Println("MYDEBUG Running command:", cmd.String())
+	fmt.Println(cmd.String())
+	buff, err := cmd.CombinedOutput()
+	fmt.Println("MYDEBUG Combined output:", string(buff))
+	return err
 }
 
 // CreateAgent creates a SSH agent with the passed in private key and

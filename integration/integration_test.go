@@ -3522,35 +3522,63 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 		defer helpers.CloseAgent(teleAgent, socketDirPath)
 
-		// Create and run an exec command twice with the passed in ControlPath. This
-		// will cause re-use of the connection and creation of two sessions within
-		// the connection.
-		for i := 0; i < 2; i++ {
-			execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+		go func() {
+			// Create a ControlMaster connection that will be reused by other SSH command.
+			controlCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 				ForcePTY:     true,
 				ForwardAgent: true,
 				ControlPath:  controlPath,
 				SocketPath:   socketPath,
 				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
 				NodePort:     helpers.PortStr(t, teleport.SSH),
-				Command:      "echo hello",
+				Command:      "sleep 2",
 			})
 			require.NoError(t, err)
-
-			// Execute SSH command and check the output is what we expect.
-			output, err := execCmd.Output()
-			if err != nil {
-				// If an *exec.ExitError is returned, parse it and return stderr. If this
-				// is not done then c.Assert will just print a byte array for the error.
-				er, ok := err.(*exec.ExitError)
-				if ok {
-					t.Fatalf("Unexpected error: %v", string(er.Stderr))
-				}
-			}
+			err = controlCmd.Run()
 			require.NoError(t, err)
-			require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
+		}()
+
+		nodePort := helpers.PortStr(t, teleport.SSH)
+		// Wait for ControlPath to be created.
+		// ssh -O check -oControlPath=controlPath ...
+		helpers.MustWaitForControlMaster(t, controlPath, nodePort)
+
+		// Connect to the node using ControlPath and check the output is what we expect.
+		// The ControlPath is used to reuse the connection allowing to connect to the node
+		// without establishing a new connection and redoing the entire connection handshake.
+		cmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+			ForcePTY:    true,
+			ControlPath: controlPath,
+			NodePort:    nodePort,
+			Command:     "echo hello",
+			// Explicitly disable agent forwarding to ensure that the agent is not used.
+			// Also, unset ProxyPort to ensure that the ControlPath socket is reused.
+			// ForwardAgent: false,
+			// SocketPath:   "",
+			// ProxyPort:    "",
+		})
+		require.NoError(t, err)
+		mustRunControlCmd(t, cmd, "hello")
+
+		// Cancel gracefully control command allowing exit background process without error.
+		// ssh -O cancel -oControlPath=controlPath ...
+		helpers.MustCancelForControlMaster(t, controlPath, nodePort)
+	}
+}
+
+func mustRunControlCmd(t *testing.T, cmd *exec.Cmd, wantOutput string) {
+	// Execute SSH command and check the output is what we expect.
+	output, err := cmd.Output()
+	if err != nil {
+		// If an *exec.ExitError is returned, parse it and return stderr. If this
+		// is not done then c.Assert will just print a byte array for the error.
+		er, ok := err.(*exec.ExitError)
+		if ok {
+			t.Fatalf("Unexpected error: %v", string(er.Stderr))
 		}
 	}
+	require.NoError(t, err)
+	require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), wantOutput))
 }
 
 // testProxyHostKeyCheck uses the forwarding proxy to connect to a server that
