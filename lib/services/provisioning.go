@@ -93,6 +93,7 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		// For now, we continue to return these as V2.
 		// At a later date, once the V2 based RPCs are removed, we can
 		// switch to
+		// TODO: In 13.0 - call .V3() before returning.
 		var p types.ProvisionTokenV2
 		if err := utils.FastUnmarshal(data, &p); err != nil {
 			return nil, trace.BadParameter(err.Error())
@@ -136,6 +137,7 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 		// For now, we continue to accept the marshaling of ProvisionTokenV2
 		// Once we remove the RPCs for submitting ProvisionTokenV2s, we can
 		// remove the support here.
+		// REMOVE IN 13.0
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

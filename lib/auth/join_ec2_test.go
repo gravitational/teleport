@@ -174,6 +174,9 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		request     types.RegisterUsingTokenRequest
 		expectError func(error) bool
 		clock       clockwork.Clock
+
+		v2TokenSpec types.ProvisionTokenSpecV2
+		useV2Token  bool
 	}{
 		{
 			desc: "basic passing case",
@@ -215,6 +218,61 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 							Account: instance1.account,
 							Regions: []string{instance1.region},
 						},
+					},
+				},
+			},
+			ec2Client: ec2ClientRunning{},
+			request: types.RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                types.RoleNode,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			},
+			expectError: isNil,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
+		},
+		// REMOVE IN 13.0
+		// From 13.0 onwards, ProvisionTokenV2s will not be returned from the
+		// backend.
+		{
+			desc:       "ProvisionTokenV2 basic passing case",
+			useV2Token: true,
+			v2TokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
+					},
+				},
+			},
+			ec2Client: ec2ClientRunning{},
+			request: types.RegisterUsingTokenRequest{
+				Token:               "test_token",
+				NodeName:            "node_name",
+				Role:                types.RoleNode,
+				HostID:              instance1.account + "-" + instance1.instanceID,
+				EC2IdentityDocument: instance1.iid,
+			},
+			expectError: isNil,
+			clock:       clockwork.NewFakeClockAt(instance1.pendingTime),
+		},
+		{
+			desc:       "ProvisionTokenV2 pass with multiple rules",
+			useV2Token: true,
+			v2TokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodEC2,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance2.account,
+						AWSRegions: []string{instance2.region},
+					},
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -588,11 +646,20 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			}
 			a.clock = clock
 
-			token, err := types.NewProvisionTokenFromSpec(
-				"test_token",
-				time.Now().Add(time.Minute),
-				tc.tokenSpec)
-			require.NoError(t, err)
+			var token types.ProvisionToken
+			if tc.useV2Token {
+				token, err = types.NewProvisionTokenV2FromSpec(
+					"test_token",
+					time.Now().Add(time.Minute),
+					tc.v2TokenSpec)
+				require.NoError(t, err)
+			} else {
+				token, err = types.NewProvisionTokenFromSpec(
+					"test_token",
+					time.Now().Add(time.Minute),
+					tc.tokenSpec)
+				require.NoError(t, err)
+			}
 
 			err = a.UpsertToken(context.Background(), token)
 			require.NoError(t, err)

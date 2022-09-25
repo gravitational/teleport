@@ -138,6 +138,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		challengeResponseOptions []challengeResponseOption
 		challengeResponseErr     error
 		assertError              require.ErrorAssertionFunc
+
+		v2TokenSpec types.ProvisionTokenSpecV2
+		useV2Token  bool
 	}{
 		{
 			desc:             "basic passing case",
@@ -152,6 +155,33 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 							Account: "1234",
 							ARN:     "arn:aws::1111",
 						},
+					},
+				},
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		// REMOVE IN 13.0
+		// From 13.0 onwards, ProvisionTokenV2s will not be returned from the
+		// backend.
+		{
+			desc:             "ProvisionTokenV2 - basic passing case",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			useV2Token:       true,
+			v2TokenSpec: types.ProvisionTokenSpecV2{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
 					},
 				},
 			},
