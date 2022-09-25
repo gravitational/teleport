@@ -3531,10 +3531,13 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 				SocketPath:   socketPath,
 				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
 				NodePort:     helpers.PortStr(t, teleport.SSH),
-				Command:      "sleep 2",
+				Command:      "sleep 5",
 			})
 			require.NoError(t, err)
-			err = controlCmd.Run()
+			output, err := controlCmd.CombinedOutput()
+			if err != nil {
+				t.Logf("ControlMaster unexpected error: %v", string(output))
+			}
 			require.NoError(t, err)
 		}()
 
@@ -3559,10 +3562,6 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		})
 		require.NoError(t, err)
 		mustRunControlCmd(t, cmd, "hello")
-
-		// Cancel gracefully control command allowing exit background process without error.
-		// ssh -O cancel -oControlPath=controlPath ...
-		helpers.MustCancelForControlMaster(t, controlPath, nodePort)
 	}
 }
 

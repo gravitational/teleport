@@ -60,6 +60,8 @@ type CommandOptions struct {
 func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	var execArgs []string
 
+	execArgs = append(execArgs, "-v")
+
 	// Don't check the host certificate as part of the testing an external SSH
 	// client, this is done elsewhere.
 	execArgs = append(execArgs, "-oStrictHostKeyChecking=no")
