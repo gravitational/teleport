@@ -3483,85 +3483,84 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		controlDir, err := os.MkdirTemp("", "teleport-")
-		require.NoError(t, err)
-		defer os.RemoveAll(controlDir)
-		controlPath := filepath.Join(controlDir, "control-path")
+		controlPath := filepath.Join(t.TempDir(), "control-path")
 
-		// Create a Teleport instance with auth, proxy, and node.
-		makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
-			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-				Mode: tt.inRecordLocation,
-			})
-			require.NoError(t, err)
+		func() {
+			// Create a Teleport instance with auth, proxy, and node.
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+					Mode: tt.inRecordLocation,
+				})
+				require.NoError(t, err)
 
-			tconf := suite.defaultServiceConfig()
-			tconf.Auth.Enabled = true
-			tconf.Auth.SessionRecordingConfig = recConfig
+				tconf := suite.defaultServiceConfig()
+				tconf.Auth.Enabled = true
+				tconf.Auth.SessionRecordingConfig = recConfig
 
-			tconf.Proxy.Enabled = true
-			tconf.Proxy.DisableWebService = true
-			tconf.Proxy.DisableWebInterface = true
+				tconf.Proxy.Enabled = true
+				tconf.Proxy.DisableWebService = true
+				tconf.Proxy.DisableWebInterface = true
 
-			tconf.SSH.Enabled = true
+				tconf.SSH.Enabled = true
 
-			return t, nil, nil, tconf
-		}
-		teleport := suite.NewTeleportWithConfig(makeConfig())
-		defer teleport.StopAll()
-
-		// Generate certificates for the user simulating login.
-		creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-			Process:  teleport.Process,
-			Username: suite.Me.Username,
-		})
-		require.NoError(t, err)
-
-		// Start (and defer close) a agent that runs during this integration test.
-		teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
-		require.NoError(t, err)
-		defer helpers.CloseAgent(teleAgent, socketDirPath)
-
-		go func() {
-			// Create a ControlMaster connection that will be reused by other SSH command.
-			controlCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
-				ForcePTY:     true,
-				ForwardAgent: true,
-				ControlPath:  controlPath,
-				SocketPath:   socketPath,
-				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
-				NodePort:     helpers.PortStr(t, teleport.SSH),
-				Command:      "sleep 5",
-			})
-			require.NoError(t, err)
-			output, err := controlCmd.CombinedOutput()
-			if err != nil {
-				t.Logf("ControlMaster unexpected error: %v", string(output))
+				return t, nil, nil, tconf
 			}
+			teleport := suite.NewTeleportWithConfig(makeConfig())
+			defer teleport.StopAll()
+
+			// Generate certificates for the user simulating login.
+			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+				Process:  teleport.Process,
+				Username: suite.Me.Username,
+			})
 			require.NoError(t, err)
+
+			// Start (and defer close) a agent that runs during this integration test.
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			require.NoError(t, err)
+			defer helpers.CloseAgent(teleAgent, socketDirPath)
+
+			go func() {
+				// Create a ControlMaster connection that will be reused by other SSH command.
+				controlCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+					ForcePTY:     true,
+					ForwardAgent: true,
+					ControlPath:  controlPath,
+					SocketPath:   socketPath,
+					ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
+					NodePort:     helpers.PortStr(t, teleport.SSH),
+					Command:      "sleep 5",
+				})
+				require.NoError(t, err)
+				output, err := controlCmd.CombinedOutput()
+				if err != nil {
+					t.Logf("ControlMaster unexpected error: %v", string(output))
+				}
+				require.NoError(t, err)
+			}()
+
+			nodePort := helpers.PortStr(t, teleport.SSH)
+			// Wait for ControlPath to be created.
+			// ssh -O check -oControlPath=controlPath ...
+			helpers.MustWaitForControlMaster(t, controlPath, nodePort)
+
+			// Connect to the node using ControlPath and check the output is what we expect.
+			// The ControlPath is used to reuse the connection allowing to connect to the node
+			// without establishing a new connection and redoing the entire connection handshake.
+			cmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+				ForcePTY:    true,
+				ControlPath: controlPath,
+				NodePort:    nodePort,
+				Command:     "echo hello",
+				// Explicitly disable agent forwarding to ensure that the agent is not used.
+				// Also, unset ProxyPort to ensure that the ControlPath socket is reused.
+				// ForwardAgent: false,
+				// SocketPath:   "",
+				// ProxyPort:    "",
+			})
+			require.NoError(t, err)
+			mustRunControlCmd(t, cmd, "hello")
 		}()
-
-		nodePort := helpers.PortStr(t, teleport.SSH)
-		// Wait for ControlPath to be created.
-		// ssh -O check -oControlPath=controlPath ...
-		helpers.MustWaitForControlMaster(t, controlPath, nodePort)
-
-		// Connect to the node using ControlPath and check the output is what we expect.
-		// The ControlPath is used to reuse the connection allowing to connect to the node
-		// without establishing a new connection and redoing the entire connection handshake.
-		cmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
-			ForcePTY:    true,
-			ControlPath: controlPath,
-			NodePort:    nodePort,
-			Command:     "echo hello",
-			// Explicitly disable agent forwarding to ensure that the agent is not used.
-			// Also, unset ProxyPort to ensure that the ControlPath socket is reused.
-			// ForwardAgent: false,
-			// SocketPath:   "",
-			// ProxyPort:    "",
-		})
-		require.NoError(t, err)
-		mustRunControlCmd(t, cmd, "hello")
 	}
 }
 
