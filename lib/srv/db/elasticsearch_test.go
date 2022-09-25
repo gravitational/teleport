@@ -26,13 +26,12 @@ import (
 	"strings"
 	"testing"
 
-	elastic "github.com/elastic/go-elasticsearch/v8"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 )
@@ -158,8 +157,9 @@ func TestAuditElasticsearch(t *testing.T) {
 		proxy.Close()
 	})
 
-	var dbConn *elastic.Client
-	var proxy *alpnproxy.LocalProxy
+	dbConn, proxy, err := testCtx.elasticsearchClient(ctx, "alice", "Elasticsearch", "admin")
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		if proxy != nil {
 			proxy.Close()
@@ -168,14 +168,24 @@ func TestAuditElasticsearch(t *testing.T) {
 
 	t.Run("session starts event", func(t *testing.T) {
 		// Connect should trigger successful session start event.
-		var err error
-
-		dbConn, proxy, err = testCtx.elasticsearchClient(ctx, "alice", "Elasticsearch", "admin")
-		require.NoError(t, err)
 		resp, err := dbConn.Ping()
 		require.NoError(t, err)
 		require.False(t, resp.IsError())
 		waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+	})
+
+	t.Run("command sends", func(t *testing.T) {
+		// should trigger Query event.
+		result, err := dbConn.SQL.Query(strings.NewReader(`{ "query": "SELECT 42" }`))
+		require.NoError(t, err)
+		require.Equal(t, `[200 OK] {"columns":[{"name":"42","type":"integer"}],"rows":[[42]]}`, result.String())
+
+		_ = waitForEvent(t, testCtx, libevents.ElasticsearchRequestCode)
+
+		// actual query
+		ev := waitForEvent(t, testCtx, libevents.ElasticsearchRequestCode)
+		require.Equal(t, "/_sql", ev.(*events.ElasticsearchRequest).Path)
+		require.Equal(t, []byte(`{ "query": "SELECT 42" }`), ev.(*events.ElasticsearchRequest).Body)
 	})
 }
 

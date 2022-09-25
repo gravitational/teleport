@@ -1178,7 +1178,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop:
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1263,9 +1263,11 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
 	case types.Database:
 		return r.CheckAccess(rr, mfaParams)
+	case types.Server:
+		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktop:
 		return r.CheckAccess(rr, mfaParams)
-	case types.Server:
+	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
@@ -1355,7 +1357,7 @@ func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -1464,6 +1466,11 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 // ListWindowsDesktops not implemented: can only be called locally.
 func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListWindowsDesktopServices not implemented: can only be called locally.
+func (a *ServerWithRoles) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -4191,17 +4198,8 @@ func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, isService := a.context.Identity.(BuiltinRole)
-	isMFAVerified := a.context.Identity.GetIdentity().MFAVerified != ""
-	mfaParams := services.AccessMFAParams{
-		// MFA requirement only applies to users.
-		//
-		// Builtin services (like proxy_service and kube_service) are not gated
-		// on MFA and only need to pass the RBAC action check above.
-		Verified:       isService || isMFAVerified,
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
 
+	mfaParams := a.context.MFAParams(ap.GetRequireMFAType())
 	for _, kube := range s.GetKubernetesClusters() {
 		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
 		if err != nil {

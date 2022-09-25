@@ -172,6 +172,9 @@ const (
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
 	SQLServerRPCRequestCode = "TMS00I"
 
+	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
+	ElasticsearchRequestCode = "TES00I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
