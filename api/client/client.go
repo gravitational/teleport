@@ -2028,6 +2028,7 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 	var isV3 bool
 	switch v := token.(type) {
 	case *types.ProvisionTokenV2:
+		//lint:ignore SA1019 Deprecated call will be removed in 13.0
 		_, err = c.grpc.UpsertToken(ctx, v, c.callOpts...)
 	case *types.ProvisionTokenV3:
 		isV3 = true
@@ -2051,6 +2052,7 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 	var isV3 bool
 	switch v := token.(type) {
 	case *types.ProvisionTokenV2:
+		//lint:ignore SA1019 Deprecated call will be removed in 13.0
 		_, err = c.grpc.CreateToken(ctx, v, c.callOpts...)
 	case *types.ProvisionTokenV3:
 		isV3 = true
