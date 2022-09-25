@@ -85,7 +85,7 @@ func TestRequestCertificate(t *testing.T) {
 			Keygen:     testauthority.New(),
 			AuthClient: cl,
 		},
-		log: logrus.New(),
+		log: logrus.NewEntry(logrus.New()),
 	}
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	f := &Forwarder{
-		log: logrus.New(),
+		log: logrus.NewEntry(logrus.New()),
 		cfg: ForwarderConfig{
 			ClusterName:       "local",
 			CachingAuthClient: ap,
@@ -533,9 +533,9 @@ func TestAuthenticate(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {
-				f.creds = map[string]*kubeCreds{tt.routeToCluster: {targetAddr: "k8s.example.com"}}
+				f.clusterDetails = map[string]*kubeDetails{tt.routeToCluster: {kubeCreds: &kubeCreds{targetAddr: "k8s.example.com"}}}
 			} else {
-				f.creds = nil
+				f.clusterDetails = nil
 			}
 
 			gotCtx, err := f.authenticate(req)
@@ -704,17 +704,19 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
 	// Set creds for kube cluster local
-	f.creds = map[string]*kubeCreds{
+	f.clusterDetails = map[string]*kubeDetails{
 		"local": {
-			targetAddr: "k8s.example.com:443",
-			tlsConfig: &tls.Config{
-				Certificates: []tls.Certificate{
-					{
-						Certificate: [][]byte{[]byte("cert")},
+			kubeCreds: &kubeCreds{
+				targetAddr: "k8s.example.com:443",
+				tlsConfig: &tls.Config{
+					Certificates: []tls.Certificate{
+						{
+							Certificate: [][]byte{[]byte("cert")},
+						},
 					},
 				},
+				transportConfig: &transport.Config{},
 			},
-			transportConfig: &transport.Config{},
 		},
 	}
 
@@ -736,16 +738,16 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx.kubeCluster = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
+	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].targetAddr}}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession used provided creds
 	// instead of requesting a Teleport client cert.
 	// this validates the equality of the referenced values
-	require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+	require.Equal(t, f.clusterDetails["local"].tlsConfig, sess.tlsConfig)
 
 	// Make sure that sess.tlsConfig was cloned from the value we store in f.creds["local"].tlsConfig.
 	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
-	require.NotSame(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+	require.NotSame(t, f.clusterDetails["local"].tlsConfig, sess.tlsConfig)
 
 	require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
 	require.Empty(t, 0, f.clientCredentials.Len())
@@ -902,12 +904,14 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		return rt
 	}
 
-	f.creds = map[string]*kubeCreds{
+	f.clusterDetails = map[string]*kubeDetails{
 		"local": {
-			targetAddr: mockKubeAPI.URL,
-			tlsConfig:  mockKubeAPI.TLS,
-			transportConfig: &transport.Config{
-				WrapTransport: checkTransportProxy,
+			kubeCreds: &kubeCreds{
+				targetAddr: mockKubeAPI.URL,
+				tlsConfig:  mockKubeAPI.TLS,
+				transportConfig: &transport.Config{
+					WrapTransport: checkTransportProxy,
+				},
 			},
 		},
 	}
@@ -915,7 +919,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	authCtx.kubeCluster = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
+	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].targetAddr}}, sess.kubeClusterEndpoints)
 
 	sess.tlsConfig.InsecureSkipVerify = true
 
@@ -952,7 +956,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	require.NoError(t, err)
 
 	return &Forwarder{
-		log:    logrus.New(),
+		log:    logrus.NewEntry(logrus.New()),
 		router: *httprouter.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
@@ -1126,7 +1130,7 @@ func (m *mockWatcher) Done() <-chan struct{} {
 
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 	return &Forwarder{
-		log:            logrus.New(),
+		log:            logrus.NewEntry(logrus.New()),
 		router:         *httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),

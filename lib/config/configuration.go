@@ -1099,6 +1099,13 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Kube.PublicAddrs = addrs
 	}
 
+	for _, matcher := range fc.Kube.ResourceMatchers {
+		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
+	}
+
 	if fc.Kube.KubeconfigFile != "" {
 		cfg.Kube.KubeconfigPath = fc.Kube.KubeconfigFile
 	}
@@ -1495,6 +1502,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	if fc.WindowsDesktop.Labels != nil {
+		cfg.WindowsDesktop.Labels = make(map[string]string)
+		for k, v := range fc.WindowsDesktop.Labels {
+			cfg.WindowsDesktop.Labels[k] = v
+		}
 	}
 
 	return nil
