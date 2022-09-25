@@ -3483,9 +3483,11 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		controlPath := filepath.Join(t.TempDir(), "control-path")
-
-		func() {
+		t.Run(tt.inRecordLocation, func(t *testing.T) {
+			controlDir, err := os.MkdirTemp("", "teleport-")
+			require.NoError(t, err)
+			defer os.RemoveAll(controlDir)
+			controlPath := filepath.Join(controlDir, "control-path")
 			// Create a Teleport instance with auth, proxy, and node.
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -3560,7 +3562,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			})
 			require.NoError(t, err)
 			mustRunControlCmd(t, cmd, "hello")
-		}()
+		})
 	}
 }
 
