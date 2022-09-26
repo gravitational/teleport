@@ -72,6 +72,11 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 			resourceID:  "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport",
 			expectToken: "azure-redis-enterprise-token",
 		},
+		{
+			name:        "Redis Enterprise (database resource ID)",
+			resourceID:  "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport/databases/default",
+			expectToken: "azure-redis-enterprise-token",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -259,7 +264,7 @@ type azureCacheForRedisMock struct {
 	token string
 }
 
-func (m *azureCacheForRedisMock) GetToken(_ context.Context, _, _ string) (string, error) {
+func (m *azureCacheForRedisMock) GetToken(_ context.Context, _ string) (string, error) {
 	return m.token, nil
 }
 

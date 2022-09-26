@@ -53,7 +53,7 @@ func TestRedisClient(t *testing.T) {
 				t.Parallel()
 
 				c := NewRedisClientByAPI(test.mockAPI)
-				token, err := c.GetToken(context.TODO(), "group", "cluster")
+				token, err := c.GetToken(context.TODO(), "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/Redis/example-teleport")
 				if test.expectError {
 					require.Error(t, err)
 				} else {

@@ -322,7 +322,7 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Ses
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-	case "Microsoft.Cache/redisEnterprise":
+	case "Microsoft.Cache/redisEnterprise", "Microsoft.Cache/redisEnterprise/databases":
 		client, err = a.cfg.Clients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -330,8 +330,7 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *Ses
 	default:
 		return "", trace.BadParameter("unknown Azure Cache for Redis resource type: %v", resourceID.ResourceType)
 	}
-
-	token, err := client.GetToken(ctx, resourceID.ResourceGroupName, resourceID.Name)
+	token, err := client.GetToken(ctx, sessionCtx.Database.GetAzure().ResourceID)
 	if err != nil {
 		// Some Azure error messages are long, multi-lined, and may even
 		// contain divider lines like "------". It's unreadable in redis-cli as

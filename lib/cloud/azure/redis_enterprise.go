@@ -18,7 +18,6 @@ package azure
 
 import (
 	"context"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -62,9 +61,17 @@ func NewRedisEnterpriseClientByAPI(databaseAPI armRedisEnterpriseDatabaseClient)
 
 // GetToken retrieves the auth token for provided resource group and resource
 // name.
-func (c *redisEnterpriseClient) GetToken(ctx context.Context, group, name string) (string, error) {
-	clusterName, databaseName := c.getClusterAndDatabaseName(name)
-	resp, err := c.databaseAPI.ListKeys(ctx, group, clusterName, databaseName, &armredisenterprise.DatabasesClientListKeysOptions{})
+func (c *redisEnterpriseClient) GetToken(ctx context.Context, resourceID string) (string, error) {
+	id, err := arm.ParseResourceID(resourceID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	clusterName, databaseName, err := c.getClusterAndDatabaseName(id)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := c.databaseAPI.ListKeys(ctx, id.ResourceGroupName, clusterName, databaseName, &armredisenterprise.DatabasesClientListKeysOptions{})
 	if err != nil {
 		return "", trace.Wrap(ConvertResponseError(err))
 	}
@@ -79,16 +86,19 @@ func (c *redisEnterpriseClient) GetToken(ctx context.Context, group, name string
 	return "", trace.NotFound("missing keys")
 }
 
-func (c *redisEnterpriseClient) getClusterAndDatabaseName(resourceName string) (string, string) {
-	// The resource name can be either:
-	//   - cluster resource name: <clusterName>
-	//   - database resource name: <clusterName>/databases/<databaseName>
-	//
-	// Though it appears an Enterprise cluster always has only one "database",
-	// and the database name is always "default".
-	clusterName, databaseName, ok := strings.Cut(resourceName, "/databases/")
-	if ok {
-		return clusterName, databaseName
+func (c *redisEnterpriseClient) getClusterAndDatabaseName(id *arm.ResourceID) (string, string, error) {
+	switch id.ResourceType.String() {
+	case "Microsoft.Cache/redisEnterprise":
+		// It appears an Enterprise cluster always has only one "database", and
+		// the database name is always "default".
+		return id.Name, "default", nil
+	case "Microsoft.Cache/redisEnterprise/databases":
+		return id.Parent.Name, id.Name, nil
+	default:
+		return "", "", trace.BadParameter("unknown Azure Cache for Redis resource type: %v", id.ResourceType)
 	}
-	return clusterName, "default"
 }
+
+// RedisEnterpriseClusterDefaultDatabase is the default database name for a
+// Redis Enterprise cluster.
+const RedisEnterpriseClusterDefaultDatabase = "default"

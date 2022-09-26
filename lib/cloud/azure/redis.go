@@ -57,8 +57,13 @@ func NewRedisClientByAPI(api armRedisClient) CacheForRedisClient {
 
 // GetToken retrieves the auth token for provided resource group and resource
 // name.
-func (c *redisClient) GetToken(ctx context.Context, group, name string) (string, error) {
-	resp, err := c.api.ListKeys(ctx, group, name, &armredis.ClientListKeysOptions{})
+func (c *redisClient) GetToken(ctx context.Context, resourceID string) (string, error) {
+	id, err := arm.ParseResourceID(resourceID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := c.api.ListKeys(ctx, id.ResourceGroupName, id.Name, &armredis.ClientListKeysOptions{})
 	if err != nil {
 		return "", trace.Wrap(ConvertResponseError(err))
 	}

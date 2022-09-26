@@ -28,21 +28,21 @@ func TestRedisEnterpriseClient(t *testing.T) {
 		tests := []struct {
 			name            string
 			mockDatabaseAPI armRedisEnterpriseDatabaseClient
-			resourceName    string
+			resourceID      string
 			expectError     bool
 			expectToken     string
 		}{
 			{
-				name:         "access denied",
-				resourceName: "cluster-name",
+				name:       "access denied",
+				resourceID: "cluster-name",
 				mockDatabaseAPI: &ARMRedisEnterpriseDatabaseMock{
 					NoAuth: true,
 				},
 				expectError: true,
 			},
 			{
-				name:         "succeed (default database name)",
-				resourceName: "cluster-name",
+				name:       "succeed (default database name)",
+				resourceID: "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport",
 				mockDatabaseAPI: &ARMRedisEnterpriseDatabaseMock{
 					TokensByDatabaseName: map[string]string{
 						"default": "some-token",
@@ -51,8 +51,8 @@ func TestRedisEnterpriseClient(t *testing.T) {
 				expectToken: "some-token",
 			},
 			{
-				name:         "succeed (specific database name)",
-				resourceName: "cluster-name/databases/some-database",
+				name:       "succeed (specific database name)",
+				resourceID: "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport/databases/some-database",
 				mockDatabaseAPI: &ARMRedisEnterpriseDatabaseMock{
 					TokensByDatabaseName: map[string]string{
 						"some-database": "some-token",
@@ -68,7 +68,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 				t.Parallel()
 
 				c := NewRedisEnterpriseClientByAPI(test.mockDatabaseAPI)
-				token, err := c.GetToken(context.TODO(), "group", test.resourceName)
+				token, err := c.GetToken(context.TODO(), test.resourceID)
 				if test.expectError {
 					require.Error(t, err)
 				} else {
