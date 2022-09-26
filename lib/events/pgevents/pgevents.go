@@ -230,8 +230,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	if pgConn, err := connectPostgres(ctx, cfg.PoolConfig); err != nil {
 		cfg.Log.WithError(err).Warn("Failed to connect to the \"postgres\" database.")
 	} else {
-		createDB := fmt.Sprintf("CREATE DATABASE \"%v\" TEMPLATE 'template0' ENCODING 'UTF-8' LC_COLLATE 'C' LC_CTYPE 'C'",
-			cfg.PoolConfig.ConnConfig.Database)
+		// this will error out if the encoding of template1 is not UTF8; in such
+		// cases, the database creation should probably be done manually anyway
+		createDB := fmt.Sprintf("CREATE DATABASE \"%v\" ENCODING UTF8", cfg.PoolConfig.ConnConfig.Database)
 		if _, err := pgConn.Exec(ctx, createDB); err != nil && !isCode(err, duplicateDatabaseCode) {
 			// CREATE will check permissions first and we may not have CREATEDB
 			// privileges in more hardened setups; the subsequent connection
@@ -340,6 +341,10 @@ func (l *Log) setupAndMigrate(ctx context.Context) error {
 			"SELECT coalesce(max(version), 0) FROM audit_version",
 		).Scan(&currentVersion); err != nil {
 			return trace.Wrap(err)
+		}
+
+		if currentVersion > len(schemas) {
+			return trace.BadParameter("database schema version greater than maximum supported")
 		}
 
 		for i := currentVersion; i < len(schemas); i++ {
