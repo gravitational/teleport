@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            126
+            129
           </strong>
            of
            
           <strong>
-            126
+            129
           </strong>
         </div>
         <button
@@ -436,6 +436,117 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-kubernetes c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Kubernetes Deleted
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] deleted kubernetes cluster [kube-local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-08T15:42:36.005Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-kubernetes c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Kubernetes Updated
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] updated kubernetes cluster [kube-local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-08T15:42:36.005Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-kubernetes c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Kubernetes Created
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [05ff66c9-a948-42f4-af0e-a1b6ba62561e.root] created kubernetes cluster [kube-local]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-08T15:42:36.005Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"

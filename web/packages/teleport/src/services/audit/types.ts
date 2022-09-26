@@ -94,6 +94,9 @@ export const eventCodes = {
   GITHUB_CONNECTOR_CREATED: 'T8000I',
   GITHUB_CONNECTOR_DELETED: 'T8001I',
   KUBE_REQUEST: 'T3009I',
+  KUBE_CREATED: 'T3010I',
+  KUBE_UPDATED: 'T3011I',
+  KUBE_DELETED: 'T3012I',
   LOCK_CREATED: 'TLK00I',
   LOCK_DELETED: 'TLK01I',
   MFA_DEVICE_ADD: 'T1006I',
@@ -521,6 +524,24 @@ export type RawEvents = {
     typeof eventCodes.KUBE_REQUEST,
     {
       kubernetes_cluster: string;
+    }
+  >;
+  [eventCodes.KUBE_CREATED]: RawEvent<
+    typeof eventCodes.KUBE_CREATED,
+    {
+      name: string;
+    }
+  >;
+  [eventCodes.KUBE_UPDATED]: RawEvent<
+    typeof eventCodes.KUBE_UPDATED,
+    {
+      name: string;
+    }
+  >;
+  [eventCodes.KUBE_DELETED]: RawEvent<
+    typeof eventCodes.KUBE_DELETED,
+    {
+      name: string;
     }
   >;
   [eventCodes.DATABASE_SESSION_STARTED]: RawEvent<
