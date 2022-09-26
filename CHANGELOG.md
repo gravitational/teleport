@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.2.5
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with connecting to servers with some GUI clients e.g. PyCharm. [#16662](https://github.com/gravitational/teleport/pull/16662)
+* Added support for simplified Active Directory configuration in Desktop Access. [#16623](https://github.com/gravitational/teleport/pull/16623)
+
 ## 10.2.4
 
 This release of Teleport contains multiple improvements and bug fixes.
