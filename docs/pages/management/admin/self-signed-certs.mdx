@@ -184,8 +184,7 @@ running it: via the `teleport` CLI, using a Helm chart, or via systemd:
 ### `tctl`
 When running `tctl` remotely via the Teleport Proxy Service, if the Proxy Service is using self-signed 
 certificates, then `tctl` will not trust the certificate from the Proxy Service.
-To disable certificate verification use:
-`tctl --insecure`.
+To disable certificate verification use the `--insecure` flag when running `tctl` commands.
 
 `tctl` will determine how to connect to the Auth Service in a few ways:
 - loading configuration from a local profile after logging in with `tsh`
@@ -199,12 +198,15 @@ self-signed certificates, then `tctl` will not trust the certificate from the Pr
 error message about
 untrusted or invalid certificates, unless `--insecure` is also passed to `tctl`.
 
+For example: `tctl status --insecure`
+
 ### `tsh`
 When running `tsh`, you must specify the Teleport Proxy Service address for `tsh` to connect to.
 If the Teleport Proxy Service is using self-signed certificates, then `tsh` will not trust the Proxy Service 
 certificate.
 In order to use `tsh` in this case, you need to use the `--insecure` flag.
 
+For example: `tsh login --proxy=tele.example.com:443 --user=alice --insecure`
 
 ## Further reading
 
