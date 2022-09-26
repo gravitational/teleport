@@ -1,7 +1,7 @@
 import { github } from 'teleport/AuthConnectors/templates';
 
-import saml from 'raw-loader!./saml.yaml';
-import oidc from 'raw-loader!./oidc.yaml';
+import saml from './saml.yaml?raw';
+import oidc from './oidc.yaml?raw';
 
 const templates = {
   saml,
