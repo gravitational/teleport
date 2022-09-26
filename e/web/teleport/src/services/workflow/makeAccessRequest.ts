@@ -26,7 +26,7 @@ export default function makeAccessRequest(json?): AccessRequest {
     reviews,
     reviewers,
     thresholdNames: json.thresholdNames || [],
-    resourceIds: json.resourceIds || [],
+    resources: json.resources || [],
   };
 }
 

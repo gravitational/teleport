@@ -19,7 +19,7 @@ import {
   RequestState,
   AccessRequestReview,
   AccessRequestReviewer,
-  ResourceId,
+  Resource,
 } from 'e-teleport/services/workflow';
 
 import RequestDelete from './RequestDelete';
@@ -161,7 +161,7 @@ export function RequestView({
               user={request.user}
               reason={request.requestReason}
               createdDuration={request.createdDuration}
-              resourceIds={request.resourceIds}
+              resources={request.resources}
             />
             {request.reviews.length > 0 && (
               <Reviews reviews={request.reviews} />
@@ -211,22 +211,22 @@ function RequestorTimestamp({
   user,
   reason,
   createdDuration,
-  resourceIds,
+  resources,
 }: {
   user: string;
   reason: string;
   createdDuration: string;
-  resourceIds: ResourceId[];
+  resources: Resource[];
 }) {
   return (
     <>
       <Timestamp author={user} createdDuration={createdDuration} />
-      {(reason || resourceIds?.length > 0) && (
+      {(reason || resources?.length > 0) && (
         <Comment
           author={user}
           comment={reason}
           createdDuration={createdDuration}
-          resourceIds={resourceIds}
+          resources={resources}
         />
       )}
     </>
@@ -286,12 +286,12 @@ function Comment({
   author,
   comment,
   createdDuration,
-  resourceIds,
+  resources,
 }: {
   author: string;
   comment: string;
   createdDuration: string;
-  resourceIds?: ResourceId[];
+  resources?: Resource[];
 }) {
   return (
     <Box
@@ -311,7 +311,7 @@ function Comment({
           {comment}
         </Box>
       )}
-      {resourceIds?.length > 0 && (
+      {resources?.length > 0 && (
         <Box
           pt={comment ? 0 : 3}
           pl={3}
@@ -323,7 +323,10 @@ function Comment({
           bg="primary.lighter"
         >
           <StyledTable
-            data={resourceIds}
+            data={resources.map(resource => ({
+              ...resource.id,
+              ...resource.details,
+            }))}
             columns={[
               {
                 key: 'clusterName',
@@ -335,7 +338,15 @@ function Comment({
               },
               {
                 key: 'name',
-                headerText: 'Requested Resource Name',
+                headerText: 'Requested Resource ID',
+              },
+              {
+                key: 'hostname',
+                headerText: 'Hostname',
+                // Don't render the hostname column if we have no hostnames.
+                isNonRender: !resources.some(
+                  resource => resource.details?.hostname
+                ),
               },
             ]}
             emptyText=""

@@ -22,7 +22,7 @@ export interface AccessRequest {
   reviewers: AccessRequestReviewer[];
   reviews: AccessRequestReview[];
   thresholdNames: string[];
-  resourceIds: ResourceId[];
+  resources: Resource[];
 }
 
 export interface AccessRequestReview {
@@ -38,6 +38,11 @@ export interface AccessRequestReviewer {
   state: RequestState;
 }
 
+export type Resource = {
+  id: ResourceId;
+  details?: ResourceDetails;
+};
+
 // ResourceID is a unique identifier for a teleport resource.
 export type ResourceId = {
   // kind is the resource (agent) kind.
@@ -46,6 +51,12 @@ export type ResourceId = {
   name: string;
   // clusterName is the name of cluster.
   clusterName: string;
+};
+
+// ResourceDetails holds optional details for a resource.
+export type ResourceDetails = {
+  // hostname is the resource hostname.
+  hostname?: string;
 };
 
 export interface CreateAccessRequest {

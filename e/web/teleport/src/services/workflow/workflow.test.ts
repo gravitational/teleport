@@ -23,7 +23,7 @@ test('handling of empty lists in an access request', async () => {
   expect(response.thresholdNames).toHaveLength(0);
   expect(response.reviews).toHaveLength(0);
   expect(response.reviewers).toHaveLength(0);
-  expect(response.resourceIds).toHaveLength(0);
+  expect(response.resources).toHaveLength(0);
 });
 
 test('correct formatting of access request json response', async () => {
@@ -67,7 +67,13 @@ test('correct formatting of access request json response', async () => {
       { name: 'may', state: 'APPROVED' },
     ],
     thresholdNames: ['Default'],
-    resourceIds: [{ clusterName: 'cluster', Name: 'name', Kind: 'kind' }],
+    resources: [
+      { id: { clusterName: 'cluster', Name: 'name', Kind: 'kind' } },
+      {
+        id: { clusterName: 'cluster', Name: 'name', Kind: 'kind' },
+        details: { hostname: 'hostname' },
+      },
+    ],
   });
 });
 
@@ -94,5 +100,11 @@ const requestApproved = {
   ],
   suggestedReviewers: ['alice', 'bob'],
   thresholdNames: ['Default'],
-  resourceIds: [{ clusterName: 'cluster', Name: 'name', Kind: 'kind' }],
+  resources: [
+    { id: { clusterName: 'cluster', Name: 'name', Kind: 'kind' } },
+    {
+      id: { clusterName: 'cluster', Name: 'name', Kind: 'kind' },
+      details: { hostname: 'hostname' },
+    },
+  ],
 };

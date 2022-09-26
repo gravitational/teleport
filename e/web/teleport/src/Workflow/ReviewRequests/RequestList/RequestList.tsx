@@ -15,7 +15,7 @@ import Table, { Cell } from 'design/DataTable';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
-import { ResourceId, AccessRequest } from 'e-teleport/services/workflow';
+import { AccessRequest, Resource } from 'e-teleport/services/workflow';
 
 import useRequestList, { State, Row } from './useRequestList';
 
@@ -73,12 +73,12 @@ export function RequestList({ attempt, requests = [], assumeRole }: State) {
             {
               key: 'roles',
               headerText: 'Requested',
-              render: ({ resourceIds, roles }) => (
-                <RequestedCell resourceIds={resourceIds} roles={roles} />
+              render: ({ resources, roles }) => (
+                <RequestedCell resources={resources} roles={roles} />
               ),
             },
             {
-              key: 'resourceIds',
+              key: 'resources',
               isNonRender: true,
             },
             {
@@ -120,9 +120,11 @@ function requestdMatcher(
     );
   }
 
-  if (propName === 'resourceIds') {
-    return targetValue.some((r: ResourceId) =>
-      Object.keys(r).some(k => r[k].toUpperCase().includes(searchValue))
+  if (propName === 'resources') {
+    return targetValue.some((r: Resource) =>
+      Object.values(r.id)
+        .concat(Object.values(r.details || {}))
+        .some(v => v.toUpperCase().includes(searchValue))
     );
   }
 }
@@ -224,14 +226,19 @@ const renderActionCell = (request: Row, assumeRole: (request: Row) => void) => {
 
 const RequestedCell = ({
   roles,
-  resourceIds,
-}: Pick<Row, 'roles' | 'resourceIds'>) => {
-  if (resourceIds?.length > 0) {
+  resources,
+}: Pick<Row, 'roles' | 'resources'>) => {
+  if (resources?.length > 0) {
     return (
       <Cell>
-        {resourceIds.map(id => (
-          <Label mb="0" mr="1" key={`${id.kind}${id.name}`} kind="secondary">
-            {id.kind}: {id.name}
+        {resources.map(resource => (
+          <Label
+            mb="0"
+            mr="1"
+            key={`${resource.id.kind}${resource.id.name}`}
+            kind="secondary"
+          >
+            {resource.id.kind}: {resource.id.name}
           </Label>
         ))}
       </Cell>

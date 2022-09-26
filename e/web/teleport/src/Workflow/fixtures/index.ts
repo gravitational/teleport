@@ -21,19 +21,23 @@ export const requestSearchPending: AccessRequest = {
     { name: 'bob', state: 'PENDING' },
   ],
   thresholdNames: ['Default', 'Poplar', 'Admin'],
-  resourceIds: [
-    { kind: 'app', name: 'app-name', clusterName: 'cluster-name' },
-    { kind: 'db', name: 'db-name', clusterName: 'cluster-name' },
-    { kind: 'node', name: 'node-name', clusterName: 'cluster-name' },
+  resources: [
+    { id: { kind: 'app', name: 'app-name', clusterName: 'cluster-name' } },
+    { id: { kind: 'db', name: 'db-name', clusterName: 'cluster-name' } },
+    { id: { kind: 'node', name: 'node-name', clusterName: 'cluster-name' } },
     {
-      kind: 'kube_cluster',
-      name: 'kube-cluster-name',
-      clusterName: 'cluster-name',
+      id: {
+        kind: 'kube_cluster',
+        name: 'kube-cluster-name',
+        clusterName: 'cluster-name',
+      },
     },
     {
-      kind: 'windows_desktop',
-      name: 'windows-desktop-name',
-      clusterName: 'cluster-name',
+      id: {
+        kind: 'windows_desktop',
+        name: 'windows-desktop-name',
+        clusterName: 'cluster-name',
+      },
     },
   ],
 };
@@ -58,7 +62,7 @@ export const requestRolePending: AccessRequest = {
     { name: 'bob', state: 'PENDING' },
   ],
   thresholdNames: ['Default', 'Poplar', 'Admin'],
-  resourceIds: [],
+  resources: [],
 };
 
 export const requestRoleDenied: AccessRequest = {
@@ -86,7 +90,7 @@ export const requestRoleDenied: AccessRequest = {
     { name: 'bob', state: 'PENDING' },
   ],
   thresholdNames: ['Default'],
-  resourceIds: [],
+  resources: [],
 };
 
 export const requestRoleApproved: AccessRequest = {
@@ -123,7 +127,7 @@ export const requestRoleApproved: AccessRequest = {
     { name: 'test-long-user-name@testing.com', state: 'APPROVED' },
   ],
   thresholdNames: ['Default'],
-  resourceIds: [],
+  resources: [],
 };
 
 export const requestRoleEmpty: AccessRequest = {

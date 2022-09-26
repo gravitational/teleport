@@ -3025,7 +3025,7 @@ exports[`loaded pending search based request state 1`] = `
                   <th
                     style="cursor: default;"
                   >
-                    Requested Resource Name
+                    Requested Resource ID
                   </th>
                 </tr>
               </thead>
