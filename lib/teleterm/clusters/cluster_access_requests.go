@@ -18,8 +18,6 @@ import (
 	"context"
 	"time"
 
-	// "github.com/gravitational/teleport/api/client/proto"
-	// "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -28,7 +26,6 @@ import (
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
-	// "github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/trace"
 )
 

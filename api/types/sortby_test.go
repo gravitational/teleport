@@ -21,7 +21,6 @@ import (
 )
 
 func TestGetSortByFromString(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		in  string
 		out SortBy
@@ -55,7 +54,6 @@ func TestGetSortByFromString(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.in, func(t *testing.T) {
-
 			out := GetSortByFromString(tt.in)
 			require.Equal(t, tt.out, out)
 		})

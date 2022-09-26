@@ -21,7 +21,9 @@ import (
 // GetSortByFromString expects a string in format `<fieldName>:<asc|desc>` where
 // index 0 is fieldName and index 1 is direction.
 // If a direction is not set, or is not recognized, it defaults to ASC.
-func GetSortByFromString(sortStr string) (sortBy SortBy) {
+func GetSortByFromString(sortStr string) SortBy {
+	var sortBy SortBy
+
 	if sortStr == "" {
 		return sortBy
 	}
