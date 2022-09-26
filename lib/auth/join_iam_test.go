@@ -20,9 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net"
 	"net/http"
@@ -30,6 +27,10 @@ import (
 	"testing"
 	"text/template"
 	"time"
+
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
