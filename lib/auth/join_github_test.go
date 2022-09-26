@@ -59,6 +59,23 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
+	allowRule := func(modifier func(*types.ProvisionTokenSpecV3GitHub_Rule)) *types.ProvisionTokenSpecV3GitHub_Rule {
+		rule := &types.ProvisionTokenSpecV3GitHub_Rule{
+			Sub:             "repo:octo-org/octo-repo:environment:prod",
+			Repository:      "octo-org/octo-repo",
+			RepositoryOwner: "octo-org",
+			Workflow:        "example-workflow",
+			Environment:     "prod",
+			Actor:           "octocat",
+			Ref:             "refs/heads/main",
+			RefType:         "branch",
+		}
+		if modifier != nil {
+			modifier(rule)
+		}
+		return rule
+	}
+
 	allowRulesNotMatched := assert.ErrorAssertionFunc(func(t assert.TestingT, err error, i ...interface{}) bool {
 		messageMatch := assert.ErrorContains(t, err, "id token claims did not match any allow rules")
 		typeMatch := assert.True(t, trace.IsAccessDenied(err))
@@ -77,16 +94,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				Roles:      []types.SystemRole{types.RoleNode},
 				GitHub: &types.ProvisionTokenSpecV3GitHub{
 					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
-						{
-							Sub:             "repo:octo-org/octo-repo:environment:prod",
-							Repository:      "octo-org/octo-repo",
-							RepositoryOwner: "octo-org",
-							Workflow:        "example-workflow",
-							Environment:     "prod",
-							Actor:           "octocat",
-							Ref:             "refs/heads/main",
-							RefType:         "branch",
-						},
+						allowRule(nil),
 					},
 				},
 			},
@@ -104,16 +112,149 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				Roles:      []types.SystemRole{types.RoleNode},
 				GitHub: &types.ProvisionTokenSpecV3GitHub{
 					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
-						{
-							Sub:             "wrong",
-							Repository:      "octo-org/octo-repo",
-							RepositoryOwner: "octo-org",
-							Workflow:        "example-workflow",
-							Environment:     "prod",
-							Actor:           "octocat",
-							Ref:             "refs/heads/main",
-							RefType:         "branch",
-						},
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.Sub = "not matching"
+						}),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect repository",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.Repository = "not matching"
+						}),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect repository owner",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.RepositoryOwner = "not matching"
+						}),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect workflow",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.Workflow = "not matching"
+						}),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect environment",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.Environment = "not matching"
+						}),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect actor",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.Actor = "not matching"
+						}),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect ref",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.Ref = "not matching"
+						}),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect ref type",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.RefType = "not matching"
+						}),
 					},
 				},
 			},
