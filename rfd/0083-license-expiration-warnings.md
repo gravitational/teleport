@@ -36,7 +36,7 @@ When the user uses either the “tsh login” or ‘tsh status” commands the a
 TCTL - “tctl status”
 When the user uses the “tctl status” command the appropriate license warning will be displayed.
 The warnings are to be displayed 90 days prior to the license expiring.
-After expiration all tsh and tctl commands will display the license expiry warning.
+After expiration all tctl commands will display the license expiry warning.
 
 ### Example outputs
 
@@ -146,6 +146,8 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
 
 
 On startup and every 1 hour afterwards the auth server will check the license and generate a license warning if applicable, or clear license warning alerts if they are no longer needed.
+
+All requests to grab cluster alerts on login will be made with a timeout of 500ms.
 
 These license warning alerts will need to be auth server specific so the host id will need to be added to the cluster alert spec to allow this. The cluster alert spec may also need to be modified to add a bool for whether an alert is allowed to be dismissed.
 
