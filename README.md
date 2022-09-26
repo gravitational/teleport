@@ -17,8 +17,8 @@
 </div>
 </br>
 
+> **Teleports First User Conference - Nov 9th, SF** https://goteleport.com/teleport-connect-2022/ 
 > Read our Blog: https://goteleport.com/blog/
-
 > Read our Documentation: https://goteleport.com/docs/getting-started/
 
 ## Table of Contents
