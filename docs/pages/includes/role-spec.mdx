@@ -14,6 +14,9 @@ spec:
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed for SSH
     port_forwarding: true
+    # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
+    # Defaults to true.
+    ssh_file_copy: false
     # client_idle_timeout determines if SSH sessions to cluster nodes are
     # forcefully terminated after no activity from a client (idle client).
     # it overrides the global cluster setting. examples: "30m", "1h" or "1h30m"
