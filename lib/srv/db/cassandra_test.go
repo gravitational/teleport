@@ -146,10 +146,12 @@ func TestAccessCassandraHandshake(t *testing.T) {
 			protocolVersion: primitive.ProtocolVersion3,
 		},
 	}
+
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
 	const teleportUser = "alice"
+	const streamID = 101
 
 	for _, tc := range tests {
 		t.Run(tc.protocolVersion.String(), func(t *testing.T) {
@@ -157,7 +159,7 @@ func TestAccessCassandraHandshake(t *testing.T) {
 				testCtx.createUserAndRole(ctx, t, teleportUser, "admin", []string{"cassandra"}, []string{types.Wildcard})
 				cqlRawClient, err := testCtx.cassandraRawClient(ctx, teleportUser, "cassandra", "cassandra")
 				require.NoError(t, err)
-				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, 101)
+				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, streamID)
 				require.NoError(t, err)
 				fr := frame.NewFrame(tc.protocolVersion, 102, &message.Query{
 					Query: "select * from system.local where key='local'"},
@@ -172,7 +174,7 @@ func TestAccessCassandraHandshake(t *testing.T) {
 				opts := []cassandra.ClientOptions{cassandra.WithCassandraUsername("unknown_user")}
 				cqlRawClient, err := testCtx.cassandraRawClient(ctx, teleportUser, "cassandra", "unknown_user", opts...)
 				require.NoError(t, err)
-				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, 101)
+				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, streamID)
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "access to db denied")
 				cqlRawClient.Close()
@@ -183,7 +185,7 @@ func TestAccessCassandraHandshake(t *testing.T) {
 				opts := []cassandra.ClientOptions{cassandra.WithCassandraUsername("unknown_user")}
 				cqlRawClient, err := testCtx.cassandraRawClient(ctx, teleportUser, "cassandra", "unknown_user", opts...)
 				require.NoError(t, err)
-				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, 101)
+				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, streamID)
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "invalid credentials")
 				cqlRawClient.Close()
