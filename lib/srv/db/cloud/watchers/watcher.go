@@ -201,9 +201,10 @@ func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []se
 		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
 	}
 	for _, matcher := range matchers {
-		for matcherType, makeFetchers := range makeFetcherFuncs {
-			if !utils.SliceContainsStr(matcher.Types, matcherType) {
-				continue
+		for _, matcherType := range matcher.Types {
+			makeFetchers, found := makeFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown matcher type %q", matcherType)
 			}
 
 			for _, makeFetcher := range makeFetchers {

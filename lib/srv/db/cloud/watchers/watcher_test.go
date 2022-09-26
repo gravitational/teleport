@@ -22,8 +22,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -129,6 +132,9 @@ func TestWatcher(t *testing.T) {
 	azPostgresServerUnknownVersion, azPostgresDBUnknownVersion := makeAzurePostgresServer(t, "server-6", subscription1, group1, eastus, nil, withAzurePostgresVersion("unknown"))
 	azPostgresServerDisabledState, _ := makeAzurePostgresServer(t, "server-8", subscription1, group1, eastus, nil, withAzurePostgresState(string(armpostgresql.ServerStateDisabled)))
 	azPostgresServerUnknownState, azPostgresDBUnknownState := makeAzurePostgresServer(t, "server-9", subscription1, group1, eastus, nil, withAzurePostgresState("unknown"))
+
+	azRedisServer, azRedisDB := makeAzureRedisServer(t, "redis", subscription1, group1, eastus, map[string]string{"env": "prod"})
+	azRedisEnterpriseCluster, azRedisEnterpriseDatabase, azRedisEnterpriseDB := makeAzureRedisEnterpriseCluster(t, "redis-enterprise", subscription1, group1, eastus, map[string]string{"env": "prod"})
 
 	tests := []struct {
 		name              string
@@ -528,6 +534,32 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{azMySQLDB1, azPostgresDB1},
 		},
 		{
+			name: "Azure Redis",
+			azureMatchers: []services.AzureMatcher{
+				{
+					Types:        []string{services.AzureMatcherRedis},
+					ResourceTags: types.Labels{"env": []string{"prod"}},
+				},
+			},
+			clients: &clients.TestCloudClients{
+				AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
+					Subscriptions: []*armsubscription.Subscription{azureSub1},
+				}),
+				AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
+					Servers: []*armredis.ResourceInfo{azRedisServer},
+				}),
+				AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
+					&azure.ARMRedisEnterpriseClusterMock{
+						Clusters: []*armredisenterprise.Cluster{azRedisEnterpriseCluster},
+					},
+					&azure.ARMRedisEnterpriseDatabaseMock{
+						Databases: []*armredisenterprise.Database{azRedisEnterpriseDatabase},
+					},
+				),
+			},
+			expectedDatabases: types.Databases{azRedisDB, azRedisEnterpriseDB},
+		},
+		{
 			name: "multiple cloud matchers",
 			awsMatchers: []services.AWSMatcher{
 				{
@@ -749,6 +781,52 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
 	return server, database
+}
+
+func makeAzureRedisServer(t *testing.T, name, subscription, group, region string, labels map[string]string) (*armredis.ResourceInfo, types.Database) {
+	resourceInfo := &armredis.ResourceInfo{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)),
+		Type:     to.Ptr("Microsoft.Cache/Redis"),
+		Location: to.Ptr(region),
+		Tags:     labelsToAzureTags(labels),
+		Properties: &armredis.Properties{
+			HostName:          to.Ptr(fmt.Sprintf("%v.redis.cache.windows.net", name)),
+			SSLPort:           to.Ptr(int32(6380)),
+			ProvisioningState: to.Ptr(armredis.ProvisioningStateSucceeded),
+		},
+	}
+
+	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	require.NoError(t, err)
+	return resourceInfo, database
+}
+
+func makeAzureRedisEnterpriseCluster(t *testing.T, cluster, subscription, group, region string, labels map[string]string) (*armredisenterprise.Cluster, *armredisenterprise.Database, types.Database) {
+	armCluster := &armredisenterprise.Cluster{
+		Name:     to.Ptr(cluster),
+		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v", subscription, group, cluster)),
+		Type:     to.Ptr("Microsoft.Cache/Redis"),
+		Location: to.Ptr(region),
+		Tags:     labelsToAzureTags(labels),
+		Properties: &armredisenterprise.ClusterProperties{
+			HostName: to.Ptr(fmt.Sprintf("%v.%v.redisenterprise.cache.azure.net", cluster, region)),
+		},
+	}
+	armDatabase := &armredisenterprise.Database{
+		Name: to.Ptr("default"),
+		ID:   to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v/databases/default", subscription, group, cluster)),
+		Properties: &armredisenterprise.DatabaseProperties{
+			ProvisioningState: to.Ptr(armredisenterprise.ProvisioningStateSucceeded),
+			Port:              to.Ptr(int32(10000)),
+			ClusteringPolicy:  to.Ptr(armredisenterprise.ClusteringPolicyOSSCluster),
+			ClientProtocol:    to.Ptr(armredisenterprise.ProtocolEncrypted),
+		},
+	}
+
+	database, err := services.NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
+	require.NoError(t, err)
+	return armCluster, armDatabase, database
 }
 
 // withAzureMySQLState returns an option function to makeARMMySQLServer to overwrite state.

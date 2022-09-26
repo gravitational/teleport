@@ -87,7 +87,7 @@ func (p *azureRedisEnterprisePlugin) NewDatabasesFromServer(cluster *azure.Redis
 }
 
 func (p *azureRedisEnterprisePlugin) isDatabaseAvailable(cluster *armredisenterprise.Cluster, clusterDatabase *armredisenterprise.Database) bool {
-	switch armredisenterprise.ProvisioningState(stringVal(clusterDatabase.Properties.ResourceState)) {
+	switch armredisenterprise.ProvisioningState(stringVal(clusterDatabase.Properties.ProvisioningState)) {
 	case armredisenterprise.ProvisioningStateSucceeded,
 		armredisenterprise.ProvisioningStateUpdating:
 		return true
