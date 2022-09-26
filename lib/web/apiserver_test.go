@@ -59,9 +59,15 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/text/encoding/unicode"
+	"google.golang.org/protobuf/encoding/protojson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -6487,4 +6493,157 @@ func init() {
 	statusScheme.AddUnversionedTypes(metav1.SchemeGroupVersion,
 		&metav1.Status{},
 	)
+}
+
+// TestForwardingTraces checks that the userContext includes the ID of the
+// access request after it has been consumed and the web session has been renewed.
+func TestForwardingTraces(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	p := env.proxies[0]
+
+	span := &tracepb.TracesData{
+		ResourceSpans: []*tracepb.ResourceSpans{
+			{
+				Resource: &resourcev1.Resource{
+					Attributes: []*commonv1.KeyValue{
+						{
+							Key: "test",
+							Value: &commonv1.AnyValue{
+								Value: &commonv1.AnyValue_IntValue{
+									IntValue: 0,
+								},
+							},
+						},
+					},
+				},
+				ScopeSpans: []*tracepb.ScopeSpans{
+					{
+						Spans: []*tracepb.Span{
+							{
+								TraceId:           []byte{1, 2, 3, 4},
+								SpanId:            []byte{5, 6, 7, 8},
+								TraceState:        "",
+								ParentSpanId:      []byte{9, 10, 11, 12},
+								Name:              "test",
+								Kind:              tracepb.Span_SPAN_KIND_CLIENT,
+								StartTimeUnixNano: uint64(time.Now().Add(-1 * time.Minute).Unix()),
+								EndTimeUnixNano:   uint64(time.Now().Unix()),
+								Attributes: []*commonv1.KeyValue{
+									{
+										Key: "test",
+										Value: &commonv1.AnyValue{
+											Value: &commonv1.AnyValue_IntValue{
+												IntValue: 0,
+											},
+										},
+									},
+								},
+								Status: &tracepb.Status{
+									Message: "success!",
+									Code:    tracepb.Status_STATUS_CODE_OK,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	newRequest := func(t *testing.T) *http.Request {
+		req, err := http.NewRequest(http.MethodGet, "", nil)
+		require.NoError(t, err)
+
+		return req
+	}
+
+	cases := []struct {
+		name      string
+		req       func(t *testing.T) *http.Request
+		assertion func(t *testing.T, spans []*otlp.ResourceSpans, err error)
+	}{
+		{
+			name: "no traces",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				raw, err := protojson.Marshal(&tracepb.ResourceSpans{})
+				require.NoError(t, err)
+				r.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error) {
+				require.NoError(t, err)
+				require.Empty(t, spans)
+			},
+		},
+		{
+			name: "traces with base64 encoded ids",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				raw, err := protojson.Marshal(span)
+				require.NoError(t, err)
+				r.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error) {
+				require.NoError(t, err)
+				require.Len(t, spans, 1)
+			},
+		},
+		{
+			name: "traces with hex encoded ids",
+			req: func(t *testing.T) *http.Request {
+				r := newRequest(t)
+
+				const rawSpan = `{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"web-ui"}},{"key":"telemetry.sdk.language","value":{"stringValue":"webjs"}},{"key":"telemetry.sdk.name","value":{"stringValue":"opentelemetry"}},{"key":"telemetry.sdk.version","value":{"stringValue":"1.7.0"}},{"key":"service.version","value":{"stringValue":"0.1.0"}}],"droppedAttributesCount":0},"scopeSpans":[{"scope":{"name":"@opentelemetry/instrumentation-fetch","version":"0.33.0"},"spans":[{"traceId":"255c8d876e7dbf3707ee8451ad518652","spanId":"d9edec516e598d8c","name":"HTTP GET","kind":3,"startTimeUnixNano":1668606426497000000,"endTimeUnixNano":1668502943215499800,"attributes":[{"key":"component","value":{"stringValue":"fetch"}},{"key":"http.method","value":{"stringValue":"GET"}},{"key":"http.url","value":{"stringValue":"https://proxy.example.com/v1/webapi/user/status"}},{"key":"http.status_code","value":{"intValue":0}},{"key":"http.status_text","value":{"stringValue":"Failed to fetch"}},{"key":"http.host","value":{"stringValue":"proxy.example.com"}},{"key":"http.scheme","value":{"stringValue":"https"}},{"key":"http.user_agent","value":{"stringValue":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36    "}},{"key":"http.response_content_length","value":{"intValue":0}}],"droppedAttributesCount":0,"events":[{"attributes":[],"name":"fetchStart","timeUnixNano":1668502943210900000,"droppedAttributesCount":0},{"attributes":[],"name":"domainLookupStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"domainLookupEnd","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"connectStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"secureConnectionStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"connectEnd","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"requestStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"responseStart","timeUnixNano":1668502687491499800,"droppedAttributesCount":0},{"attributes":[],"name":"responseEnd","timeUnixNano":1668502943215100000,"droppedAttributesCount":0}],"droppedEventsCount":0,"status":{"code":0},"links":[],"droppedLinksCount":0}]}]}]}`
+				r.Body = io.NopCloser(strings.NewReader(rawSpan))
+
+				return r
+			},
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error) {
+				require.NoError(t, err)
+				require.Len(t, spans, 1)
+			},
+		},
+	}
+
+	// NOTE: resetting the tracing client prevents
+	// the test cases from running in parallel
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			clt := &mockClient{}
+			p.handler.handler.cfg.TraceClient = clt
+
+			// use the handler directly because there is no easy way to pipe in our tracing
+			// data using the pack client in a format that would match the ui.
+			_, err := p.handler.handler.traces(httptest.NewRecorder(), tt.req(t), nil)
+			tt.assertion(t, clt.spans, err)
+		})
+	}
+}
+
+var _ otlptrace.Client = (*mockClient)(nil)
+
+type mockClient struct {
+	uploadError error
+	spans       []*otlp.ResourceSpans
+}
+
+func (m *mockClient) Start(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockClient) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockClient) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
+	m.spans = append(m.spans, protoSpans...)
+	return m.uploadError
 }
