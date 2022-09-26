@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package winwebauthn_test
+package webauthnwin_test
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/auth/winwebauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ import (
 func TestRegister_errors(t *testing.T) {
 	resetNativeAfterTests(t)
 
-	*winwebauthn.Native = fakeNative{}
+	*webauthnwin.Native = fakeNative{}
 
 	const origin = "https://example.com"
 	okCC := &wanlib.CredentialCreation{
@@ -153,7 +153,7 @@ func TestRegister_errors(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 			defer cancel()
 
-			_, err := winwebauthn.Register(ctx, test.origin, test.createCC())
+			_, err := webauthnwin.Register(ctx, test.origin, test.createCC())
 			require.Error(t, err, "Register returned err = nil, want %q", test.wantErr)
 			assert.Contains(t, err.Error(), test.wantErr, "Register returned err = %q, want %q", err, test.wantErr)
 		})
@@ -163,7 +163,7 @@ func TestRegister_errors(t *testing.T) {
 func TestLogin_errors(t *testing.T) {
 	resetNativeAfterTests(t)
 
-	*winwebauthn.Native = fakeNative{}
+	*webauthnwin.Native = fakeNative{}
 
 	const origin = "https://example.com"
 	okAssertion := &wanlib.CredentialAssertion{
@@ -223,7 +223,7 @@ func TestLogin_errors(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 			defer cancel()
 
-			_, _, err := winwebauthn.Login(ctx, test.origin, test.assertion, nil /* opts */)
+			_, _, err := webauthnwin.Login(ctx, test.origin, test.assertion, nil /* opts */)
 			require.Error(t, err, "Login returned err = nil, want %q", test.wantErr)
 			assert.Contains(t, err.Error(), test.wantErr, "Login returned err = %q, want %q", err, test.wantErr)
 		})
@@ -231,25 +231,25 @@ func TestLogin_errors(t *testing.T) {
 }
 
 func resetNativeAfterTests(t *testing.T) {
-	n := *winwebauthn.Native
+	n := *webauthnwin.Native
 	t.Cleanup(func() {
-		*winwebauthn.Native = n
+		*webauthnwin.Native = n
 	})
 }
 
 type fakeNative struct{}
 
-func (f fakeNative) CheckSupport() winwebauthn.CheckSupportResult {
-	return winwebauthn.CheckSupportResult{
+func (f fakeNative) CheckSupport() webauthnwin.CheckSupportResult {
+	return webauthnwin.CheckSupportResult{
 		HasCompileSupport: true,
 		IsAvailable:       true,
 	}
 }
 
-func (f fakeNative) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *winwebauthn.LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (f fakeNative) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *webauthnwin.LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	return nil, fmt.Errorf("not implemented in fakeNative")
 }
 
-func (f fakeNative) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
+func (f fakeNative) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
 	return nil, fmt.Errorf("not implemented in fakeNative")
 }

@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	"github.com/gravitational/teleport/lib/auth/winwebauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -151,13 +151,13 @@ func crossPlatformLogin(
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
-	if winwebauthn.IsAvailable() {
+	if webauthnwin.IsAvailable() {
 		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential creation")
-		inOpts := &winwebauthn.LoginOpts{}
+		inOpts := &webauthnwin.LoginOpts{}
 		if opts != nil {
-			inOpts.AuthenticatorAttachment = winwebauthn.AuthenticatorAttachment(opts.AuthenticatorAttachment)
+			inOpts.AuthenticatorAttachment = webauthnwin.AuthenticatorAttachment(opts.AuthenticatorAttachment)
 		}
-		return winwebauthn.Login(ctx, origin, assertion, inOpts)
+		return webauthnwin.Login(ctx, origin, assertion, inOpts)
 	}
 
 	if err := prompt.PromptTouch(); err != nil {
@@ -168,13 +168,13 @@ func crossPlatformLogin(
 }
 
 func platformLogin(ctx context.Context, origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-	if winwebauthn.IsAvailable() {
+	if webauthnwin.IsAvailable() {
 		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential assertion")
-		inOpts := &winwebauthn.LoginOpts{}
+		inOpts := &webauthnwin.LoginOpts{}
 		if opts != nil {
-			inOpts.AuthenticatorAttachment = winwebauthn.AuthenticatorAttachment(opts.AuthenticatorAttachment)
+			inOpts.AuthenticatorAttachment = webauthnwin.AuthenticatorAttachment(opts.AuthenticatorAttachment)
 		}
-		return winwebauthn.Login(ctx, origin, assertion, inOpts)
+		return webauthnwin.Login(ctx, origin, assertion, inOpts)
 	}
 
 	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
@@ -215,9 +215,9 @@ func Register(
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
 
-	if winwebauthn.IsAvailable() {
+	if webauthnwin.IsAvailable() {
 		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential creation")
-		return winwebauthn.Register(ctx, origin, cc)
+		return webauthnwin.Register(ctx, origin, cc)
 	}
 
 	if err := prompt.PromptTouch(); err != nil {

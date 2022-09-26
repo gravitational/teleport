@@ -831,7 +831,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// touchid subcommands.
 	tid := newTouchIDCommand(app)
 
-	winwebauthn := newWinwebauthnCommand(app)
+	webauthnwin := newWebauthnwinCommand(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1072,10 +1072,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onFIDO2Diag(&cf)
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
-	case winwebauthn.diagnostics.FullCommand():
-		err = winwebauthn.diagnostics.run(&cf)
-	case winwebauthn.support.FullCommand():
-		err = winwebauthn.support.run(&cf)
+	case webauthnwin.diagnostics.FullCommand():
+		err = webauthnwin.diagnostics.run(&cf)
+	case webauthnwin.support.FullCommand():
+		err = webauthnwin.support.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

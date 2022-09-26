@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package winwebauthn
+package webauthnwin
 
-// Native exposes the native winwebauthn implementation so that it may be
+// Native exposes the native webauthnwin implementation so that it may be
 // replaced by tests.
 var Native = &native

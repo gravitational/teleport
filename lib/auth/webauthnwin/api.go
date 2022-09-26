@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package winwebauthn is wrapper around Windows webauthn API.
-// It loads system webauthn.dll and uses it's method.
-// It supports API versions 1-4.
+// Package webauthnwin is wrapper around Windows webauthn API.
+// It loads system webauthn.dll and uses its methods.
+// It supports API versions 1+.
 // API definition: https://github.com/microsoft/webauthn/blob/master/webauthn.h
 // As Windows Webauthn device can be used both Windows Hello and FIDO devices.
-package winwebauthn
+package webauthnwin
 
 import (
 	"context"
@@ -49,8 +49,8 @@ const (
 // Implementors must provide a global variable called `native`.
 type nativeWebauthn interface {
 	CheckSupport() CheckSupportResult
-	GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error)
-	MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error)
+	GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error)
+	MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error)
 }
 
 // Login implements Login for Windows Webauthn API.
@@ -68,7 +68,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	case assertion.Response.RelyingPartyID == "":
 		return nil, "", trace.BadParameter("assertion relying party ID required")
 	}
-	resp, err := native.GetAssertion(origin, assertion.Response, opts)
+	resp, err := native.GetAssertion(origin, assertion, opts)
 	if err != nil {
 		// TODO(tobiaszheller): proper error
 		return nil, "", err
@@ -100,7 +100,7 @@ func Register(
 	}
 
 	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
-	log.Debugf("WINWEBAUTHN: registration: resident key=%v", rrk)
+	log.Debugf("webauthnwin: registration: resident key=%v", rrk)
 	if rrk {
 		// Be more pedantic with resident keys, some of this info gets recorded with
 		// the credential.
@@ -116,7 +116,7 @@ func Register(
 		}
 	}
 
-	resp, err := native.MakeCredential(origin, cc.Response)
+	resp, err := native.MakeCredential(origin, cc)
 	if err != nil {
 		// TODO(tobiaszheller): proper error
 		return nil, err
@@ -131,10 +131,10 @@ func Register(
 
 // CheckSupport is the result from a Windows webauthn support check.
 type CheckSupportResult struct {
-	HasCompileSupport bool
-	IsAvailable       bool
-	HasPlatformUV     bool
-	APIVersion        int
+	HasCompileSupport  bool
+	IsAvailable        bool
+	HasPlatformUV      bool
+	WebAuthnAPIVersion int
 }
 
 // IsAvailable returns true if Windows webauthn library is available in the

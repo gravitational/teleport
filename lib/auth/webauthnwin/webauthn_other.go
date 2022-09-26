@@ -15,12 +15,11 @@
 //go:build !windows
 // +build !windows
 
-package winwebauthn
+package webauthnwin
 
 import (
 	"errors"
 
-	"github.com/duo-labs/webauthn/protocol"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -36,10 +35,10 @@ func (n noopNative) CheckSupport() CheckSupportResult {
 	}
 }
 
-func (n noopNative) GetAssertion(origin string, in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (n noopNative) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	return nil, errUnavailable
 }
 
-func (n noopNative) MakeCredential(origin string, in protocol.PublicKeyCredentialCreationOptions) (*wanlib.CredentialCreationResponse, error) {
+func (n noopNative) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
 	return nil, errUnavailable
 }

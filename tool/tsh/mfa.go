@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/winwebauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -208,7 +208,7 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
-	if wancli.IsFIDO2Available() || winwebauthn.IsAvailable() {
+	if wancli.IsFIDO2Available() || webauthnwin.IsAvailable() {
 		c.Flag("allow-passwordless", "Allow passwordless logins").BoolVar(&c.allowPasswordless)
 	}
 	return c
@@ -255,7 +255,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		// Ask the user?
 		// c.allowPasswordless=false at this point only means that the flag wasn't
 		// explicitly set.
-		if !c.allowPasswordless && (wancli.IsFIDO2Available() || winwebauthn.IsAvailable()) {
+		if !c.allowPasswordless && (wancli.IsFIDO2Available() || webauthnwin.IsAvailable()) {
 			answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
 			if err != nil {
 				return trace.Wrap(err)

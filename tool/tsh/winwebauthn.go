@@ -19,64 +19,64 @@ import (
 	"os"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport/lib/auth/winwebauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/trace"
 )
 
-type winwebauthnCommand struct {
-	support     *winwebauthnSupportCommand
-	diagnostics *winwebauthnDiagnosticsCommand
+type webauthnwinCommand struct {
+	support     *webauthnwinSupportCommand
+	diagnostics *webauthnwinDiagnosticsCommand
 }
 
-// newWinwebauthnCommand returns winwebauthn subcommands.
+// newWebauthnwinCommand returns webauthnwin subcommands.
 // support is always available.
-func newWinwebauthnCommand(app *kingpin.Application) *winwebauthnCommand {
-	wid := app.Command("winwebauthn", "Manage Windoes webauthn").Hidden()
-	cmd := &winwebauthnCommand{
-		support:     newWinwebauthnSupportCommand(wid),
-		diagnostics: newWinwebauthnDiagnosticsCommand(wid),
+func newWebauthnwinCommand(app *kingpin.Application) *webauthnwinCommand {
+	wid := app.Command("webauthnwin", "Manage Windoes webauthn").Hidden()
+	cmd := &webauthnwinCommand{
+		support:     newWebauthnwinSupportCommand(wid),
+		diagnostics: newWebauthnwinDiagnosticsCommand(wid),
 	}
 	return cmd
 }
 
-type winwebauthnSupportCommand struct {
+type webauthnwinSupportCommand struct {
 	*kingpin.CmdClause
 }
 
-func newWinwebauthnSupportCommand(app *kingpin.CmdClause) *winwebauthnSupportCommand {
-	return &winwebauthnSupportCommand{
+func newWebauthnwinSupportCommand(app *kingpin.CmdClause) *webauthnwinSupportCommand {
+	return &webauthnwinSupportCommand{
 		CmdClause: app.Command("support", "Check windows webauthn support").Hidden(),
 	}
 }
 
-func (w *winwebauthnSupportCommand) run(cf *CLIConf) error {
-	diag := winwebauthn.CheckSupport()
-	fmt.Printf("\nWinwebauthn available: %v\n", diag.HasCompileSupport)
+func (w *webauthnwinSupportCommand) run(cf *CLIConf) error {
+	diag := webauthnwin.CheckSupport()
+	fmt.Printf("\nwebauthnwin available: %v\n", diag.HasCompileSupport)
 	fmt.Printf("Compiple support: %v\n", diag.IsAvailable)
-	fmt.Printf("API version: %v\n", diag.APIVersion)
+	fmt.Printf("API version: %v\n", diag.WebAuthnAPIVersion)
 	fmt.Printf("Has platform UV: %v\n", diag.HasPlatformUV)
 
 	return nil
 }
 
-type winwebauthnDiagnosticsCommand struct {
+type webauthnwinDiagnosticsCommand struct {
 	*kingpin.CmdClause
 }
 
-func newWinwebauthnDiagnosticsCommand(app *kingpin.CmdClause) *winwebauthnDiagnosticsCommand {
-	return &winwebauthnDiagnosticsCommand{
+func newWebauthnwinDiagnosticsCommand(app *kingpin.CmdClause) *webauthnwinDiagnosticsCommand {
+	return &webauthnwinDiagnosticsCommand{
 		CmdClause: app.Command("diagnostics", "Run Windows webauthn diagnostics").Hidden(),
 	}
 }
 
-func (w *winwebauthnDiagnosticsCommand) run(cf *CLIConf) error {
-	diag, err := winwebauthn.RunDiagnostics(cf.Context, os.Stdout)
+func (w *webauthnwinDiagnosticsCommand) run(cf *CLIConf) error {
+	diag, err := webauthnwin.RunDiagnostics(cf.Context, os.Stdout)
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if diag == nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("\nWinwebauthn available: %v\n", diag.Available)
+	fmt.Printf("\nwebauthnwin available: %v\n", diag.Available)
 	fmt.Printf("Register successful? %v\n", diag.RegisterSuccessful)
 	fmt.Printf("Login successful? %v\n", diag.LoginSuccessful)
 	if err != nil {
