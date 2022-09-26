@@ -356,6 +356,8 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 	return v3
 }
 
+// V2 returns the V2 representation of a ProvisionToken
+// DELETE IN 13.0
 func (p *ProvisionTokenV2) V2() (*ProvisionTokenV2, error) {
 	return p, nil
 }
@@ -604,12 +606,18 @@ func (p ProvisionTokenV3) String() string {
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
 }
 
+// V3 returns the V3 representation of a ProvisionToken
+// DELETE IN 13.0 - This will no longer be necessary once all tokens returned
+// from the store are V3.
 func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 	return p
 }
 
 var ProvisionTokenNotBackwardsCompatibleErr = trace.Errorf("token cannot be converted to V2 and must be fetched using V3 API")
 
+// V2 returns the V2 representation of a ProvisionToken
+// DELETE IN 13.0  - This will no longer be necessary once all tokens returned
+// from the store are V3.
 func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, error) {
 	v2 := &ProvisionTokenV2{
 		Kind:     KindToken,
