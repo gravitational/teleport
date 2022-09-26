@@ -140,9 +140,12 @@ $COMPUTER_IP = (Resolve-DnsName -Type A $Env:COMPUTERNAME).Address
 $LDAP_ADDR="$COMPUTER_IP" + ":636"
 
 $DESKTOP_ACCESS_CONFIG_YAML=@'
+version v3
 teleport:
-  auth_token: {0}
-  auth_servers: [ {1} ]
+  proxy_server: {1}
+  join_params:
+    method: token
+    token_name: {0}
 
 auth_service:
   enabled: no
