@@ -1475,6 +1475,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		})
 	}
 
+	if fc.WindowsDesktop.Labels != nil {
+		cfg.WindowsDesktop.Labels = make(map[string]string)
+		for k, v := range fc.WindowsDesktop.Labels {
+			cfg.WindowsDesktop.Labels[k] = v
+		}
+	}
+
 	return nil
 }
 

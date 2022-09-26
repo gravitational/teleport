@@ -1,5 +1,21 @@
 # Changelog
 
+## 10.2.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh login` sometimes hanging when using U2F devices. [#16657](https://github.com/gravitational/teleport/pull/16657)
+* Fixed issue with large etcd backend size growth in clusters handling thousands of concurrent sessions. [#16659](https://github.com/gravitational/teleport/pull/16659)
+* Fixed issue with etcd backend only using a single certificate from the configured CA bundle. [#16598](https://github.com/gravitational/teleport/pull/16598)
+* Fixed issue with `tsh db env` returning errors when TLS routing is enabled. [#16468](https://github.com/gravitational/teleport/pull/16468)
+* Fixed issue with intermittent failures when connecting to leaf cluster nodes. [#16685](https://github.com/gravitational/teleport/pull/16685)
+* Fixed issue with missing timestamp in `session.end` events. [#16566](https://github.com/gravitational/teleport/pull/16566)
+* Added `minReadySeconds` setting to `teleport-cluster` Helm chart. [#16675](https://github.com/gravitational/teleport/pull/16675)
+* Added support for automatic EC2 instance discovery and enrollment. [#16006](https://github.com/gravitational/teleport/pull/16006), [#16588](https://github.com/gravitational/teleport/pull/16588)
+* Added `allow_unverified_email` parameter to OIDC connectors allowing to opt out of email verification. [#16142](https://github.com/gravitational/teleport/pull/16142)
+* Added support for TLS routing for Database Access when Teleport is deployed behind an ALB. [#16415](https://github.com/gravitational/teleport/pull/16415)
+* Added support for Windows Desktops in the new "Add resource" wizard. [webapps#1172](https://github.com/gravitational/webapps/pull/1172)
+
 ## 10.2.2
 
 This release of Teleport contains multiple improvements and bug fixes.
