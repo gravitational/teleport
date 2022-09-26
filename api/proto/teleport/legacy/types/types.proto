@@ -1094,10 +1094,25 @@ message ProvisionTokenSpecV3AWSIAM {
 
 message ProvisionTokenSpecV3GitHub {
   message Rule {
+    // Sub also known as Subject is a string that roughly uniquely indentifies
+    // the workload. The format of this varies depending on the type of
+    // github action run.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    // The repository from where the workflow is running.
+    // This includes the name of the owner e.g `gravitational/teleport`
     string Repository = 2 [(gogoproto.jsontag) = "repository,omitempty"];
+    // The name of the organization in which the repository is stored.
     string RepositoryOwner = 3 [(gogoproto.jsontag) = "repository_owner,omitempty"];
-    // TODO: More of these !
+    // The name of the workflow.
+    string Workflow = 4 [(gogoproto.jsontag) = "workflow,omitempty"];
+    // The name of the environment used by the job.
+    string Environment = 5 [(gogoproto.jsontag) = "environment,omitempty"];
+    // The personal account that initiated the workflow run.
+    string Actor = 6 [(gogoproto.jsontag) = "actor,omitempty"];
+    // The git ref that triggered the workflow run.
+    string Ref = 7 [(gogoproto.jsontag) = "ref,omitempty"];
+    // The type of ref, for example: "branch".
+    string RefType = 8 [(gogoproto.jsontag) = "ref_type,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.

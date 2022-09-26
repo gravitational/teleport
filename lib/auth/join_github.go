@@ -37,13 +37,30 @@ func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDToke
 
 	// If a single rule passes, accept the IDToken
 	for _, rule := range token.Spec.GitHub.Allow {
+		// Please consider keeping these field validators in the same order they
+		// are defined within the ProvisionTokenSpecV3Github proto spec.
 		if rule.Sub != "" && claims.Sub != rule.Sub {
+			continue
+		}
+		if rule.Repository != "" && claims.Repository != rule.Repository {
 			continue
 		}
 		if rule.RepositoryOwner != "" && claims.RepositoryOwner != rule.RepositoryOwner {
 			continue
 		}
-		if rule.Repository != "" && claims.Repository != rule.Repository {
+		if rule.Workflow != "" && claims.Workflow != rule.Workflow {
+			continue
+		}
+		if rule.Environment != "" && claims.Environment != rule.Environment {
+			continue
+		}
+		if rule.Actor != "" && claims.Actor != rule.Actor {
+			continue
+		}
+		if rule.Ref != "" && claims.Ref != rule.Ref {
+			continue
+		}
+		if rule.RefType != "" && claims.RefType != rule.RefType {
 			continue
 		}
 
