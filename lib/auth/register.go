@@ -167,7 +167,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	} else if params.JoinMethod == types.JoinMethodGitHub {
 		// TODO: Inject this in.
-		gh := github.NewIdentityProvider()
+		gh := github.NewIDTokenSource()
 		token, err := gh.GetIDToken(context.TODO())
 		if err != nil {
 			return nil, trace.Wrap(err)
