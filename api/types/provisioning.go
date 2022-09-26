@@ -500,11 +500,10 @@ func (a *ProvisionTokenSpecV3GitHub) checkAndSetDefaults() error {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodGitHub)
 	}
 	for _, rule := range a.Allow {
-		// The combination of repository and owner uniquely identifies a repo.
-		specificRepoSet := rule.Repository != "" && rule.RepositoryOwner != ""
-		// Sub sufficiently uniquely identifies a workflow and repository.
+		repoSet := rule.Repository != ""
+		ownerSet := rule.RepositoryOwner != ""
 		subSet := rule.Sub != ""
-		if !(subSet || specificRepoSet) {
+		if !(subSet || ownerSet || repoSet) {
 			return trace.BadParameter(
 				`allow rule for %q must abide by secure guidelines. check documentation.`,
 				JoinMethodGitHub,

@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
-	"github.com/coreos/go-oidc"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/githubactions"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
@@ -18,33 +18,21 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		return trace.Wrap(err)
 	}
 
-	// TODO: Extract this so we aren't producing a new provider for each thing
-	p, err := oidc.NewProvider(ctx, githubactions.IssuerURL)
+	validator := githubactions.NewIDTokenValidator(a.clock)
+	claims, err := validator.Validate(ctx, req.IDToken)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		// TODO: Ensure this matches the cluster name once we start injecting
-		// that into the token.
-		ClientID: "teleport.cluster.local",
-		Now:      a.clock.Now,
-	})
-
-	idToken, err := verifier.Verify(ctx, req.IDToken)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	claims := githubactions.IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return trace.Wrap(err)
-	}
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  tokenName,
+	}).Info("Github actions run trying to join cluster")
 
 	return trace.Wrap(checkGithubAllowRules(pt, claims))
 }
 
-func checkGithubAllowRules(pt types.ProvisionToken, claims githubactions.IDTokenClaims) error {
+func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDTokenClaims) error {
 	token := pt.V3()
 
 	// If a single rule passes, accept the IDToken
