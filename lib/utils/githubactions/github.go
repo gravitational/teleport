@@ -1,4 +1,4 @@
-package github
+package githubactions
 
 import (
 	"context"
@@ -55,6 +55,8 @@ func NewIDTokenSource() *IDTokenSource {
 	}
 }
 
+// GetIDToken utilises values set in the environment and the GitHub API to
+// fetch a GitHub issued IDToken.
 func (ip *IDTokenSource) GetIDToken(ctx context.Context) (string, error) {
 	// TODO: Inject audience to be set
 	audience := "teleport.ottr.sh"
