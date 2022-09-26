@@ -387,6 +387,11 @@ func TestConfigReading(t *testing.T) {
 			},
 			KubeClusterName: "kube-cluster",
 			PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
+			ResourceMatchers: []ResourceMatcher{
+				{
+					Labels: map[string]apiutils.Strings{"*": {"*"}},
+				},
+			},
 		},
 		Apps: Apps{
 			Service: Service{
@@ -843,6 +848,23 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				},
 			},
 		}))
+
+	require.True(t, cfg.Kube.Enabled)
+	require.Empty(t, cmp.Diff(cfg.Kube.ResourceMatchers,
+		[]services.ResourceMatcher{
+			{
+				Labels: map[string]apiutils.Strings{
+					"*": {"*"},
+				},
+			},
+		},
+	))
+	require.Equal(t, cfg.Kube.KubeconfigPath, "/tmp/kubeconfig")
+	require.Empty(t, cmp.Diff(cfg.Kube.StaticLabels,
+		map[string]string{
+			"testKey": "testValue",
+		},
+	))
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1379,6 +1401,11 @@ func makeConfigFixture() string {
 		},
 		KubeClusterName: "kube-cluster",
 		PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
+		ResourceMatchers: []ResourceMatcher{
+			{
+				Labels: map[string]apiutils.Strings{"*": {"*"}},
+			},
+		},
 	}
 
 	// Application service.
