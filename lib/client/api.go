@@ -2303,6 +2303,9 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 			return trace.Wrap(err)
 		}
 	}
+	if config.hostLogin == "" {
+		config.hostLogin = tc.Config.HostLogin
+	}
 
 	if !quiet {
 		config.cfg.ProgressWriter = tc.Stdout
@@ -2371,6 +2374,13 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
+
+	if hostLogin == "" {
+		return trace.BadParameter("host login is not specified")
+	}
+	if nodeAddr == "" {
+		return trace.BadParameter("node address is not specified")
+	}
 
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")

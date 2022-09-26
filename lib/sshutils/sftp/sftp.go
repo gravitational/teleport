@@ -72,7 +72,7 @@ type FileSystem interface {
 	// Open opens a file
 	Open(path string) (io.ReadCloser, error)
 	// Create creates a new file
-	Create(path string, length uint64) (io.WriteCloser, error)
+	Create(path string) (io.WriteCloser, error)
 	// MkDir creates a directory
 	// sftp.Client.Mkdir does not take an os.FileMode, so this can't either
 	Mkdir(path string) error
@@ -275,7 +275,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(dstPath, uint64(srcFileInfo.Size()))
+	dstFile, err := c.dstFS.Create(dstPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -320,14 +320,15 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 
 func getAtime(fi os.FileInfo) time.Time {
 	s := fi.Sys()
-	if s != nil {
-		if sftpfi, ok := fi.Sys().(*sftp.FileStat); ok {
-			return time.Unix(int64(sftpfi.Atime), 0)
-		}
-		return scp.GetAtime(fi)
+	if s == nil {
+		return time.Time{}
 	}
 
-	return time.Time{}
+	if sftpfi, ok := fi.Sys().(*sftp.FileStat); ok {
+		return time.Unix(int64(sftpfi.Atime), 0)
+	}
+
+	return scp.GetAtime(fi)
 }
 
 type cancelWriter struct {

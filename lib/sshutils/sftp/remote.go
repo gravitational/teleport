@@ -81,7 +81,7 @@ func (r *remoteFS) Open(path string) (io.ReadCloser, error) {
 	return f, nil
 }
 
-func (r *remoteFS) Create(path string, _ uint64) (io.WriteCloser, error) {
+func (r *remoteFS) Create(path string) (io.WriteCloser, error) {
 	if err := r.ctx.Err(); err != nil {
 		return nil, err
 	}
