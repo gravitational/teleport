@@ -126,10 +126,31 @@ type RegisterParams struct {
 	FIPS bool
 }
 
-func (r *RegisterParams) setDefaults() {
+func (r *RegisterParams) checkAndSetDefaults() error {
 	if r.Clock == nil {
 		r.Clock = clockwork.NewRealClock()
 	}
+
+	if err := r.verifyAuthOrProxyAddress(); err != nil {
+		return trace.BadParameter("no auth or proxy servers set")
+	}
+
+	return nil
+}
+
+func (r *RegisterParams) verifyAuthOrProxyAddress() error {
+	haveAuthServers := len(r.AuthServers) > 0
+	haveProxyServer := !r.ProxyServer.IsEmpty()
+
+	if !haveAuthServers && !haveProxyServer {
+		return trace.BadParameter("no auth or proxy servers set")
+	}
+
+	if haveAuthServers && haveProxyServer {
+		return trace.BadParameter("only one of auth or proxy server should be set")
+	}
+
+	return nil
 }
 
 // CredGetter is an interface for a client that can be used to get host
@@ -142,7 +163,9 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
 func Register(params RegisterParams) (*proto.Certs, error) {
-	params.setDefaults()
+	if err := params.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
 	token, err := utils.TryReadValueAsFile(params.Token)
@@ -229,10 +252,6 @@ func proxyServerIsAuth(server utils.NetAddr) bool {
 
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
-	if err := verifyAuthOrProxyAddress(params); err != nil {
-		return nil, trace.BadParameter("no auth or proxy servers set")
-	}
-
 	var certs *proto.Certs
 	if params.JoinMethod == types.JoinMethodIAM {
 		// IAM join method requires gRPC client
@@ -267,14 +286,6 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		}
 	}
 	return certs, nil
-}
-
-func verifyAuthOrProxyAddress(params RegisterParams) error {
-	if len(params.AuthServers) == 0 && params.ProxyServer.IsEmpty() {
-		return trace.BadParameter("no auth or proxy servers set")
-	}
-
-	return nil
 }
 
 func getHostAddresses(params RegisterParams) []string {
@@ -332,10 +343,6 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
 func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
-	if err := verifyAuthOrProxyAddress(params); err != nil {
-		return nil, trace.BadParameter("no auth or proxy servers set")
-	}
-
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
