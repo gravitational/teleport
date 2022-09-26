@@ -163,13 +163,24 @@ running it: via the `teleport` CLI, using a Helm chart, or via systemd:
     </TabItem>
 
     <TabItem label="systemd">
-    Edit the `systemd` Teleport unit file to include `--insecure` in the `ExecStart` line, for example:
-    
+    Locate the `systemd` unit file for Teleport (called teleport.service) by running the following command:
+    ```sh
+    $ systemctl status teleport
+    ```
+    You will see output similar to the following, including the file path (`/lib/systemd/system/teleport.service`) that contains the unit file for the systemd configuration being applied:
+
+    ```code
+    ● teleport.service - Teleport SSH Service
+        Loaded: loaded (/lib/systemd/system/teleport.service; disabled; vendor preset: enabled)
+        Active: inactive (dead)
+    ```
+
+    Edit the Teleport unit file to include `--insecure` in the `ExecStart` line, for example:
     ```text
     ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid --insecure
     ```
     
-    You also need to reload the daemon for your changes to take effect:
+    After saving the unit file, you will need to reload the daemon for your changes to take effect:
     ```sh
     $ sudo systemctl daemon-reload
     $ sudo systemctl restart teleport.service
