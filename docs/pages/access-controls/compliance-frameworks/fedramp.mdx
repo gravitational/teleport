@@ -60,7 +60,7 @@ teleport:
   # tokens of 32+ byte length.
   join_params:
     method: token
-    token_name: zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
+    token_name: xxxx-token-xxxx
 
 auth_service:
   # enable the auth service:
@@ -68,7 +68,7 @@ auth_service:
 
   tokens:
   # this static token is used for other nodes to join this Teleport cluster
-  - proxy,node:zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
+  - proxy,node:xxxx-token-xxxx
   # this token is used to establish trust with other Teleport clusters
   - trusted_cluster:TaZff3DLbpsMZmIMhvEr7kulOgegjg7yyQNTS0q6UFWfsJ9N6rxVBjg6t7nw
 
@@ -98,7 +98,7 @@ version: v3
 teleport:
   join_params:
     method: token
-    token_name: zw6C82kq7VEUSJeSDzuldWsxakql6jrTYmphxRQOlrATTGbLQoaIwEBo48o9
+    token_name: xxxx-token-xxxx
 
   # Specify either the proxy address
   proxy_server: teleport.example.com:3080
