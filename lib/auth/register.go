@@ -178,14 +178,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	if !params.ProxyServer.IsEmpty() {
 		log.WithField("proxy-server", params.ProxyServer).Debugf("Registering node to the cluster.")
 
-		registerMethods = []registerMethod{}
+		registerMethods = []registerMethod{registerThroughProxy}
 
 		if proxyServerIsAuth(params.ProxyServer) {
 			log.Debugf("The specified proxy server appears to be an auth server.")
-			registerMethods = append(registerMethods, registerThroughAuth)
 		}
-
-		registerMethods = append(registerMethods, registerThroughProxy)
 	} else {
 		log.WithField("auth-servers", params.AuthServers).Debugf("Registering node to the cluster.")
 
