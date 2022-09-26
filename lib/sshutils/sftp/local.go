@@ -27,20 +27,14 @@ import (
 
 // localFS provides API for accessing the files on
 // the local file system
-type localFS struct {
-	ctx context.Context
-}
-
-func (l *localFS) SetContext(ctx context.Context) {
-	l.ctx = ctx
-}
+type localFS struct{}
 
 func (l *localFS) Type() string {
 	return "local"
 }
 
-func (l *localFS) Stat(path string) (os.FileInfo, error) {
-	if err := l.ctx.Err(); err != nil {
+func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -52,8 +46,8 @@ func (l *localFS) Stat(path string) (os.FileInfo, error) {
 	return fi, nil
 }
 
-func (l *localFS) ReadDir(path string) ([]os.FileInfo, error) {
-	if err := l.ctx.Err(); err != nil {
+func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -73,8 +67,8 @@ func (l *localFS) ReadDir(path string) ([]os.FileInfo, error) {
 	return fileInfos, nil
 }
 
-func (l *localFS) Open(path string) (io.ReadCloser, error) {
-	if err := l.ctx.Err(); err != nil {
+func (l localFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -86,8 +80,8 @@ func (l *localFS) Open(path string) (io.ReadCloser, error) {
 	return f, nil
 }
 
-func (l *localFS) Create(path string, mode os.FileMode) (io.WriteCloser, error) {
-	if err := l.ctx.Err(); err != nil {
+func (l localFS) Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -99,8 +93,8 @@ func (l *localFS) Create(path string, mode os.FileMode) (io.WriteCloser, error) 
 	return f, nil
 }
 
-func (l *localFS) Mkdir(path string, mode os.FileMode) error {
-	if err := l.ctx.Err(); err != nil {
+func (l localFS) Mkdir(ctx context.Context, path string, mode os.FileMode) error {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
@@ -112,14 +106,18 @@ func (l *localFS) Mkdir(path string, mode os.FileMode) error {
 	return nil
 }
 
-func (l *localFS) Chmod(path string, mode os.FileMode) error {
-	if err := l.ctx.Err(); err != nil {
+func (l localFS) Chmod(ctx context.Context, path string, mode os.FileMode) error {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
 	return trace.Wrap(os.Chmod(path, mode))
 }
 
-func (l *localFS) Chtimes(path string, atime, mtime time.Time) error {
+func (l localFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	return trace.ConvertSystemError(os.Chtimes(path, atime, mtime))
 }

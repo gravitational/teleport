@@ -30,20 +30,15 @@ import (
 // remoteFS provides API for accessing the files on
 // the local file system
 type remoteFS struct {
-	ctx context.Context
-	c   *sftp.Client
-}
-
-func (r *remoteFS) SetContext(ctx context.Context) {
-	r.ctx = ctx
+	c *sftp.Client
 }
 
 func (r *remoteFS) Type() string {
 	return "remote"
 }
 
-func (r *remoteFS) Stat(path string) (os.FileInfo, error) {
-	if err := r.ctx.Err(); err != nil {
+func (r *remoteFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -55,8 +50,8 @@ func (r *remoteFS) Stat(path string) (os.FileInfo, error) {
 	return fi, nil
 }
 
-func (r *remoteFS) ReadDir(path string) ([]os.FileInfo, error) {
-	if err := r.ctx.Err(); err != nil {
+func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -68,8 +63,8 @@ func (r *remoteFS) ReadDir(path string) ([]os.FileInfo, error) {
 	return fileInfos, nil
 }
 
-func (r *remoteFS) Open(path string) (io.ReadCloser, error) {
-	if err := r.ctx.Err(); err != nil {
+func (r *remoteFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -81,8 +76,8 @@ func (r *remoteFS) Open(path string) (io.ReadCloser, error) {
 	return f, nil
 }
 
-func (r *remoteFS) Create(path string, mode os.FileMode) (io.WriteCloser, error) {
-	if err := r.ctx.Err(); err != nil {
+func (r *remoteFS) Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -94,8 +89,8 @@ func (r *remoteFS) Create(path string, mode os.FileMode) (io.WriteCloser, error)
 	return f, nil
 }
 
-func (r *remoteFS) Mkdir(path string, mode os.FileMode) error {
-	if err := r.ctx.Err(); err != nil {
+func (r *remoteFS) Mkdir(ctx context.Context, path string, mode os.FileMode) error {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
@@ -107,16 +102,16 @@ func (r *remoteFS) Mkdir(path string, mode os.FileMode) error {
 	return nil
 }
 
-func (r *remoteFS) Chmod(path string, mode os.FileMode) error {
-	if err := r.ctx.Err(); err != nil {
+func (r *remoteFS) Chmod(ctx context.Context, path string, mode os.FileMode) error {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
 	return trace.Wrap(r.c.Chmod(path, mode))
 }
 
-func (r *remoteFS) Chtimes(path string, atime, mtime time.Time) error {
-	if err := r.ctx.Err(); err != nil {
+func (r *remoteFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) error {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 

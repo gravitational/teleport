@@ -65,25 +65,23 @@ type Config struct {
 
 // FileSystem describes file operations to be done either locally or over SFTP
 type FileSystem interface {
-	// SetContext sets the context for the filesystem used for cancellation
-	SetContext(ctx context.Context)
 	// Type returns whether the filesystem is "local" or "remote"
 	Type() string
 	// Stat returns info about a file
-	Stat(path string) (os.FileInfo, error)
+	Stat(ctx context.Context, path string) (os.FileInfo, error)
 	// ReadDir returns information about files contained within a directory
-	ReadDir(path string) ([]os.FileInfo, error)
+	ReadDir(ctx context.Context, path string) ([]os.FileInfo, error)
 	// Open opens a file
-	Open(path string) (io.ReadCloser, error)
+	Open(ctx context.Context, path string) (io.ReadCloser, error)
 	// Create creates a new file
-	Create(path string, mode os.FileMode) (io.WriteCloser, error)
+	Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error)
 	// MkDir creates a directory
 	// sftp.Client.Mkdir does not take an os.FileMode, so this can't either
-	Mkdir(path string, mode os.FileMode) error
+	Mkdir(ctx context.Context, path string, mode os.FileMode) error
 	// Chmod sets file permissions
-	Chmod(path string, mode os.FileMode) error
+	Chmod(ctx context.Context, path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
-	Chtimes(path string, atime, mtime time.Time) error
+	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
 }
 
 // CreateUploadConfig returns a Config ready to upload files
@@ -163,11 +161,8 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 	if transferErr != nil {
 		return trace.Wrap(transferErr)
 	}
-	if closeErr != nil {
-		return trace.Wrap(closeErr)
-	}
 
-	return nil
+	return trace.Wrap(closeErr)
 }
 
 // initFS ensures the source and destination filesystems are ready to transfer
@@ -184,8 +179,6 @@ func (c *Config) initFS(ctx context.Context, sshClient *ssh.Client, client *sftp
 		dstFS.c = client
 		haveRemoteFS = true
 	}
-	c.srcFS.SetContext(ctx)
-	c.dstFS.SetContext(ctx)
 
 	if haveRemoteFS {
 		return trace.Wrap(c.expandPaths(srcOK, dstOK, sshClient))
@@ -265,7 +258,7 @@ func getHomeDir(sshClient *ssh.Client) (string, error) {
 // transfer preforms file transfers
 func (c *Config) transfer(ctx context.Context) error {
 	var dstIsDir bool
-	dstInfo, err := c.dstFS.Stat(c.dstPath)
+	dstInfo, err := c.dstFS.Stat(ctx, c.dstPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return trace.Errorf("error accessing %s path %q: %v", c.dstFS.Type(), c.dstPath, err)
@@ -273,7 +266,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		// if there are multiple source paths and the destination path
 		// doesn't exist, create it as a directory
 		if len(c.srcPaths) > 1 {
-			if err := c.dstFS.Mkdir(c.dstPath, teleport.SharedDirMode); err != nil {
+			if err := c.dstFS.Mkdir(ctx, c.dstPath, teleport.SharedDirMode); err != nil {
 				return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
 			dstIsDir = true
@@ -292,7 +285,7 @@ func (c *Config) transfer(ctx context.Context) error {
 	// get info of source files and ensure appropriate options were passed
 	fileInfos := make([]os.FileInfo, len(c.srcPaths))
 	for i := range c.srcPaths {
-		fi, err := c.srcFS.Stat(c.srcPaths[i])
+		fi, err := c.srcFS.Stat(ctx, c.srcPaths[i])
 		if err != nil {
 			return trace.Errorf("could not access %s path %q: %v", c.srcFS.Type(), c.srcPaths[i], err)
 		}
@@ -327,12 +320,12 @@ func (c *Config) transfer(ctx context.Context) error {
 
 // transferDir transfers a directory
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	err := c.dstFS.Mkdir(dstPath, srcFileInfo.Mode())
+	err := c.dstFS.Mkdir(ctx, dstPath, srcFileInfo.Mode())
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 
-	infos, err := c.srcFS.ReadDir(srcPath)
+	infos, err := c.srcFS.ReadDir(ctx, srcPath)
 	if err != nil {
 		return trace.Errorf("error reading %s directory %q: %w", c.srcFS.Type(), srcPath, err)
 	}
@@ -355,7 +348,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 	// set modification and access times last so creating sub dirs/files
 	// doesn't update the times
 	if c.opts.PreserveAttrs {
-		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
+		err := c.dstFS.Chtimes(ctx, dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
 			return trace.Errorf("error changing times of %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 		}
@@ -366,13 +359,13 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 
 // transferFile transfers a file
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	srcFile, err := c.srcFS.Open(srcPath)
+	srcFile, err := c.srcFS.Open(ctx, srcPath)
 	if err != nil {
 		return trace.Errorf("error opening %s file %q: %w", c.srcFS.Type(), srcPath, err)
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(dstPath, srcFileInfo.Mode())
+	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Mode())
 	if err != nil {
 		return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
@@ -407,7 +400,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 
 	if c.opts.PreserveAttrs {
-		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
+		err := c.dstFS.Chtimes(ctx, dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
 			return trace.Errorf("error changing times of %s file %q: %w", c.dstFS.Type(), dstPath, err)
 		}

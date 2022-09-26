@@ -302,22 +302,16 @@ func createFile(t *testing.T, rootDir, path string) {
 	// to everyone to test that file permissions are retained when transferring
 	mode := os.FileMode(0o660 + rand.Intn(8))
 	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode)
-	if err != nil {
-		t.Fatalf("error creating file: %v", err)
-	}
+	require.NoError(t, err)
 	defer func() {
-		if err := f.Close(); err != nil {
-			t.Fatalf("error closing file: %v", err)
-		}
+		require.NoError(t, f.Close())
 	}()
 
 	// populate file with random amount of random contents
 	r := rand.New(rand.NewSource(time.Now().Unix()))
 	lr := io.LimitReader(r, r.Int63n(fileMaxSize)+1)
 	_, err = io.Copy(f, lr)
-	if err != nil {
-		t.Fatalf("error writing to file: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func createDir(t *testing.T, rootDir, path string) {
@@ -332,9 +326,7 @@ func createDir(t *testing.T, rootDir, path string) {
 
 func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string) {
 	dstInfo, err := os.Stat(dst)
-	if err != nil {
-		t.Fatalf("error getting dst file info: %v", err)
-	}
+	require.NoError(t, err)
 	if !dstInfo.IsDir() && len(srcs) > 1 {
 		t.Fatalf("multiple src files specified, but dst is not a directory")
 	}
@@ -346,20 +338,14 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 
 	for _, src := range srcs {
 		srcInfo, err := os.Stat(src)
-		if err != nil {
-			t.Fatalf("error getting src file info: %v", err)
-		}
+		require.NoError(t, err)
 
 		// src is file, compare files
 		if !srcInfo.IsDir() {
 			dstSubPath := filepath.Join(dst, filepath.Base(src))
 			dstSubInfo, err := os.Stat(dstSubPath)
-			if err != nil {
-				t.Fatalf("error getting dst file info: %v", err)
-			}
-			if dstSubInfo.IsDir() {
-				t.Fatalf("dst file is directory: %q", dstSubPath)
-			}
+			require.NoError(t, err)
+			require.False(t, dstSubInfo.IsDir(), "dst file is directory: %q", dstSubPath)
 			compareFiles(t, preserveAttrs, dstSubInfo, srcInfo, dstSubPath, src)
 			continue
 		}
@@ -377,9 +363,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 			if err != nil {
 				return fmt.Errorf("error getting dst file info: %v", err)
 			}
-			if info.IsDir() != dstInfo.IsDir() {
-				t.Fatalf("expected %q IsDir=%t, got %t", dstPath, info.IsDir(), dstInfo.IsDir())
-			}
+			require.Equal(t, info.IsDir(), dstInfo.IsDir(), "expected %q IsDir=%t, got %t", dstPath, info.IsDir(), dstInfo.IsDir())
 
 			if dstInfo.IsDir() {
 				compareFileInfos(t, preserveAttrs, dstInfo, info, dstPath, path)
@@ -389,9 +373,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 
 			return nil
 		})
-		if err != nil {
-			t.Fatalf("error walking src dir: %v", err)
-		}
+		require.NoError(t, err)
 	}
 }
 
@@ -399,38 +381,24 @@ func compareFiles(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo
 	var err error
 	if srcInfo == nil {
 		srcInfo, err = os.Stat(src)
-		if err != nil {
-			t.Fatalf("error getting dst file info: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	compareFileInfos(t, preserveAttrs, dstInfo, srcInfo, dst, src)
 
 	dstBytes, err := os.ReadFile(dst)
-	if err != nil {
-		t.Fatalf("error reading dst file: %v", err)
-	}
+	require.NoError(t, err)
 	srcBytes, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatalf("error reading src file: %v", err)
-	}
-	if !bytes.Equal(dstBytes, srcBytes) {
-		t.Errorf("%q and %q contents not equal", dst, src[0])
-	}
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(dstBytes, srcBytes), "%q and %q contents not equal", dst, src[0])
 }
 
 func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
-	if dstInfo.Size() != srcInfo.Size() {
-		t.Fatalf("%q and %q sizes not equal", dst, src)
-	}
-	if dstInfo.Mode() != srcInfo.Mode() {
-		t.Errorf("%q and %q perms not equal", dst, src)
-	}
+	require.Equal(t, dstInfo.Size(), srcInfo.Size(), "%q and %q sizes not equal", dst, src)
+	require.Equal(t, dstInfo.Mode(), srcInfo.Mode(), "%q and %q perms not equal", dst, src)
 
 	if preserveAttrs {
-		if !dstInfo.ModTime().Equal(srcInfo.ModTime()) {
-			t.Errorf("%q and %q mod times not equal", dst, src)
-		}
+		require.True(t, dstInfo.ModTime().Equal(srcInfo.ModTime()), "%q and %q mod times not equal", dst, src)
 		// don't check access times, locally they line up but they are
 		// often different when run in CI
 	}

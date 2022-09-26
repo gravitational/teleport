@@ -2344,7 +2344,7 @@ func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Option
 
 func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
 	if len(args) > 2 {
-		return nil, trace.BadParameter("only one source file and one destination file is supported when downloading files")
+		return nil, trace.BadParameter("only one source file is supported when downloading files")
 	}
 
 	// args are guaranteed to have len(args) > 1
