@@ -74,7 +74,7 @@ type testPack struct {
 	mockEmitter *eventstest.MockEmitter
 }
 
-func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
+func newTestPack(ctx context.Context, dataDir string, opts ...ServerOption) (testPack, error) {
 	var (
 		p   testPack
 		err error
@@ -98,7 +98,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 		},
 	}
-	p.a, err = NewServer(authConfig)
+	p.a, err = NewServer(authConfig, opts...)
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
