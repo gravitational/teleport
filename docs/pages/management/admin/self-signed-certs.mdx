@@ -14,8 +14,8 @@ which clients will not trust by default.
 When visiting the cluster's Web UI, the certificate presented will not be trusted by your browser. In this case, 
 you will likely see a page warning you that the website is not trusted.
 
-Additionally, self-signed certificates can cause problems when interacting with your Teleport cluster via
-`teleport`, `tsh`, or `tctl`.
+Additionally, self-signed certificates can prevent `teleport`, `tsh`, and `tctl` from connecting
+to the Proxy Service.
 
 <Notice type="warning" title="DO NOT USE THIS IN PRODUCTION">
   **DO NOT USE SELF-SIGNED CERTIFICATES IN PRODUCTION**
