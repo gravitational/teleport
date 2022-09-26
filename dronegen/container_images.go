@@ -298,8 +298,8 @@ func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
 	return products
 }
 
-func (rv *releaseVersion) getTagsForVersion() []*imageTag {
-	return []*imageTag{
+func (rv *releaseVersion) getTagsForVersion() []*ImageTag {
+	return []*ImageTag{
 		{
 			ShellBaseValue:   fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1)", rv.ShellVersion),
 			DisplayBaseValue: "major",
@@ -315,13 +315,13 @@ func (rv *releaseVersion) getTagsForVersion() []*imageTag {
 	}
 }
 
-type image struct {
+type Image struct {
 	Repo string
 	Name string
-	Tag  *imageTag
+	Tag  *ImageTag
 }
 
-func (i *image) GetShellName() string {
+func (i *Image) GetShellName() string {
 	repo := ""
 	if !i.IsLocalImage() {
 		// Ensure one and only one "/"
@@ -332,11 +332,11 @@ func (i *image) GetShellName() string {
 	return fmt.Sprintf("%s%s:%s", repo, i.Name, i.Tag.GetShellValue())
 }
 
-func (i *image) GetDisplayName() string {
+func (i *Image) GetDisplayName() string {
 	return fmt.Sprintf("%s:%s", i.Name, i.Tag.GetDisplayValue())
 }
 
-func (i *image) IsLocalImage() bool {
+func (i *Image) IsLocalImage() bool {
 	return i.Repo == ""
 }
 
@@ -348,7 +348,7 @@ type Product struct {
 	SupportedArchs       []string
 	SetupSteps           []step
 	DockerfileArgBuilder func(arch string) []string
-	ImageBuilder         func(repo string, tag *imageTag) *image
+	ImageBuilder         func(repo string, tag *ImageTag) *Image
 	GetRequiredStepNames func(arch string) []string
 }
 
@@ -383,7 +383,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *Pro
 				fmt.Sprintf("DEB_PATH=%s", debPaths[arch]),
 			}
 		},
-		ImageBuilder: func(repo string, tag *imageTag) *image {
+		ImageBuilder: func(repo string, tag *ImageTag) *Image {
 			imageProductName := "teleport"
 			if isEnterprise {
 				imageProductName += "-ent"
@@ -393,7 +393,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *Pro
 				tag.AppendString("fips")
 			}
 
-			return &image{
+			return &Image{
 				Repo: repo,
 				Name: imageProductName,
 				Tag:  tag,
@@ -498,11 +498,11 @@ func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL strin
 	}, archDestFileMap, dockerfilePath
 }
 
-func (p *Product) GetLocalRegistryImage(arch string, version *releaseVersion) *image {
-	return &image{
+func (p *Product) GetLocalRegistryImage(arch string, version *releaseVersion) *Image {
+	return &Image{
 		Repo: LocalRegistry,
 		Name: p.Name,
-		Tag: &imageTag{
+		Tag: &ImageTag{
 			ShellBaseValue:   version.ShellVersion,
 			DisplayBaseValue: version.MajorVersion,
 			Arch:             arch,
@@ -615,7 +615,7 @@ func (p *Product) createBuildStep(arch string, version *releaseVersion) (step, *
 // dependent steps so we add that via this struct
 type buildStepOutput struct {
 	StepName   string
-	BuiltImage *image
+	BuiltImage *Image
 	Version    *releaseVersion
 	Product    *Product
 }
@@ -626,7 +626,7 @@ type ContainerRepo struct {
 	RegistryDomain string
 	RegistryOrg    string
 	LoginCommands  []string
-	TagBuilder     func(baseTag *imageTag) *imageTag // Postprocessor for tags that append CR-specific suffixes
+	TagBuilder     func(baseTag *ImageTag) *ImageTag // Postprocessor for tags that append CR-specific suffixes
 }
 
 func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isStaging bool) *ContainerRepo {
@@ -668,7 +668,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 			"TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')",
 			fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 		},
-		TagBuilder: func(tag *imageTag) *imageTag {
+		TagBuilder: func(tag *ImageTag) *ImageTag {
 			if isStaging {
 				tag.AppendString("$TIMESTAMP")
 			}
@@ -720,7 +720,7 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 	steps := make([]step, 0)
 
 	imageTags := cr.BuildImageTags(buildStepDetails[0].Version)
-	pushedImages := make(map[*imageTag][]*image, len(imageTags))
+	pushedImages := make(map[*ImageTag][]*Image, len(imageTags))
 	pushStepNames := make([]string, 0, len(buildStepDetails))
 	for _, buildStepDetail := range buildStepDetails {
 		pushStep, pushedArchImages := cr.tagAndPushStep(buildStepDetail, imageTags)
@@ -761,37 +761,37 @@ func (cr *ContainerRepo) BuildImageRepo() string {
 	return fmt.Sprintf("%s/%s/", cr.RegistryDomain, cr.RegistryOrg)
 }
 
-type imageTag struct {
+type ImageTag struct {
 	ShellBaseValue   string // Should evaluate in a shell context to the tag's value
 	DisplayBaseValue string // Should be set to a human-readable version of ShellTag
 	Arch             string
 }
 
-func NewLatestTag() *imageTag {
-	return &imageTag{
+func NewLatestTag() *ImageTag {
+	return &ImageTag{
 		ShellBaseValue:   "latest",
 		DisplayBaseValue: "latest",
 	}
 }
 
-func (it *imageTag) AppendString(s string) {
+func (it *ImageTag) AppendString(s string) {
 	it.ShellBaseValue += fmt.Sprintf("-%s", s)
 	it.DisplayBaseValue += fmt.Sprintf("-%s", s)
 }
 
-func (it *imageTag) IsMultArch() bool {
+func (it *ImageTag) IsMultArch() bool {
 	return it.Arch != ""
 }
 
-func (it *imageTag) GetShellValue() string {
+func (it *ImageTag) GetShellValue() string {
 	return it.getValue(it.ShellBaseValue)
 }
 
-func (it *imageTag) GetDisplayValue() string {
+func (it *ImageTag) GetDisplayValue() string {
 	return it.getValue(it.DisplayBaseValue)
 }
 
-func (it *imageTag) getValue(baseValue string) string {
+func (it *ImageTag) getValue(baseValue string) string {
 	if it.Arch == "" {
 		return baseValue
 	}
@@ -799,7 +799,7 @@ func (it *imageTag) getValue(baseValue string) string {
 	return fmt.Sprintf("%s-%s", baseValue, it.Arch)
 }
 
-func (cr *ContainerRepo) BuildImageTags(version *releaseVersion) []*imageTag {
+func (cr *ContainerRepo) BuildImageTags(version *releaseVersion) []*ImageTag {
 	tags := version.getTagsForVersion()
 
 	if cr.TagBuilder != nil {
@@ -811,10 +811,10 @@ func (cr *ContainerRepo) BuildImageTags(version *releaseVersion) []*imageTag {
 	return tags
 }
 
-func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []*imageTag) (step, map[*imageTag]*image) {
+func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []*ImageTag) (step, map[*ImageTag]*Image) {
 	imageRepo := cr.BuildImageRepo()
 
-	archImages := make(map[*imageTag]*image, len(imageTags))
+	archImages := make(map[*ImageTag]*Image, len(imageTags))
 	for _, imageTag := range imageTags {
 		archTag := *imageTag
 		archTag.Arch = buildStepDetails.BuiltImage.Tag.Arch
@@ -845,7 +845,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	return step, archImages
 }
 
-func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *image, pushStepNames []string, pushedImages []*image) step {
+func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushStepNames []string, pushedImages []*Image) step {
 	if len(pushStepNames) == 0 {
 		return step{}
 	}
