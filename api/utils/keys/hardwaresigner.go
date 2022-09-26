@@ -24,25 +24,25 @@ import (
 )
 
 // HardwareSigner is a crypto.Signer which can be attested as being backed by a hardware key.
-// This enables the ability to enforced hardware key private key policies.
+// This enables the ability to enforce hardware key private key policies.
 type HardwareSigner interface {
 	crypto.Signer
 
-	// GetAttestationRequest returns an AttestationRequest for this private key.
-	GetAttestationRequest() (*AttestationRequest, error)
+	// GetAttestationStatement returns an AttestationStatement for this private key.
+	GetAttestationStatement() (*AttestationStatement, error)
 
 	// GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this private key.
 	GetPrivateKeyPolicy() PrivateKeyPolicy
 }
 
-// GetAttestationRequest returns an AttestationRequest for the given private key.
-// If the given private key does not have a HardwareSigner, then a nil request
+// GetAttestationStatement returns an AttestationStatement for the given private key.
+// If the given private key does not have a HardwareSigner, then a nil statement
 // and error will be returned.
-func GetAttestationRequest(priv *PrivateKey) (*AttestationRequest, error) {
+func GetAttestationStatement(priv *PrivateKey) (*AttestationStatement, error) {
 	if attestedPriv, ok := priv.Signer.(HardwareSigner); ok {
-		return attestedPriv.GetAttestationRequest()
+		return attestedPriv.GetAttestationStatement()
 	}
-	// Just return a nil attestation request and let this key fail any attestation checks.
+	// Just return a nil attestation statement and let this key fail any attestation checks.
 	return nil, nil
 }
 
@@ -54,34 +54,33 @@ func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
 	return PrivateKeyPolicyNone
 }
 
-// AttestationRequest is an alias for proto.AttestationRequest that supports
-// json marshaling and unmarshaling.
-type AttestationRequest attestation.AttestationRequest
+// AttestationStatement is an attestation statement for a hardware private key.
+type AttestationStatement attestation.AttestationStatement
 
-// ToProto converts this AttestationRequest to its protobuf form.
-func (ar *AttestationRequest) ToProto() *attestation.AttestationRequest {
-	return (*attestation.AttestationRequest)(ar)
+// ToProto converts this AttestationStatement to its protobuf form.
+func (ar *AttestationStatement) ToProto() *attestation.AttestationStatement {
+	return (*attestation.AttestationStatement)(ar)
 }
 
-// AttestationRequestFromProto converts an AttestationRequest from its protobuf form.
-func AttestationRequestFromProto(req *attestation.AttestationRequest) *AttestationRequest {
-	return (*AttestationRequest)(req)
+// AttestationStatementFromProto converts an AttestationStatement from its protobuf form.
+func AttestationStatementFromProto(att *attestation.AttestationStatement) *AttestationStatement {
+	return (*AttestationStatement)(att)
 }
 
 // MarshalJSON implements custom protobuf json marshaling.
-func (ar *AttestationRequest) MarshalJSON() ([]byte, error) {
+func (ar *AttestationStatement) MarshalJSON() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	err := (&jsonpb.Marshaler{}).Marshal(buf, ar.ToProto())
 	return buf.Bytes(), trace.Wrap(err)
 }
 
 // UnmarshalJSON implements custom protobuf json unmarshaling.
-func (ar *AttestationRequest) UnmarshalJSON(buf []byte) error {
+func (ar *AttestationStatement) UnmarshalJSON(buf []byte) error {
 	return jsonpb.Unmarshal(bytes.NewReader(buf), ar.ToProto())
 }
 
-// AttestationResponse is verified attestation data for a public key.
-type AttestationResponse struct {
+// AttestationData is verified attestation data for a public key.
+type AttestationData struct {
 	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
 	PublicKeyDER []byte `json:"public_key"`
 	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.

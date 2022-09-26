@@ -22,16 +22,16 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/attestat
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-// AttestationRequest is a request to attest a hardware private key.
-message AttestationRequest {
-  oneof attestation_request {
-    // yubikey_attestation_request is a request to attest a specific YubiKey PIV slot.
-    YubiKeyAttestationRequest yubikey_attestation_request = 1;
+// AttestationStatement is an attestation statement for a hardware private key.
+message AttestationStatement {
+  oneof attestation_statement {
+    // yubikey_attestation_statement is an attestation statement for a specific YubiKey PIV slot.
+    YubiKeyAttestationStatement yubikey_attestation_statement = 1;
   }
 }
 
-// YubiKeyAttestationRequest is a request to attest a specific YubiKey PIV slot.
-message YubiKeyAttestationRequest {
+// YubiKeyAttestationStatement is an attestation statement for a specific YubiKey PIV slot.
+message YubiKeyAttestationStatement {
   // slot_cert is an attestation certificate generated from a YubiKey PIV
   // slot's public key and signed by the YubiKey's attestation certificate.
   bytes slot_cert = 1;

@@ -937,8 +937,8 @@ type certRequest struct {
 	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this instance.
 	connectionDiagnosticID string
-	// attestationRequest is an attestation request associated with the given public key.
-	attestationRequest *keys.AttestationRequest
+	// attestationStatement is an attestation statement associated with the given public key.
+	attestationStatement *keys.AttestationStatement
 }
 
 // check verifies the cert request is valid.
@@ -1192,9 +1192,9 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	// verify that the required private key policy for the requesting identity
-	// is met by the provided attestation request.
+	// is met by the provided attestation statement.
 	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	privateKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationRequest, cryptoPubKey, sessionTTL)
+	privateKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

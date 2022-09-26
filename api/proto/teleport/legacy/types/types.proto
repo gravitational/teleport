@@ -3213,8 +3213,8 @@ message OIDCAuthRequest {
   // url will be used.
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 
-  // attestation_request is a request to attest the given public key.
-  teleport.attestation.v1.AttestationRequest attestation_request = 17;
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17;
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -3346,8 +3346,8 @@ message SAMLAuthRequest {
   // ConnectorSpec is embedded connector spec for use in test flow.
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
 
-  // attestation_request is a request to attest the given public key.
-  teleport.attestation.v1.AttestationRequest attestation_request = 16;
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16;
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3461,8 +3461,8 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-  // attestation_request is a request to attest the given public key.
-  teleport.attestation.v1.AttestationRequest attestation_request = 16;
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16;
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

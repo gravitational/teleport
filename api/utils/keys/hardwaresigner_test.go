@@ -29,13 +29,13 @@ import (
 
 // TestHardwareSigner tests the HardwareSigner interface with different private keys.
 func TestHardwareSigner(t *testing.T) {
-	// Non-hardware keys should return a nil attestation request and PrivateKeyPolicyNone.
+	// Non-hardware keys should return a nil attestation statement and PrivateKeyPolicyNone.
 	priv, err := ParsePrivateKey(rsaKeyPEM)
 	require.NoError(t, err)
 
-	req, err := GetAttestationRequest(priv)
+	att, err := GetAttestationStatement(priv)
 	require.NoError(t, err)
-	require.Nil(t, req)
+	require.Nil(t, att)
 
 	policy := GetPrivateKeyPolicy(priv)
 	require.Equal(t, PrivateKeyPolicyNone, policy)
@@ -49,13 +49,13 @@ func TestHardwareSigner(t *testing.T) {
 	ctx := context.Background()
 	resetYubikey(ctx, t)
 
-	// Generate a new YubiKeyPrivateKey. It should return a valid attestation request and key policy.
+	// Generate a new YubiKeyPrivateKey. It should return a valid attestation statement and key policy.
 	priv, err = GetOrGenerateYubiKeyPrivateKey(ctx, false)
 	require.NoError(t, err)
 
-	req, err = GetAttestationRequest(priv)
+	att, err = GetAttestationStatement(priv)
 	require.NoError(t, err)
-	require.NotNil(t, req)
+	require.NotNil(t, att)
 
 	policy = GetPrivateKeyPolicy(priv)
 	require.Equal(t, PrivateKeyPolicyHardwareKey, policy)

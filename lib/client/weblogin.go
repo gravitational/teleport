@@ -69,8 +69,8 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationRequest is an attestation request associated with the given public key.
-	AttestationRequest *keys.AttestationRequest `json:"attestation_request,omitempty"`
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -124,8 +124,8 @@ type CreateSSHCertReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationRequest is an attestation request associated with the given public key.
-	AttestationRequest *keys.AttestationRequest `json:"attestation_request,omitempty"`
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // AuthenticateSSHUserRequest are passed by web client to authenticate against
@@ -153,8 +153,8 @@ type AuthenticateSSHUserRequest struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationRequest is an attestation request associated with the given public key.
-	AttestationRequest *keys.AttestationRequest `json:"attestation_request,omitempty"`
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 type AuthenticateWebUserRequest struct {
@@ -184,8 +184,8 @@ type SSHLogin struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationRequest is an attestation request.
-	AttestationRequest *keys.AttestationRequest
+	// AttestationStatement is an attestation statement.
+	AttestationStatement *keys.AttestationStatement
 }
 
 // SSHLoginSSO contains SSH login parameters for SSO login.
@@ -368,15 +368,15 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:               login.User,
-		Password:           login.Password,
-		OTPToken:           login.OTPToken,
-		PubKey:             login.PubKey,
-		TTL:                login.TTL,
-		Compatibility:      login.Compatibility,
-		RouteToCluster:     login.RouteToCluster,
-		KubernetesCluster:  login.KubernetesCluster,
-		AttestationRequest: login.AttestationRequest,
+		User:                 login.User,
+		Password:             login.Password,
+		OTPToken:             login.OTPToken,
+		PubKey:               login.PubKey,
+		TTL:                  login.TTL,
+		Compatibility:        login.Compatibility,
+		RouteToCluster:       login.RouteToCluster,
+		KubernetesCluster:    login.KubernetesCluster,
+		AttestationStatement: login.AttestationStatement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -450,7 +450,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 			Compatibility:             login.Compatibility,
 			RouteToCluster:            login.RouteToCluster,
 			KubernetesCluster:         login.KubernetesCluster,
-			AttestationRequest:        login.AttestationRequest,
+			AttestationStatement:      login.AttestationStatement,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -506,14 +506,14 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	challengeResp := AuthenticateSSHUserRequest{
-		User:               login.User,
-		Password:           login.Password,
-		PubKey:             login.PubKey,
-		TTL:                login.TTL,
-		Compatibility:      login.Compatibility,
-		RouteToCluster:     login.RouteToCluster,
-		KubernetesCluster:  login.KubernetesCluster,
-		AttestationRequest: login.AttestationRequest,
+		User:                 login.User,
+		Password:             login.Password,
+		PubKey:               login.PubKey,
+		TTL:                  login.TTL,
+		Compatibility:        login.Compatibility,
+		RouteToCluster:       login.RouteToCluster,
+		KubernetesCluster:    login.KubernetesCluster,
+		AttestationStatement: login.AttestationStatement,
 	}
 	// Convert back from auth gRPC proto response.
 	switch r := respPB.Response.(type) {

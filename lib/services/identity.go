@@ -251,11 +251,11 @@ type Identity interface {
 	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
 	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
 
-	// UpsertKeyAttestationResponse upserts a verified public key attestation response.
-	UpsertKeyAttestationResponse(ctx context.Context, attestationResponse *keys.AttestationResponse, ttl time.Duration) error
+	// UpsertKeyAttestationData upserts a verified public key attestation response.
+	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
 
-	// GetKeyAttestationResponse gets a verified public key attestation response.
-	GetKeyAttestationResponse(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationResponse, error)
+	// GetKeyAttestationData gets a verified public key attestation response.
+	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

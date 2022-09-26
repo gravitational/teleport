@@ -584,7 +584,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
-			request.KubernetesCluster, keys.AttestationRequestFromProto(request.AttestationRequest))
+			request.KubernetesCluster, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}

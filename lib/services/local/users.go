@@ -1438,14 +1438,14 @@ func (s recoveryAttemptsChronologically) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// UpsertKeyAttestationResponse upserts a verified public key attestation response.
-func (s *IdentityService) UpsertKeyAttestationResponse(ctx context.Context, attestationResponse *keys.AttestationResponse, ttl time.Duration) error {
-	value, err := json.Marshal(attestationResponse)
+// UpsertKeyAttestationData upserts a verified public key attestation response.
+func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error {
+	value, err := json.Marshal(attestationData)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	pub, err := x509.ParsePKIXPublicKey(attestationResponse.PublicKeyDER)
+	pub, err := x509.ParsePKIXPublicKey(attestationData.PublicKeyDER)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1468,8 +1468,8 @@ func (s *IdentityService) UpsertKeyAttestationResponse(ctx context.Context, atte
 	return nil
 }
 
-// GetKeyAttestationResponse gets a verified public key attestation response.
-func (s *IdentityService) GetKeyAttestationResponse(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationResponse, error) {
+// GetKeyAttestationData gets a verified public key attestation response.
+func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error) {
 	if publicKey == nil {
 		return nil, trace.BadParameter("missing parameter publicKey")
 	}
@@ -1488,7 +1488,7 @@ func (s *IdentityService) GetKeyAttestationResponse(ctx context.Context, publicK
 		return nil, trace.Wrap(err)
 	}
 
-	var resp keys.AttestationResponse
+	var resp keys.AttestationData
 	if err := json.Unmarshal(item.Value, &resp); err != nil {
 		return nil, trace.Wrap(err)
 	}
