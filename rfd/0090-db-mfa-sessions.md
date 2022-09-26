@@ -3,7 +3,7 @@ author: Gavin Frazar (gavin.frazar@goteleport.com)
 state: draft
 ---
  
-# RFD 84 - Database MFA Sessions
+# RFD 90 - Database MFA Sessions
 
 ## Required Approvers
 - Engineering: Marek `@smallinsky`, Roman `@r0mant`
