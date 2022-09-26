@@ -86,12 +86,15 @@ func (c *redisEnterpriseClient) GetToken(ctx context.Context, resourceID string)
 	return "", trace.NotFound("missing keys")
 }
 
+// getClusterAndDatabaseName returns the cluster name and the database name
+// based on the resource ID. Both armredisenterprise.Cluster.ID and
+// armredisenterprise.Database.ID are supported.
 func (c *redisEnterpriseClient) getClusterAndDatabaseName(id *arm.ResourceID) (string, string, error) {
 	switch id.ResourceType.String() {
 	case "Microsoft.Cache/redisEnterprise":
 		// It appears an Enterprise cluster always has only one "database", and
 		// the database name is always "default".
-		return id.Name, "default", nil
+		return id.Name, RedisEnterpriseClusterDefaultDatabase, nil
 	case "Microsoft.Cache/redisEnterprise/databases":
 		return id.Parent.Name, id.Name, nil
 	default:
