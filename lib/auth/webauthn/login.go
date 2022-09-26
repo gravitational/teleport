@@ -102,6 +102,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		}
 	}
 
+	// TODO(codingllama): Use the "official" appid impl by duo-labs/webauthn.
 	var opts []wan.LoginOption
 	if f.U2F != nil && f.U2F.AppID != "" {
 		// See https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
