@@ -26,7 +26,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cloudflare/cfssl/log"
 	"github.com/datastax/go-cassandra-native-protocol/client"
 	"github.com/datastax/go-cassandra-native-protocol/datatype"
 	"github.com/datastax/go-cassandra-native-protocol/frame"
@@ -329,7 +328,7 @@ func handleMessageBatch(request *frame.Frame, conn *client.CqlServerConnection, 
 		}
 		responseFrame, err := codec.ConvertFromRawFrame(resp)
 		if err != nil {
-			log.Errorf("Error converting raw frame to frame: %v", err)
+			logrus.Errorf("Error converting raw frame to frame: %v", err)
 			return nil
 		}
 		return responseFrame
