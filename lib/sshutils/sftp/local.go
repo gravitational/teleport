@@ -22,7 +22,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 )
 
@@ -87,12 +86,12 @@ func (l *localFS) Open(path string) (io.ReadCloser, error) {
 	return f, nil
 }
 
-func (l *localFS) Create(path string) (io.WriteCloser, error) {
+func (l *localFS) Create(path string, mode os.FileMode) (io.WriteCloser, error) {
 	if err := l.ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,14 +99,12 @@ func (l *localFS) Create(path string) (io.WriteCloser, error) {
 	return f, nil
 }
 
-func (l *localFS) Mkdir(path string) error {
+func (l *localFS) Mkdir(path string, mode os.FileMode) error {
 	if err := l.ctx.Err(); err != nil {
 		return err
 	}
 
-	// the permissions used here are somewhat arbitrary, they should
-	// get modified after this is called
-	err := os.MkdirAll(path, teleport.PrivateDirMode)
+	err := os.MkdirAll(path, mode)
 	if err != nil && !os.IsExist(err) {
 		return trace.ConvertSystemError(err)
 	}

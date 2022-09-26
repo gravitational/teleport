@@ -26,6 +26,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/trace"
 
@@ -72,10 +73,10 @@ type FileSystem interface {
 	// Open opens a file
 	Open(path string) (io.ReadCloser, error)
 	// Create creates a new file
-	Create(path string) (io.WriteCloser, error)
+	Create(path string, mode os.FileMode) (io.WriteCloser, error)
 	// MkDir creates a directory
 	// sftp.Client.Mkdir does not take an os.FileMode, so this can't either
-	Mkdir(path string) error
+	Mkdir(path string, mode os.FileMode) error
 	// Chmod sets file permissions
 	Chmod(path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
@@ -172,7 +173,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		// if there are multiple source paths and the destination path
 		// doesn't exist, create it as a directory
 		if len(c.srcPaths) > 1 {
-			if err := c.dstFS.Mkdir(c.dstPath); err != nil {
+			if err := c.dstFS.Mkdir(c.dstPath, teleport.SharedDirMode); err != nil {
 				return trace.Wrap(err)
 			}
 			dstIsDir = true
@@ -226,12 +227,8 @@ func (c *Config) transfer(ctx context.Context) error {
 
 // transferDir transfers a directory
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	err := c.dstFS.Mkdir(dstPath)
+	err := c.dstFS.Mkdir(dstPath, srcFileInfo.Mode())
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return trace.Wrap(err)
-	}
-
-	if err := c.dstFS.Chmod(dstPath, srcFileInfo.Mode()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -275,7 +272,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(dstPath)
+	dstFile, err := c.dstFS.Create(dstPath, srcFileInfo.Mode())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -301,11 +298,6 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	if n != srcFileInfo.Size() {
 		return trace.Errorf("short write: written %v, expected %v", n, srcFileInfo.Size())
-	}
-
-	err = c.dstFS.Chmod(dstPath, srcFileInfo.Mode())
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	if c.opts.PreserveAttrs {

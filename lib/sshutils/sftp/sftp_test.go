@@ -296,7 +296,10 @@ func createFile(t *testing.T, rootDir, path string) {
 		createDir(t, rootDir, dir)
 	}
 
-	f, err := os.Create(filepath.Join(rootDir, path))
+	// ensure we can read and write to this file, but give random permissions
+	// to everyone to test that file permissions are retained when transferring
+	mode := os.FileMode(0o660 + rand.Intn(8))
+	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		t.Fatalf("error creating file: %v", err)
 	}
@@ -316,7 +319,10 @@ func createFile(t *testing.T, rootDir, path string) {
 }
 
 func createDir(t *testing.T, rootDir, path string) {
-	err := os.MkdirAll(filepath.Join(rootDir, path), 0777)
+	// ensure we can read and write to this dir, but give random permissions
+	// to everyone to test that dir permissions are retained when transferring
+	mode := os.FileMode(0o770 + rand.Intn(8))
+	err := os.MkdirAll(filepath.Join(rootDir, path), mode)
 	if err != nil {
 		t.Fatalf("error creating directory: %v", err)
 	}
