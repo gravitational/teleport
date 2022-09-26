@@ -71,14 +71,14 @@ func (e *Engine) SendError(sErr error) {
 	if utils.IsOKNetworkError(sErr) || sErr == nil {
 		return
 	}
-	e.Log.Debugf("cassandra connection error: %v", sErr)
+	e.Log.Debugf("Cassandra connection error: %v.", sErr)
 	if e.handshakeTriggered {
 		return
 	}
 
 	eh := failedHandshake{error: sErr}
 	if err := eh.handshake(e.clientConn, nil); err != nil {
-		e.Log.Warnf("cassandra connection error: %v", sErr)
+		e.Log.Warnf("Cassandra handshake error: %v.", sErr)
 	}
 }
 
