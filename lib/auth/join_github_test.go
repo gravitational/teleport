@@ -106,6 +106,27 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			errorAssertion: assert.NoError,
 		},
 		{
+			name: "multiple allow rules",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV3GitHub{
+					Allow: []*types.ProvisionTokenSpecV3GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV3GitHub_Rule) {
+							rule.Sub = "not matching"
+						}),
+						allowRule(nil),
+					},
+				},
+			},
+			request: &types.RegisterUsingTokenRequest{
+				HostID:  "host-id",
+				Role:    types.RoleNode,
+				IDToken: validIDToken,
+			},
+			errorAssertion: assert.NoError,
+		},
+		{
 			name: "incorrect sub",
 			tokenSpec: types.ProvisionTokenSpecV3{
 				JoinMethod: types.JoinMethodGitHub,
