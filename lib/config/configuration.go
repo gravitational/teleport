@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -1431,6 +1432,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
+	}
 
 	var cert *x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
@@ -1445,11 +1449,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+		if err != nil {
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+		}
+	}
+
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
+		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
 	}
 
