@@ -7,19 +7,35 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-type IDTokenValidator struct {
-	clock clockwork.Clock
+type IDTokenValidatorConfig struct {
+	// Clock is used by the validator when checking expiry and issuer times of
+	// tokens. If omitted, a real clock will be used.
+	Clock clockwork.Clock
+	// IssuerURL is the URL of the OIDC token issuer, on which the
+	// /well-known/openid-configuration endpoint can be found.
+	// If this is omitted, a default value will be set.
+	IssuerURL string
 }
 
-func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
+type IDTokenValidator struct {
+	IDTokenValidatorConfig
+}
+
+func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
+	if cfg.IssuerURL == "" {
+		cfg.IssuerURL = IssuerURL
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
 	return &IDTokenValidator{
-		clock: clock,
+		IDTokenValidatorConfig: cfg,
 	}
 }
 
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
 	// TODO: Extract this so we aren't producing a new provider for each attempt
-	p, err := oidc.NewProvider(ctx, IssuerURL)
+	p, err := oidc.NewProvider(ctx, id.IssuerURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -28,7 +44,7 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 		// TODO: Ensure this matches the cluster name once we start injecting
 		// that into the token.
 		ClientID: "teleport.cluster.local",
-		Now:      id.clock.Now,
+		Now:      id.Clock.Now,
 	})
 
 	idToken, err := verifier.Verify(ctx, token)
