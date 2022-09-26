@@ -94,10 +94,10 @@ func TestMTLSClientCAs(t *testing.T) {
 	}
 	hostCert := genCert(t, "localhost", "localhost", "127.0.0.1", "::1")
 	userCert := genCert(t, "user")
-
+	log := logrus.New()
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: logrus.New(),
+			Log: log,
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -108,6 +108,7 @@ func TestMTLSClientCAs(t *testing.T) {
 			},
 			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
+		log: logrus.NewEntry(log),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -202,17 +203,17 @@ func TestGetServerInfo(t *testing.T) {
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
+			clusterDetails: map[string]*kubeDetails{
+				"kube-cluster": {
+					kubeCluster: mustCreateKubernetesClusterV3(t, "kube-cluster"),
+				},
+			},
 		},
 		listener: listener,
 	}
 
 	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
-		serverInfo, err := srv.getServerInfo(&types.KubernetesClusterV3{
-			Metadata: types.Metadata{
-				Name: "kube-cluster",
-			},
-			Spec: types.KubernetesClusterSpecV3{},
-		})
+		serverInfo, err := srv.getServerInfo("kube-cluster")
 		require.NoError(t, err)
 
 		kubeServer, ok := serverInfo.(types.KubeServer)
@@ -224,11 +225,7 @@ func TestGetServerInfo(t *testing.T) {
 	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
 		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
 
-		serverInfo, err := srv.getServerInfo(&types.KubernetesClusterV3{
-			Metadata: types.Metadata{
-				Name: "kube-cluster",
-			},
-		})
+		serverInfo, err := srv.getServerInfo("kube-cluster")
 		require.NoError(t, err)
 
 		kubeServer, ok := serverInfo.(types.KubeServer)

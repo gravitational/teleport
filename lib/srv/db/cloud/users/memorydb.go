@@ -136,8 +136,8 @@ func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, acl
 
 // getUsersForRegion discovers all MemoryDB users for provided region.
 func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, client memorydbiface.MemoryDBAPI) ([]*memorydb.User, error) {
-	getFunc := func(ctx context.Context) (interface{}, error) {
-		users := []*memorydb.User{}
+	getFunc := func(ctx context.Context) ([]*memorydb.User, error) {
+		var users []*memorydb.User
 		var nextToken *string
 		for pageNum := 0; pageNum < common.MaxPages; pageNum++ {
 			output, err := client.DescribeUsersWithContext(ctx, &memorydb.DescribeUsersInput{
@@ -155,16 +155,17 @@ func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, 
 		return users, nil
 	}
 
-	users, err := f.cache.Get(ctx, region, getFunc)
+	users, err := libutils.FnCacheGet(ctx, f.cache, region, getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return users.([]*memorydb.User), nil
+
+	return users, nil
 }
 
 // getUserTags discovers resource tags for provided user.
 func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydb.User, client memorydbiface.MemoryDBAPI) ([]*memorydb.Tag, error) {
-	getFunc := func(ctx context.Context) (interface{}, error) {
+	getFunc := func(ctx context.Context) ([]*memorydb.Tag, error) {
 		output, err := client.ListTagsWithContext(ctx, &memorydb.ListTagsInput{
 			ResourceArn: user.ARN,
 		})
@@ -174,11 +175,12 @@ func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydb.User, 
 		return output.TagList, nil
 	}
 
-	userTags, err := f.cache.Get(ctx, aws.StringValue(user.ARN), getFunc)
+	userTags, err := libutils.FnCacheGet(ctx, f.cache, aws.StringValue(user.ARN), getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return userTags.([]*memorydb.Tag), nil
+
+	return userTags, nil
 }
 
 // createUser creates an MemoryDB User.

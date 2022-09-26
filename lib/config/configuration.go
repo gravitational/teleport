@@ -16,8 +16,8 @@ limitations under the License.
 
 // Package config provides facilities for configuring Teleport daemons
 // including
-//	- parsing YAML configuration
-//	- parsing CLI flags
+//   - parsing YAML configuration
+//   - parsing CLI flags
 package config
 
 import (
@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -443,6 +444,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.Discovery.Enabled() {
+		applyDiscoveryConfig(fc, cfg)
+	}
+
 	return nil
 }
 
@@ -783,11 +788,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// was passed. If the certificate is not self-signed, verify the certificate
 		// chain from leaf to root with the trust store on the computer so browsers
 		// don't complain.
-		certificateChainBytes, err := utils.ReadPath(p.Certificate)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1060,12 +1061,17 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
-	for _, matcher := range fc.SSH.AWSMatchers {
-		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
+	return nil
+}
+
+func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
+	cfg.Discovery.Enabled = fc.Discovery.Enabled()
+	for _, matcher := range fc.Discovery.AWSMatchers {
+		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			services.AWSMatcher{
-				Types:   matcher.Matcher.Types,
-				Regions: matcher.Matcher.Regions,
-				Tags:    matcher.Matcher.Tags,
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
 				Params: services.InstallerParams{
 					JoinMethod: matcher.InstallParams.JoinParams.Method,
 					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
@@ -1074,8 +1080,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
-
-	return nil
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
@@ -1093,6 +1097,13 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Kube.PublicAddrs = addrs
+	}
+
+	for _, matcher := range fc.Kube.ResourceMatchers {
+		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
 	}
 
 	if fc.Kube.KubeconfigFile != "" {
@@ -1372,11 +1383,7 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
 		}
 
-		certificateChainBytes, err := utils.ReadPath(p.Certificate)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1442,6 +1449,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
+	}
 
 	var cert *x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
@@ -1456,11 +1466,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+		if err != nil {
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+		}
+	}
+
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
+		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
 	}
 
@@ -1484,6 +1502,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	if fc.WindowsDesktop.Labels != nil {
+		cfg.WindowsDesktop.Labels = make(map[string]string)
+		for k, v := range fc.WindowsDesktop.Labels {
+			cfg.WindowsDesktop.Labels[k] = v
+		}
 	}
 
 	return nil
@@ -2146,7 +2171,8 @@ func validateRoles(roles string) error {
 			defaults.RoleProxy,
 			defaults.RoleApp,
 			defaults.RoleDatabase,
-			defaults.RoleWindowsDesktop:
+			defaults.RoleWindowsDesktop,
+			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}

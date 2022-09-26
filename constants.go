@@ -125,6 +125,9 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDiscovery is the Discovery service.
+	ComponentDiscovery = "discovery:service"
+
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
@@ -383,16 +386,6 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 )
 
-// OTPType is the type of the One-time Password Algorithm.
-type OTPType string
-
-const (
-	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
-	TOTP = OTPType("totp")
-	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
-	HOTP = OTPType("hotp")
-)
-
 const (
 	// These values are from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 
@@ -458,6 +451,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this diagnostic instance.
+	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -774,3 +770,15 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
+)

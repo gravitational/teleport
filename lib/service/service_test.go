@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -276,10 +276,10 @@ func TestServiceInitExternalLog(t *testing.T) {
 		{events: []string{"file://localhost"}, isErr: true},
 	}
 
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
 	for _, tt := range tts {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
 			if tt.isErr {
@@ -290,7 +290,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
+			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -501,6 +501,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-elasticsearch-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -511,6 +512,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-elasticsearch",
 			},
 		},
 		{
@@ -523,6 +525,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-elasticsearch-ping",
 				// Ensure h2 has precedence over http/1.1.
 				"h2",
 				"http/1.1",
@@ -536,6 +539,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-elasticsearch",
 			},
 		},
 	}

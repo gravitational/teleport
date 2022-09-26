@@ -23,15 +23,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/trace"
-
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 )
 
 type ec2Instance struct {
@@ -157,7 +157,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	_, err = a.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -593,6 +593,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleKube,
 				types.RoleDatabase,
 				types.RoleApp,
+				types.RoleWindowsDesktop,
 			},
 			Allow: []*types.TokenRule{
 				{
@@ -606,7 +607,7 @@ func TestHostUniqueCheck(t *testing.T) {
 	err = a.UpsertToken(context.Background(), token)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -714,6 +715,20 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		{
+			role: types.RoleWindowsDesktop,
+			upserter: func(name string) {
+				wds, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: instance1.account + "-" + instance1.instanceID},
+					types.WindowsDesktopServiceSpecV3{
+						Addr:            "localhost:3028",
+						TeleportVersion: "10.2.2",
+					})
+				require.NoError(t, err)
+
+				_, err = a.UpsertWindowsDesktopService(context.Background(), wds)
+				require.NoError(t, err)
+			},
+		},
 	}
 
 	ctx = context.WithValue(ctx, ec2ClientKey{}, ec2ClientRunning{})
@@ -744,5 +759,4 @@ func TestHostUniqueCheck(t *testing.T) {
 			require.ErrorAs(t, err, &expectedErr)
 		})
 	}
-
 }

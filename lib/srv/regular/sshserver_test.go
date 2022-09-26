@@ -45,7 +45,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -149,7 +149,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -663,7 +663,7 @@ func TestAgentForward(t *testing.T) {
 			return true
 		}
 		return false
-	}, 5*time.Second, 10*time.Millisecond, "failed to read socket path")
+	}, 10*time.Second, 100*time.Millisecond, "failed to read socket path")
 
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
@@ -704,10 +704,10 @@ func TestAgentForward(t *testing.T) {
 	// clt must be nullified to prevent double-close during test cleanup
 	f.ssh.clt = nil
 	require.Eventually(t, func() bool {
-		_, err := net.Dial("unix", socketPath)
+		_, err := clientAgent.List()
 		return err != nil
 	},
-		150*time.Millisecond, 50*time.Millisecond,
+		10*time.Second, 100*time.Millisecond,
 		"expected socket to be closed, still could dial")
 }
 
@@ -1646,7 +1646,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -2082,7 +2082,7 @@ type upack struct {
 func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := testSvr.Auth()
-	upriv, upub, err := native.GenerateKeyPair()
+	upriv, upub, err := testauthority.New().GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2190,7 +2190,7 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 //
 // See the following links for more details.
 //
-//   https://man7.org/linux/man-pages/man7/pipe.7.html
-//   https://github.com/afborchert/pipebuf
-//   https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
+//	https://man7.org/linux/man-pages/man7/pipe.7.html
+//	https://github.com/afborchert/pipebuf
+//	https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
 const maxPipeSize = 65536 + 1

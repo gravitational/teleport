@@ -17,47 +17,13 @@ limitations under the License.
 package helpers
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 )
-
-// ports contains tcp ports allocated for all integration tests.
-// TODO: Replace all usage of `Ports` with FD-injected sockets as per
-//       https://github.com/gravitational/teleport/pull/13346
-var ports utils.PortList
-
-func init() {
-	// Allocate tcp ports for all integration tests. 5000 should be plenty.
-	var err error
-	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
-	if err != nil {
-		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
-	}
-}
-
-// NewPortValue fetches a port from the pool.
-// Deprecated: Use NewListener() and friends instead.
-func NewPortValue() int {
-	return ports.PopInt()
-}
-
-// NewPortStr fetches aport from the pool as a string.
-// Deprecated: Use NewListener() and friends instead.
-func NewPortStr() string {
-	return ports.Pop()
-}
-
-// NewPortSlice fetches several ports from the pool at once.
-// Deprecated: Use NewListener() and friends instead.
-func NewPortSlice(n int) []int {
-	return ports.PopIntSlice(n)
-}
 
 // InstanceListeners represents the listener configuration for a test cluster.
 // Each address field is expected to be hull host:port pair.

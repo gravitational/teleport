@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,29 +16,13 @@ limitations under the License.
 package integration
 
 import (
-	"os"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	helpers.SetTestTimeouts(100 * time.Millisecond)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if srv.IsReexec() {
-		common.Run(common.Options{Args: os.Args[1:]})
-		return
-	}
-
-	// Otherwise run tests as normal.
-	code := m.Run()
-	os.Exit(code)
+	helpers.TestMainImplementation(m)
 }

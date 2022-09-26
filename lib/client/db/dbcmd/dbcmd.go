@@ -59,6 +59,8 @@ const (
 	mssqlBin = "mssql-cli"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
+	// curlBin is the path to `curl`, which is used as Elasticsearch client.
+	curlBin = "curl"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -173,6 +175,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSnowflake:
 		return c.getSnowflakeCommand(), nil
+
+	case defaults.ProtocolElasticsearch:
+		return c.getElasticsearchCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -460,6 +465,11 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		if c.options.caPath != "" {
 			args = append(args, []string{"--cacert", c.options.caPath}...)
 		}
+
+		// Set SNI when sending to remote web proxy.
+		if c.options.localProxyHost == "" {
+			args = append(args, []string{"--sni", c.tc.WebProxyHost()}...)
+		}
 	}
 
 	// append database number if provided
@@ -503,6 +513,34 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SNOWSQL_PWD=%s", c.uid.New()))
 
 	return cmd
+}
+
+func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
+	if c.options.noTLS {
+		return c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	}
+
+	args := []string{
+		fmt.Sprintf("https://%v:%v/", c.host, c.port),
+		"--key", c.profile.KeyPath(),
+		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+	}
+
+	if c.tc.InsecureSkipVerify {
+		args = append(args, "--insecure")
+	}
+
+	if c.options.caPath != "" {
+		args = append(args, []string{"--cacert", c.options.caPath}...)
+	}
+
+	// Force HTTP 1.1 when connecting to remote web proxy. Otherwise HTTP2 can
+	// be negotiated which breaks the engine.
+	if c.options.localProxyHost == "" {
+		args = append(args, "--http1.1")
+	}
+
+	return c.options.exe.Command(curlBin, args...)
 }
 
 type connectionCommandOpts struct {

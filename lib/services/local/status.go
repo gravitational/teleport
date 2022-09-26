@@ -138,4 +138,19 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 	return trace.Wrap(err)
 }
 
+func (s *StatusService) DeleteClusterAlert(ctx context.Context, alertID string) error {
+	err := s.Backend.Delete(ctx, backend.Key(clusterAlertPrefix, alertID))
+	if trace.IsNotFound(err) {
+		return trace.NotFound("cluster alert %q not found", alertID)
+	}
+	return trace.Wrap(err)
+}
+
 const clusterAlertPrefix = "cluster-alerts"
+
+// Status service manages alerts.
+type Status interface {
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+	DeleteClusterAlert(ctx context.Context, alertID string) error
+}

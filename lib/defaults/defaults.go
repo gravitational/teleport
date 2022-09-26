@@ -25,11 +25,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
@@ -187,10 +188,6 @@ const (
 	// tokens. When a user generates a token without an explicit TTL, this
 	// value is used.
 	ProvisioningTokenTTL = 30 * time.Minute
-
-	// HOTPFirstTokensRange is amount of lookahead tokens we remember
-	// for sync purposes
-	HOTPFirstTokensRange = 4
 
 	// MinPasswordLength is minimum password length
 	MinPasswordLength = 6
@@ -383,6 +380,9 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// DiscoveryQueueSize is discovery service queue size.
+	DiscoveryQueueSize = 128
+
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -461,6 +461,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleDiscovery is a discovery service
+	RoleDiscovery = "discovery"
 )
 
 const (
@@ -482,6 +484,8 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolElasticsearch is the Elasticsearch database protocol.
+	ProtocolElasticsearch = "elasticsearch"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -493,6 +497,7 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolElasticsearch,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
@@ -511,6 +516,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Redis"
 	case ProtocolSnowflake:
 		return "Snowflake"
+	case ProtocolElasticsearch:
+		return "Elasticsearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
 	default:
@@ -767,6 +774,17 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
 	}
 	return limiter
+}
+
+// Transport returns a new http.Client with sensible defaults.
+func HTTPClient() (*http.Client, error) {
+	transport, err := Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // Transport returns a new http.RoundTripper with sensible defaults.
