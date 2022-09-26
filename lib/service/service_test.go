@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
@@ -276,6 +277,9 @@ func TestServiceInitExternalLog(t *testing.T) {
 	}
 
 	for _, tt := range tts {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
 			if tt.isErr {
@@ -286,7 +290,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New())
+			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {

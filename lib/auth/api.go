@@ -892,6 +892,8 @@ type Cache interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// ListWindowsDesktops returns a paginated list of windows desktops.
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+	// ListWindowsDesktopServices returns a paginated list of windows desktops.
+	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 
 	// GetInstaller gets installer resource for this cluster
 	GetInstaller(ctx context.Context, name string) (types.Installer, error)
