@@ -27,8 +27,8 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 	verifier := p.Verifier(&oidc.Config{
 		// TODO: Ensure this matches the cluster name once we start injecting
 		// that into the token.
-		SkipClientIDCheck: true,
-		Now:               a.clock.Now,
+		ClientID: "teleport.cluster.local",
+		Now:      a.clock.Now,
 	})
 
 	idToken, err := verifier.Verify(ctx, req.IDToken)
