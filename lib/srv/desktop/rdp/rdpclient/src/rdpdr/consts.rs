@@ -12,7 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::flags;
+use super::Boolean;
+
 pub const CHANNEL_NAME: &str = "rdpdr";
+
+// Each redirected device requires a unique ID. We only share
+// one permanent smartcard device, so we can give it hardcoded ID 1.
+pub const DIRECTORY_SHARE_CLIENT_NAME: &str = "teleport";
+
+// Each redirected device requires a unique ID.
+pub const SCARD_DEVICE_ID: u32 = 1;
+
+pub const VERSION_MAJOR: u16 = 0x0001;
+pub const VERSION_MINOR: u16 = 0x000c;
+
+pub const SMARTCARD_CAPABILITY_VERSION_01: u32 = 0x00000001;
+pub const DRIVE_CAPABILITY_VERSION_02: u32 = 0x00000002;
+#[allow(dead_code)]
+pub const GENERAL_CAPABILITY_VERSION_01: u32 = 0x00000001;
+pub const GENERAL_CAPABILITY_VERSION_02: u32 = 0x00000002;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
@@ -39,14 +58,6 @@ pub enum PacketId {
     PAKID_PRN_USING_XPS = 0x5543,
 }
 
-pub const VERSION_MAJOR: u16 = 0x0001;
-pub const VERSION_MINOR: u16 = 0x000c;
-
-pub const SMARTCARD_CAPABILITY_VERSION_01: u32 = 0x00000001;
-#[allow(dead_code)]
-pub const GENERAL_CAPABILITY_VERSION_01: u32 = 0x00000001;
-pub const GENERAL_CAPABILITY_VERSION_02: u32 = 0x00000002;
-
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 pub enum CapabilityType {
@@ -56,10 +67,6 @@ pub enum CapabilityType {
     CAP_DRIVE_TYPE = 0x0004,
     CAP_SMARTCARD_TYPE = 0x0005,
 }
-
-// If there were multiple redirected devices, they would need unique IDs. In our case there is only
-// one permanent smartcard device, so we hardcode an ID 1.
-pub const SCARD_DEVICE_ID: u32 = 1;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
@@ -71,7 +78,8 @@ pub enum DeviceType {
     RDPDR_DTYP_SMARTCARD = 0x00000020,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq, Clone)]
 #[allow(non_camel_case_types)]
 pub enum MajorFunction {
     IRP_MJ_CREATE = 0x00000000,
@@ -87,10 +95,119 @@ pub enum MajorFunction {
     IRP_MJ_LOCK_CONTROL = 0x00000011,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, Clone)]
 #[allow(non_camel_case_types)]
 pub enum MinorFunction {
     IRP_MN_NONE = 0x00000000,
     IRP_MN_QUERY_DIRECTORY = 0x00000001,
     IRP_MN_NOTIFY_CHANGE_DIRECTORY = 0x00000002,
 }
+
+/// Windows defines an absolutely massive list of potential NTSTATUS values.
+/// This enum includes the basic ones we support for communicating with the windows machine.
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
+#[derive(ToPrimitive, Debug, PartialEq, Eq)]
+#[repr(u32)]
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
+pub enum NTSTATUS {
+    STATUS_SUCCESS = 0x00000000,
+    STATUS_UNSUCCESSFUL = 0xC0000001,
+    STATUS_NOT_IMPLEMENTED = 0xC0000002,
+    STATUS_NO_MORE_FILES = 0x80000006,
+    STATUS_OBJECT_NAME_COLLISION = 0xC0000035,
+    STATUS_ACCESS_DENIED = 0xC0000022,
+    STATUS_NOT_A_DIRECTORY = 0xC0000103,
+    STATUS_NO_SUCH_FILE = 0xC000000F,
+    STATUS_NOT_SUPPORTED = 0xC00000BB,
+    STATUS_DIRECTORY_NOT_EMPTY = 0xC0000101,
+}
+
+/// 2.4 File Information Classes [MS-FSCC]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
+#[derive(FromPrimitive, Debug, PartialEq, Eq, Clone)]
+#[repr(u32)]
+#[allow(clippy::enum_variant_names)]
+pub enum FileInformationClassLevel {
+    FileAccessInformation = 8,
+    FileAlignmentInformation = 17,
+    FileAllInformation = 18,
+    FileAllocationInformation = 19,
+    FileAlternateNameInformation = 21,
+    FileAttributeTagInformation = 35,
+    FileBasicInformation = 4,
+    FileBothDirectoryInformation = 3,
+    FileCompressionInformation = 28,
+    FileDirectoryInformation = 1,
+    FileDispositionInformation = 13,
+    FileEaInformation = 7,
+    FileEndOfFileInformation = 20,
+    FileFullDirectoryInformation = 2,
+    FileFullEaInformation = 15,
+    FileHardLinkInformation = 46,
+    FileIdBothDirectoryInformation = 37,
+    FileIdExtdDirectoryInformation = 60,
+    FileIdFullDirectoryInformation = 38,
+    FileIdGlobalTxDirectoryInformation = 50,
+    FileIdInformation = 59,
+    FileInternalInformation = 6,
+    FileLinkInformation = 11,
+    FileMailslo = 26,
+    FileMailslotSetInformation = 27,
+    FileModeInformation = 16,
+    FileMoveClusterInformation = 31,
+    FileNameInformation = 9,
+    FileNamesInformation = 12,
+    FileNetworkOpenInformation = 34,
+    FileNormalizedNameInformation = 48,
+    FileObjectIdInformation = 29,
+    FilePipeInformation = 23,
+    FilePipInformation = 24,
+    FilePipeRemoteInformation = 25,
+    FilePositionInformation = 14,
+    FileQuotaInformation = 32,
+    FileRenameInformation = 10,
+    FileReparsePointInformation = 33,
+    FileSfioReserveInformation = 44,
+    FileSfioVolumeInformation = 45,
+    FileShortNameInformation = 40,
+    FileStandardInformation = 5,
+    FileStandardLinkInformation = 54,
+    FileStreamInformation = 22,
+    FileTrackingInformation = 36,
+    FileValidDataLengthInformation = 39,
+}
+
+/// 2.5 File System Information Classes [MS-FSCC]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ee12042a-9352-46e3-9f67-c094b75fe6c3
+#[derive(FromPrimitive, Debug, PartialEq, Eq)]
+#[repr(u32)]
+#[allow(clippy::enum_variant_names)]
+pub enum FileSystemInformationClassLevel {
+    FileFsVolumeInformation = 1,
+    FileFsLabelInformation = 2,
+    FileFsSizeInformation = 3,
+    FileFsDeviceInformation = 4,
+    FileFsAttributeInformation = 5,
+    FileFsControlInformation = 6,
+    FileFsFullSizeInformation = 7,
+    FileFsObjectIdInformation = 8,
+    FileFsDriverPathInformation = 9,
+    FileFsVolumeFlagsInformation = 10,
+    FileFsSectorSizeInformation = 11,
+}
+
+const fn size_of<T>() -> u32 {
+    std::mem::size_of::<T>() as u32
+}
+
+pub const U32_SIZE: u32 = size_of::<u32>();
+pub const I64_SIZE: u32 = size_of::<i64>();
+pub const I8_SIZE: u32 = size_of::<i8>();
+pub const U8_SIZE: u32 = size_of::<u8>();
+pub const FILE_ATTR_SIZE: u32 = size_of::<flags::FileAttributes>();
+pub const BOOL_SIZE: u32 = size_of::<Boolean>();
+
+pub const TDP_FALSE: u8 = 0;
+#[allow(dead_code)]
+pub const TDP_TRUE: u8 = 1;

@@ -18,7 +18,9 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 
@@ -31,6 +33,8 @@ import (
 )
 
 func TestChainUnaryServerInterceptors(t *testing.T) {
+	t.Parallel()
+
 	handler := func(context.Context, interface{}) (interface{}, error) { return "resp", fmt.Errorf("error") }
 
 	interceptors := []grpc.UnaryServerInterceptor{}
@@ -53,6 +57,8 @@ func TestChainUnaryServerInterceptors(t *testing.T) {
 }
 
 func TestChainStreamServerInterceptors(t *testing.T) {
+	t.Parallel()
+
 	handler := func(interface{}, grpc.ServerStream) error { return fmt.Errorf("handler") }
 
 	interceptors := []grpc.StreamServerInterceptor{}
@@ -88,6 +94,8 @@ func (s *service) BidirectionalStreamingEcho(stream pb.Echo_BidirectionalStreami
 // TestGRPCErrorWrapping tests the error wrapping capability of the client
 // and server unary and stream interceptors
 func TestGRPCErrorWrapping(t *testing.T) {
+	t.Parallel()
+
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -121,8 +129,15 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	stream, err := client.BidirectionalStreamingEcho(context.Background())
 	require.NoError(t, err)
 
-	err = stream.Send(&pb.EchoRequest{Message: "Hi!"})
-	require.NoError(t, err)
+	sendErr := stream.Send(&pb.EchoRequest{Message: "Hi!"})
+
+	// io.EOF means the server closed the stream, which can
+	// happen depending in timing. In either case, it is
+	// still safe to recv from the stream and check for
+	// the already exists error.
+	if sendErr != nil && !errors.Is(sendErr, io.EOF) {
+		require.FailNowf(t, "unexpected error", "%v", sendErr)
+	}
 
 	_, err = stream.Recv()
 	require.True(t, trace.IsAlreadyExists(err))

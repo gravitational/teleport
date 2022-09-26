@@ -60,6 +60,16 @@ const (
 	RoleWindowsDesktop SystemRole = "WindowsDesktop"
 	// RoleBot is a role for a bot.
 	RoleBot SystemRole = "Bot"
+	// RoleInstance is a role implicitly held by teleport servers (i.e. any teleport
+	// auth token which grants a server role such as proxy/node/etc also implicitly
+	// grants the instance role, and any valid cert that proves that the caller holds
+	// a server role also implies that the caller holds the instance role). This role
+	// doesn't grant meaningful privileges on its own, but is a useful placeholder in
+	// contexts such as multi-role certs where there is no particular system role that
+	// is "primary".
+	RoleInstance SystemRole = "Instance"
+	// RoleDiscovery is a role for discovery nodes in the cluster
+	RoleDiscovery SystemRole = "Discovery"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -82,6 +92,33 @@ var roleMappings = map[string]SystemRole{
 	"windowsdesktop":  RoleWindowsDesktop,
 	"windows_desktop": RoleWindowsDesktop,
 	"bot":             RoleBot,
+	"instance":        RoleInstance,
+	"discovery":       RoleDiscovery,
+}
+
+// localServiceMappings is the subset of role mappings which happen to be true
+// teleport services (e.g. db, kube, etc), excluding those which represent remote
+// services (i.e. remoteproxy).
+var localServiceMappings = map[SystemRole]struct{}{
+	RoleAuth:           {},
+	RoleNode:           {},
+	RoleProxy:          {},
+	RoleKube:           {},
+	RoleApp:            {},
+	RoleDatabase:       {},
+	RoleWindowsDesktop: {},
+	RoleDiscovery:      {},
+}
+
+// LocalServiceMappings returns the subset of role mappings which happen
+// to be true Teleport services (e.g. db, kube, proxy, etc), excluding
+// those which represent remote service (i.e. remoteproxy).
+func LocalServiceMappings() SystemRoles {
+	var sr SystemRoles
+	for k := range localServiceMappings {
+		sr = append(sr, k)
+	}
+	return sr
 }
 
 // NewTeleportRoles return a list of teleport roles from slice of strings
@@ -221,4 +258,12 @@ func (r *SystemRole) Check() error {
 	}
 
 	return trace.BadParameter("role %v is not registered", *r)
+}
+
+// IsLocalService checks if the given system role is a teleport service (e.g. auth),
+// as opposed to some non-service role (e.g. admin). Excludes remote services such
+// as remoteproxy.
+func (r *SystemRole) IsLocalService() bool {
+	_, ok := localServiceMappings[*r]
+	return ok
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
@@ -187,7 +188,7 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -335,11 +336,13 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		}
 
 		certPool := x509.NewCertPool()
-		parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+		parsedCerts, err := tlsca.ParseCertificatePEMs(caCertPEM)
 		if err != nil {
 			return trace.Wrap(err, "failed to parse CA certificate %q", b.cfg.TLSCAFile)
 		}
-		certPool.AddCert(parsedCert)
+		for _, cert := range parsedCerts {
+			certPool.AddCert(cert)
+		}
 
 		tlsConfig.RootCAs = certPool
 		tlsConfig.ClientCAs = certPool
@@ -806,7 +809,7 @@ func convertErr(err error) error {
 		return nil
 	}
 	if err == context.Canceled {
-		return trace.ConnectionProblem(err, "operation has been cancelled")
+		return trace.ConnectionProblem(err, "operation has been canceled")
 	} else if err == context.DeadlineExceeded {
 		return trace.ConnectionProblem(err, "operation has timed out")
 	} else if err == rpctypes.ErrEmptyKey {

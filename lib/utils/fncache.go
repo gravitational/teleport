@@ -24,7 +24,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
+
+// NOTE: when making changes to this file, run tests with `TEST_FNCACHE_FUZZY=yes` to enable
+// additional fuzzy tests which aren't run during normal CI.
 
 var (
 	// ErrFnCacheClosed is returned from Get when the FnCache context is closed
@@ -39,7 +43,7 @@ type FnCache struct {
 	cfg         FnCacheConfig
 	mu          sync.Mutex
 	nextCleanup time.Time
-	entries     map[interface{}]*fnCacheEntry
+	entries     map[any]*fnCacheEntry
 }
 
 // cleanupMultiplier is an arbitrary multiplier used to derive the schedule for
@@ -81,12 +85,12 @@ func NewFnCache(cfg FnCacheConfig) (*FnCache, error) {
 
 	return &FnCache{
 		cfg:     cfg,
-		entries: make(map[interface{}]*fnCacheEntry),
+		entries: make(map[any]*fnCacheEntry),
 	}, nil
 }
 
 type fnCacheEntry struct {
-	v      interface{}
+	v      any
 	e      error
 	t      time.Time
 	loaded chan struct{}
@@ -105,12 +109,33 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 	}
 }
 
-// Get loads the result associated with the supplied key.  If no result is currently stored, or the stored result
+// FnCacheGet loads the result associated with the supplied key.  If no result is currently stored, or the stored result
 // was acquired >ttl ago, then loadfn is used to reload it.  Subsequent calls while the value is being loaded/reloaded
 // block until the first call updates the entry.  Note that the supplied context can cancel the call to Get, but will
 // not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx context.Context) (interface{}, error)) (interface{}, error) {
+func FnCacheGet[T any](ctx context.Context, cache *FnCache, key any, loadfn func(ctx context.Context) (T, error)) (T, error) {
+	t, err := cache.get(ctx, key, func(ctx context.Context) (any, error) {
+		return loadfn(ctx)
+	})
+
+	ret, ok := t.(T)
+	switch {
+	case err != nil:
+		return ret, err
+	case !ok:
+		return ret, trace.BadParameter("value retrieved was %T, expected %T", t, ret)
+	}
+
+	return ret, err
+}
+
+// get loads the result associated with the supplied key.  If no result is currently stored, or the stored result
+// was acquired >ttl ago, then loadfn is used to reload it.  Subsequent calls while the value is being loaded/reloaded
+// block until the first call updates the entry.  Note that the supplied context can cancel the call to Get, but will
+// not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
+// been canceled.
+func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Context) (any, error)) (any, error) {
 	select {
 	case <-c.cfg.Context.Done():
 		return nil, ErrFnCacheClosed
@@ -149,7 +174,10 @@ func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx cont
 		}
 		c.entries[key] = entry
 		go func() {
-			entry.v, entry.e = loadfn(c.cfg.Context)
+			// link the config context with the span from ctx, if one exists,
+			// so that the loadfn can be traced appropriately.
+			loadCtx := oteltrace.ContextWithSpan(c.cfg.Context, oteltrace.SpanFromContext(ctx))
+			entry.v, entry.e = loadfn(loadCtx)
 			entry.t = c.cfg.Clock.Now()
 			close(entry.loaded)
 		}()

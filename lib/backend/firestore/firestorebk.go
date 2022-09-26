@@ -33,9 +33,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -305,7 +305,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	}
 
 	// kicking off async tasks
-	linearConfig := utils.LinearConfig{
+	linearConfig := retryutils.LinearConfig{
 		Step: b.RetryPeriod / 10,
 		Max:  b.RetryPeriod,
 	}
@@ -488,19 +488,16 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
+
 	docRef := b.svc.Collection(b.CollectionName).Doc(b.keyToDocumentID(key))
-	doc, err := docRef.Get(ctx)
-	if err != nil {
+	if _, err := docRef.Delete(ctx, firestore.Exists); err != nil {
+		if status.Code(err) == codes.NotFound {
+			return trace.NotFound("key %s does not exist", string(key))
+		}
+
 		return ConvertGRPCError(err)
 	}
 
-	if !doc.Exists() {
-		return trace.NotFound("key %s does not exist", string(key))
-	}
-	_, err = docRef.Delete(ctx)
-	if err != nil {
-		return ConvertGRPCError(err)
-	}
 	return nil
 }
 
@@ -582,8 +579,8 @@ func (b *Backend) keyToDocumentID(key []byte) string {
 }
 
 // RetryingAsyncFunctionRunner wraps a task target in retry logic
-func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearConfig, logger *log.Logger, task func() error, taskName string) {
-	retry, err := utils.NewLinear(retryConfig)
+func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig retryutils.LinearConfig, logger *log.Logger, task func() error, taskName string) {
+	retry, err := retryutils.NewLinear(retryConfig)
 	if err != nil {
 		logger.WithError(err).Error("Bad retry parameters, returning and not running.")
 		return
@@ -757,58 +754,46 @@ func (b *Backend) getIndexParent() string {
 }
 
 func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
-	tuples := []*IndexTuple{{
-		FirstField:       keyDocProperty,
-		SecondField:      expiresDocProperty,
-		SecondFieldOrder: adminpb.Index_IndexField_ASCENDING,
-	}}
+	tuples := IndexList{}
+	tuples.Index(Field(keyDocProperty, adminpb.Index_IndexField_ASCENDING), Field(expiresDocProperty, adminpb.Index_IndexField_ASCENDING))
 	return EnsureIndexes(b.clientContext, adminSvc, tuples, b.getIndexParent())
 }
 
-type IndexTuple struct {
-	FirstField       string
-	SecondField      string
-	SecondFieldOrder adminpb.Index_IndexField_Order
+type IndexList [][]*adminpb.Index_IndexField
+
+func (l *IndexList) Index(fields ...*adminpb.Index_IndexField) {
+	list := []*adminpb.Index_IndexField{}
+	list = append(list, fields...)
+	*l = append(*l, list)
+}
+
+func Field(name string, order adminpb.Index_IndexField_Order) *adminpb.Index_IndexField {
+	return &adminpb.Index_IndexField{
+		FieldPath: name,
+		ValueMode: &adminpb.Index_IndexField_Order_{
+			Order: order,
+		},
+	}
 }
 
 type indexTask struct {
 	operation *apiv1.CreateIndexOperation
-	tuple     *IndexTuple
+	tuple     []*adminpb.Index_IndexField
 }
 
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
 // indexes are reported as created
-func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tuples []*IndexTuple, indexParent string) error {
+func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tuples IndexList, indexParent string) error {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
-
-	ascendingFieldOrder := &adminpb.Index_IndexField_Order_{
-		Order: adminpb.Index_IndexField_ASCENDING,
-	}
-
 	var tasks []indexTask
 
 	// create the indexes
 	for _, tuple := range tuples {
-		secondFieldOrder := &adminpb.Index_IndexField_Order_{
-			Order: tuple.SecondFieldOrder,
-		}
-
-		fields := []*adminpb.Index_IndexField{
-			{
-				FieldPath: tuple.FirstField,
-				ValueMode: ascendingFieldOrder,
-			},
-			{
-				FieldPath: tuple.SecondField,
-				ValueMode: secondFieldOrder,
-			},
-		}
-		l.Infof("%v", fields)
 		operation, err := adminSvc.CreateIndex(ctx, &adminpb.CreateIndexRequest{
 			Parent: indexParent,
 			Index: &adminpb.Index{
 				QueryScope: adminpb.Index_COLLECTION,
-				Fields:     fields,
+				Fields:     tuple,
 			},
 		})
 		if err != nil && status.Code(err) != codes.AlreadyExists {
@@ -857,7 +842,7 @@ func waitOnIndexCreation(ctx context.Context, l *log.Entry, task indexTask) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	l.Infof("Creating index for tuple %s-%s with name %s.", task.tuple.FirstField, task.tuple.SecondField, meta.Index)
+	l.Infof("Creating index for tuple %v with name %s.", task.tuple, meta.Index)
 
 	_, err = task.operation.Wait(ctx)
 	if err != nil {

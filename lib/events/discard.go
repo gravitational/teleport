@@ -47,7 +47,7 @@ func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, aft
 func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
-func (d *DiscardAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
+func (d *DiscardAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
@@ -91,7 +91,12 @@ func (*DiscardStream) Complete(ctx context.Context) error {
 
 // EmitAuditEvent discards audit event
 func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding stream event: %v", event)
+	log.WithFields(log.Fields{
+		"event_id":    event.GetID(),
+		"event_type":  event.GetType(),
+		"event_time":  event.GetTime(),
+		"event_index": event.GetIndex(),
+	}).Debugf("Discarding stream event")
 	return nil
 }
 
@@ -105,7 +110,12 @@ type DiscardEmitter struct{}
 
 // EmitAuditEvent discards audit event
 func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding event: %v", event)
+	log.WithFields(log.Fields{
+		"event_id":    event.GetID(),
+		"event_type":  event.GetType(),
+		"event_time":  event.GetTime(),
+		"event_index": event.GetIndex(),
+	}).Debugf("Discarding event")
 	return nil
 }
 

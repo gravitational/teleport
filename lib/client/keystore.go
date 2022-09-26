@@ -18,19 +18,25 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"encoding/pem"
 	"fmt"
 	"io"
 	osfs "io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -90,6 +96,10 @@ type LocalKeyStore interface {
 	// GetTrustedCertsPEM gets trusted TLS certificates of certificate authorities.
 	// Each returned byte slice contains an individual PEM block.
 	GetTrustedCertsPEM(proxyHost string) ([][]byte, error)
+
+	// GetSSHCertificates gets all certificates signed for the given user and proxy,
+	// including certificates for trusted clusters.
+	GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error)
 }
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem.
@@ -130,15 +140,30 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := key.KeyIndex.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	// Store core key data.
-	if err := fs.writeBytes(key.Priv, fs.UserKeyPath(key.KeyIndex)); err != nil {
+
+	if err := fs.writeBytes(key.PrivateKeyPEM(), fs.userKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fs.writeBytes(key.Pub, fs.sshCAsPath(key.KeyIndex)); err != nil {
+
+	if err := fs.writeBytes(key.MarshalSSHPublicKey(), fs.publicKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Store TLS cert
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
+	}
+	if runtime.GOOS == constants.WindowsOS {
+		ppkFile, err := key.PPKFile()
+		if err == nil {
+			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(key.KeyIndex)); err != nil {
+				return trace.Wrap(err)
+			}
+		} else if !trace.IsBadParameter(err) {
+			return trace.Wrap(err)
+		}
+		// PPKFile can only be generated from an RSA private key.
+		fs.log.WithError(err).Debugf("Failed to convert private key to PPK-formatted keypair.")
 	}
 
 	// Store per-cluster key data.
@@ -193,14 +218,20 @@ func (fs *FSLocalKeyStore) writeBytes(bytes []byte, fp string) error {
 // DeleteKey deletes the user's key with all its certs.
 func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 	files := []string{
-		fs.UserKeyPath(idx),
-		fs.sshCAsPath(idx),
+		fs.userKeyPath(idx),
+		fs.publicKeyPath(idx),
 		fs.tlsCertPath(idx),
 	}
 	for _, fn := range files {
 		if err := os.Remove(fn); err != nil {
 			return trace.ConvertSystemError(err)
 		}
+	}
+	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
+	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
+	// as such, deletion should be best-effort and not generate an error if it fails.
+	if runtime.GOOS == constants.WindowsOS {
+		os.Remove(fs.ppkFilePath(idx))
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -226,7 +257,6 @@ func (fs *FSLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) err
 
 // DeleteKeys removes all session keys.
 func (fs *FSLocalKeyStore) DeleteKeys() error {
-
 	files, err := os.ReadDir(fs.KeyDir)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -263,16 +293,6 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	priv, err := os.ReadFile(fs.UserKeyPath(idx))
-	if err != nil {
-		fs.log.Error(err)
-		return nil, trace.ConvertSystemError(err)
-	}
-	pub, err := os.ReadFile(fs.sshCAsPath(idx))
-	if err != nil {
-		fs.log.Error(err)
-		return nil, trace.ConvertSystemError(err)
-	}
 	tlsCertFile := fs.tlsCertPath(idx)
 	tlsCert, err := os.ReadFile(tlsCertFile)
 	if err != nil {
@@ -285,19 +305,18 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	key := &Key{
-		KeyIndex: idx,
-		Pub:      pub,
-		Priv:     priv,
-		TLSCert:  tlsCert,
-		TrustedCA: []auth.TrustedCerts{{
-			TLSCertificates: tlsCA,
-		}},
-		KubeTLSCerts:        make(map[string][]byte),
-		DBTLSCerts:          make(map[string][]byte),
-		AppTLSCerts:         make(map[string][]byte),
-		WindowsDesktopCerts: make(map[string][]byte),
+	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx))
+	if err != nil {
+		fs.log.Error(err)
+		return nil, trace.ConvertSystemError(err)
 	}
+
+	key := NewKey(priv)
+	key.KeyIndex = idx
+	key.TLSCert = tlsCert
+	key.TrustedCA = []auth.TrustedCerts{{
+		TLSCertificates: tlsCA,
+	}}
 
 	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()
 	if err != nil {
@@ -389,6 +408,7 @@ func (o WithSSHCerts) updateKeyWithBytes(key *Key, certBytes []byte) error {
 			return trace.Wrap(err)
 		}
 	}
+
 	return nil
 }
 
@@ -510,8 +530,8 @@ func (fs *fsLocalNonSessionKeyStore) knownHostsPath() string {
 	return keypaths.KnownHostsPath(fs.KeyDir)
 }
 
-// UserKeyPath returns the private key path for the given KeyIndex.
-func (fs *fsLocalNonSessionKeyStore) UserKeyPath(idx KeyIndex) string {
+// userKeyPath returns the private key path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) userKeyPath(idx KeyIndex) string {
 	return keypaths.UserKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
@@ -525,17 +545,27 @@ func (fs *fsLocalNonSessionKeyStore) tlsCAsPath(proxy string) string {
 	return keypaths.TLSCAsPath(fs.KeyDir, proxy)
 }
 
+// sshDir returns the SSH certificate path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) sshDir(proxy, user string) string {
+	return keypaths.SSHDir(fs.KeyDir, proxy, user)
+}
+
 // sshCertPath returns the SSH certificate path for the given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
 	return keypaths.SSHCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 }
 
-// sshCAsPath returns the SSH CA certificates path for the given KeyIndex.
-func (fs *fsLocalNonSessionKeyStore) sshCAsPath(idx KeyIndex) string {
-	return keypaths.SSHCAsPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+// ppkFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) ppkFilePath(idx KeyIndex) string {
+	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
-//  appCertPath returns the TLS certificate path for the given KeyIndex and app name.
+// publicKeyPath returns the public key path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) publicKeyPath(idx KeyIndex) string {
+	return keypaths.PublicKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// appCertPath returns the TLS certificate path for the given KeyIndex and app name.
 func (fs *fsLocalNonSessionKeyStore) appCertPath(idx KeyIndex, appname string) string {
 	return keypaths.AppCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
 }
@@ -552,6 +582,14 @@ func (fs *fsLocalNonSessionKeyStore) kubeCertPath(idx KeyIndex, kubename string)
 
 // AddKnownHostKeys adds a new entry to `known_hosts` file.
 func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
+	// We're trying to serialize our writes to the 'known_hosts' file to avoid corruption, since there
+	// are cases when multiple tsh instances will try to write to it.
+	unlock, err := utils.FSTryWriteLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
+	if err != nil {
+		return trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
+	}
+	defer utils.StoreErrorOf(unlock, &retErr)
+
 	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -641,7 +679,13 @@ func matchesWildcard(hostname, pattern string) bool {
 }
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
-func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
+func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) (keys []ssh.PublicKey, retErr error) {
+	unlock, err := utils.FSTryReadLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
+	}
+	defer utils.StoreErrorOf(unlock, &retErr)
+
 	bytes, err := os.ReadFile(fs.knownHostsPath())
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -811,6 +855,30 @@ func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]b
 	return blocks, nil
 }
 
+// GetSSHCertificates gets all certificates signed for the given user and proxy.
+func (fs *fsLocalNonSessionKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error) {
+	certDir := fs.sshDir(proxyHost, username)
+	certFiles, err := os.ReadDir(certDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshCerts := make([]*ssh.Certificate, len(certFiles))
+	for i, certFile := range certFiles {
+		data, err := os.ReadFile(filepath.Join(certDir, certFile.Name()))
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+
+		sshCerts[i], err = apisshutils.ParseCertificate(data)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return sshCerts, nil
+}
+
 // noLocalKeyStore is a LocalKeyStore representing the absence of a keystore.
 // All methods return errors. This exists to avoid nil checking everywhere in
 // LocalKeyAgent and prevent nil pointer panics.
@@ -841,6 +909,9 @@ func (noLocalKeyStore) SaveTrustedCerts(proxyHost string, cas []auth.TrustedCert
 	return errNoLocalKeyStore
 }
 func (noLocalKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, error) {
+	return nil, errNoLocalKeyStore
+}
+func (noLocalKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error) {
 	return nil, errNoLocalKeyStore
 }
 
@@ -963,4 +1034,18 @@ func (s *MemLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) err
 		}
 	}
 	return nil
+}
+
+// GetSSHCertificates gets all certificates signed for the given user and proxy.
+func (s *MemLocalKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error) {
+	var sshCerts []*ssh.Certificate
+	for _, key := range s.inMem[proxyHost][username] {
+		sshCert, err := key.SSHCert()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sshCerts = append(sshCerts, sshCert)
+	}
+
+	return sshCerts, nil
 }

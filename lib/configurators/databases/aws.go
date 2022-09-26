@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils/aws"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
@@ -74,6 +73,15 @@ var (
 		"elasticache:DescribeCacheSubnetGroups",
 		"elasticache:DescribeUsers",
 		"elasticache:ModifyUser",
+	}
+	// memoryDBActions is a list of actions used for MemoryDB auto-discovery
+	// and metadata update.
+	memoryDBActions = []string{
+		"memorydb:ListTags",
+		"memorydb:DescribeClusters",
+		"memorydb:DescribeSubnetGroups",
+		"memorydb:DescribeUsers",
+		"memorydb:UpdateUser",
 	}
 	// secretsManagerActions is a list of actions used for SecretsManager.
 	secretsManagerActions = []string{
@@ -156,7 +164,7 @@ func (c *AWSConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.Policies == nil {
-			c.Policies = awslib.NewPolicies(c.Identity.GetAccountID(), iam.New(c.AWSSession))
+			c.Policies = awslib.NewPolicies(c.Identity.GetPartition(), c.Identity.GetAccountID(), iam.New(c.AWSSession))
 		}
 	}
 
@@ -222,7 +230,6 @@ func (a *awsPolicyCreator) Execute(ctx context.Context, actionCtx *ConfiguratorA
 	if a.policies == nil {
 		return trace.BadParameter("policy helper not initialized")
 	}
-
 	arn, err := a.policies.Upsert(ctx, a.policy)
 	if err != nil {
 		return trace.Wrap(err)
@@ -290,12 +297,14 @@ func buildActions(config AWSConfiguratorConfig) ([]ConfiguratorAction, error) {
 	// Identity is going to be empty (`nil`) when running the command on
 	// `Manual` mode, place a wildcard to keep the generated policies valid.
 	accountID := "*"
+	partitionID := "*"
 	if config.Identity != nil {
 		accountID = config.Identity.GetAccountID()
+		partitionID = config.Identity.GetPartition()
 	}
 
 	// Define the target and target type.
-	target, err := policiesTarget(config.Flags, accountID, config.Identity)
+	target, err := policiesTarget(config.Flags, accountID, partitionID, config.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,11 +358,11 @@ func buildActions(config AWSConfiguratorConfig) ([]ConfiguratorAction, error) {
 
 // policiesTarget defines which target and its type the policies will be
 // attached to.
-func policiesTarget(flags BootstrapFlags, accountID string, identity awslib.Identity) (awslib.Identity, error) {
+func policiesTarget(flags BootstrapFlags, accountID string, partitionID string, identity awslib.Identity) (awslib.Identity, error) {
 	if flags.AttachToUser != "" {
 		userArn := flags.AttachToUser
 		if !arn.IsARN(flags.AttachToUser) {
-			userArn = fmt.Sprintf("arn:aws:iam::%s:user/%s", accountID, flags.AttachToUser)
+			userArn = fmt.Sprintf("arn:%s:iam::%s:user/%s", partitionID, accountID, flags.AttachToUser)
 		}
 
 		return awslib.IdentityFromArn(userArn)
@@ -362,14 +371,14 @@ func policiesTarget(flags BootstrapFlags, accountID string, identity awslib.Iden
 	if flags.AttachToRole != "" {
 		roleArn := flags.AttachToRole
 		if !arn.IsARN(flags.AttachToRole) {
-			roleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, flags.AttachToRole)
+			roleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partitionID, accountID, flags.AttachToRole)
 		}
 
 		return awslib.IdentityFromArn(roleArn)
 	}
 
 	if identity == nil {
-		return awslib.IdentityFromArn(fmt.Sprintf("arn:aws:iam::%s:user/%s", accountID, defaultAttachUser))
+		return awslib.IdentityFromArn(fmt.Sprintf("arn:%s:iam::%s:user/%s", partitionID, accountID, defaultAttachUser))
 	}
 
 	return identity, nil
@@ -381,7 +390,8 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
-	requireSecretsManager := elastiCacheDatabases
+	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
+	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
 
 	if rdsAutoDiscovery {
 		statements = append(statements, buildRDSAutoDiscoveryStatements()...)
@@ -394,6 +404,9 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 	// ElastiCache does not require permissions to edit user/role IAM policy.
 	if elastiCacheDatabases {
 		statements = append(statements, buildElastiCacheStatements()...)
+	}
+	if memoryDBDatabases {
+		statements = append(statements, buildMemoryDBStatements()...)
 	}
 
 	if requireSecretsManager {
@@ -427,7 +440,8 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
-	requireSecretsManager := elastiCacheDatabases
+	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
+	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
 
 	if rdsAutoDiscovery {
 		statements = append(statements, buildRDSAutoDiscoveryBoundaryStatements()...)
@@ -435,6 +449,9 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 
 	if redshiftDatabases {
 		statements = append(statements, buildRedshiftBoundaryStatements()...)
+	}
+	if memoryDBDatabases {
+		statements = append(statements, buildMemoryDBBoundaryStatements()...)
 	}
 
 	// ElastiCache does not require permissions to edit user/role IAM policy.
@@ -497,6 +514,17 @@ func hasElastiCacheDatabases(flags BootstrapFlags, fileConfig *config.FileConfig
 
 	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherElastiCache) ||
 		findEndpointIs(fileConfig, awsutils.IsElastiCacheEndpoint)
+}
+
+// hasMemoryDBDatabases checks if the agent needs permission for
+// ElastiCache databases.
+func hasMemoryDBDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+	if flags.ForceMemoryDBPermissions {
+		return true
+	}
+
+	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherMemoryDB) ||
+		findEndpointIs(fileConfig, awsutils.IsMemoryDBEndpoint)
 }
 
 // isAutoDiscoveryEnabledForMatcher returns true if provided AWS matcher type
@@ -609,6 +637,19 @@ func buildElastiCacheBoundaryStatements() []*awslib.Statement {
 	return buildElastiCacheStatements()
 }
 
+func buildMemoryDBStatements() []*awslib.Statement {
+	return []*awslib.Statement{
+		{
+			Effect:    awslib.EffectAllow,
+			Actions:   memoryDBActions,
+			Resources: []string{"*"},
+		},
+	}
+}
+func buildMemoryDBBoundaryStatements() []*awslib.Statement {
+	return buildMemoryDBStatements()
+}
+
 // buildSecretsManagerStatements returns IAM statements necessary for using AWS
 // Secrets Manager.
 func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.Identity) []*awslib.Statement {
@@ -627,7 +668,8 @@ func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.
 	addedSecretPrefixes := map[string]bool{}
 	addedKMSKeyIDs := map[string]bool{}
 	for _, database := range fileConfig.Databases.Databases {
-		if !aws.IsElastiCacheEndpoint(database.URI) {
+		if !awsutils.IsElastiCacheEndpoint(database.URI) &&
+			!awsutils.IsMemoryDBEndpoint(database.URI) {
 			continue
 		}
 

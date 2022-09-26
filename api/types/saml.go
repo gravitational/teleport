@@ -88,6 +88,10 @@ type SAMLConnector interface {
 	GetEncryptionKeyPair() *AsymmetricKeyPair
 	// SetEncryptionKeyPair sets the key pair for SAML assertions.
 	SetEncryptionKeyPair(k *AsymmetricKeyPair)
+	// GetAllowIDPInitiated returns whether the identity provider can initiate a login or not.
+	GetAllowIDPInitiated() bool
+	// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
+	SetAllowIDPInitiated(bool)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -332,6 +336,16 @@ func (o *SAMLConnectorV2) SetEncryptionKeyPair(k *AsymmetricKeyPair) {
 	o.Spec.EncryptionKeyPair = k
 }
 
+// GetAllowIDPInitiated returns whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) GetAllowIDPInitiated() bool {
+	return o.Spec.AllowIDPInitiated
+}
+
+// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
+	o.Spec.AllowIDPInitiated = allow
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -380,7 +394,7 @@ func (i *SAMLAuthRequest) Check() error {
 		if err != nil {
 			return trace.BadParameter("PublicKey: bad key: %v", err)
 		}
-		if (i.CertTTL.Duration() > defaults.MaxCertDuration) || (i.CertTTL.Duration() < defaults.MinCertDuration) {
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}

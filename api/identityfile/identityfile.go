@@ -25,9 +25,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -36,12 +38,20 @@ import (
 
 const (
 	// FilePermissions defines file permissions for identity files.
+	//
+	// Specifically, for postgres, this must be 0600 or 0640 (choosing 0600 as it's more restrictive)
+	// https://www.postgresql.org/docs/current/libpq-ssl.html
+	// On Unix systems, the permissions on the private key file must disallow any access to world or group;
+	//  achieve this by a command such as chmod 0600 ~/.postgresql/postgresql.key.
+	// Alternatively, the file can be owned by root and have group read access (that is, 0640 permissions).
+	//
+	// Other services should accept 0600 as well, if not, we must change the Write function (in `lib/client/identityfile/identity.go`)
 	FilePermissions = 0600
 )
 
 // IdentityFile represents the basic components of an identity file.
 type IdentityFile struct {
-	// PrivateKey is a PEM encoded key.
+	// PrivateKey is PEM encoded private key data.
 	PrivateKey []byte
 	// Certs contains PEM encoded certificates.
 	Certs Certs
@@ -67,7 +77,7 @@ type CACerts struct {
 
 // TLSConfig returns the identity file's associated TLSConfig.
 func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(i.Certs.TLS, i.PrivateKey)
+	cert, err := keys.X509KeyPair(i.Certs.TLS, i.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,7 +97,17 @@ func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns the identity file's associated SSHClientConfig.
 func (i *IdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	ssh, err := sshutils.ProxyClientSSHConfig(i.Certs.SSH, i.PrivateKey, i.CACerts.SSH)
+	sshCert, err := sshutils.ParseCertificate(i.Certs.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, err := keys.ParsePrivateKey(i.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, i.CACerts.SSH...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -242,7 +262,7 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	// are copied out of the scanner's buffer.  All others are ignored.
 	for scanln() {
 		switch {
-		case hasPrefix("ssh"):
+		case isSSHCert(line):
 			ident.Certs.SSH = cloneln()
 		case hasPrefix("@cert-authority"):
 			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
@@ -281,4 +301,16 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &ident, nil
+}
+
+// OpenSSH cert types look like "<key-type>-cert-v<version>@openssh.com".
+// Currently, we only use "ssh-rsa-cert-v01@openssh.com" & "ecdsa-sha2-nistp256-cert-v01@openssh.com".
+var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.com$`)
+
+// Check if the given data has an ssh cert type prefix as it's first part.
+func isSSHCert(data []byte) bool {
+	// ssh certs should look like "<ssh-cert-type> <cert-data>",
+	// so we check if the first element matches a known ssh cert type.
+	sshCertType := bytes.Split(data, []byte(" "))[0]
+	return sshCertTypeRegex.Match(sshCertType)
 }

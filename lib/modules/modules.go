@@ -57,6 +57,10 @@ type Features struct {
 	Desktop bool
 	// ModeratedSessions turns on moderated sessions
 	ModeratedSessions bool
+	// MachineID turns on MachineID
+	MachineID bool
+	// ResourceAccessRequests turns on resource access requests
+	ResourceAccessRequests bool
 }
 
 // ToProto converts Features into proto.Features
@@ -73,6 +77,8 @@ func (f Features) ToProto() *proto.Features {
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
 		ModeratedSessions:       f.ModeratedSessions,
+		MachineID:               f.MachineID,
+		ResourceAccessRequests:  f.ResourceAccessRequests,
 	}
 }
 
@@ -154,6 +160,7 @@ func (p *defaultModules) Features() Features {
 		DB:                true,
 		App:               true,
 		Desktop:           true,
+		MachineID:         true,
 		ModeratedSessions: false, // moderated sessions is supported in enterprise only
 	}
 }

@@ -171,6 +171,11 @@ type Role interface {
 	GetHostGroups(RoleConditionType) []string
 	// SetHostGroups sets the list of groups this role is put in when users are provisioned
 	SetHostGroups(RoleConditionType, []string)
+
+	// GetHostSudoers gets the list of sudoers entries for the role
+	GetHostSudoers(RoleConditionType) []string
+	// SetHostSudoers sets the list of sudoers entries for the role
+	SetHostSudoers(RoleConditionType, []string)
 }
 
 // NewRole constructs new standard V5 role.
@@ -634,6 +639,25 @@ func (r *RoleV5) SetHostGroups(rct RoleConditionType, groups []string) {
 	}
 }
 
+// GetHostSudoers gets the list of sudoers entries for the role
+func (r *RoleV5) GetHostSudoers(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.HostSudoers
+	}
+	return r.Spec.Deny.HostSudoers
+
+}
+
+// GetHostSudoers sets the list of sudoers entries for the role
+func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
+	ncopy := utils.CopyStrings(sudoers)
+	if rct == Allow {
+		r.Spec.Allow.HostSudoers = ncopy
+	} else {
+		r.Spec.Deny.HostSudoers = ncopy
+	}
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
@@ -648,6 +672,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// DELETE IN 13.0.0
+	r.CheckSetRequireSessionMFA()
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
@@ -679,6 +706,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Options.CreateHostUser == nil {
 		r.Spec.Options.CreateHostUser = NewBoolOption(false)
+	}
+	if r.Spec.Options.SSHFileCopy == nil {
+		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
 
 	switch r.Version {
@@ -794,6 +824,16 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// RequireSessionMFA must be checked/set when communicating with an old server or client.
+// DELETE IN 13.0.0
+func (r *RoleV5) CheckSetRequireSessionMFA() {
+	if r.Spec.Options.RequireMFAType != RequireMFAType_OFF {
+		r.Spec.Options.RequireSessionMFA = r.Spec.Options.RequireMFAType.IsSessionMFARequired()
+	} else if r.Spec.Options.RequireSessionMFA {
+		r.Spec.Options.RequireMFAType = RequireMFAType_SESSION
+	}
 }
 
 // String returns the human readable representation of a role.

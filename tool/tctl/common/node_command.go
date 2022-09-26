@@ -116,7 +116,7 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:
@@ -141,7 +141,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	token, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{Roles: roles, TTL: c.ttl, Token: c.token})
+	token, err := client.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: roles, TTL: proto.Duration(c.ttl), Token: c.token})
 	if err != nil {
 		return trace.Wrap(err)
 	}

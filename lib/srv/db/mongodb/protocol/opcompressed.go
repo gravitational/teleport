@@ -30,13 +30,13 @@ import (
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_compressed
 //
-// struct {
-//     MsgHeader header;           // standard message header
-//     int32  originalOpcode;      // value of wrapped opcode
-//     int32  uncompressedSize;    // size of deflated compressedMessage, excluding MsgHeader
-//     uint8  compressorId;        // ID of compressor that compressed message
-//     char    *compressedMessage; // opcode itself, excluding MsgHeader
-// }
+//	struct {
+//	    MsgHeader header;           // standard message header
+//	    int32  originalOpcode;      // value of wrapped opcode
+//	    int32  uncompressedSize;    // size of deflated compressedMessage, excluding MsgHeader
+//	    uint8  compressorId;        // ID of compressor that compressed message
+//	    char    *compressedMessage; // opcode itself, excluding MsgHeader
+//	}
 type MessageOpCompressed struct {
 	Header            MessageHeader
 	OriginalOpcode    wiremessage.OpCode
@@ -114,6 +114,10 @@ func readOpCompressed(header MessageHeader, payload []byte) (message *MessageOpC
 		CompressedMessage: compressedMessage,
 		bytes:             append(header.bytes[:], payload...),
 	}
+	if uncompressedSize <= 0 || len(compressedMessage) == 0 {
+		return nil, trace.BadParameter("malformed OP_COMPRESSED: invalid message size %v", payload)
+	}
+
 	message.originalMessage, err = decompress(message)
 	if err != nil {
 		return nil, trace.Wrap(err)

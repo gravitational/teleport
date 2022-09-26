@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -84,6 +85,10 @@ type FileConfig struct {
 
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
+
+	// Discovery is the "discovery_service" section in the Teleport
+	// configuration file
+	Discovery Discovery `yaml:"discovery_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -166,6 +171,8 @@ type SampleFlags struct {
 	CAPin string
 	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
 	JoinMethod string
+	// NodeName is the name of the teleport node
+	NodeName string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -187,7 +194,12 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	conf := service.MakeDefaultConfig()
 
 	var g Global
-	g.NodeName = conf.Hostname
+
+	if flags.NodeName != "" {
+		g.NodeName = flags.NodeName
+	} else {
+		g.NodeName = conf.Hostname
+	}
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
@@ -197,9 +209,13 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
+	joinMethod := flags.JoinMethod
+	if joinMethod == "" && flags.AuthToken != "" {
+		joinMethod = string(types.JoinMethodToken)
+	}
 	g.JoinParams = JoinParams{
 		TokenName: flags.AuthToken,
-		Method:    types.JoinMethod(flags.JoinMethod),
+		Method:    types.JoinMethod(joinMethod),
 	}
 
 	if flags.AuthServer != "" {
@@ -287,7 +303,7 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
 	if enabled {
-		a.ListenAddress = conf.Auth.SSHAddr.Addr
+		a.ListenAddress = conf.Auth.ListenAddr.Addr
 		a.ClusterName = ClusterName(flags.ClusterName)
 		a.EnabledFlag = "yes"
 
@@ -426,6 +442,50 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	matchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
+
+	for _, matcher := range conf.Discovery.AWSMatchers {
+		for _, serviceType := range matcher.Types {
+			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
+				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
+					serviceType, constants.SupportedAWSDiscoveryServices)
+			}
+		}
+		if matcher.Tags == nil || len(matcher.Tags) == 0 {
+			matcher.Tags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+		}
+
+		if matcher.InstallParams == nil {
+			matcher.InstallParams = &InstallParams{
+				JoinParams: JoinParams{
+					TokenName: defaults.IAMInviteTokenName,
+					Method:    types.JoinMethodIAM,
+				},
+				ScriptName: installers.InstallerScriptName,
+			}
+		} else {
+			if method := matcher.InstallParams.JoinParams.Method; method == "" {
+				matcher.InstallParams.JoinParams.Method = types.JoinMethodIAM
+			} else if method != types.JoinMethodIAM {
+				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
+			}
+			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
+			}
+
+			if installer := matcher.InstallParams.ScriptName; installer == "" {
+				matcher.InstallParams.ScriptName = installers.InstallerScriptName
+			}
+		}
+
+		if matcher.SSM.DocumentName == "" {
+			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	conf.Discovery.AWSMatchers = matchers
+
 	return nil
 }
 
@@ -510,9 +570,13 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Global is 'teleport' (global) section of the config file
 type Global struct {
-	NodeName    string           `yaml:"nodename,omitempty"`
-	DataDir     string           `yaml:"data_dir,omitempty"`
-	PIDFile     string           `yaml:"pid_file,omitempty"`
+	NodeName string `yaml:"nodename,omitempty"`
+	DataDir  string `yaml:"data_dir,omitempty"`
+	PIDFile  string `yaml:"pid_file,omitempty"`
+
+	// AuthToken is the old way of configuring the token to be used by the
+	// node to join the Teleport cluster. `JoinParams.TokenName` should be
+	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
 	AuthToken   string           `yaml:"auth_token,omitempty"`
 	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
@@ -521,7 +585,6 @@ type Global struct {
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
-	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -703,6 +766,11 @@ type Auth struct {
 
 	// TunnelStrategy configures the tunnel strategy used by the cluster.
 	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
+
+	// ProxyPingInterval defines in which interval the TLS routing ping message
+	// should be sent. This is applicable only when using ping-wrapped
+	// connections, regular TLS routing connections are not affected.
+	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -811,13 +879,13 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type              string                     `yaml:"type"`
-	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
-	ConnectorName     string                     `yaml:"connector_name,omitempty"`
-	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
-	Webauthn          *Webauthn                  `yaml:"webauthn,omitempty"`
-	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
-	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
+	Type           string                     `yaml:"type"`
+	SecondFactor   constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName  string                     `yaml:"connector_name,omitempty"`
+	U2F            *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Webauthn       *Webauthn                  `yaml:"webauthn,omitempty"`
+	RequireMFAType types.RequireMFAType       `yaml:"require_session_mfa,omitempty"`
+	LockingMode    constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -855,7 +923,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		ConnectorName:     a.ConnectorName,
 		U2F:               u,
 		Webauthn:          w,
-		RequireSessionMFA: a.RequireSessionMFA,
+		RequireMFAType:    a.RequireMFAType,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,
@@ -976,6 +1044,15 @@ type SSH struct {
 	// X11 is used to configure X11 forwarding settings
 	X11 *X11 `yaml:"x11,omitempty"`
 
+	// MaybeSSHFileCopy enables or disables remote file operations via SCP/SFTP.
+	// We're using a pointer-to-bool here because the system default is to allow
+	// SCP/SFTP, we need to distinguish between an unset value and a false
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the SSHFileCopy method
+	// instead.
+	MaybeSSHFileCopy *bool `yaml:"ssh_file_copy,omitempty"`
+
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
@@ -987,6 +1064,15 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 		return true
 	}
 	return *ssh.MaybeAllowTCPForwarding
+}
+
+// SSHFileCopy checks whether the config file allows for file copying
+// via SCP/SFTP.
+func (ssh *SSH) SSHFileCopy() bool {
+	if ssh.MaybeSSHFileCopy == nil {
+		return true
+	}
+	return *ssh.MaybeSSHFileCopy
 }
 
 // X11ServerConfig returns the X11 forwarding server configuration.
@@ -1030,6 +1116,14 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+// Discovery represents a discovery_service section in the config file.
+type Discovery struct {
+	Service `yaml:",inline"`
+
+	// AWSMatchers are used to match EC2 instances
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1148,6 +1242,8 @@ type Databases struct {
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	// AzureMatchers match Azure hosted databases.
+	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
 }
 
 // ResourceMatcher matches cluster resources.
@@ -1156,14 +1252,52 @@ type ResourceMatcher struct {
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
-// AWSMatcher matches AWS databases.
+// AWSMatcher matches AWS EC2 instances and AWS Databases
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", or "elasticache".
+	// Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
+	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// InstallParams sets the join method when installing on
+	// discovered EC2 nodes
+	InstallParams *InstallParams `yaml:"install,omitempty"`
+	// SSM provides options to use when sending a document command to
+	// an EC2 node
+	SSM AWSSSM `yaml:"ssm,omitempty"`
+}
+
+// InstallParams sets join method to use on discovered nodes
+type InstallParams struct {
+	// JoinParams sets the token and method to use when generating
+	// config on EC2 instances
+	JoinParams JoinParams `yaml:"join_params,omitempty"`
+	// ScriptName is the name of the teleport installer script
+	// resource for the EC2 instance to execute
+	ScriptName string `yaml:"script_name,omitempty"`
+}
+
+// AWSSSM provides options to use when executing SSM documents
+type AWSSSM struct {
+	// DocumentName is the name of the document to use when executing an
+	// SSM command
+	DocumentName string `yaml:"document_name,omitempty"`
+}
+
+// AzureMatcher matches Azure databases.
+type AzureMatcher struct {
+	// Subscriptions are Azure subscriptions to query for resources.
+	Subscriptions []string `yaml:"subscriptions,omitempty"`
+	// ResourceGroups are Azure resource groups to query for resources.
+	ResourceGroups []string `yaml:"resource_groups,omitempty"`
+	// Types are Azure database types to match: "mysql", "postgres"
+	Types []string `yaml:"types,omitempty"`
+	// Regions are Azure locations to match for databases.
+	Regions []string `yaml:"regions,omitempty"`
+	// ResourceTags are Azure tags on resources to match.
+	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -1245,6 +1379,8 @@ type DatabaseAWS struct {
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
+	// MemoryDB contains MemoryDB specific settings.
+	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1265,6 +1401,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
+}
+
+// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
+type DatabaseAWSMemoryDB struct {
+	// ClusterName is the MemoryDB cluster name.
+	ClusterName string `yaml:"cluster_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -1321,6 +1463,9 @@ type App struct {
 
 	// Rewrite defines a block that is used to rewrite requests and responses.
 	Rewrite *Rewrite `yaml:"rewrite,omitempty"`
+
+	// AWS contains additional options for AWS applications.
+	AWS *AppAWS `yaml:"aws,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -1329,6 +1474,12 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+}
+
+// AppAWS contains additional options for AWS applications.
+type AppAWS struct {
+	// ExternalID is the AWS External ID used when assuming roles in this app.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -1341,6 +1492,9 @@ type Proxy struct {
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
 	// PeerAddr is the address this proxy will be dialed at by its peers.
 	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
+	// PeerPublicAddr is the hostport the proxy advertises for peer proxy
+	// client connections.
+	PeerPublicAddr string `yaml:"peer_public_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
@@ -1470,9 +1624,12 @@ type Kube struct {
 	// running in. If set, this proxy will handle kubernetes requests for the
 	// cluster.
 	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
-	// Static and dynamic labels for RBAC on kubernetes clusters.
-	StaticLabels  map[string]string `yaml:"labels,omitempty"`
-	DynamicLabels []CommandLabel    `yaml:"commands,omitempty"`
+	// StaticLabels are the static labels for RBAC on kubernetes clusters.
+	StaticLabels map[string]string `yaml:"labels,omitempty"`
+	// DynamicLabels are the dynamic labels for RBAC on kubernetes clusters.
+	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
+	// ResourceMatchers match cluster kube_cluster resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
@@ -1541,6 +1698,8 @@ func (m *Metrics) MTLSEnabled() bool {
 // WindowsDesktopService contains configuration for windows_desktop_service.
 type WindowsDesktopService struct {
 	Service `yaml:",inline"`
+	// Labels are the configured windows deesktops service labels.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
@@ -1576,8 +1735,12 @@ type LDAPConfig struct {
 	Username string `yaml:"username"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
 }
 
 // TracingService contains configuration for the tracing_service.

@@ -126,6 +126,55 @@ func TestDatabaseElastiCacheEndpoint(t *testing.T) {
 	})
 }
 
+func TestDatabaseMemoryDBEndpoint(t *testing.T) {
+	t.Run("valid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "memorydb",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "us-east-1",
+			MemoryDB: MemoryDB{
+				ClusterName:  "my-memorydb",
+				TLSEnabled:   true,
+				EndpointType: "cluster",
+			},
+		}, database.GetAWS())
+		require.True(t, database.IsMemoryDB())
+		require.True(t, database.IsAWSHosted())
+		require.True(t, database.IsCloudHosted())
+	})
+
+	t.Run("invalid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "memorydb",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "some.endpoint.memorydb.amazonaws.com:6379",
+			AWS: AWS{
+				Region: "us-east-5",
+				MemoryDB: MemoryDB{
+					ClusterName: "clustername",
+				},
+			},
+		})
+
+		// A warning is logged, no error is returned, and AWS metadata is not
+		// updated.
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "us-east-5",
+			MemoryDB: MemoryDB{
+				ClusterName: "clustername",
+			},
+		}, database.GetAWS())
+	})
+}
+
 func TestMySQLVersionValidation(t *testing.T) {
 	t.Parallel()
 

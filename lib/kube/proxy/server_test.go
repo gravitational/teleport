@@ -94,10 +94,10 @@ func TestMTLSClientCAs(t *testing.T) {
 	}
 	hostCert := genCert(t, "localhost", "localhost", "127.0.0.1", "::1")
 	userCert := genCert(t, "user")
-
+	log := logrus.New()
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: logrus.New(),
+			Log: log,
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -106,7 +106,9 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
+			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
+		log: logrus.NewEntry(log),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -192,36 +194,43 @@ func TestGetServerInfo(t *testing.T) {
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",
+				HostID:      "server_uuid",
 			},
 			AccessPoint:          ap,
 			TLS:                  &tls.Config{},
 			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
+			clusterDetails: map[string]*kubeDetails{
+				"kube-cluster": {
+					kubeCluster: mustCreateKubernetesClusterV3(t, "kube-cluster"),
+				},
+			},
 		},
 		listener: listener,
 	}
 
 	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
-		serverInfo, err := srv.GetServerInfo()
+		serverInfo, err := srv.getServerInfo("kube-cluster")
 		require.NoError(t, err)
 
-		kubeServer, ok := serverInfo.(*types.ServerV2)
+		kubeServer, ok := serverInfo.(types.KubeServer)
 		require.True(t, ok)
 
-		require.Equal(t, listener.Addr().String(), kubeServer.GetAddr())
+		require.Equal(t, listener.Addr().String(), kubeServer.GetHostname())
 	})
 
 	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
 		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
 
-		serverInfo, err := srv.GetServerInfo()
+		serverInfo, err := srv.getServerInfo("kube-cluster")
 		require.NoError(t, err)
 
-		kubeServer, ok := serverInfo.(*types.ServerV2)
+		kubeServer, ok := serverInfo.(types.KubeServer)
 		require.True(t, ok)
 
-		require.Equal(t, "k8s.example.com", kubeServer.GetAddr())
+		require.Equal(t, "k8s.example.com", kubeServer.GetHostname())
 	})
 }

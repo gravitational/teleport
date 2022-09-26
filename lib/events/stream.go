@@ -28,6 +28,7 @@ import (
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -220,11 +221,10 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewProtoStream uploads session recordings to the protobuf format.
+// NewProtoStream uploads session recordings in the protobuf format.
 //
 // The individual session stream is represented by continuous globally
 // ordered sequence of events serialized to binary protobuf format.
-//
 //
 // The stream is split into ordered slices of gzipped audit events.
 //
@@ -247,7 +247,6 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 //
 // This design allows the streamer to upload slices using S3-compatible APIs
 // in parallel without buffering to disk.
-//
 func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -424,7 +423,7 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 		s.cancel()
 		return s.getCompleteResult()
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
 }
 
@@ -443,7 +442,7 @@ func (s *ProtoStream) Close(ctx context.Context) error {
 	case <-s.uploadLoopDoneCh:
 		return ctx.Err()
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
 }
 
@@ -712,7 +711,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			<-w.semUploads
 		}()
 
-		var retry utils.Retry
+		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			reader, err := slice.reader()
 			if err != nil {
@@ -732,7 +731,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			// retry is created on the first upload error
 			if retry == nil {
 				var rerr error
-				retry, rerr = utils.NewLinear(utils.LinearConfig{
+				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
 					Step: defaults.NetworkRetryDuration,
 					Max:  defaults.NetworkBackoffDuration,
 				})
@@ -987,7 +986,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				if ctx.Err() != nil {
 					return nil, trace.Wrap(ctx.Err())
 				}
-				return nil, trace.LimitExceeded("context has been cancelled")
+				return nil, trace.LimitExceeded("context has been canceled")
 			default:
 			}
 		}

@@ -160,7 +160,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport-ent:8.3.4
+          value: public.ecr.aws/gravitational/teleport-ent:8.3.4
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -183,7 +183,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport:8.3.4
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -589,6 +589,16 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should add an operator side-car when operator is enabled
+    values:
+      - ../.lint/operator.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: operator
+      - matchSnapshot:
+          path: spec.template.spec.containers[1]
+
   - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
     values:
       - ../.lint/standalone-existingpvc.yaml
@@ -828,3 +838,13 @@ tests:
             value: some-value
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: should set minReadySeconds in non-standalone mode
+    set:
+      chartMode: custom
+      highAvailability:
+        minReadySeconds: 60
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 60

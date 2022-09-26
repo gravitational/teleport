@@ -76,6 +76,7 @@ type testPack struct {
 	snowflakeSessionS services.SnowflakeSession
 	restrictions      services.Restrictions
 	apps              services.Apps
+	kubernetes        services.Kubernetes
 	databases         services.Databases
 	webSessionS       types.WebSessionInterface
 	webTokenS         types.WebTokenInterface
@@ -190,6 +191,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
+	p.kubernetes = local.NewKubernetesService(p.backend)
 	p.databases = local.NewDatabasesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 
@@ -221,6 +223,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		SnowflakeSession: p.snowflakeSessionS,
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -232,8 +235,9 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 
 	select {
 	case event := <-p.eventsC:
+
 		if event.Type != WatcherStarted {
-			return nil, trace.CompareFailed("%q != %q", event.Type, WatcherStarted)
+			return nil, trace.CompareFailed("%q != %q %s", event.Type, WatcherStarted, event)
 		}
 	case <-time.After(time.Second):
 		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
@@ -424,6 +428,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		Presence:        p.cache.presenceCache,
 		Restrictions:    p.cache.restrictionsCache,
 		Apps:            p.cache.appsCache,
+		Kubernetes:      p.cache.kubernetesCache,
 		Databases:       p.cache.databasesCache,
 		AppSession:      p.cache.appSessionCache,
 		WebSession:      p.cache.webSessionCache,
@@ -597,6 +602,7 @@ func TestCompletenessInit(t *testing.T) {
 			WebToken:         p.webTokenS,
 			Restrictions:     p.restrictions,
 			Apps:             p.apps,
+			Kubernetes:       p.kubernetes,
 			Databases:        p.databases,
 			WindowsDesktops:  p.windowsDesktops,
 			MaxRetryPeriod:   200 * time.Millisecond,
@@ -658,6 +664,7 @@ func TestCompletenessReset(t *testing.T) {
 		WebToken:         p.webTokenS,
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -718,19 +725,16 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	ctx := context.Background()
 
 	for i := 0; i < nodeCount; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
 	}
 
 	b.ResetTimer()
@@ -739,6 +743,66 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 		require.Len(b, nodes, nodeCount)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
+BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
+*/
+func BenchmarkListResourcesWithSort(b *testing.B) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	count := 100000
+	for i := 0; i < count; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		// Set some static and dynamic labels.
+		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
+		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
+			"version": {Result: "v8"},
+			"time":    {Result: "now"},
+		}
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
+	}
+
+	b.ResetTimer()
+
+	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
+		for _, totalCount := range []bool{true, false} {
+			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
+				for n := 0; n < b.N; n++ {
+					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindNode,
+						Namespace:    apidefaults.Namespace,
+						SortBy: types.SortBy{
+							IsDesc: true,
+							Field:  types.ResourceSpecHostname,
+						},
+						// Predicate is the more expensive filter.
+						PredicateExpression: `search("mac", "frontend") && labels.version == "v8"`,
+						Limit:               limit,
+						NeedTotalCount:      totalCount,
+					})
+					require.NoError(b, err)
+					require.Len(b, resp.Resources, int(limit))
+				}
+			})
+		}
 	}
 }
 
@@ -774,6 +838,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SnowflakeSession: p.snowflakeSessionS,
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -845,6 +910,7 @@ func initStrategy(t *testing.T) {
 		WebToken:         p.webTokenS,
 		Restrictions:     p.restrictions,
 		Apps:             p.apps,
+		Kubernetes:       p.kubernetes,
 		Databases:        p.databases,
 		WindowsDesktops:  p.windowsDesktops,
 		MaxRetryPeriod:   200 * time.Millisecond,
@@ -1899,6 +1965,89 @@ func TestAppServers(t *testing.T) {
 	require.Empty(t, out)
 }
 
+// TestKubernetes tests that CRUD operations on kubernetes clusters resources are
+// replicated from the backend to the cache.
+func TestKubernetes(t *testing.T) {
+	t.Parallel()
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	ctx := context.Background()
+
+	// Create an cluster.
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "foo",
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	err = p.kubernetes.CreateKubernetesCluster(ctx, cluster)
+	require.NoError(t, err)
+
+	// Check that the cluster is now in the backend.
+	out, err := p.kubernetes.GetKubernetesClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single cluster in it.
+	out, err = p.kubernetes.GetKubernetesClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the cluster and upsert it into the backend again.
+	cluster.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	err = p.kubernetes.UpdateKubernetesCluster(ctx, cluster)
+	require.NoError(t, err)
+
+	// Check that the cluster is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.kubernetes.GetKubernetesClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single cluster in it.
+	out, err = p.cache.GetKubernetesClusters(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all clusters from the backend.
+	err = p.kubernetes.DeleteAllKubernetesClusters(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.kubernetes.GetKubernetesClusters(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
 // TestApplicationServers tests that CRUD operations on app servers are
 // replicated from the backend to the cache.
 func TestApplicationServers(t *testing.T) {
@@ -2543,12 +2692,15 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
 		types.KindKubeService:             &types.ServerV2{},
+		types.KindKubeServer:              &types.KubernetesServerV3{},
 		types.KindDatabaseServer:          &types.DatabaseServerV3{},
 		types.KindDatabase:                &types.DatabaseV3{},
 		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
 		types.KindLock:                    &types.LockV2{},
 		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+		types.KindInstaller:               &types.InstallerV1{},
+		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
 	}
 
 	for name, cfg := range cases {

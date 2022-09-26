@@ -19,6 +19,11 @@ import (
 	"crypto/subtle"
 	"net/mail"
 
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -28,10 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // This is bcrypt hash for password "barbaz".
@@ -197,67 +198,37 @@ func (s *Server) checkPassword(user string, password []byte, otpToken string) (*
 	return &checkPasswordResult{mfaDev: mfaDev}, nil
 }
 
-// checkOTP determines the type of OTP token used (for legacy HOTP support), fetches the
-// appropriate type from the backend, and checks if the token is valid.
+// checkOTP checks if the OTP token is valid.
 func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error) {
-	var err error
+	// get the previously used token to mitigate token replay attacks
+	usedToken, err := s.GetUsedTOTPToken(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// we use a constant time compare function to mitigate timing attacks
+	if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
+		return nil, trace.BadParameter("previously used totp token")
+	}
 
-	otpType, err := s.getOTPType(user)
+	ctx := context.TODO()
+	devs, err := s.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch otpType {
-	case teleport.HOTP:
-		otp, err := s.GetHOTP(user)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	for _, dev := range devs {
+		totpDev := dev.GetTotp()
+		if totpDev == nil {
+			continue
 		}
 
-		// look ahead n tokens to see if we can find a matching token
-		if !otp.Scan(otpToken, defaults.HOTPFirstTokensRange) {
-			return nil, trace.BadParameter("bad one time token")
+		if err := s.checkTOTP(ctx, user, otpToken, dev); err != nil {
+			log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
+			continue
 		}
-
-		// we need to upsert the hotp state again because the
-		// counter was incremented
-		if err := s.UpsertHOTP(user, otp); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case teleport.TOTP:
-		ctx := context.TODO()
-
-		// get the previously used token to mitigate token replay attacks
-		usedToken, err := s.GetUsedTOTPToken(user)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// we use a constant time compare function to mitigate timing attacks
-		if subtle.ConstantTimeCompare([]byte(otpToken), []byte(usedToken)) == 1 {
-			return nil, trace.BadParameter("previously used totp token")
-		}
-
-		devs, err := s.Identity.GetMFADevices(ctx, user, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, dev := range devs {
-			totpDev := dev.GetTotp()
-			if totpDev == nil {
-				continue
-			}
-
-			if err := s.checkTOTP(ctx, user, otpToken, dev); err != nil {
-				log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
-				continue
-			}
-			return dev, nil
-		}
-		return nil, trace.AccessDenied("invalid totp token")
+		return dev, nil
 	}
-
-	return nil, nil
+	return nil, trace.AccessDenied("invalid totp token")
 }
 
 // checkTOTP checks if the TOTP token is valid.
@@ -290,19 +261,6 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// getOTPType returns the type of OTP token used, HOTP or TOTP.
-// Deprecated: Remove this method once HOTP support has been removed from Gravity.
-func (s *Server) getOTPType(user string) (teleport.OTPType, error) {
-	_, err := s.GetHOTP(user)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return teleport.TOTP, nil
-		}
-		return "", trace.Wrap(err)
-	}
-	return teleport.HOTP, nil
 }
 
 func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {

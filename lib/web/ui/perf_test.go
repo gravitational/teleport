@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,8 +76,8 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 				bk, err = memory.New(memory.Config{})
 				require.NoError(b, err)
 			} else {
-				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
-					Path: b.TempDir(),
+				bk, err = memory.New(memory.Config{
+					Context: ctx,
 				})
 				require.NoError(b, err)
 			}

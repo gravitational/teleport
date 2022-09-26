@@ -87,9 +87,6 @@ type Config struct {
 	// Hostname is a node host name
 	Hostname string
 
-	// Token is used to register this Teleport instance with the auth server
-	Token string
-
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 
@@ -131,6 +128,9 @@ type Config struct {
 
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
+
+	// Discovery defines the discovery service configuration.
+	Discovery DiscoveryConfig
 
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
@@ -250,11 +250,6 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// RestartThreshold describes the number of connection failures per
-	// unit time that the node can sustain before restarting itself, as
-	// measured by the rotation state service.
-	RestartThreshold Rate
-
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
 
@@ -267,25 +262,41 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// token is either the token needed to join the auth server, or a path pointing to a file
+	// that contains the token
+	//
+	// This is private to avoid external packages reading the value - the value should be obtained
+	// using Token()
+	token string
 }
 
-// ApplyToken assigns a given token to all internal services but only if token
-// is not an empty string.
+// Token returns token needed to join the auth server
 //
-// returns:
-// true, nil if the token has been modified
-// false, nil if the token has not been modified
-// false, err if there was an error
-func (cfg *Config) ApplyToken(token string) (bool, error) {
-	if token != "" {
-		var err error
-		cfg.Token, err = utils.TryReadValueAsFile(token)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		return true, nil
+// If the value stored points to a file, it will attempt to read the token value from the file
+// and return an error if it wasn't successful
+// If the value stored doesn't point to a file, it'll return the value stored
+// If the token hasn't been set, an empty string will be returned
+func (cfg *Config) Token() (string, error) {
+	token, err := utils.TryReadValueAsFile(cfg.token)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	return false, nil
+
+	return token, nil
+}
+
+// SetToken stores the value for --token or auth_token in the config
+//
+// This can be either the token or an absolute path to a file containing the token.
+func (cfg *Config) SetToken(token string) {
+	cfg.token = token
+}
+
+// HasToken gives the ability to check if there has been a token value stored
+// in the config
+func (cfg *Config) HasToken() bool {
+	return cfg.token != ""
 }
 
 // ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
@@ -306,7 +317,9 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		}
 		filteredPins = append(filteredPins, strings.Split(pins, "\n")...)
 	}
-	cfg.CAPins = filteredPins
+	if len(filteredPins) > 0 {
+		cfg.CAPins = filteredPins
+	}
 	return nil
 }
 
@@ -399,6 +412,10 @@ type ProxyConfig struct {
 	// PeerAddr is the proxy peering address.
 	PeerAddr utils.NetAddr
 
+	// PeerPublicAddr is the public address the proxy advertises for proxy
+	// peering clients.
+	PeerPublicAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -480,6 +497,40 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	return u.String(), nil
 }
 
+// publicPeerAddr attempts to returns the public address the proxy advertises
+// for proxy peering clients if available. It falls back to PeerAddr othewise.
+func (c ProxyConfig) publicPeerAddr() (*utils.NetAddr, error) {
+	addr := &c.PeerPublicAddr
+	if addr.IsEmpty() || addr.IsHostUnspecified() {
+		return c.peerAddr()
+	}
+	return addr, nil
+}
+
+// peerAddr returns the address the proxy advertises for proxy peering clients.
+func (c ProxyConfig) peerAddr() (*utils.NetAddr, error) {
+	addr := &c.PeerAddr
+	if addr.IsEmpty() {
+		addr = defaults.ProxyPeeringListenAddr()
+	}
+	if !addr.IsHostUnspecified() {
+		return addr, nil
+	}
+
+	ip, err := utils.GuessHostIP()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	port := addr.Port(defaults.ProxyPeeringListenPort)
+	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return addr, nil
+}
+
 // KubeProxyConfig specifies configuration for proxy service
 type KubeProxyConfig struct {
 	// Enabled turns kubernetes proxy role on or off for this process
@@ -512,8 +563,8 @@ type AuthConfig struct {
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
-	// SSHAddr is the listening address of SSH tunnel to HTTP service
-	SSHAddr utils.NetAddr
+	// ListenAddr is the listening address of the auth service
+	ListenAddr utils.NetAddr
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
@@ -601,6 +652,10 @@ type SSHConfig struct {
 	// X11 holds x11 forwarding configuration for Teleport.
 	X11 *x11.ServerConfig
 
+	// AllowFileCopying indicates whether this node is allowed to handle
+	// remote file operations via SCP or SFTP.
+	AllowFileCopying bool
+
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
@@ -636,6 +691,9 @@ type KubeConfig struct {
 	// CheckImpersonationPermissions is an optional override to the default
 	// impersonation permissions check, for use in testing.
 	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
+
+	// ResourceMatchers match dynamic kube_cluster resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // DatabasesConfig configures the database proxy service.
@@ -648,6 +706,8 @@ type DatabasesConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers match Azure hosted databases.
+	AzureMatchers []services.AzureMatcher
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
 }
@@ -747,6 +807,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// MemoryDB contains MemoryDB specific settings.
+	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
 	SecretStore DatabaseAWSSecretStore
 }
@@ -769,6 +831,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string
+}
+
+// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
+type DatabaseAWSMemoryDB struct {
+	// ClusterName is the MemoryDB cluster name.
+	ClusterName string
 }
 
 // DatabaseAWSSecretStore contains secret store configurations.
@@ -937,6 +1005,9 @@ type App struct {
 
 	// Rewrite defines a block that is used to rewrite requests and responses.
 	Rewrite *Rewrite
+
+	// AWS contains additional options for AWS applications.
+	AWS *AppAWS `yaml:"aws,omitempty"`
 }
 
 // CheckAndSetDefaults validates an application.
@@ -1101,6 +1172,7 @@ type WindowsDesktopConfig struct {
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
+	Labels     map[string]string
 }
 
 type LDAPDiscoveryConfig struct {
@@ -1156,6 +1228,8 @@ type LDAPConfig struct {
 	Username string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }
@@ -1174,6 +1248,12 @@ type Header struct {
 	Name string
 	// Value is the http header value.
 	Value string
+}
+
+type DiscoveryConfig struct {
+	Enabled bool
+	// AWSMatchers are used to match EC2 instances for auto enrollment.
+	AWSMatchers []services.AWSMatcher
 }
 
 // ParseHeader parses the provided string as a http header.
@@ -1206,6 +1286,12 @@ func ParseHeaders(headers []string) (headersOut []Header, err error) {
 		headersOut = append(headersOut, *h)
 	}
 	return headersOut, nil
+}
+
+// AppAWS contains additional options for AWS applications.
+type AppAWS struct {
+	// ExternalID is the AWS External ID used when assuming roles in this app.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -1254,7 +1340,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Auth service defaults.
 	cfg.Auth.Enabled = true
-	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
+	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
@@ -1280,6 +1366,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
 	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
+	cfg.SSH.AllowFileCopying = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
@@ -1300,10 +1387,6 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.RestartThreshold = Rate{
-		Amount: defaults.MaxConnectionErrorsBeforeRestart,
-		Time:   defaults.ConnectionErrorMeasurementPeriod,
-	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)

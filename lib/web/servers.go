@@ -75,7 +75,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
@@ -97,10 +97,35 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
 	return listResourcesGetResponse{
 		Items:      ui.MakeDesktops(windowsDesktops),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
+	}, nil
+}
+
+// clusterDesktopServicesGet returns a list of desktop services in a form the UI can present.
+func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	// Get a client to the Auth Server with the logged in user's identity. The
+	// identity of the logged in user is used to fetch the list of desktop services.
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := listResources(clt, r, types.KindWindowsDesktopService)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktopServices, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktopServices()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      ui.MakeDesktopServices(desktopServices),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil

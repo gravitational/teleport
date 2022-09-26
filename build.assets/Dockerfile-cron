@@ -16,7 +16,7 @@ RUN apk --update --no-cache add curl tar
 # a temporary directory for us to use in the second stage.
 RUN mkdir -p build && \
     curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
-    cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE/tctl $DOWNLOAD_TYPE/tsh build
+    cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE/tctl $DOWNLOAD_TYPE/tsh $DOWNLOAD_TYPE/tbot build
 
 # Second stage builds final container with teleport binaries.
 FROM ubuntu:20.04 AS teleport
@@ -29,10 +29,11 @@ RUN apt-get update && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy "teleport", "tctl", and "tsh" binaries from the previous stage.
+# Copy "teleport", "tctl", "tbot", and "tsh" binaries from the previous stage.
 COPY --from=download /tmp/build/teleport /usr/local/bin/teleport
 COPY --from=download /tmp/build/tctl /usr/local/bin/tctl
 COPY --from=download /tmp/build/tsh /usr/local/bin/tsh
+COPY --from=download /tmp/build/tbot /usr/local/bin/tbot
 
 # Run Teleport inside the image with a default config file location.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]

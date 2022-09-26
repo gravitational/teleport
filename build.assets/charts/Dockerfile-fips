@@ -46,10 +46,11 @@ RUN apt-get update && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Bundle "teleport", "tctl", and "tsh" binaries into image.
+# Bundle "teleport", "tctl", "tbot", and "tsh" binaries into image.
 COPY teleport /usr/local/bin/teleport
 COPY tctl /usr/local/bin/tctl
 COPY tsh /usr/local/bin/tsh
+COPY tbot /usr/local/bin/tbot
 
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]

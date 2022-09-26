@@ -94,6 +94,15 @@ type AccessRequest interface {
 	GetRequestedResourceIDs() []ResourceID
 	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
 	SetRequestedResourceIDs([]ResourceID)
+	// GetLoginHint gets the requested login hint.
+	GetLoginHint() string
+	// SetLoginHint sets the requested login hint.
+	SetLoginHint(string)
+	// GetDryRun returns true if this request should not be created and is only
+	// a dry run to validate request capabilities.
+	GetDryRun() bool
+	// SetDryRun sets the dry run flag on the request.
+	SetDryRun(bool)
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -380,6 +389,27 @@ func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
 // SetRequestedResourceIDs sets the resource IDs to which access is being requested.
 func (r *AccessRequestV3) SetRequestedResourceIDs(ids []ResourceID) {
 	r.Spec.RequestedResourceIDs = append([]ResourceID{}, ids...)
+}
+
+// GetLoginHint gets the requested login hint.
+func (r *AccessRequestV3) GetLoginHint() string {
+	return r.Spec.LoginHint
+}
+
+// SetLoginHint sets the requested login hint.
+func (r *AccessRequestV3) SetLoginHint(login string) {
+	r.Spec.LoginHint = login
+}
+
+// GetDryRun returns true if this request should not be created and is only
+// a dry run to validate request capabilities.
+func (r *AccessRequestV3) GetDryRun() bool {
+	return r.Spec.DryRun
+}
+
+// SetDryRun sets the dry run flag on the request.
+func (r *AccessRequestV3) SetDryRun(dryRun bool) {
+	r.Spec.DryRun = dryRun
 }
 
 // String returns a text representation of this AccessRequest

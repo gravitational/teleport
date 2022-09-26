@@ -16,8 +16,8 @@ limitations under the License.
 
 // Package config provides facilities for configuring Teleport daemons
 // including
-//	- parsing YAML configuration
-//	- parsing CLI flags
+//   - parsing YAML configuration
+//   - parsing CLI flags
 package config
 
 import (
@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -443,6 +444,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.Discovery.Enabled() {
+		applyDiscoveryConfig(fc, cfg)
+	}
+
 	return nil
 }
 
@@ -538,7 +543,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.SSHAddr = *addr
+		cfg.Auth.ListenAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
@@ -613,18 +618,22 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
 		TunnelStrategy:           fc.Auth.TunnelStrategy,
+		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Set session recording configuration from file configuration.
-	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode:                fc.Auth.SessionRecording,
-		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// Only override session recording configuration if either field is
+	// specified in file configuration.
+	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
+		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+			Mode:                fc.Auth.SessionRecording,
+			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := applyKeyStoreConfig(fc, cfg); err != nil {
@@ -779,11 +788,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// was passed. If the certificate is not self-signed, verify the certificate
 		// chain from leaf to root with the trust store on the computer so browsers
 		// don't complain.
-		certificateChainBytes, err := utils.ReadPath(p.Certificate)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -909,6 +914,16 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MongoPublicAddrs = addrs
 	}
+	if fc.Proxy.PeerPublicAddr != "" {
+		if fc.Proxy.PeerAddr == "" {
+			return trace.BadParameter("peer_listen_addr must be set when peer_public_addr is set")
+		}
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerPublicAddr, int(defaults.ProxyPeeringListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PeerPublicAddr = *addr
+	}
 
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
@@ -995,7 +1010,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
 		cfg.SSH.DisableCreateHostUser = true
 		if runtime.GOOS != constants.LinuxOS {
-			log.Warnln("Disabling host user creation as this feature is only available on Linux")
+			log.Debugln("Disabling host user creation as this feature is only available on Linux")
 		}
 	}
 	if fc.SSH.PAM != nil {
@@ -1044,7 +1059,27 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		return trace.Wrap(err)
 	}
 
+	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
+
 	return nil
+}
+
+func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
+	cfg.Discovery.Enabled = fc.Discovery.Enabled()
+	for _, matcher := range fc.Discovery.AWSMatchers {
+		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
+			services.AWSMatcher{
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
+				Params: services.InstallerParams{
+					JoinMethod: matcher.InstallParams.JoinParams.Method,
+					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
+					ScriptName: matcher.InstallParams.ScriptName,
+				},
+				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			})
+	}
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
@@ -1062,6 +1097,13 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Kube.PublicAddrs = addrs
+	}
+
+	for _, matcher := range fc.Kube.ResourceMatchers {
+		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
 	}
 
 	if fc.Kube.KubeconfigFile != "" {
@@ -1112,6 +1154,16 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Tags:    matcher.Tags,
 			})
 	}
+	for _, matcher := range fc.Databases.AzureMatchers {
+		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
+			services.AzureMatcher{
+				Subscriptions:  matcher.Subscriptions,
+				ResourceGroups: matcher.ResourceGroups,
+				Types:          matcher.Types,
+				Regions:        matcher.Regions,
+				ResourceTags:   matcher.ResourceTags,
+			})
+	}
 	for _, database := range fc.Databases.Databases {
 		staticLabels := make(map[string]string)
 		if database.StaticLabels != nil {
@@ -1159,6 +1211,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				},
 				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
+				},
+				MemoryDB: service.DatabaseAWSMemoryDB{
+					ClusterName: database.AWS.MemoryDB.ClusterName,
 				},
 				SecretStore: service.DatabaseAWSSecretStore{
 					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
@@ -1276,6 +1331,11 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 				Headers:  headers,
 			}
 		}
+		if application.AWS != nil {
+			app.AWS = &service.AppAWS{
+				ExternalID: application.AWS.ExternalID,
+			}
+		}
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1323,11 +1383,7 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.NotFound("metrics service cert does not exist: %s", p.Certificate)
 		}
 
-		certificateChainBytes, err := utils.ReadPath(p.Certificate)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
+		certificateChain, err := utils.ReadCertificatesFromPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1393,6 +1449,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
+	}
 
 	var cert *x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
@@ -1407,11 +1466,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+		if err != nil {
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+		}
+	}
+
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
+		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
 	}
 
@@ -1435,6 +1502,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	if fc.WindowsDesktop.Labels != nil {
+		cfg.WindowsDesktop.Labels = make(map[string]string)
+		for k, v := range fc.WindowsDesktop.Labels {
+			cfg.WindowsDesktop.Labels[k] = v
+		}
 	}
 
 	return nil
@@ -1924,9 +1998,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.PIDFile = clf.PIDFile
 	}
 
-	// apply --token flag:
-	if _, err := cfg.ApplyToken(clf.AuthToken); err != nil {
-		return trace.Wrap(err)
+	if clf.AuthToken != "" {
+		// store the value of the --token flag:
+		cfg.SetToken(clf.AuthToken)
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
@@ -1959,7 +2033,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
+		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
 	}
 
 	// add data_dir to the backend config:
@@ -2066,8 +2140,8 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 // a given IP
 func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
-		&cfg.Auth.SSHAddr,
-		&cfg.Auth.SSHAddr,
+		&cfg.Auth.ListenAddr,
+		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
@@ -2097,7 +2171,8 @@ func validateRoles(roles string) error {
 			defaults.RoleProxy,
 			defaults.RoleApp,
 			defaults.RoleDatabase,
-			defaults.RoleWindowsDesktop:
+			defaults.RoleWindowsDesktop,
+			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
@@ -2114,20 +2189,23 @@ func splitRoles(roles string) []string {
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		cfg.JoinMethod = types.JoinMethodToken
-		_, err := cfg.ApplyToken(fc.AuthToken)
-		return trace.Wrap(err)
+		cfg.SetToken(fc.AuthToken)
 	}
+
 	if fc.JoinParams != (JoinParams{}) {
-		if cfg.Token != "" {
+		if cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-		cfg.Token = fc.JoinParams.TokenName
+
+		cfg.SetToken(fc.JoinParams.TokenName)
+
 		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM:
+		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
 			cfg.JoinMethod = fc.JoinParams.Method
 		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
+
 	return nil
 }

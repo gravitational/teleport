@@ -40,6 +40,10 @@ type KubeCluster interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the kube cluster dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
+	// GetKubeconfig returns the kubeconfig payload.
+	GetKubeconfig() []byte
+	// SetKubeconfig sets the kubeconfig.
+	SetKubeconfig([]byte)
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// String returns string representation of the kube cluster.
@@ -62,6 +66,20 @@ func NewKubernetesClusterV3FromLegacyCluster(namespace string, cluster *Kubernet
 		Spec: KubernetesClusterSpecV3{
 			DynamicLabels: cluster.DynamicLabels,
 		},
+	}
+
+	if err := k.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return k, nil
+}
+
+// NewKubernetesClusterV3 creates a new Kubernetes cluster resource.
+func NewKubernetesClusterV3(meta Metadata, spec KubernetesClusterSpecV3) (*KubernetesClusterV3, error) {
+	k := &KubernetesClusterV3{
+		Metadata: meta,
+		Spec:     spec,
 	}
 
 	if err := k.CheckAndSetDefaults(); err != nil {
@@ -116,22 +134,22 @@ func (k *KubernetesClusterV3) SetOrigin(origin string) {
 	k.Metadata.SetOrigin(origin)
 }
 
-// GetNamespace returns the app resource namespace.
+// GetNamespace returns the kube resource namespace.
 func (k *KubernetesClusterV3) GetNamespace() string {
 	return k.Metadata.Namespace
 }
 
-// SetExpiry sets the app resource expiration time.
+// SetExpiry sets the kube resource expiration time.
 func (k *KubernetesClusterV3) SetExpiry(expiry time.Time) {
 	k.Metadata.SetExpiry(expiry)
 }
 
-// Expiry returns the app resource expiration time.
+// Expiry returns the kube resource expiration time.
 func (k *KubernetesClusterV3) Expiry() time.Time {
 	return k.Metadata.Expiry()
 }
 
-// GetName returns the app resource name.
+// GetName returns the kube resource name.
 func (k *KubernetesClusterV3) GetName() string {
 	return k.Metadata.Name
 }
@@ -149,6 +167,16 @@ func (k *KubernetesClusterV3) GetStaticLabels() map[string]string {
 // SetStaticLabels sets the static labels.
 func (k *KubernetesClusterV3) SetStaticLabels(sl map[string]string) {
 	k.Metadata.Labels = sl
+}
+
+// GetKubeconfig returns the kubeconfig payload.
+func (k *KubernetesClusterV3) GetKubeconfig() []byte {
+	return k.Spec.Kubeconfig
+}
+
+// SetKubeconfig sets the kubeconfig.
+func (k *KubernetesClusterV3) SetKubeconfig(cfg []byte) {
+	k.Spec.Kubeconfig = cfg
 }
 
 // GetDynamicLabels returns the dynamic labels.
@@ -221,6 +249,25 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 // KubeClusters represents a list of kube clusters.
 type KubeClusters []KubeCluster
 
+// Find returns kube cluster with the specified name or nil.
+func (s KubeClusters) Find(name string) KubeCluster {
+	for _, cluster := range s {
+		if cluster.GetName() == name {
+			return cluster
+		}
+	}
+	return nil
+}
+
+// ToMap returns these kubernetes clusters as a map keyed by cluster name.
+func (s KubeClusters) ToMap() map[string]KubeCluster {
+	m := make(map[string]KubeCluster)
+	for _, kubeCluster := range s {
+		m[kubeCluster.GetName()] = kubeCluster
+	}
+	return m
+}
+
 // Len returns the slice length.
 func (s KubeClusters) Len() int { return len(s) }
 
@@ -252,8 +299,8 @@ func (s KubeClusters) SortByCustom(sortBy SortBy) error {
 }
 
 // AsResources returns as type resources with labels.
-func (s KubeClusters) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, 0, len(s))
+func (s KubeClusters) AsResources() ResourcesWithLabels {
+	resources := make(ResourcesWithLabels, 0, len(s))
 	for _, cluster := range s {
 		resources = append(resources, ResourceWithLabels(cluster))
 	}

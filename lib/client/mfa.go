@@ -23,12 +23,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // promptWebauthn provides indirection for tests.
@@ -69,25 +69,30 @@ type PromptMFAChallengeOpts struct {
 	PreferOTP bool
 }
 
+// promptMFAStandalone is used to mock PromptMFAChallenge for tests.
+var promptMFAStandalone = PromptMFAChallenge
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
+// If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
 // See client.PromptMFAChallenge.
 func (tc *TeleportClient) PromptMFAChallenge(
-	ctx context.Context, c *proto.MFAAuthenticateChallenge, optsOverride *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge,
+	applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+	addr := proxyAddr
+	if addr == "" {
+		addr = tc.WebProxyAddr
+	}
+
 	opts := &PromptMFAChallengeOpts{
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 		PreferOTP:               tc.PreferOTP,
 	}
-	if optsOverride != nil {
-		opts.PromptDevicePrefix = optsOverride.PromptDevicePrefix
-		opts.Quiet = optsOverride.Quiet
-		if optsOverride.AuthenticatorAttachment != wancli.AttachmentAuto {
-			opts.AuthenticatorAttachment = optsOverride.AuthenticatorAttachment
-		}
-		opts.PreferOTP = optsOverride.PreferOTP
-		opts.AllowStdinHijack = optsOverride.AllowStdinHijack
+	if applyOpts != nil {
+		applyOpts(opts)
 	}
-	return PromptMFAChallenge(ctx, c, tc.WebProxyAddr, opts)
+
+	return promptMFAStandalone(ctx, c, addr, opts)
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
@@ -214,9 +219,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				otpWait.Wait()
 			}}
 
-			const user = ""
 			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
-				User:                    user,
 				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}

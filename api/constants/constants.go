@@ -17,6 +17,12 @@ limitations under the License.
 // Package constants defines Teleport-specific constants
 package constants
 
+import (
+	"encoding/json"
+
+	"github.com/gravitational/trace"
+)
+
 const (
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
@@ -120,6 +126,13 @@ const (
 
 	// AWSConsoleURL is the URL of AWS management console.
 	AWSConsoleURL = "https://console.aws.amazon.com"
+	// AWSUSGovConsoleURL is the URL of AWS management console for AWS GovCloud
+	// (US) Partition.
+	AWSUSGovConsoleURL = "https://console.amazonaws-us-gov.com"
+	// AWSCNConsoleURL is the URL of AWS management console for AWS China
+	// Partition.
+	AWSCNConsoleURL = "https://console.amazonaws.cn"
+
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
 
@@ -131,6 +144,9 @@ const (
 
 	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
 	DatabaseCAMinVersion = "10.0.0"
+
+	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
+	SSHRSAType = "ssh-rsa"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.
@@ -162,6 +178,48 @@ const (
 	// is required only for users that have MFA devices registered.
 	SecondFactorOptional = SecondFactorType("optional")
 )
+
+// UnmarshalYAML supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var tmp interface{}
+	if err := unmarshal(&tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
+
+// UnmarshalJSON supports parsing off|on into string on SecondFactorType.
+func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
+	var tmp interface{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*sft = SecondFactorType(v)
+	case bool:
+		if v {
+			*sft = SecondFactorOn
+		} else {
+			*sft = SecondFactorOff
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
 
 // LockingMode determines how a (possibly stale) set of locks should be applied
 // to an interaction.
@@ -239,3 +297,43 @@ const (
 	// session recording fails.
 	SessionRecordingModeBestEffort = SessionRecordingMode("best_effort")
 )
+
+// Constants for Traits
+const (
+	// TraitLogins is the name of the role variable used to store
+	// allowed logins.
+	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
+
+	// TraitKubeGroups is the name the role variable used to store
+	// allowed kubernetes groups
+	TraitKubeGroups = "kubernetes_groups"
+
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
+
+	// TraitDBNames is the name of the role variable used to store
+	// allowed database names.
+	TraitDBNames = "db_names"
+
+	// TraitDBUsers is the name of the role variable used to store
+	// allowed database users.
+	TraitDBUsers = "db_users"
+
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+)
+
+// Constants for AWS discovery
+const (
+	AWSServiceTypeEC2 = "ec2"
+)
+
+// SupportedAWSDiscoveryServices is list of AWS services currently
+// supported by the Teleport discovery service
+var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}

@@ -17,14 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sort"
 	"strings"
+	"text/template"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -33,10 +35,14 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -44,32 +50,6 @@ func onListDatabases(cf *CLIConf) error {
 	if cf.ListAll {
 		return trace.Wrap(listDatabasesAllClusters(cf))
 	}
-	tc, err := makeClient(cf, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var databases []types.Database
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		databases, err = tc.ListDatabases(cf.Context, nil /* custom filter */)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		if utils.IsPredicateError(err) {
-			return trace.Wrap(utils.PredicateError{Err: err})
-		}
-		return trace.Wrap(err)
-	}
-
-	proxy, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cluster, err := proxy.ConnectToCurrentCluster(cf.Context, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer cluster.Close()
 
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
@@ -77,40 +57,59 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
-	roles := profile.Roles
-	traits := profile.Traits
-
-	// GetCurrentUser() may not be implemented, fail gracefully.
-	user, err := cluster.GetCurrentUser(cf.Context)
-	if err == nil {
-		roles = user.GetRoles()
-		traits = user.GetTraits()
-	} else {
-		log.Debugf("Failed to fetch current user information: %v.", err)
-	}
-
-	// get the role definition for all roles of user.
-	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
-	// example scenario when this may happen:
-	// 1. we have set of roles [foo bar] from profile.
-	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
-	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
-	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-	roleSet, err := services.FetchRoles(roles, cluster, traits)
+	tc, err := makeClient(cf, false)
 	if err != nil {
-		log.Debugf("Failed to fetch user roles: %v.", err)
+		return trace.Wrap(err)
 	}
 
-	sort.Slice(databases, func(i, j int) bool {
-		return databases[i].GetName() < databases[j].GetName()
+	var proxy *client.ProxyClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		proxy, err = tc.ConnectToProxy(cf.Context)
+		return trace.Wrap(err)
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxy.Close()
+
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var roleSet services.RoleSet
+	if isRoleSetRequiredForShowDatabases(cf) {
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
+		if err != nil {
+			log.Debugf("Failed to fetch user roles: %v.", err)
+		}
+	}
 
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+
+	sort.Sort(types.Databases(databases))
+	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+}
+
+func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
+	return cf.Format == "" || teleport.Text == strings.ToLower(cf.Format)
+}
+
+func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
+	cluster, err := proxy.ClusterAccessPoint(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return roleSet, nil
 }
 
 type databaseListing struct {
@@ -141,44 +140,78 @@ func (l databaseListings) Swap(i, j int) {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
-	var dbListings databaseListings
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Fetch database listings for profiles in parallel. Set an arbitrary limit
+	// just in case.
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(4)
 
-		proxy, err := tc.ConnectToProxy(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		var errors []error
-		for clusterName, databases := range result {
-			cluster, err := proxy.ConnectToCluster(cf.Context, clusterName, false)
-			if err != nil {
-				errors = append(errors, err)
-				continue
-			}
-			roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
-			if err != nil {
-				errors = append(errors, err)
-				continue
-			}
-			for _, database := range databases {
-				dbListings = append(dbListings, databaseListing{
-					Proxy:    profile.ProxyURL.Host,
-					Cluster:  clusterName,
-					roleSet:  roleSet,
-					Database: database,
-				})
+	dbListingsResultChan := make(chan databaseListings)
+	dbListingsCollectChan := make(chan databaseListings)
+	go func() {
+		var dbListings databaseListings
+		for {
+			select {
+			case items := <-dbListingsCollectChan:
+				dbListings = append(dbListings, items...)
+			case <-groupCtx.Done():
+				dbListingsResultChan <- dbListings
+				return
 			}
 		}
-		return trace.NewAggregate(errors...)
+	}()
+
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		group.Go(func() error {
+			proxy, err := tc.ConnectToProxy(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer proxy.Close()
+
+			sites, err := proxy.GetSites(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			var dbListings databaseListings
+			for _, site := range sites {
+				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				var roleSet services.RoleSet
+				if isRoleSetRequiredForShowDatabases(cf) {
+					roleSet, err = fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
+					if err != nil {
+						log.Debugf("Failed to fetch user roles: %v.", err)
+					}
+				}
+
+				for _, database := range databases {
+					dbListings = append(dbListings, databaseListing{
+						Proxy:    profile.ProxyURL.Host,
+						Cluster:  site.Name,
+						roleSet:  roleSet,
+						Database: database,
+					})
+				}
+			}
+
+			dbListingsCollectChan <- dbListings
+			return nil
+		})
+		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if err := group.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	dbListings := <-dbListingsResultChan
 	sort.Sort(dbListings)
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
@@ -216,19 +249,32 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
+	routeToDatabase := tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
 		Protocol:    database.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
-	}, false)
-	if err != nil {
+	}
+
+	if err := databaseLogin(cf, tc, routeToDatabase); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+
+	// Print after-login message.
+	templateData := map[string]string{
+		"name":           routeToDatabase.ServiceName,
+		"connectCommand": utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, routeToDatabase)),
+	}
+
+	if shouldUseLocalProxyForDatabase(tc, &routeToDatabase) {
+		templateData["proxyCommand"] = utils.Color(utils.Yellow, formatDatabaseProxyCommand(cf.SiteName, routeToDatabase))
+	} else {
+		templateData["configCommand"] = utils.Color(utils.Yellow, formatDatabaseConfigCommand(cf.SiteName, routeToDatabase))
+	}
+	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
 }
 
-func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase, quiet bool) error {
+func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", db, tc.SiteName)
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
@@ -279,16 +325,8 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(tc, db, *profile)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Print after-connect message.
-	if !quiet {
-		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, db))
-		return nil
-	}
-	return nil
+	err = dbprofile.Add(cf.Context, tc, db, *profile)
+	return trace.Wrap(err)
 }
 
 // onDatabaseLogout implements "tsh db logout" command.
@@ -362,10 +400,26 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	database, err := pickActiveDatabase(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if !dbprofile.IsSupported(*database) {
+		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
+	}
+	// MySQL requires ALPN local proxy in signle port mode.
+	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
+		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
+	}
+
 	env, err := dbprofile.Env(tc, *database)
 	if err != nil {
 		return trace.Wrap(err)
@@ -415,23 +469,28 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	rootCluster, err := tc.RootClusterName()
+
+	// "tsh db config" prints out instructions for native clients to connect to
+	// the remote proxy directly. Return errors here when direct connection
+	// does NOT work (e.g. when ALPN local proxy is required).
+	if isLocalProxyAlwaysRequired(database.Protocol) {
+		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
+	}
+	// MySQL requires ALPN local proxy in signle port mode.
+	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
+		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
+	}
+
+	host, port := tc.DatabaseProxyHostPort(*database)
+	rootCluster, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	// Postgres proxy listens on web proxy port while MySQL proxy listens on
-	// a separate port due to the specifics of the protocol.
-	var host string
-	var port int
-	switch database.Protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
-		host, port = tc.PostgresProxyHostPort()
-	case defaults.ProtocolMySQL:
-		host, port = tc.MySQLProxyHostPort()
-	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSQLServer, defaults.ProtocolSnowflake:
-		host, port = tc.WebProxyHostPort()
-	default:
-		return trace.BadParameter("unknown database protocol: %q", database)
 	}
 
 	format := strings.ToLower(cf.Format)
@@ -500,17 +559,16 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 // connection scenario and returns a list of options to use in the connect
 // command.
 func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
-	database types.Database, cluster string,
+	database types.Database, rootClusterName string,
 ) ([]dbcmd.ConnectCommandFunc, error) {
-	// Snowflake only works in the local tunnel mode.
-	localProxyTunnel := cf.LocalProxyTunnel
-	if db.Protocol == defaults.ProtocolSnowflake {
-		localProxyTunnel = true
-	}
-	// Local proxy is started if TLS routing is enabled, or if this is a SQL
-	// Server connection which always requires a local proxy.
-	if !tc.TLSRoutingEnabled && db.Protocol != defaults.ProtocolSQLServer {
+	if !shouldUseLocalProxyForDatabase(tc, db) {
 		return []dbcmd.ConnectCommandFunc{}, nil
+	}
+
+	// Some protocols (Snowflake, Elasticsearch) only works in the local tunnel mode.
+	localProxyTunnel := cf.LocalProxyTunnel
+	if db.Protocol == defaults.ProtocolSnowflake || db.Protocol == defaults.ProtocolElasticsearch {
+		localProxyTunnel = true
 	}
 
 	log.Debugf("Starting local proxy")
@@ -528,6 +586,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 		database:         database,
 		listener:         listener,
 		localProxyTunnel: localProxyTunnel,
+		rootClusterName:  rootClusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -554,9 +613,13 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	// certificate's DNS names. As such, connecting to 127.0.0.1 will fail
 	// validation, so connect to localhost.
 	host := "localhost"
-	return []dbcmd.ConnectCommandFunc{
-		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
-	}, nil
+	cmdOpts := []dbcmd.ConnectCommandFunc{
+		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
+	}
+	if localProxyTunnel {
+		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
+	}
+	return cmdOpts, nil
 }
 
 // localProxyConfig is an argument pack used in prepareLocalProxyOptions().
@@ -571,6 +634,7 @@ type localProxyConfig struct {
 	// it's always true for Snowflake database. Value is copied here to not modify
 	// cli arguments directly.
 	localProxyTunnel bool
+	rootClusterName  string
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -585,18 +649,29 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	}
 
 	opts := localProxyOpts{
-		proxyAddr: arg.teleportClient.WebProxyAddr,
-		listener:  arg.listener,
-		protocols: []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
-		insecure:  arg.cliConf.InsecureSkipVerify,
-		certFile:  certFile,
-		keyFile:   keyFile,
+		proxyAddr:               arg.teleportClient.WebProxyAddr,
+		listener:                arg.listener,
+		protocols:               []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
+		insecure:                arg.cliConf.InsecureSkipVerify,
+		certFile:                certFile,
+		keyFile:                 keyFile,
+		alpnConnUpgradeRequired: alpnproxy.IsALPNConnUpgradeRequired(arg.teleportClient.WebProxyAddr, arg.cliConf.InsecureSkipVerify),
+	}
+
+	// If ALPN connection upgrade is required, explicitly use the profile CAs
+	// since the tunneled TLS routing connection serves the Host cert.
+	if opts.alpnConnUpgradeRequired {
+		profileCAs, err := utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.rootClusterName))
+		if err != nil {
+			return localProxyOpts{}, trace.Wrap(err)
+		}
+		opts.rootCAs = profileCAs
 	}
 
 	// For SQL Server connections, local proxy must be configured with the
 	// client certificate that will be used to route connections.
 	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer {
-		opts.certFile = arg.profile.DatabaseCertPathForCluster("", arg.routeToDatabase.ServiceName)
+		opts.certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
 		opts.keyFile = arg.profile.KeyPath()
 	}
 
@@ -647,22 +722,11 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
-	relogin, err := needRelogin(cf, tc, routeToDatabase, profile)
-	if err != nil {
+	if err := maybeDatabaseLogin(cf, tc, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
-	}
-	if relogin {
-		if err := databaseLogin(cf, tc, *routeToDatabase, true); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
-	key, err := tc.LocalAgent().GetCoreKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	rootClusterName, err := key.RootClusterName()
+	rootClusterName, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -678,12 +742,19 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	log.Debug(cmd.String())
+
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+
+	// Use io.MultiWriter to duplicate stderr to the capture writer. The
+	// captured stderr can be used for diagnosing command failures. The capture
+	// writer captures up to a fixed number to limit memory usage.
+	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
+	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
+
 	err = cmd.Run()
 	if err != nil {
-		return trace.Wrap(err)
+		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
 	}
 	return nil
 }
@@ -736,7 +807,7 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	return databases[0], nil
 }
 
-func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -769,6 +840,20 @@ func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteTo
 		return false, trace.Wrap(err)
 	}
 	return mfaRequired, nil
+}
+
+// maybeDatabaseLogin checks if cert is still valid or DB connection requires
+// MFA. If yes trigger db login logic.
+func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase) error {
+	reloginNeeded, err := needDatabaseRelogin(cf, tc, db, profile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if reloginNeeded {
+		return trace.Wrap(databaseLogin(cf, tc, *db))
+	}
+	return nil
 }
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
@@ -808,7 +893,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
+	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -885,6 +970,43 @@ func formatDatabaseListCommand(clusterFlag string) string {
 	return fmt.Sprintf("tsh db ls --cluster=%v", clusterFlag)
 }
 
+// formatDatabaseConnectCommand formats an appropriate database connection
+// command for a user based on the provided database parameters.
+func formatDatabaseConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	cmdTokens := append(
+		[]string{"tsh", "db", "connect"},
+		formatDatabaseConnectArgs(clusterFlag, active)...,
+	)
+	return strings.Join(cmdTokens, " ")
+}
+
+// formatDatabaseConnectArgs generates the arguments for "tsh db connect" command.
+func formatDatabaseConnectArgs(clusterFlag string, active tlsca.RouteToDatabase) (flags []string) {
+	if clusterFlag != "" {
+		flags = append(flags, fmt.Sprintf("--cluster=%s", clusterFlag))
+	}
+	if active.Username == "" {
+		flags = append(flags, "--db-user=<user>")
+	}
+	if active.Database == "" {
+		flags = append(flags, "--db-name=<name>")
+	}
+	flags = append(flags, active.ServiceName)
+	return
+}
+
+// formatDatabaseProxyCommand formats the "tsh proxy db" command.
+func formatDatabaseProxyCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	cmdTokens := append(
+		// "--tunnel" mode is more user friendly and supports all DB protocols.
+		[]string{"tsh", "proxy", "db", "--tunnel"},
+		// Rest of the args are the same as "tsh db connect".
+		formatDatabaseConnectArgs(clusterFlag, active)...,
+	)
+	return strings.Join(cmdTokens, " ")
+}
+
+// formatDatabaseConfigCommand formats the "tsh db config" command.
 func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) string {
 	if clusterFlag == "" {
 		return fmt.Sprintf("tsh db config --format=cmd %v", db.ServiceName)
@@ -892,25 +1014,22 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
 }
 
-func formatDatabaseConnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
-	connectCommand := formatConnectCommand(clusterFlag, db)
-	configCommand := formatDatabaseConfigCommand(clusterFlag, db)
+// shouldUseLocalProxyForDatabase returns true if the ALPN local proxy should
+// be used for connecting to the provided database.
+func shouldUseLocalProxyForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
+	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(db.Protocol)
+}
 
-	return fmt.Sprintf(`
-Connection information for database "%v" has been saved.
-
-You can now connect to it using the following command:
-
-  %v
-
-Or view the connect command for the native database CLI client:
-
-  %v
-
-`,
-		db.ServiceName,
-		utils.Color(utils.Yellow, connectCommand),
-		utils.Color(utils.Yellow, configCommand))
+// isLocalProxyAlwaysRequired returns true for protocols that always requires
+// an ALPN local proxy.
+func isLocalProxyAlwaysRequired(protocol string) bool {
+	switch protocol {
+	case defaults.ProtocolSQLServer,
+		defaults.ProtocolSnowflake:
+		return true
+	default:
+		return false
+	}
 }
 
 const (
@@ -922,4 +1041,41 @@ const (
 	dbFormatJSON = "json"
 	// dbFormatYAML prints database info as YAML.
 	dbFormatYAML = "yaml"
+)
+
+const (
+	// dbCmdUnsupportedTLSRouting is the error message printed when some
+	// database subcommands are not supported because TLS routing is enabled.
+	dbCmdUnsupportedTLSRouting = `"%v" is not supported for %v databases when TLS routing is enabled on the Teleport Proxy Service.
+
+Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
+
+	// dbCmdUnsupportedDBProtocol is the error message printed when some
+	// database subcommands are run against unsupported database protocols.
+	dbCmdUnsupportedDBProtocol = `"%v" is not supported for %v databases.
+
+Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
+)
+
+var (
+	// dbConnectTemplate is the message printed after a successful "tsh db login" on how to connect.
+	dbConnectTemplate = template.Must(template.New("").Parse(`Connection information for database "{{ .name }}" has been saved.
+
+You can now connect to it using the following command:
+
+  {{.connectCommand}}
+
+{{if .configCommand -}}
+Or view the connect command for the native database CLI client:
+
+  {{ .configCommand }}
+
+{{end -}}
+{{if .proxyCommand -}}
+Or start a local proxy for database GUI clients:
+
+  {{ .proxyCommand }}
+
+{{end -}}
+`))
 )

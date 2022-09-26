@@ -118,11 +118,10 @@ type Batch interface {
 //
 // Here is an example of renewing object TTL:
 //
-// lease, err := backend.Create()
-// lease.Expires = time.Now().Add(time.Second)
-// Item TTL is extended
-// err = backend.KeepAlive(lease)
-//
+// item.Expires = time.Now().Add(10 * time.Second)
+// lease, err := backend.Create(ctx, item)
+// expires := time.Now().Add(20 * time.Second)
+// err = backend.KeepAlive(ctx, lease, expires)
 type Lease struct {
 	// Key is an object representing lease
 	Key []byte
@@ -161,7 +160,7 @@ type Watcher interface {
 	// Events returns channel with events
 	Events() <-chan Event
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases
@@ -235,7 +234,7 @@ func (p Params) GetString(key string) string {
 
 // Cleanse fixes an issue with yamlv2 decoding nested sections to
 // map[interface{}]interface{} rather than map[string]interface{}.
-// ObjectToStruct will fail on the former. yamlv3 corrects this behaviour.
+// ObjectToStruct will fail on the former. yamlv3 corrects this behavior.
 // All non-string keys are dropped.
 func (p Params) Cleanse() {
 	for key, value := range p {
@@ -299,6 +298,8 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	case types.AppServer:
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	case types.KubeServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
 	}
@@ -310,6 +311,8 @@ func GetPaginationKey(r types.Resource) string {
 	case types.DatabaseServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.AppServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.KubeServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.WindowsDesktop:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))

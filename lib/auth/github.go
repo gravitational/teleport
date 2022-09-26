@@ -19,10 +19,16 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -31,13 +37,15 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
+
+const githubOrgsURL = "https://github.com/orgs"
+
+// ErrGithubNoTeams results from a github user not belonging to any teams.
+var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
@@ -53,7 +61,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
-	err = a.Identity.CreateGithubAuthRequest(ctx, req)
+	err = a.Services.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,7 +70,10 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorCreate{
@@ -81,9 +92,138 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 	return nil
 }
 
+// httpRequester allows a net/http.Client to be mocked for tests.
+// TODO(capnspacehook): test without using this interface
+type httpRequester interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// checkGithubOrgSSOSupport returns an error if any of the Github
+// organizations specified in this connector use external SSO.
+// If userTeams is not nil, only organizations that are both specified
+// in conn and in userTeams will be checked. If client is nil a
+// net/http.Client will be used.
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *utils.FnCache, client httpRequester) error {
+	version := modules.GetModules().BuildType()
+	if version == modules.BuildEnterprise {
+		return nil
+	}
+
+	orgs := make(map[string]struct{})
+	addOrg := func(org string) {
+		if len(userTeams) != 0 {
+			// Only check organizations that the user is a member of and
+			// that are specified in this auth connector
+			for _, team := range userTeams {
+				if org == team.Org.Login {
+					orgs[org] = struct{}{}
+				}
+			}
+		} else {
+			orgs[org] = struct{}{}
+		}
+	}
+
+	// Check each organization only once
+	// DELETE IN 12 (zmb3)
+	for _, mapping := range conn.GetTeamsToLogins() {
+		addOrg(mapping.Organization)
+	}
+	for _, mapping := range conn.GetTeamsToRoles() {
+		addOrg(mapping.Organization)
+	}
+
+	if client == nil {
+		var err error
+		client, err = defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	for org := range orgs {
+		usesSSO, err := utils.FnCacheGet(ctx, orgCache, org, func(ctx context.Context) (bool, error) {
+			return orgUsesExternalSSO(ctx, org, client)
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if usesSSO {
+			return trace.AccessDenied(
+				"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license if you want to authenticate with this organization",
+				org,
+			)
+		}
+	}
+
+	return nil
+}
+
+// orgUsesExternalSSO returns true if the Github organization org
+// uses external SSO.
+func orgUsesExternalSSO(ctx context.Context, org string, client httpRequester) (bool, error) {
+	// A Github organization will have a "sso" page reachable if it
+	// supports external SSO. There doesn't seem to be any way to get this
+	// information from the Github REST API without being an owner of the
+	// Github organization, so check if this exists instead.
+	ssoURL := fmt.Sprintf("%s/%s/sso", githubOrgsURL, url.PathEscape(org))
+
+	const retries = 3
+	var resp *http.Response
+	for i := 0; i < retries; i++ {
+		var err error
+		var urlErr *url.Error
+
+		resp, err = makeHTTPGetReq(ctx, ssoURL, client)
+		// Drain and close the body regardless of outcome.
+		// Errors handled below.
+		if resp != nil {
+			io.Copy(io.Discard, resp.Body)
+			if bodyErr := resp.Body.Close(); bodyErr != nil {
+				logrus.WithError(bodyErr).Error("Error closing response body.")
+			}
+		}
+		// Handle makeHTTPGetReq errors.
+		if err == nil {
+			break
+		} else if errors.As(err, &urlErr) && urlErr.Timeout() {
+			if i == retries-1 {
+				// The connection timed out a couple of times in a row,
+				// stop trying and return the error.
+				return false, trace.ConnectionProblem(err, "Timed out trying to reach GitHub to check for organization external SSO.")
+			}
+			// Connection timed out, try to make the request again
+			continue
+		}
+		// Unknown error, don't try making any more requests
+		return false, trace.Wrap(err, "Unknown error trying to reach GitHub to check for organization external SSO")
+	}
+
+	// "sso" page exists, org uses external SSO
+	if resp.StatusCode == http.StatusOK {
+		return true, nil
+	}
+
+	// "sso" page does not exist, org does not use external SSO
+	return false, nil
+}
+
+func makeHTTPGetReq(ctx context.Context, url string, client httpRequester) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client.Do(req)
+}
+
 // deleteGithubConnector deletes a Github connector by name.
 func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteGithubConnector(ctx, connectorName); err != nil {
+	if err := a.DeleteGithubConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -129,7 +269,6 @@ type githubManager interface {
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
-
 	return validateGithubAuthCallbackHelper(ctx, a, q, a.emitter)
 }
 
@@ -214,7 +353,7 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 	}
 
 	// regular execution flow
-	connector, err := a.Identity.GetGithubConnector(ctx, request.ConnectorID, true)
+	connector, err := a.GetGithubConnector(ctx, request.ConnectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -272,7 +411,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		state := q.Get("state")
 		if state != "" {
 			diagCtx.requestID = state
-			req, err := a.Identity.GetGithubAuthRequest(ctx, state)
+			req, err := a.Services.GetGithubAuthRequest(ctx, state)
 			if err == nil {
 				diagCtx.info.TestFlow = req.SSOTestFlow
 			}
@@ -296,7 +435,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	}
 	diagCtx.requestID = stateToken
 
-	req, err := a.Identity.GetGithubAuthRequest(ctx, stateToken)
+	req, err := a.Services.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
@@ -307,14 +446,8 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		return nil, trace.Wrap(err, "Failed to get Github connector and client.")
 	}
 	diagCtx.info.GithubTeamsToLogins = connector.GetTeamsToLogins()
-	logger.Debugf("Connector %q teams to logins: %v", connector.GetName(), connector.GetTeamsToLogins())
-
-	if len(connector.GetTeamsToLogins()) == 0 {
-		logger.Warnf("Github connector %q has empty teams_to_logins mapping, cannot populate claims.",
-			connector.GetName())
-		return nil, trace.BadParameter(
-			"connector %q has empty teams_to_logins mapping", connector.GetName())
-	}
+	diagCtx.info.GithubTeamsToRoles = connector.GetTeamsToRoles()
+	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
@@ -331,12 +464,35 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
 		token.TokenType, token.Expires, token.Scope)
 
-	// Github does not support OIDC so user claims have to be populated
-	// by making requests to Github API using the access token
-	claims, err := populateGithubClaims(&githubAPIClient{
+	// Get the Github organizations the user is a member of so we don't
+	// make unnecessary API requests
+	ghClient := &githubAPIClient{
 		token:      token.AccessToken,
 		authServer: a,
-	})
+	}
+	userResp, err := ghClient.getUser()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to query Github user info")
+	}
+	teamsResp, err := ghClient.getTeams()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to query Github user teams")
+	}
+	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
+
+	// If we are running Teleport OSS, ensure that the Github organization
+	// the user is trying to authenticate with is not using external SSO.
+	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
+	// This is checked when Github auth connectors get created or updated, but
+	// check again here in case the organization enabled external SSO after
+	// the auth connector was created.
+	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Github does not support OIDC so user claims have to be populated
+	// by making requests to Github API using the access token
+	claims, err := populateGithubClaims(userResp, teamsResp)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to query Github API for user claims.")
 	}
@@ -382,7 +538,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -459,24 +615,22 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	// Calculate logins, kubegroups, roles, and traits.
 	p.roles, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
 	if len(p.roles) == 0 {
-		return nil, trace.BadParameter(
-			"user %q does not belong to any teams configured in %q connector; the configuration may have typos.",
-			claims.Username, connector.GetName())
+		return nil, trace.Wrap(ErrGithubNoTeams)
 	}
 	p.traits = map[string][]string{
-		teleport.TraitLogins:     {p.username},
-		teleport.TraitKubeGroups: p.kubeGroups,
-		teleport.TraitKubeUsers:  p.kubeUsers,
-		teleport.TraitTeams:      claims.Teams,
+		constants.TraitLogins:     {p.username},
+		constants.TraitKubeGroups: p.kubeGroups,
+		constants.TraitKubeUsers:  p.kubeUsers,
+		teleport.TraitTeams:       claims.Teams,
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, a, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL.Duration())
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
@@ -519,7 +673,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 		return user, nil
 	}
 
-	existingUser, err := a.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -543,21 +697,9 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 	return user, nil
 }
 
-// populateGithubClaims retrieves information about user and its team
-// memberships by calling Github API using the access token
-func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) {
-	// find out the username
-	user, err := client.getUser()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user info")
-	}
-	// build team memberships
-	teams, err := client.getTeams()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user teams")
-	}
-	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teams), user.Login)
-
+// populateGithubClaims builds a GithubClaims using queried
+// user, organization and teams information.
+func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.GithubClaims, error) {
 	orgToTeams := make(map[string][]string)
 	teamList := make([]string, 0, len(teams))
 	for _, team := range teams {
@@ -577,15 +719,6 @@ func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) 
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Claims: %#v.", claims)
 	return claims, nil
-}
-
-// githubAPIClientI defines an interface for Github API wrapper
-// so it can be substituted in tests
-type githubAPIClientI interface {
-	// getUser returns user information
-	getUser() (*userResponse, error)
-	// getTeams returns a list of user team memberships
-	getTeams() ([]teamResponse, error)
 }
 
 // githubAPIClient is a tiny wrapper around some of Github APIs
@@ -745,10 +878,8 @@ const (
 	MaxPages = 99
 )
 
-var (
-	// GithubScopes is a list of scopes requested during OAuth2 flow
-	GithubScopes = []string{
-		// read:org grants read-only access to user's team memberships
-		"read:org",
-	}
-)
+// GithubScopes is a list of scopes requested during OAuth2 flow
+var GithubScopes = []string{
+	// read:org grants read-only access to user's team memberships
+	"read:org",
+}

@@ -308,7 +308,7 @@ func (r *GithubAuthRequest) Check() error {
 		if err != nil {
 			return trace.BadParameter("bad PublicKey: %v", err)
 		}
-		if (r.CertTTL.Duration() > defaults.MaxCertDuration) || (r.CertTTL.Duration() < defaults.MinCertDuration) {
+		if (r.CertTTL > defaults.MaxCertDuration) || (r.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("wrong CertTTL")
 		}
 	}

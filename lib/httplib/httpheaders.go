@@ -64,9 +64,6 @@ func SetIndexHTMLHeaders(h http.Header) {
 	// Set content policy flags
 	var cspValue = strings.Join([]string{
 		"default-src 'self'",
-		// cloud version uses stripe.com to update billing information
-		"script-src 'self' https://js.stripe.com",
-		"frame-src https://js.stripe.com",
 		"frame-ancestors 'none'",
 		// 'unsafe-inline' is required by CSS-in-JS to work
 		"style-src 'self' 'unsafe-inline'",
@@ -97,4 +94,10 @@ func SetNoSniff(h http.Header) {
 func SetWebConfigHeaders(h http.Header) {
 	SetStaticFileHeaders(h)
 	h.Set("Content-Type", "application/javascript")
+}
+
+// SetScriptHeaders sets headers for the teleport install script
+func SetScriptHeaders(h http.Header) {
+	SetStaticFileHeaders(h)
+	h.Set("Content-Type", "text/x-shellscript")
 }

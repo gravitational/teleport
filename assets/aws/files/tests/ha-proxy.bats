@@ -9,6 +9,9 @@ TELEPORT_INFLUXDB_ADDRESS=http://gus-tftestkube4-monitor-ae7983980c3419ab.elb.us
 TELEPORT_PROXY_SERVER_LB=gus-tftestkube4-proxy-bc9ba568645c3d80.elb.us-east-1.amazonaws.com
 TELEPORT_PROXY_SERVER_NLB_ALIAS=""
 TELEPORT_S3_BUCKET=gus-tftestkube4.gravitational.io
+TELEPORT_ENABLE_MONGODB=true
+TELEPORT_ENABLE_MYSQL=true
+TELEPORT_ENABLE_POSTGRES=true
 USE_ACM=false
 EOF
 }
@@ -50,6 +53,24 @@ load fixtures/common
     echo "${PROXY_BLOCK?}" | grep -E "^  tunnel_public_addr:" | grep -q "${TELEPORT_DOMAIN_NAME?}:443"
 }
 
+@test "[${TEST_SUITE?}] proxy_service.postgres_public_addr is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    echo "${PROXY_BLOCK?}" | grep -E "^  postgres_public_addr:" | grep -q "${TELEPORT_DOMAIN_NAME?}:5432"
+}
+
+@test "[${TEST_SUITE?}] proxy_service.mysql_public_addr is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    echo "${PROXY_BLOCK?}" | grep -E "^  mysql_public_addr:" | grep -q "${TELEPORT_DOMAIN_NAME?}:3036"
+}
+
+@test "[${TEST_SUITE?}] proxy_service.mongo_public_addr is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    echo "${PROXY_BLOCK?}" | grep -E "^  mongo_public_addr:" | grep -q "${TELEPORT_DOMAIN_NAME?}:27017"
+}
+
 @test "[${TEST_SUITE?}] proxy_service.listen_addr is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${PROXY_BLOCK?}"
@@ -66,6 +87,24 @@ load fixtures/common
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${PROXY_BLOCK?}"
     echo "${PROXY_BLOCK?}" | grep -E "^  web_listen_addr: " | grep -q "0.0.0.0:3080"
+}
+
+@test "[${TEST_SUITE?}] proxy_service.mysql_listen_addr is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    echo "${PROXY_BLOCK?}" | grep -E "^  mysql_listen_addr: " | grep -q "0.0.0.0:3036"
+}
+
+@test "[${TEST_SUITE?}] proxy_service.postgres_listen_addr is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    echo "${PROXY_BLOCK?}" | grep -E "^  postgres_listen_addr: " | grep -q "0.0.0.0:5432"
+}
+
+@test "[${TEST_SUITE?}] proxy_service.mongo_listen_addr is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    echo "${PROXY_BLOCK?}" | grep -E "^  mongo_listen_addr: " | grep -q "0.0.0.0:27017"
 }
 
 @test "[${TEST_SUITE?}] proxy_service.kubernetes.public_addr is set correctly" {

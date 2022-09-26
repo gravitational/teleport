@@ -22,8 +22,8 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
-// ErrAttemptFailed is returned by AttemptLogin for attempts that failed before
-// user interaction.
+// ErrAttemptFailed is returned by AttemptLogin and AttemptDeleteNonInteractive
+// for attempts that failed before user interaction.
 type ErrAttemptFailed struct {
 	// Err is the underlying failure for the attempt.
 	Err error
@@ -54,8 +54,8 @@ func (e *ErrAttemptFailed) As(target interface{}) bool {
 // AttemptLogin attempts a touch ID login.
 // It returns ErrAttemptFailed if the attempt failed before user interaction.
 // See Login.
-func AttemptLogin(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.CredentialAssertionResponse, string, error) {
-	resp, actualUser, err := Login(origin, user, assertion)
+func AttemptLogin(origin, user string, assertion *wanlib.CredentialAssertion, picker CredentialPicker) (*wanlib.CredentialAssertionResponse, string, error) {
+	resp, actualUser, err := Login(origin, user, assertion, picker)
 	switch {
 	case errors.Is(err, ErrNotAvailable), errors.Is(err, ErrCredentialNotFound):
 		return nil, "", &ErrAttemptFailed{Err: err}
@@ -63,4 +63,22 @@ func AttemptLogin(origin, user string, assertion *wanlib.CredentialAssertion) (*
 		return nil, "", trace.Wrap(err)
 	}
 	return resp, actualUser, nil
+}
+
+// AttemptDeleteNonInteractive attempts to delete a Secure Enclave credential.
+// Does not require user interaction.
+func AttemptDeleteNonInteractive(credentialID string) error {
+	if !IsAvailable() {
+		return &ErrAttemptFailed{Err: ErrNotAvailable}
+	}
+	if credentialID == "" {
+		return trace.BadParameter("credentialID required")
+	}
+	switch err := native.DeleteNonInteractive(credentialID); {
+	case errors.Is(err, ErrCredentialNotFound):
+		return &ErrAttemptFailed{Err: err}
+	case err != nil:
+		return trace.Wrap(err)
+	}
+	return nil
 }

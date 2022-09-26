@@ -43,7 +43,7 @@ import (
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
+func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*Identity, error) {
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,6 +70,7 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 			NoCache:              true,
 			PublicSSHKey:         pub,
 			PublicTLSKey:         tlsPub,
+			SystemRoles:          systemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,6 +120,8 @@ type RegisterParams struct {
 	ec2IdentityDocument []byte
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -147,6 +150,13 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 
 	// add EC2 Identity Document to params if required for given join method
 	if params.JoinMethod == types.JoinMethodEC2 {
+		if !utils.IsEC2NodeID(params.ID.HostUUID) {
+			return nil, trace.BadParameter(
+				`Host ID %q is not valid when using the EC2 join method, `+
+					`try removing the "host_uuid" file in your teleport data dir `+
+					`(e.g. /var/lib/teleport/host_uuid)`,
+				params.ID.HostUUID)
+		}
 		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -455,32 +465,68 @@ type joinServiceClient interface {
 func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
 	ctx := context.Background()
 
-	// call RegisterUsingIAMMethod with a callback to respond to the challenge
-	// with the join request
-	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-		// create the signed sts:GetCallerIdentity request and include the challenge
-		signedRequest, err := createSignedStsIdentityRequest(challenge)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// send the register request including the challenge response
-		return &proto.RegisterUsingIAMMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
+	// Attempt to use the regional STS endpoint, fall back to using the global
+	// endpoint. The regional endpoint may fail if Auth is on an older version
+	// which does not support regional endpoints, the STS service is not
+	// enabled in the current region, or an unknown AWS region is configured.
+	var errs []error
+	for _, s := range []struct {
+		desc string
+		opts []stsIdentityRequestOption
+	}{
+		{
+			desc: "regional",
+			opts: []stsIdentityRequestOption{
+				withFIPSEndpoint(params.FIPS),
+				withRegionalEndpoint(true),
 			},
-			StsIdentityRequest: signedRequest,
-		}, nil
-	})
+		},
+		{
+			// DELETE IN 12.0, global endpoint does not support China or
+			// GovCloud or FIPS, is only a fallback for connecting to an auth
+			// server on an older version which does not support regional
+			// endpoints.
+			desc: "global",
+			opts: []stsIdentityRequestOption{
+				withFIPSEndpoint(false),
+				withRegionalEndpoint(false),
+			},
+		},
+	} {
+		log.Infof("Attempting to register %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
+		// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
+		certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+			// create the signed sts:GetCallerIdentity request and include the challenge
+			signedRequest, err := createSignedSTSIdentityRequest(ctx, challenge, s.opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-	return certs, trace.Wrap(err)
+			// send the register request including the challenge response
+			return &proto.RegisterUsingIAMMethodRequest{
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+					Token:                token,
+					HostID:               params.ID.HostUUID,
+					NodeName:             params.ID.NodeName,
+					Role:                 params.ID.Role,
+					AdditionalPrincipals: params.AdditionalPrincipals,
+					DNSNames:             params.DNSNames,
+					PublicTLSKey:         params.PublicTLSKey,
+					PublicSSHKey:         params.PublicSSHKey,
+				},
+				StsIdentityRequest: signedRequest,
+			}, nil
+		})
+		if err != nil {
+			log.WithError(err).Infof("Failed to register %s using %s STS endpoint", params.ID.Role, s.desc)
+			errs = append(errs, err)
+		} else {
+			log.Infof("Successfully registered %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
+			return certs, nil
+		}
+	}
+
+	return nil, trace.NewAggregate(errs...)
 }
 
 // ReRegisterParams specifies parameters for re-registering
@@ -502,24 +548,27 @@ type ReRegisterParams struct {
 	PublicSSHKey []byte
 	// Rotation is the rotation state of the certificate authority
 	Rotation types.Rotation
+	// SystemRoles is a set of additional system roles held by the instance.
+	SystemRoles []types.SystemRole
+	// Used by older instances to requisition a multi-role cert by individually
+	// proving which system roles are held.
+	UnstableSystemRoleAssertionID string
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
 func ReRegister(params ReRegisterParams) (*Identity, error) {
-	hostID, err := params.ID.HostID()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
-			HostID:               hostID,
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			Rotation:             &params.Rotation,
+			HostID:                        params.ID.HostID(),
+			NodeName:                      params.ID.NodeName,
+			Role:                          params.ID.Role,
+			AdditionalPrincipals:          params.AdditionalPrincipals,
+			DNSNames:                      params.DNSNames,
+			PublicTLSKey:                  params.PublicTLSKey,
+			PublicSSHKey:                  params.PublicSSHKey,
+			Rotation:                      &params.Rotation,
+			SystemRoles:                   params.SystemRoles,
+			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

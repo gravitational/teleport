@@ -57,7 +57,6 @@ $ tsh app login grafana
 # Logged into app grafana. Example curl command:
 
 $ curl \
-  --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
   https://grafana.teleport.example.com:3080
@@ -70,7 +69,11 @@ target application's API through Teleport App Access.
   type="note"
   title="CA and Key Pair Files"
 >
-  Note the paths to the CA certificate and your user's certificate/key pair in the command - `curl` will use a client certificate to authenticate with Teleport.
+  Note the paths to your user's certificate/key pair in the command - `curl` will use a client certificate to authenticate with Teleport.
+  
+  <ScopedBlock scope={["oss", "enterprise"]}>
+    The Teleport Proxy Service is usually configured with a wildcard certificate issued by a public certificate authority such as Let's Encrypt. If your Teleport Proxy Service has been configured to use a self-signed certificate instead, you will need to include it in your `curl` command using `--cacert <path>`.
+  </ScopedBlock>
 </Admonition>
 
 As Grafana's API requires authentication, let's update the `curl` command to
@@ -79,7 +82,6 @@ call its `/api/users` endpoint:
 
 ```code
 $ curl --user admin:admin \
-  --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
     https://grafana.teleport.example.com:3080/api/users
@@ -139,7 +141,6 @@ appropriate `curl` command. Using our Grafana `/api/users` example above:
 
 ```code
 $ curl --user admin:admin \
-  --cacert $(tsh app config --format=ca) \
   --cert $(tsh app config --format=cert) \
   --key $(tsh app config --format=key) \
     $(tsh app config --format=uri)/api/users

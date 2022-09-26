@@ -168,6 +168,13 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
+		case types.KindKubeServer:
+			srv, ok := resource.(*types.KubernetesServerV3)
+			if !ok {
+				return nil, trace.Errorf("kubernetes server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
@@ -262,6 +269,28 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			resources[i], err = types.NewServerWithLabels(fmt.Sprintf("node-%d", i), types.KindNode, types.ServerSpecV2{},
 				map[string]string{
 					"label": string(make([]byte, nodeLabelSize)),
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	case types.KindKubeServer:
+		for i := 0; i < size; i++ {
+			var err error
+			name := fmt.Sprintf("kube-service-%d", i)
+			resources[i], err = types.NewKubernetesServerV3(types.Metadata{
+				Name:   name,
+				Labels: map[string]string{"name": name},
+			},
+				types.KubernetesServerSpecV3{
+					Hostname: "test",
+					Cluster: &types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   name,
+							Labels: map[string]string{"name": name},
+						},
+					},
 				},
 			)
 			if err != nil {
@@ -701,4 +730,251 @@ func TestSetOIDCRedirectURLBackwardsCompatibility(t *testing.T) {
 	require.Equal(t, 1, len(connectorsResp))
 	require.Equal(t, 1, len(connectorsResp[0].GetRedirectURLs()))
 	require.Equal(t, "one.example.com", connectorsResp[0].GetRedirectURLs()[0])
+}
+
+type mockAccessRequestServer struct {
+	*mockServer
+}
+
+func (g *mockAccessRequestServer) GetAccessRequests(ctx context.Context, f *types.AccessRequestFilter) (*proto.AccessRequests, error) {
+	req, err := types.NewAccessRequest("foo", "bob", "admin")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.AccessRequests{
+		AccessRequests: []*types.AccessRequestV3{req.(*types.AccessRequestV3)},
+	}, nil
+}
+
+// TestAccessRequestDowngrade tests that the client will downgrade to the non stream API for fetching access requests
+// if the stream API is not available.
+func TestAccessRequestDowngrade(t *testing.T) {
+	ctx := context.Background()
+	l, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+
+	m := &mockAccessRequestServer{
+		&mockServer{
+			addr:                           l.Addr().String(),
+			grpc:                           grpc.NewServer(),
+			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
+		},
+	}
+	proto.RegisterAuthServiceServer(m.grpc, m)
+	t.Cleanup(m.grpc.Stop)
+
+	remoteErr := make(chan error)
+	go func() {
+		remoteErr <- m.grpc.Serve(l)
+	}()
+
+	clt, err := m.NewClient(ctx)
+	require.NoError(t, err)
+
+	items, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	m.grpc.Stop()
+	require.NoError(t, <-remoteErr)
+}
+
+type mockRoleServer struct {
+	*mockServer
+	roles map[string]*types.RoleV5
+}
+
+func newMockRoleServer() *mockRoleServer {
+	m := &mockRoleServer{
+		&mockServer{
+			grpc:                           grpc.NewServer(),
+			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
+		},
+		make(map[string]*types.RoleV5),
+	}
+	proto.RegisterAuthServiceServer(m.grpc, m)
+	return m
+}
+
+func startMockRoleServer(t *testing.T) string {
+	l, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+	go newMockRoleServer().grpc.Serve(l)
+	return l.Addr().String()
+}
+
+func (m *mockRoleServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV5, error) {
+	conn, ok := m.roles[req.Name]
+	if !ok {
+		return nil, trace.NotFound("not found")
+	}
+	return conn, nil
+}
+
+func (m *mockRoleServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRolesResponse, error) {
+	var connectors []*types.RoleV5
+	for _, conn := range m.roles {
+		connectors = append(connectors, conn)
+	}
+	return &proto.GetRolesResponse{
+		Roles: connectors,
+	}, nil
+}
+
+func (m *mockRoleServer) UpsertRole(ctx context.Context, role *types.RoleV5) (*empty.Empty, error) {
+	m.roles[role.Metadata.Name] = role
+	return &empty.Empty{}, nil
+}
+
+func (m *mockRoleServer) GetCurrentUserRoles(_ *empty.Empty, stream proto.AuthService_GetCurrentUserRolesServer) error {
+	for _, role := range m.roles {
+		if err := stream.Send(role); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// Test that client will perform properly with an old server
+// DELETE IN 13.0.0
+func TestSetRoleRequireSessionMFABackwardsCompatibility(t *testing.T) {
+	ctx := context.Background()
+	addr := startMockRoleServer(t)
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	role := &types.RoleV5{
+		Metadata: types.Metadata{
+			Name: "one",
+		},
+	}
+
+	t.Run("UpsertRole", func(t *testing.T) {
+		// UpsertRole should set "RequireSessionMFA" on the provided role if "RequireMFAType" is set
+		role.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+		role.Spec.Options.RequireSessionMFA = false
+		err = clt.UpsertRole(ctx, role)
+		require.NoError(t, err)
+		require.True(t, role.GetOptions().RequireSessionMFA)
+	})
+
+	t.Run("GetRole", func(t *testing.T) {
+		// GetRole should set "RequireMFAType" on the received role if empty
+		role.Spec.Options.RequireMFAType = 0
+		role.Spec.Options.RequireSessionMFA = true
+		roleResp, err := clt.GetRole(ctx, role.GetName())
+		require.NoError(t, err)
+		require.Equal(t, types.RequireMFAType_SESSION, roleResp.GetOptions().RequireMFAType)
+	})
+
+	t.Run("GetRoles", func(t *testing.T) {
+		// GetRoles should set "RequireMFAType" on the received roles if empty
+		role.Spec.Options.RequireMFAType = 0
+		role.Spec.Options.RequireSessionMFA = true
+		rolesResp, err := clt.GetRoles(ctx)
+		require.NoError(t, err)
+		require.Len(t, rolesResp, 1)
+		require.Equal(t, types.RequireMFAType_SESSION, rolesResp[0].GetOptions().RequireMFAType)
+	})
+
+	t.Run("GetCurrentUserRoles", func(t *testing.T) {
+		// GetCurrentUserRoles should set "RequireMFAType" on the received roles if empty
+		role.Spec.Options.RequireMFAType = 0
+		role.Spec.Options.RequireSessionMFA = true
+		rolesResp, err := clt.GetCurrentUserRoles(ctx)
+		require.NoError(t, err)
+		require.Len(t, rolesResp, 1)
+		require.Equal(t, types.RequireMFAType_SESSION, rolesResp[0].GetOptions().RequireMFAType)
+	})
+}
+
+type mockAuthPreferenceServer struct {
+	*mockServer
+	pref *types.AuthPreferenceV2
+}
+
+func newMockAuthPreferenceServer() *mockAuthPreferenceServer {
+	m := &mockAuthPreferenceServer{
+		mockServer: &mockServer{
+			grpc:                           grpc.NewServer(),
+			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
+		},
+	}
+	proto.RegisterAuthServiceServer(m.grpc, m)
+	return m
+}
+
+func startMockAuthPreferenceServer(t *testing.T) string {
+	l, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+	go newMockAuthPreferenceServer().grpc.Serve(l)
+	return l.Addr().String()
+}
+
+func (m *mockAuthPreferenceServer) GetAuthPreference(ctx context.Context, _ *empty.Empty) (*types.AuthPreferenceV2, error) {
+	if m.pref == nil {
+		return nil, trace.NotFound("not found")
+	}
+	return m.pref, nil
+}
+
+func (m *mockAuthPreferenceServer) SetAuthPreference(ctx context.Context, pref *types.AuthPreferenceV2) (*empty.Empty, error) {
+	m.pref = pref
+	return &empty.Empty{}, nil
+}
+
+// Test that client will perform properly with an old server
+// DELETE IN 13.0.0
+func TestSetAuthPreferenceRequireSessionMFABackwardsCompatibility(t *testing.T) {
+	ctx := context.Background()
+	addr := startMockAuthPreferenceServer(t)
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	pref := &types.AuthPreferenceV2{
+		Metadata: types.Metadata{
+			Name: "one",
+		},
+	}
+
+	t.Run("SetAuthPreference", func(t *testing.T) {
+		// SetAuthPreference should set "RequireSessionMFA" on the provided auth pref if "RequireMFAType" is set
+		pref.Spec.RequireMFAType = types.RequireMFAType_SESSION
+		pref.Spec.RequireSessionMFA = false
+		err = clt.SetAuthPreference(ctx, pref)
+		require.NoError(t, err)
+		require.True(t, pref.Spec.RequireSessionMFA)
+	})
+
+	t.Run("GetAuthPreference", func(t *testing.T) {
+		// GetAuthPreference should set "RequireMFAType" on the received auth pref if empty
+		pref.Spec.RequireMFAType = 0
+		pref.Spec.RequireSessionMFA = true
+		prefResp, err := clt.GetAuthPreference(ctx)
+		require.NoError(t, err)
+		require.Equal(t, types.RequireMFAType_SESSION, prefResp.GetRequireMFAType())
+	})
 }

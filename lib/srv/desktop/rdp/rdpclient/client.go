@@ -108,6 +108,12 @@ func init() {
 }
 
 // Client is the RDP client.
+// Its lifecycle is:
+//
+// ```
+// rdpc := New()         // creates client
+// rdpc.Run()   // starts rdp and waits for the duration of the connection
+// ```
 type Client struct {
 	cfg Config
 
@@ -115,7 +121,7 @@ type Client struct {
 	clientWidth, clientHeight uint16
 	username                  string
 
-	// handle allows the rust code to call back into the client
+	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
 
 	// RDP client on the Rust side.
@@ -136,7 +142,7 @@ type Client struct {
 }
 
 // New creates and connects a new Client based on cfg.
-func New(ctx context.Context, cfg Config) (*Client, error) {
+func New(cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -144,7 +150,6 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		cfg:           cfg,
 		readyForInput: 0,
 	}
-	c.handle = cgo.NewHandle(c)
 
 	if err := c.readClientUsername(); err != nil {
 		return nil, trace.Wrap(err)
@@ -155,11 +160,30 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := c.readClientSize(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return c, nil
+}
+
+// Run starts the rdp client and blocks until the client disconnects,
+// then ensures the cleanup is run.
+func (c *Client) Run(ctx context.Context) error {
+	defer c.cleanup()
+
+	c.handle = cgo.NewHandle(c)
+
 	if err := c.connect(ctx); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	c.start()
-	return c, nil
+
+	// Hang until input and output streaming
+	// goroutines both finish.
+	c.wg.Wait()
+
+	// Both goroutines have finished, it's now
+	// safe for the deferred c.cleanup() call to
+	// clean up the memory.
+
+	return nil
 }
 
 func (c *Client) readClientUsername() error {
@@ -230,6 +254,7 @@ func (c *Client) connect(ctx context.Context) error {
 		return trace.ConnectionProblem(nil, "RDP connection failed")
 	}
 	c.rustClient = res.client
+
 	return nil
 }
 
@@ -240,19 +265,16 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.Close()
+		defer c.close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
+
+		c.cfg.Log.Info("RDP output streaming starting")
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if err := C.read_rdp_output(c.rustClient); err != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
-
-			// close the TDP connection to the browser
-			// (without this the input streaming goroutine will hang
-			// waiting for user input)
+		if errCode := C.read_rdp_output(c.rustClient); errCode != C.ErrCodeSuccess {
+			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", errCode)
 			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
-			c.cfg.Conn.Close()
 		}
 	}()
 
@@ -260,8 +282,11 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.Close()
+		defer c.close()
 		defer c.cfg.Log.Info("TDP input streaming finished")
+
+		c.cfg.Log.Info("TDP input streaming starting")
+
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
@@ -283,7 +308,7 @@ func (c *Client) start() {
 			switch m := msg.(type) {
 			case tdp.MouseMove:
 				mouseX, mouseY = m.X, m.Y
-				if err := C.write_rdp_pointer(
+				if errCode := C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(m.X),
@@ -291,7 +316,8 @@ func (c *Client) start() {
 						button: C.PointerButtonNone,
 						wheel:  C.PointerWheelNone,
 					},
-				); err != C.ErrCodeSuccess {
+				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("MouseMove: write_rdp_pointer @ (%v,%v): %v", m.X, m.Y, errCode)
 					return
 				}
 			case tdp.MouseButton:
@@ -307,7 +333,7 @@ func (c *Client) start() {
 				default:
 					button = C.PointerButtonNone
 				}
-				if err := C.write_rdp_pointer(
+				if errCode := C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(mouseX),
@@ -316,7 +342,9 @@ func (c *Client) start() {
 						down:   m.State == tdp.ButtonPressed,
 						wheel:  C.PointerWheelNone,
 					},
-				); err != C.ErrCodeSuccess {
+				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("MouseButton: write_rdp_pointer @ (%v, %v) button=%v state=%v: %v",
+						mouseX, mouseY, button, m.State, errCode)
 					return
 				}
 			case tdp.MouseWheel:
@@ -335,7 +363,7 @@ func (c *Client) start() {
 				default:
 					wheel = C.PointerWheelNone
 				}
-				if err := C.write_rdp_pointer(
+				if errCode := C.write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:           C.uint16_t(mouseX),
@@ -344,30 +372,171 @@ func (c *Client) start() {
 						wheel:       uint32(wheel),
 						wheel_delta: C.int16_t(m.Delta),
 					},
-				); err != C.ErrCodeSuccess {
+				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("MouseWheel: write_rdp_pointer @ (%v, %v) wheel=%v delta=%v: %v",
+						mouseX, mouseY, wheel, m.Delta, errCode)
 					return
 				}
 			case tdp.KeyboardButton:
-				if err := C.write_rdp_keyboard(
+				if errCode := C.write_rdp_keyboard(
 					c.rustClient,
 					C.CGOKeyboardEvent{
 						code: C.uint16_t(m.KeyCode),
 						down: m.State == tdp.ButtonPressed,
 					},
-				); err != C.ErrCodeSuccess {
+				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("KeyboardButton: write_rdp_keyboard code=%v state=%v: %v",
+						m.KeyCode, m.State, errCode)
 					return
 				}
 			case tdp.ClipboardData:
 				if len(m) > 0 {
-					if err := C.update_clipboard(
+					if errCode := C.update_clipboard(
 						c.rustClient,
 						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
-					); err != C.ErrCodeSuccess {
+					); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Warningf("ClipboardData: update_clipboard (len=%v): %v", len(m), errCode)
 						return
 					}
 				} else {
 					c.cfg.Log.Warning("Recieved an empty clipboard message")
+				}
+			case tdp.SharedDirectoryAnnounce:
+				if c.cfg.AllowDirectorySharing {
+					driveName := C.CString(m.Name)
+					defer C.free(unsafe.Pointer(driveName))
+					if errCode := C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
+						directory_id: C.uint32_t(m.DirectoryID),
+						name:         driveName,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryInfoResponse:
+				if c.cfg.AllowDirectorySharing {
+					path := C.CString(m.Fso.Path)
+					defer C.free(unsafe.Pointer(path))
+					if errCode := C.handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+						fso: C.CGOFileSystemObject{
+							last_modified: C.uint64_t(m.Fso.LastModified),
+							size:          C.uint64_t(m.Fso.Size),
+							file_type:     m.Fso.FileType,
+							is_empty:      C.uint8_t(m.Fso.IsEmpty),
+							path:          path,
+						},
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryInfoResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryCreateResponse:
+				if c.cfg.AllowDirectorySharing {
+					path := C.CString(m.Fso.Path)
+					defer C.free(unsafe.Pointer(path))
+					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+						fso: C.CGOFileSystemObject{
+							last_modified: C.uint64_t(m.Fso.LastModified),
+							size:          C.uint64_t(m.Fso.Size),
+							file_type:     m.Fso.FileType,
+							is_empty:      C.uint8_t(m.Fso.IsEmpty),
+							path:          path,
+						},
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryDeleteResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryListResponse:
+				if c.cfg.AllowDirectorySharing {
+					fsoList := make([]C.CGOFileSystemObject, 0, len(m.FsoList))
+
+					for _, fso := range m.FsoList {
+						path := C.CString(fso.Path)
+						defer C.free(unsafe.Pointer(path))
+
+						fsoList = append(fsoList, C.CGOFileSystemObject{
+							last_modified: C.uint64_t(fso.LastModified),
+							size:          C.uint64_t(fso.Size),
+							file_type:     fso.FileType,
+							is_empty:      C.uint8_t(fso.IsEmpty),
+							path:          path,
+						})
+					}
+
+					fsoListLen := len(fsoList)
+					var cgoFsoList *C.CGOFileSystemObject
+
+					if fsoListLen > 0 {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0]))
+					} else {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
+					}
+
+					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
+						completion_id:   C.uint32_t(m.CompletionID),
+						err_code:        m.ErrCode,
+						fso_list_length: C.uint32_t(fsoListLen),
+						fso_list:        cgoFsoList,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryListResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryReadResponse:
+				if c.cfg.AllowDirectorySharing {
+					var readData *C.uint8_t
+					if m.ReadDataLength > 0 {
+						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
+					} else {
+						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
+					}
+
+					if errCode := C.handle_tdp_sd_read_response(c.rustClient, C.CGOSharedDirectoryReadResponse{
+						completion_id:    C.uint32_t(m.CompletionID),
+						err_code:         m.ErrCode,
+						read_data_length: C.uint32_t(m.ReadDataLength),
+						read_data:        readData,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryReadResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryWriteResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_write_response(c.rustClient, C.CGOSharedDirectoryWriteResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+						bytes_written: C.uint32_t(m.BytesWritten),
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryWriteResponse failed: %v", errCode)
+						return
+					}
+				}
+			case tdp.SharedDirectoryMoveResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_move_response(c.rustClient, C.CGOSharedDirectoryMoveResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
+						return
+					}
 				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
@@ -434,25 +603,230 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-// Wait blocks until the client disconnects and runs the cleanup.
-func (c *Client) Wait() error {
-	c.wg.Wait()
-	// Let the Rust side free its data.
-	C.free_rdp(c.rustClient)
-	return nil
+//export tdp_sd_acknowledge
+func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
+		ErrCode:     uint32(ack.err_code),
+		DirectoryID: uint32(ack.directory_id),
+	})
 }
 
-// Close shuts down the client and closes any existing connections.
-// It is safe to call multiple times, from multiple goroutines.
-// Calls other than the first one are no-ops.
-func (c *Client) Close() {
-	c.closeOnce.Do(func() {
-		c.handle.Delete()
+// sharedDirectoryAcknowledge is sent by the TDP server to the client
+// to acknowledge that a SharedDirectoryAnnounce was received.
+func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
 
-		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("failed to close the RDP client")
+	if err := c.cfg.Conn.OutputMessage(ack); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_info_request
+func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryInfoRequest(tdp.SharedDirectoryInfoRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+	})
+}
+
+// sharedDirectoryInfoRequest is sent from the TDP server to the client
+// to request information about a file or directory at a given path.
+func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_create_request
+func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		FileType:     uint32(req.file_type),
+		Path:         C.GoString(req.path),
+	})
+}
+
+// sharedDirectoryCreateRequest is sent by the TDP server to
+// the client to request the creation of a new file or directory.
+func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryCreateRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_delete_request
+func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryDeleteRequest(tdp.SharedDirectoryDeleteRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+	})
+}
+
+// sharedDirectoryDeleteRequest is sent by the TDP server to the client
+// to request the deletion of a file or directory at path.
+func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryDeleteRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_list_request
+func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryListRequest(tdp.SharedDirectoryListRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+	})
+}
+
+// sharedDirectoryListRequest is sent by the TDP server to the client
+// to request the contents of a directory.
+func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryListRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_read_request
+func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryReadRequest(tdp.SharedDirectoryReadRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+		Offset:       uint64(req.offset),
+		Length:       uint32(req.length),
+	})
+}
+
+// SharedDirectoryReadRequest is sent by the TDP server to the client
+// to request the contents of a file.
+func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryReadRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_write_request
+func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryWriteRequest(tdp.SharedDirectoryWriteRequest{
+		CompletionID:    uint32(req.completion_id),
+		DirectoryID:     uint32(req.directory_id),
+		Offset:          uint64(req.offset),
+		Path:            C.GoString(req.path),
+		WriteDataLength: uint32(req.write_data_length),
+		WriteData:       C.GoBytes(unsafe.Pointer(req.write_data), C.int(req.write_data_length)),
+	})
+}
+
+// SharedDirectoryWriteRequest is sent by the TDP server to the client
+// to write to a file.
+func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_move_request
+func tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		OriginalPath: C.GoString(req.original_path),
+		NewPath:      C.GoString(req.new_path),
+	})
+}
+
+func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryMoveRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+
+}
+
+// close closes the RDP client connection and
+// the TDP connection to the browser.
+func (c *Client) close() {
+	c.closeOnce.Do(func() {
+		// Ensure the RDP connection is closed
+		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
+			c.cfg.Log.Warningf("error closing the RDP connection")
+		} else {
+			c.cfg.Log.Debug("RDP connection closed successfully")
+		}
+
+		// Ensure the TDP connection is closed
+		if err := c.cfg.Conn.Close(); err != nil {
+			c.cfg.Log.Warningf("error closing the TDP connection: %v", err)
+		} else {
+			c.cfg.Log.Debug("TDP connection closed successfully")
 		}
 	})
+}
+
+// cleanup frees the Rust client and
+// frees the memory of the cgo.Handle.
+// This function should only be called
+// once per Client.
+func (c *Client) cleanup() {
+	// Let the Rust side free its data
+	if c.rustClient != nil {
+		C.free_rdp(c.rustClient)
+	}
+
+	// Release the memory of the cgo.Handle
+	if c.handle != 0 {
+		c.handle.Delete()
+	}
+
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

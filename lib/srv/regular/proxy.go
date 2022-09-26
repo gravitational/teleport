@@ -36,6 +36,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -90,10 +91,11 @@ type proxySubsys struct {
 // proxy subsystem
 //
 // proxy subsystem name can take the following forms:
-//  "proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st cluster
-//  "proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
-//  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
-//  "proxy:host:22@namespace@clustername"
+//
+//	"proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st cluster
+//	"proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
+//	"proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
+//	"proxy:host:22@namespace@clustername"
 func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (
@@ -189,7 +191,7 @@ func (p *proxySubsysRequest) SetDefaults() {
 // a port forwarding request, used to implement ProxyJump feature in proxy
 // and reuse the code
 func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest) (*proxySubsys, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -18,16 +18,22 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
-	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -37,11 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 const (
@@ -72,7 +74,6 @@ type GlobalCLIFlags struct {
 // This allows OSS and Enterprise Teleport editions to plug their own
 // implementations of different CLI commands into the common execution
 // framework
-//
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
@@ -88,6 +89,19 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(commands []CLICommand) {
+	err := TryRun(commands, os.Args[1:])
+	if err != nil {
+		var exitError *toolcommon.ExitCodeError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.Code)
+		}
+		utils.FatalError(err)
+	}
+}
+
+// TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
+// This is useful for testing tctl, because we can capture the returned error in tests.
+func TryRun(commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
 
 	// app is the command line parser
@@ -141,17 +155,17 @@ func Run(commands []CLICommand) {
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, os.Args[1:])
-	selectedCmd, err := app.Parse(os.Args[1:])
+	utils.UpdateAppUsageTemplate(app, args)
+	selectedCmd, err := app.Parse(args)
 	if err != nil {
-		app.Usage(os.Args[1:])
-		utils.FatalError(err)
+		app.Usage(args)
+		return trace.Wrap(err)
 	}
 
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
 		utils.PrintVersion()
-		return
+		return nil
 	}
 
 	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
@@ -160,9 +174,9 @@ func Run(commands []CLICommand) {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	clientConfig, err := applyConfig(&ccf, cfg)
+	clientConfig, err := ApplyConfig(&ccf, cfg)
 	if err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 
 	ctx, cancel := signal.NotifyContext(
@@ -172,10 +186,13 @@ func Run(commands []CLICommand) {
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
+		if utils.IsUntrustedCertErr(err) {
+			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		}
 		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServers[0].Addr)
-		os.Exit(1)
+		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
 	}
 
 	// execute whatever is selected:
@@ -183,20 +200,21 @@ func Run(commands []CLICommand) {
 	for _, c := range commands {
 		match, err = c.TryRun(ctx, selectedCmd, client)
 		if err != nil {
-			utils.FatalError(err)
+			return trace.Wrap(err)
 		}
 		if match {
 			break
 		}
 	}
+	return nil
 }
 
-// applyConfig takes configuration values from the config file and applies them
+// ApplyConfig takes configuration values from the config file and applies them
 // to 'service.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -224,6 +242,20 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		}
 	}
 
+	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// --auth-server flag(-s)
+	if len(ccf.AuthServerAddr) != 0 {
+		addrs, err := utils.ParseAddrs(ccf.AuthServerAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Overwrite any existing configuration with flag values.
+		cfg.AuthServers = addrs
+	}
+
 	// Config file should take precedence, if available.
 	if fileConf == nil && ccf.IdentityFilePath == "" {
 		// No config file or identity file.
@@ -237,17 +269,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	// --auth-server flag(-s)
-	if len(ccf.AuthServerAddr) != 0 {
-		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	// If auth server is not provided on the command line or in file
 	// configuration, use the default.
 	if len(cfg.AuthServers) == 0 {
@@ -282,6 +304,15 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		// because it will be used for reading local auth server identity
 		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
+					"Please make sure that Teleport is up and running prior to using tctl.",
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+			} else if errors.Is(err, fs.ErrPermission) {
+				return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
+					"Ensure that you are running as a user with appropriate permissions.",
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+			}
 			return nil, trace.Wrap(err)
 		}
 		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})

@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/gokyle/hotp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -432,53 +431,6 @@ func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return item.Value, nil
-}
-
-// UpsertHOTP upserts HOTP state for user
-// Deprecated: HOTP use is deprecated, use UpsertMFADevice instead.
-func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
-	if user == "" {
-		return trace.BadParameter("missing user name")
-	}
-	bytes, err := hotp.Marshal(otp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, hotpPrefix),
-		Value: bytes,
-	}
-
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetHOTP gets HOTP token state for a user
-// Deprecated: HOTP use is deprecated, use GetMFADevices instead.
-func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing user name")
-	}
-
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, hotpPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("user %q is not found", user)
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	otp, err := hotp.Unmarshal(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return otp, nil
 }
 
 // UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
@@ -944,16 +896,11 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 			return nil, trace.Wrap(err)
 		}
 		if !withSecrets {
-			switch mfad := d.Device.(type) {
-			case *types.MFADevice_Totp:
-				mfad.Totp.Key = ""
-			case *types.MFADevice_U2F:
-				// OK, no sensitive secrets.
-			case *types.MFADevice_Webauthn:
-				// OK, no sensitive secrets.
-			default:
-				return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
+			devWithoutSensitiveData, err := d.WithoutSensitiveData()
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			d = *devWithoutSensitiveData
 		}
 		devices = append(devices, &d)
 	}
@@ -1494,7 +1441,6 @@ const (
 	sessionsPrefix            = "sessions"
 	attemptsPrefix            = "attempts"
 	pwdPrefix                 = "pwd"
-	hotpPrefix                = "hotp"
 	connectorsPrefix          = "connectors"
 	oidcPrefix                = "oidc"
 	samlPrefix                = "saml"

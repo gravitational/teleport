@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,14 +32,13 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 )
 
 type LoggingPurpose int
@@ -49,22 +49,22 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
-	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
-	log.SetLevel(level)
+func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
+	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetLevel(level)
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
-		if level == log.DebugLevel {
-			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-			log.SetOutput(os.Stderr)
+		if level == logrus.DebugLevel {
+			logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+			logrus.SetOutput(os.Stderr)
 		} else {
-			log.SetOutput(io.Discard)
+			logrus.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
-		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-		log.SetOutput(os.Stderr)
+		logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+		logrus.SetOutput(os.Stderr)
 	}
 }
 
@@ -73,49 +73,49 @@ func InitLoggerForTests() {
 	// Parse flags to check testing.Verbose().
 	flag.Parse()
 
-	logger := log.StandardLogger()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	log.SetFormatter(NewTestTextFormatter())
-	logger.SetLevel(log.DebugLevel)
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
 		return
 	}
-	logger.SetLevel(log.WarnLevel)
+	logger.SetLevel(logrus.WarnLevel)
 	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
-func NewLoggerForTests() *log.Logger {
-	logger := log.New()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(NewTestTextFormatter())
-	logger.SetLevel(log.DebugLevel)
+func NewLoggerForTests() *logrus.Logger {
+	logger := logrus.New()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logger.SetFormatter(NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
 }
 
 // WrapLogger wraps an existing logger entry and returns
 // an value satisfying the Logger interface
-func WrapLogger(logger *log.Entry) Logger {
+func WrapLogger(logger *logrus.Entry) Logger {
 	return &logWrapper{Entry: logger}
 }
 
 // NewLogger creates a new empty logger
-func NewLogger() *log.Logger {
-	logger := log.New()
+func NewLogger() *logrus.Logger {
+	logger := logrus.New()
 	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
 // Logger describes a logger value
 type Logger interface {
-	log.FieldLogger
+	logrus.FieldLogger
 	// GetLevel specifies the level at which this logger
 	// value is logging
-	GetLevel() log.Level
+	GetLevel() logrus.Level
 	// SetLevel sets the logger's level to the specified value
-	SetLevel(level log.Level)
+	SetLevel(level logrus.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -136,7 +136,7 @@ func GetIterations() int {
 	if err != nil {
 		panic(err)
 	}
-	log.Debugf("Starting tests with %v iterations.", iter)
+	logrus.Debugf("Starting tests with %v iterations.", iter)
 	return iter
 }
 
@@ -147,7 +147,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if log.GetLevel() == log.DebugLevel {
+	if logrus.GetLevel() == logrus.DebugLevel {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -212,14 +212,7 @@ func formatErrorWriter(err error, w io.Writer) {
 }
 
 func formatCertError(err error) string {
-	switch innerError := trace.Unwrap(err).(type) {
-	case x509.HostnameError:
-		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
-			innerError.Host,
-			innerError.Error(),
-			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
-	case x509.UnknownAuthorityError:
-		return `WARNING:
+	const unknownAuthority = `WARNING:
 
   The proxy you are connecting to has presented a certificate signed by a
   unknown authority. This is most likely due to either being presented
@@ -237,16 +230,33 @@ func formatCertError(err error) string {
   If you think something malicious may be occurring, contact your Teleport
   system administrator to resolve this issue.
 `
-	case x509.CertificateInvalidError:
+	if errors.As(err, &x509.UnknownAuthorityError{}) {
+		return unknownAuthority
+	}
+
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
+			hostnameErr.Host,
+			hostnameErr.Error(),
+			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
+	}
+
+	var certInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &x509.CertificateInvalidError{}) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.
 
-  Contact your Teleport system administrator to resolve this issue.`, innerError)
-	default:
-		return ""
+  Contact your Teleport system administrator to resolve this issue.`, certInvalidErr)
 	}
 
+	// Check for less explicit errors. These are often emitted on Darwin
+	if strings.Contains(err.Error(), "certificate is not trusted") {
+		return unknownAuthority
+	}
+
+	return ""
 }
 
 const (
@@ -269,7 +279,7 @@ func Color(color int, v interface{}) string {
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ...interface{}) {
+func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
 	log.Info(msg)
 	if w != nil {
@@ -286,6 +296,9 @@ func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ..
 // some defaults common for all Teleport CLI tools
 func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app = kingpin.New(appName, appHelp)
+
+	// make all flags repeatable, this makes the CLI easier to use.
+	app.AllRepeatable(true)
 
 	// hide "--help" flag
 	app.HelpFlag.Hidden()
@@ -339,7 +352,6 @@ func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseCont
 				opt.commandPrintfWidth = len(command.FullCommand)
 			}
 		}
-
 	}
 }
 
@@ -354,7 +366,7 @@ func SplitIdentifiers(s string) []string {
 // EscapeControl escapes all ANSI escape sequences from string and returns a
 // string that is safe to print on the CLI. This is to ensure that malicious
 // servers can not hide output. For more details, see:
-//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
 func EscapeControl(s string) string {
 	if needsQuoting(s) {
 		return fmt.Sprintf("%q", s)
@@ -365,7 +377,7 @@ func EscapeControl(s string) string {
 // AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
 // string that is safe to print on the CLI. This is to ensure that malicious
 // servers can not hide output. For more details, see:
-//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
 func AllowNewlines(s string) string {
 	if !strings.Contains(s, "\n") {
 		return EscapeControl(s)

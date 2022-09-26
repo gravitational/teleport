@@ -18,13 +18,16 @@ limitations under the License.
 // that combine connection parameters for a particular database.
 //
 // For Postgres it's the connection service file:
-//   https://www.postgresql.org/docs/current/libpq-pgservice.html
+//
+//	https://www.postgresql.org/docs/current/libpq-pgservice.html
 //
 // For MySQL it's the option file:
-//   https://dev.mysql.com/doc/refman/8.0/en/option-files.html
+//
+//	https://dev.mysql.com/doc/refman/8.0/en/option-files.html
 package db
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -38,12 +41,8 @@ import (
 )
 
 // Add updates database connection profile file.
-func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus) error {
-	// Out of supported databases, only Postgres and MySQL have a concept
-	// of the connection options file.
-	switch db.Protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
-	default:
+func Add(ctx context.Context, tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus) error {
+	if !IsSupported(db) {
 		return nil
 	}
 	profileFile, err := load(db)
@@ -51,7 +50,7 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 		return trace.Wrap(err)
 	}
 
-	rootClusterName, err := tc.RootClusterName()
+	rootClusterName, err := tc.RootClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,11 +111,7 @@ func Env(tc *client.TeleportClient, db tlsca.RouteToDatabase) (map[string]string
 
 // Delete removes the specified database connection profile.
 func Delete(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
-	// Out of supported databases, only Postgres and MySQL have a concept
-	// of the connection options file.
-	switch db.Protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
-	default:
+	if !IsSupported(db) {
 		return nil
 	}
 	profileFile, err := load(db)
@@ -128,6 +123,18 @@ func Delete(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// IsSupported checks if provided database is supported.
+func IsSupported(db tlsca.RouteToDatabase) bool {
+	// Out of supported databases, only Postgres and MySQL have a concept
+	// of the connection options file.
+	switch db.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
+		return true
+	default:
+		return false
+	}
 }
 
 // load loads the appropriate database connection profile.

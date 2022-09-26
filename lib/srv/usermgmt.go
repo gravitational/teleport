@@ -19,26 +19,30 @@ package srv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os/user"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewHostUsers initialize a new HostUsers object
-func NewHostUsers(ctx context.Context, storage *local.PresenceService) (HostUsers, error) {
+func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
 	// newHostUsersBackend statically returns a valid backend or an error,
 	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostUsersBackend() //nolint:staticcheck
-	if err != nil {                       //nolint:staticcheck
-		return nil, trace.Wrap(err)
+	backend, err := newHostUsersBackend(uuid) //nolint:staticcheck
+	if err != nil {                           //nolint:staticcheck
+		log.Warnf("Error making new HostUsersBackend: %s", err)
+		return nil
 	}
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	return &HostUserManagement{
@@ -47,7 +51,7 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService) (HostUser
 		cancel:    cancelFunc,
 		storage:   storage,
 		userGrace: time.Second * 30,
-	}, nil
+	}
 }
 
 type HostUsersBackend interface {
@@ -65,10 +69,13 @@ type HostUsersBackend interface {
 	CreateUser(name string, groups []string) error
 	// DeleteUser deletes a user from a host.
 	DeleteUser(name string) error
+	// CheckSudoers ensures that a sudoers file to be written is valid
+	CheckSudoers(contents []byte) error
+	// WriteSudoersFile creates the user's sudoers file.
+	WriteSudoersFile(user string, entries []byte) error
+	// RemoveSudoersFile deletes a user's sudoers file.
+	RemoveSudoersFile(user string) error
 }
-
-// HostUsersProvisioningBackend is used to implement HostUsersBackend
-type HostUsersProvisioningBackend struct{}
 
 type userCloser struct {
 	users    HostUsers
@@ -126,6 +133,22 @@ type HostUserManagement struct {
 
 var _ HostUsers = &HostUserManagement{}
 
+// Under the section "Including other files from within sudoers":
+//
+//	https://man7.org/linux/man-pages/man5/sudoers.5.html
+//
+// '.', '~' and '/' will cause a file not to be read and these can be
+// included in a username, removing slash to avoid escaping a
+// directory
+var sudoersSanitizationMatcher = regexp.MustCompile(`[\.~\/]`)
+
+// sanitizeSudoersName replaces occurrences of '.', '~' and '/' with
+// underscores as `sudo` will not read files including these
+// characters
+func sanitizeSudoersName(username string) string {
+	return sudoersSanitizationMatcher.ReplaceAllString(username, "_")
+}
+
 // CreateUser creates a temporary Teleport user in the TeleportServiceGroup
 func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (*user.User, io.Closer, error) {
 	tempUser, err := u.backend.Lookup(name)
@@ -140,6 +163,9 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
+			if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
+			}
 			return nil, nil, trace.Wrap(err)
 		}
 		var found bool
@@ -204,12 +230,23 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	return tempUser, &userCloser{
+	closer := &userCloser{
 		username: name,
 		users:    u,
 		backend:  u.backend,
-	}, nil
+	}
+	if len(ui.Sudoers) != 0 {
+		var sudoers strings.Builder
+		for _, entry := range ui.Sudoers {
+			sudoers.WriteString(fmt.Sprintf("%s %s\n", name, entry))
+		}
+		err := u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
+		if err != nil {
+			return tempUser, closer, trace.Wrap(err)
+		}
+	}
+
+	return tempUser, closer, nil
 }
 
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {
@@ -222,7 +259,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				MaxLeases:     1,
 				Expires:       time.Now().Add(time.Second * 20),
 			},
-			Retry: utils.LinearConfig{
+			Retry: retryutils.LinearConfig{
 				Step: time.Second * 5,
 				Max:  time.Minute,
 			},
@@ -254,6 +291,10 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	}
 	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 	if err != nil {
+		if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+			log.Debugf("'teleport-service' group not found, not deleting users")
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 	var errs []error
@@ -294,11 +335,18 @@ func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 	for _, id := range ids {
 		if id == gid {
 			err := u.backend.DeleteUser(username)
-			if errors.Is(err, ErrUserLoggedIn) {
-				log.Debugf("Not deleting user %q, user has another session, or running process", username)
-				return nil
+			if err != nil {
+				if errors.Is(err, ErrUserLoggedIn) {
+					log.Debugf("Not deleting user %q, user has another session, or running process", username)
+					return nil
+				}
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
+
+			if err := u.backend.RemoveSudoersFile(username); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
 		}
 	}
 	log.Debugf("User %q not deleted: not a temporary user", username)

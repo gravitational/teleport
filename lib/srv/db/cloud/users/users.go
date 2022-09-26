@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
@@ -32,7 +32,7 @@ import (
 // Config is the config for users service.
 type Config struct {
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients cloud.Clients
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// Interval is the interval between user updates. Interval is also used as
@@ -50,7 +50,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing UpdateMeta")
 	}
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = cloud.NewClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -149,7 +149,7 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 
 	ticker := interval.New(interval.Config{
 		// Use jitter for HA setups.
-		Jitter: utils.NewSeventhJitter(),
+		Jitter: retryutils.NewSeventhJitter(),
 
 		// NewSeventhJitter builds a new jitter on the range [6n/7,n).
 		// Use n = cfg.Interval*7/6 gives an effective duration range of
@@ -274,6 +274,7 @@ func (u *Users) setupUser(ctx context.Context, user User) (User, error) {
 func makeFetchers(cfg Config) (map[string]Fetcher, error) {
 	newFetcherFuncs := []func(Config) (Fetcher, error){
 		newElastiCacheFetcher,
+		newMemoryDBFetcher,
 	}
 
 	fetchersByType := make(map[string]Fetcher)

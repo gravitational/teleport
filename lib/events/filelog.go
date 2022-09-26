@@ -169,7 +169,7 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 		default:
 			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
 			l.WithFields(fields).Warnf("Got a event that exeeded max allowed size.")
-			return trace.BadParameter("event size %q exceeds max entry size %q", len(line), l.MaxScanTokenSize)
+			return trace.BadParameter("event size %v exceeds max entry size %v", len(line), l.MaxScanTokenSize)
 		}
 	}
 
@@ -362,7 +362,7 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 	return event.GetID(), nil
 }
 
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", fromUTC, toUTC, order, limit, cond)
 	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent, WindowsDesktopSessionEndEvent}}
 	if cond != nil {

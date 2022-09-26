@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -64,6 +64,11 @@ func (m *lookupMap) setDatabaseUsers(database types.Database, users []User) {
 		m.byDatabase[database] = users
 	} else {
 		delete(m.byDatabase, database)
+
+		// Short circuit.
+		if len(database.GetManagedUsers()) == 0 {
+			return
+		}
 	}
 
 	// Update database resource.
@@ -147,7 +152,7 @@ func genRandomPassword(length int) (string, error) {
 }
 
 // newSecretStore create a new secrets store helper for provided database.
-func newSecretStore(database types.Database, clients common.CloudClients) (secrets.Secrets, error) {
+func newSecretStore(database types.Database, clients cloud.Clients) (secrets.Secrets, error) {
 	secretStoreConfig := database.GetSecretStore()
 
 	client, err := clients.GetAWSSecretsManagerClient(database.GetAWS().Region)

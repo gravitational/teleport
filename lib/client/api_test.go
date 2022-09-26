@@ -17,34 +17,34 @@ limitations under the License.
 package client
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"io"
+	"math"
 	"os"
 	"testing"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
-
-// register test suite
-type APITestSuite struct{}
-
-// bootstrap check
-func TestClientAPI(t *testing.T) { check.TestingT(t) }
-
-var _ = check.Suite(&APITestSuite{})
 
 func TestParseProxyHostString(t *testing.T) {
 	t.Parallel()
@@ -183,7 +183,7 @@ func TestParseProxyHostString(t *testing.T) {
 	}
 }
 
-func (s *APITestSuite) TestNew(c *check.C) {
+func TestNew(t *testing.T) {
 	conf := Config{
 		Host:      "localhost",
 		HostLogin: "vincent",
@@ -191,70 +191,72 @@ func (s *APITestSuite) TestNew(c *check.C) {
 		KeysDir:   "/tmp",
 		Username:  "localuser",
 		SiteName:  "site",
+		Tracer:    tracing.NoopProvider().Tracer("test"),
 	}
 	err := conf.ParseProxyHost("proxy")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	tc, err := NewClient(&conf)
-	c.Assert(err, check.IsNil)
-	c.Assert(tc, check.NotNil)
+	require.NoError(t, err)
+	require.NotNil(t, tc)
 
 	la := tc.LocalAgent()
-	c.Assert(la, check.NotNil)
+	require.NotNil(t, la)
 }
 
-func (s *APITestSuite) TestParseLabels(c *check.C) {
+func TestParseLabels(t *testing.T) {
 	// simplest case:
 	m, err := ParseLabelSpec("key=value")
-	c.Assert(m, check.NotNil)
-	c.Assert(err, check.IsNil)
-	c.Assert(m, check.DeepEquals, map[string]string{
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string]string{
 		"key": "value",
-	})
+	}))
+
 	// multiple values:
 	m, err = ParseLabelSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
-	c.Assert(m, check.NotNil)
-	c.Assert(err, check.IsNil)
-	c.Assert(m, check.HasLen, 3)
-	c.Assert(m["role"], check.Equals, "master")
-	c.Assert(m["type"], check.Equals, "database")
-	c.Assert(m["ver"], check.Equals, "mongoDB v1,2")
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Len(t, m, 3)
+	require.Equal(t, m["role"], "master")
+	require.Equal(t, m["type"], "database")
+	require.Equal(t, m["ver"], "mongoDB v1,2")
 
 	// multiple and unicode:
 	m, err = ParseLabelSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北`)
-	c.Assert(err, check.IsNil)
-	c.Assert(m, check.NotNil)
-	c.Assert(m, check.HasLen, 3)
-	c.Assert(m["服务器环境"], check.Equals, "测试")
-	c.Assert(m["操作系统类别"], check.Equals, "Linux")
-	c.Assert(m["机房"], check.Equals, "华北")
+	require.NoError(t, err)
+	require.NotNil(t, m)
+	require.Len(t, m, 3)
+	require.Equal(t, m["服务器环境"], "测试")
+	require.Equal(t, m["操作系统类别"], "Linux")
+	require.Equal(t, m["机房"], "华北")
 
 	// invalid specs
 	m, err = ParseLabelSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
-	c.Assert(m, check.IsNil)
-	c.Assert(err, check.NotNil)
+	require.Nil(t, m)
+	require.NotNil(t, err)
 	m, err = ParseLabelSpec(`type="database",role,master`)
-	c.Assert(m, check.IsNil)
-	c.Assert(err, check.NotNil)
+	require.Nil(t, m)
+	require.NotNil(t, err)
 }
 
-func (s *APITestSuite) TestPortsParsing(c *check.C) {
+func TestPortsParsing(t *testing.T) {
 	// empty:
 	ports, err := ParsePortForwardSpec(nil)
-	c.Assert(ports, check.IsNil)
-	c.Assert(err, check.IsNil)
+	require.Nil(t, ports)
+	require.NoError(t, err)
 	ports, err = ParsePortForwardSpec([]string{})
-	c.Assert(ports, check.IsNil)
-	c.Assert(err, check.IsNil)
+	require.Nil(t, ports)
+	require.NoError(t, err)
 	// not empty (but valid)
 	spec := []string{
 		"80:remote.host:180",
 		"10.0.10.1:443:deep.host:1443",
 	}
 	ports, err = ParsePortForwardSpec(spec)
-	c.Assert(err, check.IsNil)
-	c.Assert(ports, check.HasLen, 2)
-	c.Assert(ports, check.DeepEquals, ForwardedPorts{
+	require.NoError(t, err)
+	require.Len(t, ports, 2)
+	require.Empty(t, cmp.Diff(ports, ForwardedPorts{
 		{
 			SrcIP:    "127.0.0.1",
 			SrcPort:  80,
@@ -267,20 +269,21 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 			DestHost: "deep.host",
 			DestPort: 1443,
 		},
-	})
+	}))
+
 	// back to strings:
 	clone := ports.String()
-	c.Assert(spec[0], check.Equals, clone[0])
-	c.Assert(spec[1], check.Equals, clone[1])
+	require.Equal(t, spec[0], clone[0])
+	require.Equal(t, spec[1], clone[1])
 
 	// parse invalid spec:
 	spec = []string{"foo", "bar"}
 	ports, err = ParsePortForwardSpec(spec)
-	c.Assert(ports, check.IsNil)
-	c.Assert(err, check.ErrorMatches, "^Invalid port forwarding spec: .foo.*")
+	require.Empty(t, ports)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }
 
-func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
+func TestDynamicPortsParsing(t *testing.T) {
 	tests := []struct {
 		spec    []string
 		isError bool
@@ -370,13 +373,13 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 	for _, tt := range tests {
 		specs, err := ParseDynamicPortForwardSpec(tt.spec)
 		if tt.isError {
-			c.Assert(err, check.NotNil)
+			require.NotNil(t, err)
 			continue
 		} else {
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		}
 
-		c.Assert(specs, check.DeepEquals, tt.output)
+		require.Empty(t, cmp.Diff(specs, tt.output))
 	}
 }
 
@@ -420,6 +423,42 @@ func TestWebProxyHostPort(t *testing.T) {
 			gotHost, gotPort := c.WebProxyHostPort()
 			require.Equal(t, tt.wantHost, gotHost)
 			require.Equal(t, tt.wantPort, gotPort)
+		})
+	}
+}
+
+func TestGetKubeTLSServerName(t *testing.T) {
+	tests := []struct {
+		name          string
+		kubeProxyAddr string
+		want          string
+	}{
+		{
+			name:          "ipv4 format, API domain should be used",
+			kubeProxyAddr: "127.0.0.1",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "empty host, API domain should be used",
+			kubeProxyAddr: "",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "ipv4 unspecified, API domain should be used ",
+			kubeProxyAddr: "0.0.0.0",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "valid hostname",
+			kubeProxyAddr: "example.com",
+			want:          "kube.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetKubeTLSServerName(tt.kubeProxyAddr)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -522,7 +561,7 @@ func (s *mockSigner) PublicKey() ssh.PublicKey {
 }
 
 func (s *mockSigner) Sign(rand io.Reader, b []byte) (*ssh.Signature, error) {
-	return nil, trace.Errorf("mockSigner does not implement Sign")
+	return nil, fmt.Errorf("mockSigner does not implement Sign")
 }
 
 // Signers implements agent.Agent.Signers.
@@ -539,6 +578,7 @@ func TestNewClient_UseKeyPrincipals(t *testing.T) {
 		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
 		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
 		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+		Tracer:           tracing.NoopProvider().Tracer("test"),
 	}
 	client, err := NewClient(cfg)
 	require.NoError(t, err)
@@ -702,6 +742,226 @@ func TestVirtualPathNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			names := VirtualPathEnvNames(tc.kind, tc.params)
 			require.Equal(t, tc.expected, names)
+		})
+	}
+}
+
+func TestFormatConnectToProxyErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+
+		wantError       string
+		wantUserMessage string
+	}{
+		{
+			name: "nil error passes through",
+			err:  nil,
+		},
+		{
+			name:      "unrelated error passes through",
+			err:       fmt.Errorf("flux capacitor undercharged"),
+			wantError: "flux capacitor undercharged",
+		},
+		{
+			name:            "principals mismatch user message injected",
+			err:             trace.Wrap(fmt.Errorf(`ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`)),
+			wantError:       `ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`,
+			wantUserMessage: unconfiguredPublicAddrMsg,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := formatConnectToProxyErr(tt.err)
+			if tt.wantError == "" {
+				require.NoError(t, err)
+				return
+			}
+			traceErr, isTraceErr := err.(*trace.TraceErr)
+
+			if isTraceErr {
+				require.EqualError(t, traceErr.OrigError(), tt.wantError)
+			} else {
+				require.EqualError(t, err, tt.wantError)
+			}
+
+			if tt.wantUserMessage != "" {
+				require.True(t, isTraceErr)
+				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
+			}
+		})
+	}
+}
+
+func TestGetDesktopEventWebURL(t *testing.T) {
+	initDate := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tt := []struct {
+		name      string
+		proxyHost string
+		cluster   string
+		sid       session.ID
+		events    []events.EventFields
+		expected  string
+	}{
+		{
+			name:     "nil events",
+			events:   nil,
+			expected: "",
+		},
+		{
+			name:     "empty events",
+			events:   make([]events.EventFields, 0),
+			expected: "",
+		},
+		{
+			name:      "two events, 1000 ms duration",
+			proxyHost: "host",
+			cluster:   "cluster",
+			sid:       "session_id",
+			events: []events.EventFields{
+				{
+					"time": initDate,
+				},
+				{
+					"time": initDate.Add(1000 * time.Millisecond),
+				},
+			},
+			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=1000",
+		},
+		{
+			name:      "multiple events",
+			proxyHost: "host",
+			cluster:   "cluster",
+			sid:       "session_id",
+			events: []events.EventFields{
+				{
+					"time": initDate,
+				},
+				{
+					"time": initDate.Add(10 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(20 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(30 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(40 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(50 * time.Millisecond),
+				},
+			},
+			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=50",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, getDesktopEventWebURL(tc.proxyHost, tc.cluster, &tc.sid, tc.events))
+		})
+	}
+}
+
+type mockRoleGetter func(ctx context.Context) ([]types.Role, error)
+
+func (m mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+	return m(ctx)
+}
+
+func TestCommandLimit(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		mfaRequired bool
+		getter      roleGetter
+		expected    int
+	}{
+		{
+			name:        "mfa required",
+			mfaRequired: true,
+			expected:    1,
+			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+				role, err := types.NewRole("test", types.RoleSpecV5{
+					Options: types.RoleOptions{MaxConnections: 500},
+				})
+				require.NoError(t, err)
+
+				return []types.Role{role}, nil
+			}),
+		},
+		{
+			name:     "failure getting roles",
+			expected: 1,
+			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+				return nil, errors.New("fail")
+			}),
+		},
+		{
+			name:     "no roles",
+			expected: -1,
+			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+				return nil, nil
+			}),
+		},
+		{
+			name:     "max_connections=1",
+			expected: 1,
+			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+				role, err := types.NewRole("test", types.RoleSpecV5{
+					Options: types.RoleOptions{MaxConnections: 1},
+				})
+				require.NoError(t, err)
+
+				return []types.Role{role}, nil
+			}),
+		},
+		{
+			name:     "max_connections=2",
+			expected: 1,
+			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+				role, err := types.NewRole("test", types.RoleSpecV5{
+					Options: types.RoleOptions{MaxConnections: 2},
+				})
+				require.NoError(t, err)
+
+				return []types.Role{role}, nil
+			}),
+		},
+		{
+			name:     "max_connections=500",
+			expected: 250,
+			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+				role, err := types.NewRole("test", types.RoleSpecV5{
+					Options: types.RoleOptions{MaxConnections: 500},
+				})
+				require.NoError(t, err)
+
+				return []types.Role{role}, nil
+			}),
+		},
+		{
+			name:     "max_connections=max",
+			expected: math.MaxInt64 / 2,
+			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+				role, err := types.NewRole("test", types.RoleSpecV5{
+					Options: types.RoleOptions{MaxConnections: math.MaxInt64},
+				})
+				require.NoError(t, err)
+
+				return []types.Role{role}, nil
+			}),
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expected, commandLimit(context.Background(), tt.getter, tt.mfaRequired))
 		})
 	}
 }

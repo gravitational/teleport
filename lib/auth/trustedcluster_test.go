@@ -19,15 +19,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
@@ -179,9 +180,9 @@ func TestValidateTrustedCluster(t *testing.T) {
 		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
 			types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
 		require.NoError(t, err)
-		// use the UpsertTrustedCluster in Presence as we just want the resource in
-		// the backend, we don't want to actually connect
-		_, err = a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
+		// use the UpsertTrustedCluster in Uncached as we just want the resource
+		// in the backend, we don't want to actually connect
+		_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
 		require.NoError(t, err)
 
 		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
@@ -192,7 +193,6 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "same name as trusted cluster")
-
 	})
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
@@ -283,6 +283,9 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		Backend:                bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
@@ -311,9 +314,9 @@ func TestRemoteDBCAMigration(t *testing.T) {
 	trustedCluster, err := types.NewTrustedCluster(remoteClusterName,
 		types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
 	require.NoError(t, err)
-	// use the UpsertTrustedCluster in Presence as we just want the resource in
+	// use the UpsertTrustedCluster in Uncached as we just want the resource in
 	// the backend, we don't want to actually connect
-	_, err = a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
+	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
 	require.NoError(t, err)
 
 	// Generate remote HostCA and remove private key as remote CA should have only public cert.
