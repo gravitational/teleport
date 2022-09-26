@@ -125,7 +125,7 @@ running it: via the `teleport` CLI, using a Helm chart, or via systemd:
     </TabItem>
 
     <TabItem label="Helm chart">
-    For deploying a cluster, set
+    If you are using the `teleport-cluster` Helm chart, set
     [extraArgs](../../reference/helm-reference/teleport-cluster.mdx#extraargs)
     to include the extra argument: `--insecure`:
     <Tabs>
@@ -143,7 +143,7 @@ running it: via the `teleport` CLI, using a Helm chart, or via systemd:
     </Tabs>
     
     
-    For a Helm Kube Agent, set the 
+    If you are using the `teleport-kube-agent` chart, set the 
     [insecureSkipProxyTLSVerify
     ](../../reference/helm-reference/teleport-kube-agent.mdx#insecureskipproxytlsverify)
     flag to `true`:
@@ -185,8 +185,9 @@ When running `tctl` remotely via the Teleport Proxy Service, if the Proxy Servic
 certificates, then `tctl` will not trust the certificate from the Proxy Service.
 To disable certificate verification use:
 `tctl --insecure`.
-`tctl` will determine how to connect to the auth service in a few ways:
-- loading configuration from the profile after logging in with `tsh`
+
+`tctl` will determine how to connect to the Auth Service in a few ways:
+- loading configuration from a local profile after logging in with `tsh`
 - loading from a config file passed as an argument: `tctl -c /etc/teleport.yaml`
 - passing the `--auth-server` flag directly, as in:
   - `tctl --auth-server=tele.example.com:443` or
