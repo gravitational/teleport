@@ -122,6 +122,8 @@ spec:
 
 #### Per-session MFA configuration
 
+From a product perspective, we have decided to add new `require_session_mfa` options and omit the new `private_key_policy` option above to reduce configuration knobs. Since the underlying implementation will be separate from per-session MFA, this RFD will continue to refer to `private_key_policy` to make reasoning about the proposed changes easier to understand.
+
 ```yaml
 auth_service:
   ...
@@ -154,13 +156,11 @@ spec:
 
 This change will require changing the `require_session_mfa` fields above from a `bool` to a `string`. This will be handled by introducing a new proto field and custom marshalling logic to maintain interoperability between new and old servers and clients. See https://github.com/gravitational/teleport/pull/12054 for an example of this.
 
-Note: From a product perspective, we have decided to add the new `require_session_mfa` options and omit the new `private_key_policy` option to reduce configuration knobs. Since the underlying implementation will be separate from per-session MFA, this RFD will continue to refer to `private_key_policy` to make reasoning about the proposed changes easier to understand.
-
 #### Enforcement - Attestation
 
 In order to enforce user private key usage, we need to take a certificate's public key and tie it back to a trusted hardware device, which can be done with attestation, as explained [above](#attestation).
 
-Attestation will be handled during the normal login/certificate signing process by including a new `AttestationRequest` field in each login path. For all logins, we need to include the `AttestationREquest` field in the http request objects:
+Attestation will be handled during the normal login/certificate signing process by adding a new `AttestationRequest` field to login requests. For all login paths, we need to include the `AttestationRequest` field in the http request objects:
 
 ```go
 // lib/client/weblogin.go
@@ -204,8 +204,8 @@ message YubiKeyAttestationRequest {
 ```
 
 When the Auth Server receives a login request, it will check the attached attestation request, and verify it. In addition to verifying the certificate chain for the hardware private key, the resulting attestation object will provide information about the private key, including;
- - Device information, including serial number, model, version 
- - Configured Touch (And PIN) Policies if any
+ - Device information including serial number, model, and version 
+ - Configured Touch (And PIN) Policies
 
 Currently, we are only interested in verifying the certificate chain for the public key, and checking its private key policy, so the resulting attestation response will look like:
 
@@ -219,7 +219,7 @@ type AttestationResponse struct {
 }
 ```
 
-This `AttestationResponse` will then be checked against the user's private key policy requirement. If verified, the Auth server will sign the user's certificates with a private key policy extension matching the attestation. 
+This `AttestationResponse` will then be checked against the user's private key policy requirement. If the policy requirement is met, the Auth server will sign the user's certificates with a private key policy extension matching the attestation. 
 
 ```go
 // tls extension
@@ -243,7 +243,7 @@ Teleport clients will need the ability to connect to a user's hardware key, gene
 
 Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. Since it is not possible to retrieve a user's actual private key policy requirement before login, Teleport clients will make a best effort attempt to guess the key policy requirement.
 
-First, the client will ping the Teleport Auth server to get the cluster-wide private key policy if set. Second, the client will check for an existing key in the user's key store (`~/.tsh`), and check its associated private key policy. Between the two private key policies retrieved, the stricter one will be used for initial login. This guessing logic will capture all cases except for the case where a user's role private key policy is stricter than the cluster-wide policy, and do not have an active/expired login session stored in `~/.tsh`. Z
+First, the client will ping the Teleport Auth server to get the cluster-wide private key policy if set. Second, the client will check for an existing key in the user's key store (`~/.tsh`), and check its associated private key policy. Between the two private key policies retrieved, the stricter one will be used for initial login. This guessing logic will capture all cases except for the case where a user's role private key policy is stricter than the cluster-wide policy, and do not have an active/expired login session stored in `~/.tsh`.
 
 If the private key policy was incorrect and a stricter requirement is neeeded, then the server will respond with a `private key policy not met: <private-key-policy>` error. The client will parse this error and resort to re-authenticating with the correct private key policy, meaning that the user will be re-prompted for their login credentials.
 
@@ -256,7 +256,7 @@ On login, a Teleport client will find a private key that meets the private key p
 If the key policy is `hardware_key` or `hardware_key_touch`, then a private key will be generated directly on the hardware key. The resulting login certificates will only be operable if:
  - The hardware key is connected during the operation
  - The hardware private key can still be found
- - The hardware private keys' Touch challenges are passed (if applicable)
+ - The hardware private key's Touch challenge is passed (if applicable)
 
 #### PIV slot logic
 
@@ -284,7 +284,7 @@ Would you like to overwrite this slot? (y/N):
 
 Currently, Teleport clients store a PEM encoded private key (`~/.tsh/keys/proxy/user`) for a login session. This PEM encoded private key is then unmarshalled, transformed, and parsed as needed during a client request.
 
-With a hardware private key, we only have access to a raw `crypto.PrivateKey`, and do not have sufficient information about the key to transform it into a `*rsa.PrivateKey` and marshal it into PKCS1 format. Instead, we need to alter Teleport clients to use `cyrpto.PrivateKey` by default. This will require altering the key interface (`lib/client/interfaces.go`) and its usage across `lib/client` and other relevant locations. `lib/utils/native` will also be updated to return `*rsa.PrivateKey` instead of its PEM encoded private and public keys.
+With a hardware private key, we only have access to a raw `crypto.PrivateKey`, and do not have sufficient information about the key to transform it into an `*rsa.PrivateKey` and marshal it into PKCS1 format. Instead, we need to alter Teleport clients to use `cyrpto.PrivateKey` by default. This will require altering the key interface (`lib/client/interfaces.go`) and its usage across `lib/client` and other relevant locations. `lib/utils/native` will also be updated to return `*rsa.PrivateKey` instead of its PEM encoded private and public keys.
 
 We also need a way for future Teleport Client requests to retrieve the correct `crypto.PrivateKey`. For RSA keys, we can continue to store them as PEM encoded keys in (`~/.tsh/keys/proxy/user`). For hardware private keys, we will instead store a fake PEM encoded private key which we can use to identity what device and slot to load the private key from.
 
@@ -352,7 +352,7 @@ Please insert the YubiKey used during login (serial number XXXXXX) to continue..
 
 ##### Touch requirement
 
-If `private_key_policy: hardware_key_touch` is required for a user, then Teleport client requests will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
+If `private_key_policy: hardware_key_touch` is required for a user, then Teleport client requests will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA. This prompt will occur before prompting for login credentials.
 
 ```
 > tsh login --user=dev
@@ -387,4 +387,6 @@ Some PIV operations require [adminstrative access](https://developers.yubico.com
 | PIN            | 8 chars  | `123456`                                           | sign and decrypt data, reset pin          |
 | PUK            | 8 chars  | `12345678`                                         | reset PIN when blocked by failed attempts |
 
-To simplify our implementation and limit UX impact, we will expect the user's PIV device to use the default Management Key. In the future, we may want to add support for using non-default management key to better protect the generation and retrieval of private keys on the user's PIV key, as well as PIN management if we decide to add an options like `private_key_policy: hardware_key_touch_pin`.
+In our case, we only need to use the Management Key to generate a key and set a certificate on the YubiKey. To simplify our implementation and limit UX impact, we will assume the user's PIV device to use the default Management Key. User's can use the private `--piv-management-key` flag during login in case they need to use a non-default management key.
+
+In the future, we may want to add support for using non-default management key to better protect the generation and retrieval of private keys on the user's PIV key, as well as PIN management if we decide to add an options like `private_key_policy: hardware_key_touch_pin`.
