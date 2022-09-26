@@ -9,7 +9,6 @@ state: draft
 - Engineering: Marek `@smallinsky`, Roman `@r0mant`
 - Product: Sasha `@klizhentas`, Xin `@xinding33`
 
-
 ## What
 When per-session-MFA is enabled, we should not restrict database cert TTL to 1 minute.
 
@@ -28,15 +27,12 @@ and a user may be prompt once per minute for their MFA.
 
 We should remove this 1 minute restriction on database cert TTL to improve UX.
 
-
 ## Details
-
 
 "Doesn't this just disable per-session-mfa for database access?" (My initial thinking)
 
 - No, not quite. Sessions are still limited by the lifetime of a local proxy process and an MFA prompt is always required to start these proxies when per-session-mfa is enabled.
 - This can "weaken" per-session-mfa security though. If a user finds that they would prefer the old behavior of 1-minute TTL certs, they can still achieve that through configuration using `max_session_ttl`.
-
 
 ### API
 
