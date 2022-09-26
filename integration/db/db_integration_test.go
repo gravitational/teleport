@@ -81,6 +81,84 @@ func TestDatabaseAccess(t *testing.T) {
 	t.Run("RotateTrustedCluster", pack.testRotateTrustedCluster)
 }
 
+/*
+// TestDatabaseAccessCassandraRootCluster tests a scenario where a user connects
+// to a Cassandra database running in a root cluster.
+func TestDatabaseAccessCassandraRootCluster(t *testing.T) {
+	pack := SetupDatabaseTest(t,
+		// set tighter rotation intervals
+		WithLeafConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}),
+		WithRootConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}),
+	)
+	pack.WaitForLeaf(t)
+
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+		AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
+		Address:    pack.Root.Cluster.Web,
+		Cluster:    pack.Root.Cluster.Secrets.SiteName,
+		Username:   pack.Root.User.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.Root.cassandraService.Name,
+			Protocol:    pack.Root.cassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
+}
+
+// TestDatabaseAccessCassandraLeafCluster tests a scenario where a user connects
+// to a Cassandra database running in a root cluster.
+func TestDatabaseAccessCassandraLeafCluster(t *testing.T) {
+	pack := SetupDatabaseTest(t,
+		// set tighter rotation intervals
+		WithLeafConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}),
+		WithRootConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}),
+	)
+	pack.WaitForLeaf(t)
+
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+		AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
+		Address:    pack.Root.Cluster.Web,
+		Cluster:    pack.Leaf.Cluster.Secrets.SiteName,
+		Username:   pack.Root.User.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.Leaf.cassandraService.Name,
+			Protocol:    pack.Leaf.cassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
+}
+*/
+
 // TestDatabaseAccessSeparateListeners tests the Mongo and Postgres separate port setup.
 func TestDatabaseAccessSeparateListeners(t *testing.T) {
 	pack := SetupDatabaseTest(t,

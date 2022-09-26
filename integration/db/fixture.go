@@ -24,6 +24,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -35,14 +38,13 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 type DatabasePack struct {
@@ -52,21 +54,24 @@ type DatabasePack struct {
 }
 
 type databaseClusterPack struct {
-	Cluster         *helpers.TeleInstance
-	User            types.User
-	role            types.Role
-	dbProcess       *service.TeleportProcess
-	dbAuthClient    *auth.Client
-	PostgresService service.Database
-	postgresAddr    string
-	postgres        *postgres.TestServer
-	MysqlService    service.Database
-	mysqlAddr       string
-	mysql           *mysql.TestServer
-	MongoService    service.Database
-	mongoAddr       string
-	mongo           *mongodb.TestServer
-	name            string
+	Cluster          *helpers.TeleInstance
+	User             types.User
+	role             types.Role
+	dbProcess        *service.TeleportProcess
+	dbAuthClient     *auth.Client
+	PostgresService  service.Database
+	postgresAddr     string
+	postgres         *postgres.TestServer
+	MysqlService     service.Database
+	mysqlAddr        string
+	mysql            *mysql.TestServer
+	MongoService     service.Database
+	mongoAddr        string
+	mongo            *mongodb.TestServer
+	name             string
+	cassandraService service.Database
+	cassandraAddr    string
+	cassandra        *cassandra.TestServer
 }
 
 func mustListen(t *testing.T) (net.Listener, string) {
@@ -105,6 +110,11 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      pack.mongoAddr,
 	}
+	pack.cassandraService = service.Database{
+		Name:     fmt.Sprintf("%s-cassandra", pack.name),
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      pack.mongoAddr,
+	}
 
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = filepath.Join(t.TempDir(), pack.name)
@@ -116,11 +126,6 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 		},
 	}
 	conf.Databases.Enabled = true
-	conf.Databases.Databases = []service.Database{
-		pack.PostgresService,
-		pack.MysqlService,
-		pack.MongoService,
-	}
 	conf.Clock = clock
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	pack.dbProcess, pack.dbAuthClient, err = pack.Cluster.StartDatabase(conf)
@@ -157,6 +162,29 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	require.NoError(t, err)
 	go pack.mongo.Serve()
 	t.Cleanup(func() { pack.mongo.Close() })
+
+	// Create and start test Cassandra in the root cluster.
+	pack.cassandra, err = cassandra.NewTestServer(common.TestServerConfig{
+		AuthClient: pack.dbAuthClient,
+		Name:       pack.cassandraService.Name,
+	})
+	require.NoError(t, err)
+	go pack.cassandra.Serve()
+	t.Cleanup(func() {
+		pack.cassandra.Close()
+	})
+	pack.cassandraService = service.Database{
+		Name:     fmt.Sprintf("%s-cassandra", pack.name),
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      fmt.Sprintf("localhost:%s", pack.cassandra.Port()),
+	}
+
+	conf.Databases.Databases = []service.Database{
+		pack.PostgresService,
+		pack.MysqlService,
+		pack.MongoService,
+		pack.cassandraService,
+	}
 }
 
 type testOptions struct {
