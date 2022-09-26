@@ -484,7 +484,7 @@ func (a *Server) runPeriodicOperations() {
 	})
 	promTicker := interval.New(interval.Config{
 		Duration: defaults.PrometheusScrapeInterval,
-		Jitter:   utils.NewSeventhJitter(),
+		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
