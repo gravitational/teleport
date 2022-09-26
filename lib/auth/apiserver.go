@@ -110,7 +110,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
-	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
 	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.withAuth(srv.checkPassword)))
 	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
@@ -501,19 +500,15 @@ type WebSessionReq struct {
 	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
 	// back to their default role.
 	Switchback bool `json:"switchback"`
+	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
+	// to apply new user changes e.g. user traits were updated.
+	ReloadUser bool `json:"reload_user"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// DELETE IN 8.0: proxy v5 sends request with no user field.
-	// And since proxy v6, request will come with user field set, so grabbing user
-	// by param is not required.
-	if req.User == "" {
-		req.User = p.ByName("user")
 	}
 
 	if req.PrevSessionID != "" {
@@ -523,10 +518,12 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 		}
 		return sess, nil
 	}
+
 	sess, err := auth.CreateWebSession(r.Context(), req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
@@ -564,25 +561,6 @@ func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.
 	}
 
 	return message(fmt.Sprintf("password has been changed for user %q", req.User)), nil
-}
-
-type upsertPasswordReq struct {
-	Password string `json:"password"`
-}
-
-func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertPasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user := p.ByName("user")
-	err := auth.UpsertPassword(user, []byte(req.Password))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("password for for user %q upserted", user)), nil
 }
 
 type upsertUserRawReq struct {
@@ -1062,11 +1040,12 @@ type githubAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 }
 
-/* validateGithubAuthRequest validates Github auth callback redirect
+/*
+validateGithubAuthRequest validates Github auth callback redirect
 
-   POST /:version/github/requests/validate
+	POST /:version/github/requests/validate
 
-   Success response: githubAuthRawResponse
+	Success response: githubAuthRawResponse
 */
 func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req validateGithubAuthCallbackReq
@@ -1107,9 +1086,10 @@ func (s *APIServer) validateGithubAuthCallback(auth ClientI, w http.ResponseWrit
 // HTTP GET /:version/events?query
 //
 // Query fields:
-//	'from'  : time filter in RFC3339 format
-//	'to'    : time filter in RFC3339 format
-//  ...     : other fields are passed directly to the audit backend
+//
+//		'from'  : time filter in RFC3339 format
+//		'to'    : time filter in RFC3339 format
+//	 ...     : other fields are passed directly to the audit backend
 func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var err error
 	to := time.Now().In(time.UTC)
@@ -1190,8 +1170,9 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 
 // HTTP GET /:version/sessions/:id/stream?offset=x&bytes=y
 // Query parameters:
-//   "offset"   : bytes from the beginning
-//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
+//
+//	"offset"   : bytes from the beginning
+//	"bytes"    : number of bytes to read (it won't return more than 512Kb)
 func (s *APIServer) getSessionChunk(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
@@ -1228,7 +1209,8 @@ func (s *APIServer) getSessionChunk(auth ClientI, w http.ResponseWriter, r *http
 
 // HTTP GET /:version/sessions/:id/events?maxage=n
 // Query:
-//    'after' : cursor value to return events newer than N. Defaults to 0, (return all)
+//
+//	'after' : cursor value to return events newer than N. Defaults to 0, (return all)
 func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {

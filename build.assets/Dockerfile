@@ -43,7 +43,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = "e61379ff0a27277fbe0aca29ccc34ff93c57b359" ] && \    
+    [ "$(git rev-parse HEAD)" = "e61379ff0a27277fbe0aca29ccc34ff93c57b359" ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -108,7 +108,6 @@ RUN apt-get update -y --fix-missing && \
         libpam-dev \
         libsqlite3-0 \
         libssl-dev \
-        libudev-dev \
         llvm-10 \
         locales \
         mingw-w64 \
@@ -128,6 +127,7 @@ RUN apt-get update -y --fix-missing && \
         zip \
         zlib1g-dev \
         xauth \
+        libpcsclite-dev \
         && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
@@ -165,9 +165,7 @@ ENV GOPATH="/go" \
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install golangci-lint.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
-     rm -r golangci-lint*)
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.49.0
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
@@ -199,6 +197,14 @@ RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} -
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      make install && \
      make clean)
+
+# Install buf
+RUN BIN="/usr/local/bin" && \
+    VERSION="1.8.0" && \
+      curl -sSL \
+        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
+        -o "${BIN}/buf" && \
+      chmod +x "${BIN}/buf"
 
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 

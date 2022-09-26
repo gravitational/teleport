@@ -18,11 +18,17 @@ package utils
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
+
 	"github.com/gravitational/trace"
+
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
@@ -56,9 +62,125 @@ func TestFnCache_New(t *testing.T) {
 	}
 }
 
-// TestFnCacheSanity runs basic FnCache test cases.
-func TestFnCacheSanity(t *testing.T) {
+type result struct {
+	val any
+	err error
+}
+
+func TestFnCacheGet(t *testing.T) {
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Second,
+		Clock:   clockwork.NewFakeClock(),
+		Context: context.Background(),
+	})
+	require.NoError(t, err)
+
+	value, err := cache.get(context.Background(), "test", func(ctx context.Context) (any, error) {
+		return 123, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 123, value)
+
+	value2, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (int, error) {
+		return value.(int), nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, value2, 123)
+
+	value3, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (string, error) {
+		return "123", nil
+	})
+	require.ErrorIs(t, err, trace.BadParameter("value retrieved was int, expected string"))
+	require.Empty(t, value3)
+}
+
+// TestFnCacheConcurrentReads verifies that many concurrent reads result in exactly one
+// value being actually loaded via loadfn if a reasonably long TTL is used.
+func TestFnCacheConcurrentReads(t *testing.T) {
+	const workers = 100
 	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// set up a chage that won't ttl out values during the test
+	cache, err := NewFnCache(FnCacheConfig{TTL: time.Hour})
+	require.NoError(t, err)
+
+	results := make(chan result, workers)
+
+	for i := 0; i < workers; i++ {
+		go func(n int) {
+			val, err := cache.get(ctx, "key", func(context.Context) (any, error) {
+				// return a unique value for each worker so that we can verify whether
+				// the values we get come from the same loadfn or not.
+				return fmt.Sprintf("val-%d", n), nil
+			})
+			results <- result{val, err}
+		}(i)
+	}
+
+	first := <-results
+	require.NoError(t, first.err)
+
+	val := first.val.(string)
+	require.NotZero(t, val)
+
+	for i := 0; i < (workers - 1); i++ {
+		r := <-results
+		require.NoError(t, r.err)
+		require.Equal(t, val, r.val.(string))
+	}
+}
+
+// TestFnCacheExpiry verfies basic expiry.
+func TestFnCacheExpiry(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+
+	cache, err := NewFnCache(FnCacheConfig{TTL: time.Millisecond, Clock: clock})
+	require.NoError(t, err)
+
+	// get is helper for checking if we hit/miss
+	get := func() (load bool) {
+		val, err := FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
+			load = true
+			return "val", nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, "val", val)
+		return
+	}
+
+	// first get runs the loadfn
+	require.True(t, get())
+
+	// subsequent gets use the cached value
+	for i := 0; i < 20; i++ {
+		require.False(t, get())
+	}
+
+	clock.Advance(time.Millisecond * 2)
+
+	// value has ttl'd out, loadfn is run again
+	require.True(t, get())
+
+	// and now we're back to hitting a cached value
+	require.False(t, get())
+}
+
+// TestFnCacheFuzzy runs basic FnCache test cases that rely on fuzzy logic and timing to detect
+// success/failure. This test isn't really suitable for running in our CI env due to its sensitivery
+// to fluxuations in perf, but is arguably a *better* test in that it more accurately simulates real
+// usage. This test should be run locally with TEST_FNCACHE_FUZZY=yes when making changes.
+func TestFnCacheFuzzy(t *testing.T) {
+	if run, _ := apiutils.ParseBool(os.Getenv("TEST_FNCACHE_FUZZY")); !run {
+		t.Skip("Test disabled in CI. Enable it by setting env variable TEST_FNCACHE_FUZZY=yes")
+	}
 
 	tts := []struct {
 		ttl   time.Duration
@@ -73,14 +195,14 @@ func TestFnCacheSanity(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			testFnCacheSimple(t, tt.ttl, tt.delay)
+			testFnCacheFuzzy(t, tt.ttl, tt.delay)
 		})
 	}
 }
 
-// testFnCacheSimple runs a basic test case which spams concurrent request against a cache
+// testFnCacheFuzzy runs a basic test case which spams concurrent request against a cache
 // and verifies that the resulting hit/miss numbers roughly match our expectation.
-func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration) {
+func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 	const rate = int64(20)     // get attempts per worker per ttl period
 	const workers = int64(100) // number of concurrent workers
 	const rounds = int64(10)   // number of full ttl cycles to go through
@@ -116,7 +238,7 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration) {
 				case <-done:
 					return
 				}
-				vi, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+				vi, err := FnCacheGet(ctx, cache, "key", func(context.Context) (int64, error) {
 					if delay > 0 {
 						<-time.After(delay)
 					}
@@ -130,8 +252,8 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration) {
 					return val, nil
 				})
 				require.NoError(t, err)
-				require.GreaterOrEqual(t, vi.(int64), lastValue)
-				lastValue = vi.(int64)
+				require.GreaterOrEqual(t, vi, lastValue)
+				lastValue = vi
 				getCounter.Inc()
 			}
 		}()
@@ -171,13 +293,13 @@ func TestFnCacheCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
-	v, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+	v, err := FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
 		cancel()
 		<-blocker
 		return "val", nil
 	})
 
-	require.Nil(t, v)
+	require.Empty(t, v)
 	require.Equal(t, context.Canceled, trace.Unwrap(err), "context should have been canceled immediately")
 
 	// unblock the loading operation which is still in progress
@@ -190,15 +312,15 @@ func TestFnCacheCancellation(t *testing.T) {
 	defer cancel()
 
 	loadFnWasRun := atomic.NewBool(false)
-	v, err = cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+	v, err = FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
 		loadFnWasRun.Store(true)
-		return nil, nil
+		return "", nil
 	})
 
 	require.False(t, loadFnWasRun.Load(), "loadfn should not have been run")
 
 	require.NoError(t, err)
-	require.Equal(t, "val", v.(string))
+	require.Equal(t, "val", v)
 }
 
 func TestFnCacheContext(t *testing.T) {
@@ -211,14 +333,14 @@ func TestFnCacheContext(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+	_, err = cache.get(context.Background(), "key", func(context.Context) (any, error) {
 		return "val", nil
 	})
 	require.NoError(t, err)
 
 	cancel()
 
-	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
+	_, err = cache.get(context.Background(), "key", func(context.Context) (any, error) {
 		return "val", nil
 	})
 	require.ErrorIs(t, err, ErrFnCacheClosed)

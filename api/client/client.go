@@ -662,6 +662,9 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 		if err != nil {
 			return nil, trail.FromGRPC(err)
 		}
+		// An old server would send RequireSessionMFA instead of RequireMFAType
+		// DELETE IN 13.0.0
+		role.CheckSetRequireSessionMFA()
 		roles = append(roles, role)
 	}
 	return roles, nil
@@ -1595,11 +1598,14 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
-	resp, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: name}, c.callOpts...)
+	role, err := c.grpc.GetRole(ctx, &proto.GetRoleRequest{Name: name}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	return resp, nil
+	// An old server would send RequireSessionMFA instead of RequireMFAType
+	// DELETE IN 13.0.0
+	role.CheckSetRequireSessionMFA()
+	return role, nil
 }
 
 // GetRoles returns a list of roles
@@ -1610,6 +1616,9 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	}
 	roles := make([]types.Role, 0, len(resp.GetRoles()))
 	for _, role := range resp.GetRoles() {
+		// An old server would send RequireSessionMFA instead of RequireMFAType
+		// DELETE IN 13.0.0
+		role.CheckSetRequireSessionMFA()
 		roles = append(roles, role)
 	}
 	return roles, nil
@@ -1617,11 +1626,16 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	roleV4, ok := role.(*types.RoleV5)
+	r, ok := role.(*types.RoleV5)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
-	_, err := c.grpc.UpsertRole(ctx, roleV4, c.callOpts...)
+
+	// An old server would expect RequireSessionMFA instead of RequireMFAType
+	// DELETE IN 13.0.0
+	r.CheckSetRequireSessionMFA()
+
+	_, err := c.grpc.UpsertRole(ctx, r, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -2241,11 +2255,14 @@ func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 
 // GetAuthPreference gets cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	resp, err := c.grpc.GetAuthPreference(ctx, &empty.Empty{}, c.callOpts...)
+	pref, err := c.grpc.GetAuthPreference(ctx, &empty.Empty{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	return resp, nil
+	// An old server would send RequireSessionMFA instead of RequireMFAType
+	// DELETE IN 13.0.0
+	pref.CheckSetRequireSessionMFA()
+	return pref, nil
 }
 
 // SetAuthPreference sets cluster auth preference.
@@ -2254,6 +2271,9 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 	if !ok {
 		return trace.BadParameter("invalid type %T", authPref)
 	}
+	// An old server would send RequireSessionMFA instead of RequireMFAType
+	// DELETE IN 13.0.0
+	authPrefV2.CheckSetRequireSessionMFA()
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2, c.callOpts...)
 	return trail.FromGRPC(err)
 }
@@ -2273,16 +2293,29 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetInstaller gets all installer script resources
+func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	resp, err := c.grpc.GetInstallers(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	installers := make([]types.Installer, len(resp.Installers))
+	for i, inst := range resp.Installers {
+		installers[i] = inst
+	}
+	return installers, nil
+}
+
 // GetInstaller gets the cluster installer resource
-func (c *Client) GetInstaller(ctx context.Context) (types.Installer, error) {
-	resp, err := c.grpc.GetInstaller(ctx, &empty.Empty{}, c.callOpts...)
+func (c *Client) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	resp, err := c.grpc.GetInstaller(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
 }
 
-// GetInstaller sets the cluster installer resource
+// SetInstaller sets the cluster installer resource
 func (c *Client) SetInstaller(ctx context.Context, inst types.Installer) error {
 	instV1, ok := inst.(*types.InstallerV1)
 	if !ok {
@@ -2292,9 +2325,15 @@ func (c *Client) SetInstaller(ctx context.Context, inst types.Installer) error {
 	return trail.FromGRPC(err)
 }
 
-// GetInstaller deletes the cluster installer resource
-func (c *Client) DeleteInstaller(ctx context.Context) error {
-	_, err := c.grpc.DeleteInstaller(ctx, &empty.Empty{}, c.callOpts...)
+// DeleteInstaller deletes the cluster installer resource
+func (c *Client) DeleteInstaller(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteInstaller(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllInstallers deletes all the installer resources.
+func (c *Client) DeleteAllInstallers(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllInstallers(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -2454,6 +2493,63 @@ func (c *Client) DeleteApp(ctx context.Context, name string) error {
 // DeleteAllApps deletes all application resources.
 func (c *Client) DeleteAllApps(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllApps(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (c *Client) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	kubeClusterV3, ok := cluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported kubernetes cluster type %T", cluster)
+	}
+	_, err := c.grpc.CreateKubernetesCluster(ctx, kubeClusterV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	kubeClusterV3, ok := cluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported kubernetes cluster type %T", cluster)
+	}
+	_, err := c.grpc.UpdateKubernetesCluster(ctx, kubeClusterV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetKubernetesCluster returns the specified kubernetes resource.
+func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing kubernetes cluster name")
+	}
+	cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return cluster, nil
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	items, err := c.grpc.GetKubernetesClusters(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	clusters := make([]types.KubeCluster, len(items.KubernetesClusters))
+	for i := range items.KubernetesClusters {
+		clusters[i] = items.KubernetesClusters[i]
+	}
+	return clusters, nil
+}
+
+// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllKubernetesClusters deletes all kubernetes cluster resources.
+func (c *Client) DeleteAllKubernetesClusters(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllKubernetesClusters(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -2748,6 +2844,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeService()
 		case types.KindWindowsDesktop:
 			resources[i] = respResource.GetWindowsDesktop()
+		case types.KindWindowsDesktopService:
+			resources[i] = respResource.GetWindowsDesktopService()
 		case types.KindKubernetesCluster:
 			resources[i] = respResource.GetKubeCluster()
 		case types.KindKubeServer:
@@ -2948,6 +3046,20 @@ func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagn
 	}
 	_, err := c.grpc.UpdateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// AppendDiagnosticTrace adds a new trace for the given ConnectionDiagnostic.
+func (c *Client) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	req := &proto.AppendDiagnosticTraceRequest{
+		Name:  name,
+		Trace: t,
+	}
+	connectionDiagnostic, err := c.grpc.AppendDiagnosticTrace(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
 }
 
 // GetClusterAlerts loads matching cluster alerts.

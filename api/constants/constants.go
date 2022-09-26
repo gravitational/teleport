@@ -126,6 +126,13 @@ const (
 
 	// AWSConsoleURL is the URL of AWS management console.
 	AWSConsoleURL = "https://console.aws.amazon.com"
+	// AWSUSGovConsoleURL is the URL of AWS management console for AWS GovCloud
+	// (US) Partition.
+	AWSUSGovConsoleURL = "https://console.amazonaws-us-gov.com"
+	// AWSCNConsoleURL is the URL of AWS management console for AWS China
+	// Partition.
+	AWSCNConsoleURL = "https://console.amazonaws.cn"
+
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
 
@@ -321,3 +328,12 @@ const (
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
 )
+
+// Constants for AWS discovery
+const (
+	AWSServiceTypeEC2 = "ec2"
+)
+
+// SupportedAWSDiscoveryServices is list of AWS services currently
+// supported by the Teleport discovery service
+var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}

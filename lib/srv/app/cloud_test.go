@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -284,6 +285,36 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedToken, actualToken)
 			}
+		})
+	}
+}
+
+func TestCloudGetFederationURL(t *testing.T) {
+	tests := []struct {
+		name                  string
+		inputTargetURL        string
+		expectedFederationURL string
+	}{
+		{
+			name:                  "AWS GovCloud (US)",
+			inputTargetURL:        constants.AWSUSGovConsoleURL,
+			expectedFederationURL: "https://signin.amazonaws-us-gov.com/federation",
+		},
+		{
+			name:                  "AWS China",
+			inputTargetURL:        constants.AWSCNConsoleURL,
+			expectedFederationURL: "https://signin.amazonaws.cn/federation",
+		},
+		{
+			name:                  "AWS Standard",
+			inputTargetURL:        constants.AWSConsoleURL,
+			expectedFederationURL: "https://signin.aws.amazon.com/federation",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expectedFederationURL, getFederationURL(test.inputTargetURL))
 		})
 	}
 }

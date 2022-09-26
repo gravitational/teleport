@@ -36,6 +36,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -53,12 +54,12 @@ import (
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	// TODO(fspmarshall): we should probably have a longer retry period for Instance certs
 	// in order to avoid catastrophic load in the event of an auth server downgrade.
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(process.Config.MaxRetryPeriod / 10),
 		Step:   process.Config.MaxRetryPeriod / 5,
 		Max:    process.Config.MaxRetryPeriod,
 		Clock:  process.Clock,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -605,8 +606,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+			FIPS:                 process.Config.FIPS,
 		})
 		if err != nil {
+			if utils.IsUntrustedCertErr(err) {
+				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -675,7 +680,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.RotationConnectionInterval,
 		FirstDuration: utils.HalfJitter(process.Config.RotationConnectionInterval),
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 
@@ -735,7 +740,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.PollingPeriod,
 		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 	for {
@@ -1071,19 +1076,17 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
 	if err != nil {
 		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
-		// Can't errors.As directErr in the "x509: certificate is valid for x but not y" error case, as only message field is set
-		if trace.IsConnectionProblem(directErr) && strings.Contains(directErr.Error(), "x509: certificate is valid for") {
-			directErr = trace.Wrap(directErr, "Your proxy certificate is not trusted or expired."+
-				" Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/setup/admin/self-signed-certs")
-		}
 		process.log.Errorf("- connecting to auth server directly: %v", directErr)
 		if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
 			err = trace.Wrap(err, "This is the alternative port we tried and it's not configured.")
 		}
 		process.log.Errorf("- connecting to auth server through tunnel: %v", err)
-		return nil, trace.WrapWithMessage(
-			trace.NewAggregate(directErr, err),
-			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))
+		collectedErrs := trace.NewAggregate(directErr, err)
+		if utils.IsUntrustedCertErr(collectedErrs) {
+			collectedErrs = trace.WrapWithMessage(collectedErrs, utils.SelfSignedCertsMsg)
+		}
+		return nil, trace.WrapWithMessage(collectedErrs,
+			"Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")

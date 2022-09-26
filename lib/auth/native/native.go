@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,42 +50,79 @@ var log = logrus.WithFields(logrus.Fields{
 })
 
 // precomputedKeys is a queue of cached keys ready for usage.
-var precomputedKeys = make(chan keyPair, 25)
+var precomputedKeys = make(chan *rsa.PrivateKey, 25)
 
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
 
-func generateKeyPairImpl() ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+// GenerateKeyPair generates a new RSA key pair.
+func GenerateKeyPair() ([]byte, []byte, error) {
+	priv, err := getOrGenerateRSAPrivateKey()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	}
-	privDer := x509.MarshalPKCS1PrivateKey(priv)
-	privBlock := pem.Block{
+
+	privPEM := pem.EncodeToMemory(&pem.Block{
 		Type:    "RSA PRIVATE KEY",
 		Headers: nil,
-		Bytes:   privDer,
-	}
-	privPem := pem.EncodeToMemory(&privBlock)
+		Bytes:   x509.MarshalPKCS1PrivateKey(priv),
+	})
 
 	pub, err := ssh.NewPublicKey(&priv.PublicKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	}
-	pubBytes := ssh.MarshalAuthorizedKey(pub)
-	return privPem, pubBytes, nil
+	pubPEM := ssh.MarshalAuthorizedKey(pub)
+
+	return privPEM, pubPEM, nil
+}
+
+// GeneratePrivateKey generates a new RSA private key.
+func GeneratePrivateKey() (*keys.PrivateKey, error) {
+	rsaKey, err := getOrGenerateRSAPrivateKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyDER, err := x509.MarshalPKCS8PrivateKey(rsaKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    keys.PKCS8PrivateKeyType,
+		Headers: nil,
+		Bytes:   keyDER,
+	})
+	return keys.NewPrivateKey(rsaKey, keyPEM)
+}
+
+func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
+	select {
+	case k := <-precomputedKeys:
+		return k, nil
+	default:
+		rsaKeyPair, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+		if err != nil {
+			return nil, err
+		}
+		return rsaKeyPair, nil
+	}
+}
+
+func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+	return rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 }
 
 func precomputeKeys() {
 	const backoff = time.Second * 30
 	for {
-		priv, pub, err := generateKeyPairImpl()
+		rsaPrivateKey, err := generateRSAPrivateKey()
 		if err != nil {
 			log.WithError(err).Errorf("Failed to precompute key pair, retrying in %s (this might be a bug).", backoff)
 			time.Sleep(backoff)
 		}
 
-		precomputedKeys <- keyPair{priv, pub}
+		precomputedKeys <- rsaPrivateKey
 	}
 }
 
@@ -95,22 +133,6 @@ func PrecomputeKeys() {
 	startPrecomputeOnce.Do(func() {
 		go precomputeKeys()
 	})
-}
-
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
-// This will pull from a precomputed cache of ready to use keys if PrecomputeKeys was enabled.
-func GenerateKeyPair() ([]byte, []byte, error) {
-	select {
-	case k := <-precomputedKeys:
-		return k.privPem, k.pubBytes, nil
-	default:
-		return generateKeyPairImpl()
-	}
-}
-
-type keyPair struct {
-	privPem  []byte
-	pubBytes []byte
 }
 
 // keygen is a key generator that precomputes keys to provide quick access to
@@ -283,6 +305,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.AllowedResourceIDs != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
 	}
+	if c.ConnectionDiagnosticID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = c.ConnectionDiagnosticID
+	}
 
 	if c.SourceIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
@@ -349,8 +374,8 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 // BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
-//    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
-//    * If nodename is empty, it is not included in the list of principals.
+//   - If RoleAdmin is in the list of roles, only a single principal is returned: hostID
+//   - If nodename is empty, it is not included in the list of principals.
 func BuildPrincipals(hostID string, nodeName string, clusterName string, roles types.SystemRoles) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.

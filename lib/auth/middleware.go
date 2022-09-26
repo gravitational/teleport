@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -166,7 +167,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           limiter,
+			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
@@ -613,7 +614,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // WrapContextWithUser enriches the provided context with the identity information
 // extracted from the provided TLS connection.
-func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (context.Context, error) {
+func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn) (context.Context, error) {
 	// Perform the handshake if it hasn't been already. Before the handshake we
 	// won't have client certs available.
 	if !conn.ConnectionState().HandshakeComplete {

@@ -294,6 +294,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Microsoft Teams",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-msteams/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "PagerDuty",
               "slug": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
               "forScopes": ["enterprise", "cloud"]
@@ -520,7 +525,7 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Console Access",
+              "title": "AWS Access",
               "slug": "/application-access/guides/aws-console/"
             },
             {
@@ -784,6 +789,10 @@
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
         },
+	{
+	    "title": "Directory Sharing",
+	    "slug": "/desktop-access/directory-sharing/"
+	},
         {
           "title": "Reference",
           "slug": "/desktop-access/reference/",
@@ -827,6 +836,10 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Architecture",
+          "slug": "/machine-id/architecture/"
         },
         {
           "title": "Troubleshooting",
@@ -967,10 +980,26 @@
               "title": "teleport-kube-agent",
               "slug": "/reference/helm-reference/teleport-kube-agent/"
             },
-	    {
-	    	"title": "teleport-plugin-event-handler",
-	    	"slug": "/reference/helm-reference/teleport-plugin-event-handler/"
-	    }
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
+            },
+            {
+              "title": "teleport-plugin-jira",
+              "slug": "/reference/helm-reference/teleport-plugin-jira/"
+            },
+            {
+              "title": "teleport-plugin-pagerduty",
+              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
+            },
+            {
+              "title": "teleport-plugin-mattermost",
+              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-slack",
+              "slug": "/reference/helm-reference/teleport-plugin-slack/"
+            }
           ]
         }
       ]
@@ -1440,7 +1469,7 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/workflow/ssh-approval-mattermost/",
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
       "destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
       "permanent": true
     },

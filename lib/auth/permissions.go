@@ -169,6 +169,17 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName strin
 	return nil
 }
 
+// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
+func (c *Context) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	params := c.Checker.MFAParams(authPrefMFARequirement)
+
+	// Builtin services (like proxy_service and kube_service) are not gated
+	// on MFA and only need to pass normal RBAC action checks.
+	_, isService := c.Identity.(BuiltinRole)
+	params.Verified = isService || c.Identity.GetIdentity().MFAVerified != ""
+	return params
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
@@ -418,6 +429,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
+				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -497,6 +509,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNetworkRestrictions, services.RO()),
+						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 					},
 				},
 			})
@@ -636,6 +649,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindKubernetesCluster, services.RW()),
 					},
 				},
 			})
@@ -660,6 +674,21 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
+					},
+				},
+			})
+	case types.RoleDiscovery:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
 					},
 				},
 			})

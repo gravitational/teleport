@@ -26,7 +26,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -493,6 +495,93 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
+
+	// If a default allow rule is not present, ensure it gets added.
+	t.Run("AddDefaultAllowRules", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		access := services.NewPresetEditorRole()
+		rules := access.GetRules(types.Allow)
+
+		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
+		// ConnectionDiagnostic is part of the default allow rules
+		outdatedRules := []types.Rule{}
+		for _, r := range rules {
+			if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+				continue
+			}
+			outdatedRules = append(outdatedRules, r)
+		}
+		access.SetRules(types.Allow, outdatedRules)
+
+		err := as.CreateRole(ctx, access)
+		require.NoError(t, err)
+
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		out, err := as.GetRole(ctx, access.GetName())
+		require.NoError(t, err)
+
+		allowRules := out.GetRules(types.Allow)
+		require.Condition(t, func() (success bool) {
+			for _, r := range allowRules {
+				if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+					return true
+				}
+			}
+			return false
+		}, "missing default rule")
+	})
+
+	// Don't set a default allow rule if the resource is present in the role.
+	// Either as part of allowing or denying rules.
+	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		access := services.NewPresetEditorRole()
+		allowRules := access.GetRules(types.Allow)
+
+		// Create a new set of rules based on the Editor Role,
+		// setting a deny rule for a default allow rule
+		outdateAllowRules := []types.Rule{}
+		for _, r := range allowRules {
+			if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+				continue
+			}
+			outdateAllowRules = append(outdateAllowRules, r)
+		}
+		access.SetRules(types.Allow, outdateAllowRules)
+
+		// Explicitly deny Create to ConnectionDiagnostic
+		denyRules := access.GetRules(types.Deny)
+		denyConnectionDiagnosticRule := types.NewRule(types.KindConnectionDiagnostic, []string{types.VerbCreate})
+		denyRules = append(denyRules, denyConnectionDiagnosticRule)
+		access.SetRules(types.Deny, denyRules)
+
+		err := as.CreateRole(ctx, access)
+		require.NoError(t, err)
+
+		err = createPresets(ctx, as)
+		require.NoError(t, err)
+
+		out, err := as.GetRole(ctx, access.GetName())
+		require.NoError(t, err)
+
+		allowRules = out.GetRules(types.Allow)
+		require.Condition(t, func() (success bool) {
+			for _, r := range allowRules {
+				if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
+					return false
+				}
+			}
+			return true
+		}, "missing default rule")
+	})
 }
 
 func setupConfig(t *testing.T) InitConfig {
@@ -519,6 +608,9 @@ func setupConfig(t *testing.T) InitConfig {
 		StaticTokens:            types.DefaultStaticTokens(),
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 }
 

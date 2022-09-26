@@ -261,6 +261,8 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			if g.APIConfig.MetadataGetter != nil {
 				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				// TODO(zmb3): this may result in duplicate upload events, as the upload
+				// completer will emit its own session.upload
 				event := &apievents.SessionUpload{
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
@@ -4044,6 +4046,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindWindowsDesktopService:
+			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
 		case types.KindKubernetesCluster:
 			cluster, ok := resource.(*types.KubernetesClusterV3)
 			if !ok {
@@ -4252,14 +4261,14 @@ func (g *GRPCServer) SetInstaller(ctx context.Context, req *types.InstallerV1) (
 }
 
 // GetInstaller retrieves the installer script resource
-func (g *GRPCServer) GetInstaller(ctx context.Context, _ *empty.Empty) (*types.InstallerV1, error) {
+func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceRequest) (*types.InstallerV1, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	res, err := auth.GetInstaller(ctx)
+	res, err := auth.GetInstaller(ctx, req.Name)
 	if err != nil {
-		if trace.IsNotFound(err) {
+		if trace.IsNotFound(err) && req.Name == installers.InstallerScriptName {
 			return installers.DefaultInstaller, nil
 		}
 		return nil, trace.Wrap(err)
@@ -4271,13 +4280,65 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, _ *empty.Empty) (*types.I
 	return inst, nil
 }
 
-// DeleteInstaller sets the installer script resource to its default
-func (g *GRPCServer) DeleteInstaller(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+// GetInstallers returns all installer script resources registered in the cluster.
+func (g *GRPCServer) GetInstallers(ctx context.Context, _ *empty.Empty) (*types.InstallerV1List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.DeleteInstaller(ctx); err != nil {
+	res, err := auth.GetInstallers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var installersV1 []*types.InstallerV1
+	needDefault := true
+	for _, inst := range res {
+		instV1, ok := inst.(*types.InstallerV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported installer type %T", inst)
+		}
+		if inst.GetName() == installers.InstallerScriptName {
+			needDefault = false
+		}
+		installersV1 = append(installersV1, instV1)
+	}
+
+	if len(installersV1) == 0 {
+		return &types.InstallerV1List{
+			Installers: []*types.InstallerV1{
+				installers.DefaultInstaller,
+			},
+		}, nil
+	}
+
+	if needDefault {
+		installersV1 = append(installersV1, installers.DefaultInstaller)
+	}
+
+	return &types.InstallerV1List{
+		Installers: installersV1,
+	}, nil
+}
+
+// DeleteInstaller sets the installer script resource to its default
+func (g *GRPCServer) DeleteInstaller(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteInstaller(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteALlInstallers deletes all the installers
+func (g *GRPCServer) DeleteAllInstallers(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteAllInstallers(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
@@ -4294,6 +4355,117 @@ func (g *GRPCServer) UpdateConnectionDiagnostic(ctx context.Context, connectionD
 		return nil, trace.Wrap(err)
 	}
 
+	return &empty.Empty{}, nil
+}
+
+// AppendDiagnosticTrace updates a connection diagnostic
+func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *proto.AppendDiagnosticTraceRequest) (*types.ConnectionDiagnosticV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnostic, err := auth.ServerWithRoles.AppendDiagnosticTrace(ctx, in.Name, in.Trace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected connection diagnostic type %T", connectionDiagnostic)
+	}
+
+	return connectionDiagnosticV1, nil
+}
+
+// GetKubernetesCluster returns the specified kubernetes cluster resource.
+func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeCluster, err := auth.GetKubernetesCluster(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeClusterV3, ok := kubeCluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return nil, trace.BadParameter("unsupported kubernetes cluster type %T", kubeCluster)
+	}
+	return kubeClusterV3, nil
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster.SetOrigin(types.OriginDynamic)
+	if err := auth.CreateKubernetesCluster(ctx, cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster.SetOrigin(types.OriginDynamic)
+	if err := auth.UpdateKubernetesCluster(ctx, cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *empty.Empty) (*types.KubernetesClusterV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters, err := auth.GetKubernetesClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kubeClusters := make([]*types.KubernetesClusterV3, 0, len(clusters))
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kube cluster type %T", cluster)
+		}
+		kubeClusters = append(kubeClusters, clusterV3)
+	}
+	return &types.KubernetesClusterV3List{
+		KubernetesClusters: kubeClusters,
+	}, nil
+}
+
+// DeleteKubernetesCluster removes the specified kubernetes cluster.
+func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteKubernetesCluster(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllKubernetesClusters removes all kubernetes cluster.
+func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteAllKubernetesClusters(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &empty.Empty{}, nil
 }
 

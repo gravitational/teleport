@@ -345,7 +345,7 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 // generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
 // Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
 func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.ClientI) error {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -410,7 +410,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	principals := strings.Split(a.genHost, ",")
 
 	// generate a keypair
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -421,7 +421,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterAPI.GenerateHostCert(key.Pub,
+	key.Cert, err = clusterAPI.GenerateHostCert(key.MarshalSSHPublicKey(),
 		"", "", principals,
 		clusterName, types.RoleNode, 0)
 	if err != nil {
@@ -455,7 +455,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 // generateDatabaseKeys generates a new unsigned key and signs it with Teleport
 // CA for database access.
 func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.ClientI) error {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -584,7 +584,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 
 	// generate a keypair:
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -658,7 +658,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	reqExpiry := time.Now().UTC().Add(a.genTTL)
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:         key.Pub,
+		PublicKey:         key.MarshalSSHPublicKey(),
 		Username:          a.genUser,
 		Expires:           reqExpiry,
 		Format:            certificateFormat,
@@ -842,7 +842,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 // base64-encoded key, comment.
 // For example:
 //
-//    cert-authority AAA... type=user&clustername=cluster-a
+//	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
 func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
@@ -854,7 +854,7 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 // authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//    @cert-authority *.cluster-a ssh-rsa AAA... type=host
+//	@cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
