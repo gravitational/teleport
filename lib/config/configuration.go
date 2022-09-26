@@ -477,7 +477,14 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("config v3 has replaced auth_servers with either auth_server or proxy_server")
 		}
 
-		if fc.AuthServer != "" {
+		haveAuthServer := fc.AuthServer != ""
+		haveProxyServer := fc.ProxyServer != ""
+
+		if haveProxyServer && haveAuthServer {
+			return trace.BadParameter("only one of auth_server or proxy_server should be set")
+		}
+
+		if haveAuthServer {
 			addr, err := utils.ParseHostPortAddr(fc.AuthServer, defaults.AuthListenPort)
 			if err != nil {
 				return trace.Wrap(err)
@@ -486,7 +493,7 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
 			cfg.SetAuthServerAddress(*addr)
 		}
 
-		if fc.ProxyServer != "" {
+		if haveProxyServer {
 			addr, err := utils.ParseHostPortAddr(fc.ProxyServer, defaults.HTTPListenPort)
 			if err != nil {
 				return trace.Wrap(err)
