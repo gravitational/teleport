@@ -65,7 +65,9 @@ func SliceContainsStr[T ~string](slice []T, value T) bool {
 	return false
 }
 
-// JoinStrings returns 'true' if the slice contains the given value
+// JoinStrings returns a string that is all the elements in the slice `T[]` joined by `sep`
+// This being generic allows for the usage of custom string times, without having to convert
+// the elements to a string to be passed into `strings.Join`.
 func JoinStrings[T ~string](elems []T, sep string) T {
 	switch len(elems) {
 	case 0:
