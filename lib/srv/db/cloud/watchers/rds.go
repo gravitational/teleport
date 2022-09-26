@@ -209,22 +209,35 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 			continue
 		}
 
-		// Add a database from primary endpoint
-		database, err := services.NewDatabaseFromRDSCluster(cluster)
-		if err != nil {
-			f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
-				aws.StringValue(cluster.DBClusterIdentifier), err)
-		} else {
-			databases = append(databases, database)
+		// Find out what types of instances the cluster has. Some examples:
+		// - Aurora cluster with one instance: one writer
+		// - Aurora cluster with three instances: one writer and two readers
+		// - Secondary cluster of a global database: one or more readers
+		var hasWriterInstance, hasReaderInstance bool
+		for _, clusterMember := range cluster.DBClusterMembers {
+			if clusterMember != nil {
+				if aws.BoolValue(clusterMember.IsClusterWriter) {
+					hasWriterInstance = true
+				} else {
+					hasReaderInstance = true
+				}
+			}
 		}
 
-		// Add a database from reader endpoint, only when the reader endpoint
-		// is available and there is more than one instance. When the cluster
-		// contains only a primary instance and no Aurora Replicas, the reader
-		// endpoint connects to the primary instance, which makes the reader
-		// database entry pointless.
+		// Add a database from primary endpoint, if any writer instances.
+		if cluster.Endpoint != nil && hasWriterInstance {
+			database, err := services.NewDatabaseFromRDSCluster(cluster)
+			if err != nil {
+				f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
+					aws.StringValue(cluster.DBClusterIdentifier), err)
+			} else {
+				databases = append(databases, database)
+			}
+		}
+
+		// Add a database from reader endpoint, if any reader instances.
 		// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Reader
-		if cluster.ReaderEndpoint != nil && len(cluster.DBClusterMembers) > 1 {
+		if cluster.ReaderEndpoint != nil && hasReaderInstance {
 			database, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 			if err != nil {
 				f.log.Warnf("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
