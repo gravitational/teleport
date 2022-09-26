@@ -393,7 +393,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
 			"database": routeToDatabase.ServiceName,
-			"type":     dbProtocolToText(routeToDatabase.Protocol),
+			"type":     defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
 			"cluster":  client.SiteName,
 			"command":  fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()),
 			"address":  listener.Addr().String(),
@@ -646,26 +646,6 @@ Use following credentials to connect to the {{.database}} proxy:
   cert_file={{.cert}}
   key_file={{.key}}
 `))
-
-func dbProtocolToText(protocol string) string {
-	switch protocol {
-	case defaults.ProtocolPostgres:
-		return "PostgreSQL"
-	case defaults.ProtocolCockroachDB:
-		return "CockroachDB"
-	case defaults.ProtocolMySQL:
-		return "MySQL"
-	case defaults.ProtocolMongoDB:
-		return "MongoDB"
-	case defaults.ProtocolRedis:
-		return "Redis"
-	case defaults.ProtocolSQLServer:
-		return "SQL Server"
-	case defaults.ProtocolCassandra:
-		return "Cassandra"
-	}
-	return ""
-}
 
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(

@@ -164,7 +164,7 @@ const (
 	// ElastiCachePrimaryEndpoint is the endpoint of the primary node in the
 	// node group.
 	ElastiCachePrimaryEndpoint = "primary"
-	// ElastiCachePrimaryEndpoint is the endpoint of the replica nodes in the
+	// ElastiCacheReaderEndpoint is the endpoint of the replica nodes in the
 	// node group.
 	ElastiCacheReaderEndpoint = "reader"
 	// ElastiCacheNodeEndpoint is the endpoint that used to connect to an
@@ -469,3 +469,13 @@ const (
 	// MemoryDBSServiceName is the service name for AWS MemoryDB.
 	MemoryDBSServiceName = "memorydb"
 )
+
+// CassandraEndpointURLForRegion returns a Cassandra endpoint based on the provided region.
+// https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
+func CassandraEndpointURLForRegion(region string) string {
+	switch strings.ToLower(region) {
+	case "cn-north-1", "cn-northwest-1":
+		return fmt.Sprintf("cassandra.%s.%s:9142", region, AWSCNEndpointSuffix)
+	}
+	return fmt.Sprintf("cassandra.%s.%s:9142", region, AWSEndpointSuffix)
+}

@@ -176,6 +176,7 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSnowflake:
 		return c.getSnowflakeCommand(), nil
+
 	case defaults.ProtocolCassandra:
 		return c.getCassandraCommand()
 	}

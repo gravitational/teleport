@@ -517,6 +517,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Snowflake"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
+	case ProtocolCassandra:
+		return "Cassandra"
 	default:
 		// Unknown protocol. Return original string.
 		return p

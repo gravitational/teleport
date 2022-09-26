@@ -30,6 +30,7 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/gravitational/trace"
 
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -166,7 +167,7 @@ func (h failedHandshake) handshake(clientConn, _ *protocol.Conn) error {
 func handleAuthResponse(clientConn *protocol.Conn, ses *common.Session, pkt *protocol.Packet) error {
 	msg, ok := pkt.FrameBody().Message.(*message.AuthResponse)
 	if !ok {
-		return trace.BadParameter("got unexpected packet")
+		return trace.BadParameter("got unexpected packet %T", pkt.FrameBody().Message)
 	}
 	vErr := validateCassandraUsername(ses, msg)
 	if vErr == nil {
@@ -222,7 +223,7 @@ func (a *authAWSSigV4Auth) buildRoleARN(username string) string {
 	}
 
 	return arn.ARN{
-		Partition: "aws",
+		Partition: awsutils.GetPartitionFromRegion(a.ses.Database.GetAWS().Region),
 		Service:   "iam",
 		AccountID: a.ses.Database.GetAWS().AccountID,
 		Resource:  resource,

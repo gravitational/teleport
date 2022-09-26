@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -363,6 +364,13 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 }
 
 func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
+	if cfg.JKSPassword == "" {
+		pass, err := utils.CryptoRandomHex(8)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.JKSPassword = pass
+	}
 	// Cassandra expects a JKS keystore file with the private key and certificate
 	// in it. The keystore file is password protected.
 	keystoreBuf, err := prepareCassandraKeystore(cfg)

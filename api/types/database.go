@@ -391,7 +391,7 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
-	if d.Spec.Protocol == DatabaseTypeAWSKeyspace && d.Spec.AWS.AccountID != "" {
+	if d.GetAWS().AccountID != "" && d.Spec.Protocol == DatabaseTypeAWSKeyspace {
 		return DatabaseTypeAWSKeyspace
 	}
 
@@ -465,10 +465,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.Spec.URI == "" {
 		switch {
-		case d.IsAWSCassandra() && d.Spec.URI == "":
+		case d.IsAWSCassandra() && d.Spec.AWS.Region != "":
 			// In case of AWS Hosted Cassandra allow to omit URI.
 			// The URL will be constructed from the database resource based on the region and account ID.
-			d.Spec.URI = fmt.Sprintf("cassandra.%s.amazonaws.com:9142", d.Spec.AWS.Region)
+			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
 		default:
 			return trace.BadParameter("database %q URI is empty", d.GetName())
 		}

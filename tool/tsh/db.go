@@ -647,7 +647,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		keyFile:   keyFile,
 	}
 
-	// For SQL Server and cassandra connections, local proxy must be configured with the
+	// For SQL Server and Cassandra connections, local proxy must be configured with the
 	// client certificate that will be used to route connections.
 	switch arg.routeToDatabase.Protocol {
 	case defaults.ProtocolSQLServer, defaults.ProtocolCassandra:

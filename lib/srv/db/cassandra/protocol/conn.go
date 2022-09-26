@@ -106,6 +106,9 @@ func (c *Conn) readFrame(r io.Reader) (*frame.Frame, error) {
 
 	if startup, ok := fr.Body.Message.(*message.Startup); ok {
 		compression := startup.GetCompression()
+		if !compression.IsValid() {
+			return nil, trace.BadParameter("invalid compression: %v", compression)
+		}
 		c.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
 		c.segmentCode = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
 		// If moderate framing layout is supported all received from a client after Startup message should

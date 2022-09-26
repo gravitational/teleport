@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ func TestAccessCassandra(t *testing.T) {
 			dbConn, err := testCtx.cassandraClient(ctx, test.user, "cassandra", test.dbUser)
 			if test.err != "" {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), test.err)
+				require.ErrorContains(t, err, test.err)
 				return
 			}
 			require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestAccessCassandraHandshake(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
-	teleportUser := "alice"
+	const teleportUser = "alice"
 
 	for _, tc := range tests {
 		t.Run(tc.protocolVersion.String(), func(t *testing.T) {

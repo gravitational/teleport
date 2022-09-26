@@ -120,7 +120,7 @@ func (e *Engine) handleClientServerConn(ctx context.Context, clientConn *protoco
 		errC <- trace.Wrap(err, "client done")
 	}()
 	go func() {
-		err := e.handleServerConnection(clientConn, serverConn)
+		err := e.handleServerConnection(serverConn)
 		errC <- trace.Wrap(err, "server done")
 	}()
 
@@ -155,9 +155,9 @@ func (e *Engine) handleClientConnectionWithAudit(clientConn *protocol.Conn, serv
 	}
 }
 
-func (e *Engine) handleServerConnection(clientConn, serverConn net.Conn) error {
+func (e *Engine) handleServerConnection(serverConn net.Conn) error {
 	defer e.clientConn.Close()
-	if _, err := io.Copy(clientConn, serverConn); err != nil {
+	if _, err := io.Copy(e.clientConn, serverConn); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -166,7 +166,7 @@ func (e *Engine) handleServerConnection(clientConn, serverConn net.Conn) error {
 func validateCassandraUsername(ses *common.Session, msg *message.AuthResponse) error {
 	var userCredentials client.AuthCredentials
 	if err := userCredentials.Unmarshal(msg.Token); err != nil {
-		return trace.Wrap(err)
+		return trace.AccessDenied("invalid credentials format")
 	}
 	if ses.DatabaseUser != userCredentials.Username {
 		return trace.AccessDenied("user %s is not authorized to access the database", userCredentials.Username)

@@ -125,7 +125,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
 	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
 	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
-	a.authSign.Flag("jks-password", `JKS password used for cassandra format for Keystore and Truststore protection.`).Default("teleport").StringVar(&a.jksPassword)
+	a.authSign.Flag("jks-password", `JKS password used for cassandra format for Keystore and Truststore protection.`).StringVar(&a.jksPassword)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
