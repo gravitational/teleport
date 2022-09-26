@@ -52,6 +52,8 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO: NBF check or implement directly into go-oidc fork
+
 	claims := IDTokenClaims{}
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)

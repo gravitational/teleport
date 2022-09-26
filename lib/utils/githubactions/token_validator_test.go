@@ -175,6 +175,18 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				t,
 				jwtSigner,
 				providerServer.URL,
+				"incorrect.audience",
+				"octocat",
+				"repo:octo-org/octo-repo:environment:prod",
+				time.Now().Add(-5*time.Minute), time.Now().Add(5*time.Minute)),
+		},
+		{
+			name:        "invalid issuer",
+			assertError: require.Error,
+			token: makeToken(
+				t,
+				jwtSigner,
+				"https://not.the.issuer",
 				"teleport.cluster.local",
 				"octocat",
 				"repo:octo-org/octo-repo:environment:prod",
