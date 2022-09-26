@@ -1,6 +1,6 @@
 # Changelog
 
-## 10.2.3
+## 10.2.4
 
 This release of Teleport contains multiple improvements and bug fixes.
 
@@ -15,6 +15,7 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Added `allow_unverified_email` parameter to OIDC connectors allowing to opt out of email verification. [#16142](https://github.com/gravitational/teleport/pull/16142)
 * Added support for TLS routing for Database Access when Teleport is deployed behind an ALB. [#16415](https://github.com/gravitational/teleport/pull/16415)
 * Added support for Windows Desktops in the new "Add resource" wizard. [webapps#1172](https://github.com/gravitational/webapps/pull/1172)
+* Added support for providing custom CAs to `teleport-cluster` Helm chart. [#16325](https://github.com/gravitational/teleport/pull/16325)
 
 ## 10.2.2
 
