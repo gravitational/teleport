@@ -2330,9 +2330,13 @@ func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Option
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cfg, err := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &sftpConfig{
-		cfg:       sftp.CreateUploadConfig(srcPaths, dst.Path, opts),
+		cfg:       cfg,
 		addr:      addr,
 		hostLogin: dst.Login,
 	}, nil
@@ -2348,9 +2352,13 @@ func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Opti
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cfg, err := sftp.CreateDownloadConfig(src.Path, args[1], opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &sftpConfig{
-		cfg:       sftp.CreateDownloadConfig(src.Path, args[1], opts),
+		cfg:       cfg,
 		addr:      addr,
 		hostLogin: src.Login,
 	}, nil

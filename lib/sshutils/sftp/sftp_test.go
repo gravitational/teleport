@@ -191,12 +191,13 @@ func TestUpload(t *testing.T) {
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
 			ctx := context.Background()
-			cfg := CreateUploadConfig(tt.srcPaths, tt.dstPath, tt.opts)
+			cfg, err := CreateUploadConfig(tt.srcPaths, tt.dstPath, tt.opts)
+			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.dstFS = &localFS{}
-			cfg.initFS(ctx, nil)
+			cfg.initFS(ctx, nil, nil)
 
-			err := cfg.transfer(ctx)
+			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, tt.srcPaths...)
@@ -274,12 +275,13 @@ func TestDownload(t *testing.T) {
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
 			ctx := context.Background()
-			cfg := CreateDownloadConfig(tt.srcPath, tt.dstPath, tt.opts)
+			cfg, err := CreateDownloadConfig(tt.srcPath, tt.dstPath, tt.opts)
+			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.srcFS = &localFS{}
-			cfg.initFS(ctx, nil)
+			cfg.initFS(ctx, nil, nil)
 
-			err := cfg.transfer(ctx)
+			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, tt.srcPath)
