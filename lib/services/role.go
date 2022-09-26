@@ -1999,6 +1999,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	case types.KindWindowsDesktop:
 		getRoleLabels = types.Role.GetWindowsDesktopLabels
 		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindWindowsDesktopService:
+		getRoleLabels = types.Role.GetWindowsDesktopLabels
 	default:
 		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}

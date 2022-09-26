@@ -181,6 +181,15 @@ db_service:
       regions: ["westus"]
       tags:
         "c": "d"
+
+kubernetes_service:
+    enabled: yes
+    resources:
+      - labels:
+          "*": "*"
+    kubeconfig_file: /tmp/kubeconfig
+    labels:
+      'testKey': 'testValue'
 `
 
 // NoServicesConfigString is a configuration file with no services enabled
