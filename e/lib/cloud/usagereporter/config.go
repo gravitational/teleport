@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -84,11 +85,18 @@ type ResourceAPIGetter interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// GetRoles retrieves roles
 	GetRoles(context.Context) ([]types.Role, error)
+	// SearchEvents allows searching for events with a full pagination support.
+	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error)
 
-	// GetGithubConnectors retrieves Github connectors
+	// GetClusterAlerts loads matching cluster alerts.
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+	// UpsertClusterAlert creates the specified alert, overwriting any preexising alert with the same ID.
+	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+
+	// GetGithubConnectors retrieves GitHub connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
-	// GetSAMLConnector retrieves SAML connectors
+	// GetSAMLConnectors retrieves SAML connectors
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
-	// GetOIDCConnector retrieves OIDC connectors
+	// GetOIDCConnectors retrieves OIDC connectors
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 }

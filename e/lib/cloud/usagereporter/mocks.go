@@ -2,8 +2,10 @@ package usagereporter
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -47,6 +49,9 @@ type MockedResourceGetter struct {
 	MockedGetKubeServices       func() ([]types.Server, error)
 	MockedGetApplicationServers func() ([]types.AppServer, error)
 	MockedGetRoles              func() ([]types.Role, error)
+	MockedSearchEvents          func() ([]events.AuditEvent, string, error)
+	MockedGetClusterAlerts      func() ([]types.ClusterAlert, error)
+	MockedUpsertClusterAlert    func(ctx context.Context, alert types.ClusterAlert) error
 	MockedGetGithubConnectors   func() ([]types.GithubConnector, error)
 	MockedGetSAMLConnectors     func() ([]types.SAMLConnector, error)
 	MockedGetOIDCConnectors     func() ([]types.OIDCConnector, error)
@@ -98,6 +103,30 @@ func (g *MockedResourceGetter) GetRoles(context.Context) ([]types.Role, error) {
 	}
 
 	return nil, trace.NotImplemented("GetRoles is not implemented")
+}
+
+func (g *MockedResourceGetter) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+	if g.MockedSearchEvents != nil {
+		return g.MockedSearchEvents()
+	}
+
+	return nil, "", trace.NotImplemented("SearchEvents is not implemented")
+}
+
+func (g *MockedResourceGetter) GetClusterAlerts(context.Context, types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	if g.MockedGetClusterAlerts != nil {
+		return g.MockedGetClusterAlerts()
+	}
+
+	return nil, trace.NotImplemented("GetClusterAlerts is not implemented")
+}
+
+func (g *MockedResourceGetter) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
+	if g.MockedUpsertClusterAlert != nil {
+		return g.MockedUpsertClusterAlert(ctx, alert)
+	}
+
+	return trace.NotImplemented("UpsertClusterAlert is not implemented")
 }
 
 func (g *MockedResourceGetter) GetGithubConnectors(context.Context, bool) ([]types.GithubConnector, error) {

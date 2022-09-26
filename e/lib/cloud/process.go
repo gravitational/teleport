@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/cloud/usagereporter"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -105,10 +106,14 @@ func NewTeleport(cfg Config) (*Process, error) {
 		services.Presence
 		services.Identity
 		services.Access
+		services.Status
+		events.IAuditLog
 	}{
-		Identity: identity,
-		Presence: presence,
-		Access:   access,
+		Identity:  identity,
+		Presence:  presence,
+		Access:    access,
+		Status:    local.NewStatusService(process.GetBackend()),
+		IAuditLog: process.GetAuditLog(),
 	}
 
 	usageReporter, err := usagereporter.New(usagereporter.Config{

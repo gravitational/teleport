@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
-
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -157,6 +157,109 @@ func TestErrors(t *testing.T) {
 	}}
 
 	require.Equal(t, needed, obtained)
+}
+
+func TestTryCreateBuyTeleportAlert(t *testing.T) {
+	ch := make(chan types.ClusterAlert, 1)
+	trialBillingInfo := &cloudapi.GetBillingInformationResponse{ProductName: trialProductName}
+
+	for _, test := range []struct {
+		name              string
+		shouldCreateAlert bool
+		setupMocks        func(*reporterMocks)
+	}{
+		{
+			name:              "creates alert session event",
+			shouldCreateAlert: true,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return trialBillingInfo, nil
+				}
+
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return nil, trace.NotFound("not-found")
+				}
+
+				m.apiGetters.MockedSearchEvents = func() ([]apievents.AuditEvent, string, error) {
+					return []apievents.AuditEvent{
+						&apievents.SessionStart{},
+					}, "", nil
+				}
+
+				m.apiGetters.MockedUpsertClusterAlert = func(ctx context.Context, alert types.ClusterAlert) error {
+					ch <- alert
+					return nil
+				}
+			},
+		},
+		{
+			name:              "does not create alert for non-trial",
+			shouldCreateAlert: false,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return &cloudapi.GetBillingInformationResponse{ProductName: "Not-A-Trial"}, nil
+				}
+			},
+		},
+		{
+			name:              "does not create alert if alert exists",
+			shouldCreateAlert: false,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return trialBillingInfo, nil
+				}
+
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return []types.ClusterAlert{
+						{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: alertName,
+								},
+							},
+						},
+					}, nil
+				}
+			},
+		},
+		{
+			name:              "does not create alert if no resources are accessed",
+			shouldCreateAlert: false,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return trialBillingInfo, nil
+				}
+
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return nil, trace.NotFound("not-found")
+				}
+
+				m.apiGetters.MockedSearchEvents = func() ([]apievents.AuditEvent, string, error) {
+					return []apievents.AuditEvent{}, "", nil
+				}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			m, err := createReporterMocks()
+			require.NoError(t, err)
+
+			test.setupMocks(&m)
+			err = m.reporter.tryCreateBuyTeleportAlert(context.Background())
+			require.NoError(t, err)
+
+			var insertedAlert types.ClusterAlert
+			select {
+			case a := <-ch:
+				insertedAlert = a
+			default:
+			}
+			if test.shouldCreateAlert {
+				require.NotNil(t, insertedAlert)
+				require.Equal(t, alertName, insertedAlert.Metadata.Name)
+			}
+		})
+	}
 }
 
 func createReporterMocks() (reporterMocks, error) {

@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
-
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 )
 
@@ -15,6 +16,9 @@ import (
 type UsageReporter struct {
 	Config
 }
+
+const alertName = "upgrade-to-paid-plan"
+const trialProductName = "Teleport 14 Day Trial"
 
 // New instantiates a new pro/enterprise teleport process
 func New(config Config) (*UsageReporter, error) {
@@ -132,6 +136,73 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 			authConnectorCount,
 		)
 	}
+
+	userCreatedResource := len(apps) > 0 || len(nodes) > 0 || len(databases) > 0 || len(kubeServers) > 0
+	if userCreatedResource {
+		if err := r.tryCreateBuyTeleportAlert(ctx); err != nil {
+			r.Log.WithError(err).Error("Failed to create cluster alert for trial.")
+		}
+	}
+}
+
+func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
+	billing, err := r.CloudClient.GetBillingInformation(ctx, &cloudapi.EmptyRequest{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// if the user is not on a 14-day trial plan, do not create an alert
+	if billing.ProductName != trialProductName {
+		return nil
+	}
+
+	alerts, err := r.ResourceGetter.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		AlertID: alertName,
+	})
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	// if the user already has an upgrade-to-paid-plan alert, do not create an alert
+	if len(alerts) != 0 {
+		return nil
+	}
+
+	accessEventTypes := []string{
+		events.SessionStartEvent,
+		events.AppSessionStartEvent,
+		events.DatabaseSessionStartEvent,
+		events.KubeRequestEvent,
+		events.WindowsDesktopSessionStartEvent,
+	}
+	accessEvents, _, err := r.ResourceGetter.SearchEvents(
+		time.Now().Add(-2*r.Interval),
+		time.Now(),
+		defaults.Namespace,
+		accessEventTypes,
+		1,
+		types.EventOrderAscending,
+		"",
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// if the user has not accessed a resource, do not create an alert
+	if len(accessEvents) == 0 {
+		return nil
+	}
+
+	alert, err := types.NewClusterAlert(
+		alertName,
+		"Upgrade to a paid plan.",
+		types.WithAlertSeverity(types.AlertSeverity_LOW),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertPermitAll, "yes"),
+		types.WithAlertLabel(types.AlertLink, "https://goteleport.com/signup/enterprise"),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(r.ResourceGetter.UpsertClusterAlert(ctx, alert))
 }
 
 func (r *UsageReporter) getAuthConnectorCount(ctx context.Context) (int, error) {
