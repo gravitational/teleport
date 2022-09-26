@@ -50,6 +50,9 @@ const (
 	// ProtocolCassandra is the TLS ALPN protocol value used to indicate Cassandra protocol.
 	ProtocolCassandra Protocol = "teleport-cassandra"
 
+	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
+	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
@@ -130,6 +133,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolSnowflake, nil
 	case defaults.ProtocolCassandra:
 		return ProtocolCassandra, nil
+	case defaults.ProtocolElasticsearch:
+		return ProtocolElasticsearch, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -147,6 +152,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolSQLServer,
 		ProtocolSnowflake,
 		ProtocolCassandra,
+		ProtocolElasticsearch,
 	}
 
 	return slices.Contains(
@@ -164,6 +170,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolSQLServer,
 	ProtocolSnowflake,
 	ProtocolCassandra,
+	ProtocolElasticsearch,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is
@@ -187,7 +194,7 @@ func ProtocolWithPing(protocol Protocol) Protocol {
 	return Protocol(string(protocol) + string(ProtocolPingSuffix))
 }
 
-// IsPingProcotol checks if the provided protocol is suffixed with Ping.
+// IsPingProtocol checks if the provided protocol is suffixed with Ping.
 func IsPingProtocol(protocol Protocol) bool {
 	return strings.HasSuffix(string(protocol), string(ProtocolPingSuffix))
 }

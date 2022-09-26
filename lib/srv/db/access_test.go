@@ -29,6 +29,7 @@ import (
 	"time"
 
 	mssql "github.com/denisenkom/go-mssqldb"
+	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
 	goredis "github.com/go-redis/redis/v8"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -1235,6 +1237,8 @@ type testContext struct {
 	snowflake map[string]testSnowflake
 	// cassandra is a collection of Cassandra databases the test uses.
 	cassandra map[string]testCassandra
+	// elasticsearch is a collection of Elasticsearch databases the test uses.
+	elasticsearch map[string]testElasticsearch
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1291,6 +1295,13 @@ type testCassandra struct {
 	// db is the test Cassandra database server.
 	db *cassandra.TestServer
 	// resource is the resource representing this Cassandra database.
+	resource types.Database
+}
+
+type testElasticsearch struct {
+	// db is the test elasticsearch database server.
+	db *elasticsearch.TestServer
+	// resource is the resource representing this elasticsearch database.
 	resource types.Database
 }
 
@@ -1690,6 +1701,34 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 	return db, proxy, nil
 }
 
+// elasticsearchClient returns an Elasticsearch test DB client.
+func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolElasticsearch,
+		Username:    dbUser,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := elasticsearch.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
@@ -1742,16 +1781,17 @@ func init() {
 
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
 	testCtx := &testContext{
-		clusterName: "root.example.com",
-		hostID:      uuid.New().String(),
-		postgres:    make(map[string]testPostgres),
-		mysql:       make(map[string]testMySQL),
-		mongo:       make(map[string]testMongoDB),
-		redis:       make(map[string]testRedis),
-		sqlServer:   make(map[string]testSQLServer),
-		snowflake:   make(map[string]testSnowflake),
-		cassandra:   make(map[string]testCassandra),
-		clock:       clockwork.NewFakeClockAt(time.Now()),
+		clusterName:   "root.example.com",
+		hostID:        uuid.New().String(),
+		postgres:      make(map[string]testPostgres),
+		mysql:         make(map[string]testMySQL),
+		mongo:         make(map[string]testMongoDB),
+		redis:         make(map[string]testRedis),
+		sqlServer:     make(map[string]testSQLServer),
+		snowflake:     make(map[string]testSnowflake),
+		elasticsearch: make(map[string]testElasticsearch),
+		cassandra:     make(map[string]testCassandra),
+		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
 

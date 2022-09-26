@@ -50,6 +50,8 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 	// Import to register Cassandra engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
+	// Import to register Elasticsearch engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"

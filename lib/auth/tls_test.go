@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -1643,6 +1643,61 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Len(t, certRequests(sess2.GetTLSCert()), 0)
 }
 
+func TestExtendWebSessionWithReloadUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+
+	clt, err := tt.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	user := "user2"
+	pass := []byte("abc123")
+
+	newUser, _, err := CreateUserAndRole(clt, user, nil)
+	require.NoError(t, err)
+	require.Empty(t, newUser.GetTraits())
+
+	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	// Create user authn creds and web session.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+	err = tt.server.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
+	require.NoError(t, err)
+	web, err := tt.server.NewClientFromWebSession(ws)
+	require.NoError(t, err)
+
+	// Update some traits.
+	newUser.SetLogins([]string{"apple", "banana"})
+	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
+	require.NoError(t, clt.UpdateUser(ctx, newUser))
+
+	// Renew session with the updated traits.
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+		ReloadUser:    true,
+	})
+	require.NoError(t, err)
+
+	// Check traits has been updated to latest.
+	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
+	require.NoError(t, err)
+	traits, err := services.ExtractTraitsFromCert(sshcert)
+	require.NoError(t, err)
+	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
+	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+}
+
 // TestGetCertAuthority tests certificate authority permissions
 func TestGetCertAuthority(t *testing.T) {
 	t.Parallel()
@@ -1714,7 +1769,7 @@ func TestPluginData(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -1806,7 +1861,7 @@ func TestGenerateCerts(t *testing.T) {
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2262,7 +2317,7 @@ func TestCertificateFormat(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2341,7 +2396,7 @@ func TestClusterConfigContext(t *testing.T) {
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// try and generate a host cert, this should fail because we are recording
@@ -2593,7 +2648,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = tt.server.Auth().AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
@@ -2705,7 +2760,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate public and private keys for node.
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -2844,7 +2899,7 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate public and private keys for node.
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)

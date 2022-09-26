@@ -391,6 +391,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SQLServerRPCRequest{
 			SQLServerRPCRequest: e,
 		}
+	case *ElasticsearchRequest:
+		out.Event = &OneOf_ElasticsearchRequest{
+			ElasticsearchRequest: e,
+		}
 	case *DatabaseSessionMalformedPacket:
 		out.Event = &OneOf_DatabaseSessionMalformedPacket{
 			DatabaseSessionMalformedPacket: e,
@@ -411,6 +415,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SessionRecordingAccess{
 			SessionRecordingAccess: e,
 		}
+	case *SSMRun:
+		out.Event = &OneOf_SSMRun{
+			SSMRun: e,
+		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
 			Unknown: e,
@@ -430,6 +438,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *CassandraExecute:
 		out.Event = &OneOf_CassandraExecute{
 			CassandraExecute: e,
+		}
+	case *KubernetesClusterCreate:
+		out.Event = &OneOf_KubernetesClusterCreate{
+			KubernetesClusterCreate: e,
+		}
+	case *KubernetesClusterUpdate:
+		out.Event = &OneOf_KubernetesClusterUpdate{
+			KubernetesClusterUpdate: e,
+		}
+	case *KubernetesClusterDelete:
+		out.Event = &OneOf_KubernetesClusterDelete{
+			KubernetesClusterDelete: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

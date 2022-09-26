@@ -1330,7 +1330,9 @@ message AuthPreferenceSpecV2 {
 
   // RequireSessionMFA causes all sessions in this cluster to require MFA
   // checks.
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  //
+  // DELETE IN 13.0.0 in favor of RequireMFAType
+  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "-"];
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -1367,6 +1369,9 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_passwordless,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // RequireMFAType is the type of MFA requirement enforced for this cluster.
+  RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -1961,7 +1966,9 @@ message RoleOptions {
 
   // RequireSessionMFA specifies whether a user is required to do an MFA
   // check for every session.
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  //
+  // DELETE IN 13.0.0 in favor of RequireMFAType
+  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "-"];
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -2019,6 +2026,9 @@ message RoleOptions {
     (gogoproto.jsontag) = "ssh_file_copy",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // RequireMFAType is the type of MFA requirement enforced for this user.
+  RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 message RecordSession {
@@ -2905,6 +2915,15 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "dynamic_labels,omitempty"
   ];
+  // Kubeconfig is the kubeconfig file payload that grants access to the cluster.
+  // If multiple contexts are specified, the first will be selected.
+  bytes Kubeconfig = 2 [(gogoproto.jsontag) = "kubeconfig,omitempty"];
+}
+
+// KubernetesClusterV3List represents a list of kubernetes clusters.
+message KubernetesClusterV3List {
+  // KubernetesClusters is a list of kubernetes clusters resources.
+  repeated KubernetesClusterV3 KubernetesClusters = 1;
 }
 
 // KubernetesServerV3 represents a Kubernetes server.
@@ -3126,6 +3145,8 @@ message OIDCConnectorSpecV3 {
   ];
   // AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
   bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
+  // UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
+  string UsernameClaim = 16 [(gogoproto.jsontag) = "username_claim,omitempty"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4152,16 +4173,35 @@ message ConnectionDiagnosticSpecV1 {
 
 // ConnectionDiagnosticTrace describes a trace of a connection diagnostic
 message ConnectionDiagnosticTrace {
-  // ID contains a unique identifier for this trace.
-  string ID = 1 [(gogoproto.jsontag) = "id"];
   // TraceType is an identification of the checkpoint.
-  string TraceType = 2 [(gogoproto.jsontag) = "trace_type"];
-  // Status describes whether this was a success or a failure.
-  string Status = 3 [(gogoproto.jsontag) = "status"];
+  enum TraceType {
+    TRACE_TYPE_UNSPECIFIED = 0;
+    // UNKNOWN_ERROR is used when we don't know the error.
+    // It's not always possible to offer guidance based on the received error.
+    // This trace type should be used when the error is too generic given the context we
+    // have.
+    UNKNOWN_ERROR = 1;
+    // RBAC_NODE is for RBAC checks for the node.
+    RBAC_NODE = 2;
+    // CONNECTIVITY is for network connectivity checks.
+    CONNECTIVITY = 3;
+    // RBAC_PRINCIPAL is used when checking if the principal is allowed per RBAC rules.
+    RBAC_PRINCIPAL = 4;
+    // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
+    NODE_PRINCIPAL = 5;
+  }
+  TraceType Type = 1 [(gogoproto.jsontag) = "type"];
+  // StatusType describes whether this was a success or a failure.
+  enum StatusType {
+    STATUS_UNSPECIFIED = 0;
+    SUCCESS = 1;
+    FAILED = 2;
+  }
+  StatusType Status = 2 [(gogoproto.jsontag) = "status"];
   // Details contains a User friendly message of the check's result.
-  string Details = 4 [(gogoproto.jsontag) = "details"];
+  string Details = 3 [(gogoproto.jsontag) = "details"];
   // Error contains the low level error message in case of a failure.
-  string Error = 5 [(gogoproto.jsontag) = "error"];
+  string Error = 4 [(gogoproto.jsontag) = "error"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
@@ -4207,4 +4247,21 @@ message GetClusterAlertsRequest {
   string AlertID = 2;
   // Labels is an optional label selector.
   map<string, string> Labels = 3;
+}
+
+// RequireMFAType is a type of MFA requirement enforced outside of login,
+// such as per-session MFA or per-request PIV touch.
+enum RequireMFAType {
+  // OFF means additional MFA enforcement is not enabled.
+  OFF = 0;
+  // SESSION means MFA is required to begin server sessions.
+  SESSION = 1;
+  // SESSION_AND_HARDWARE_KEY means MFA is required to begin server sessions,
+  // and login sessions must use a private key backed by a hardware key.
+  SESSION_AND_HARDWARE_KEY = 2;
+  // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
+  // requires touch to be used. This touch requirement applies to all API requests
+  // rather than only session requests. This touch is different from MFA, so to prevent
+  // requiring double touch on session requests, normal Session MFA is disabled.
+  HARDWARE_KEY_TOUCH = 3;
 }

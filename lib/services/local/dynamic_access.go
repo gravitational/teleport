@@ -24,9 +24,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -65,7 +65,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		return nil, trace.Wrap(err)
 	}
 	retryPeriod := retryPeriodMs * time.Millisecond
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
 	})
@@ -134,7 +134,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		return nil, trace.Wrap(err)
 	}
 	retryPeriod := retryPeriodMs * time.Millisecond
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
 	})
@@ -352,7 +352,7 @@ func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params type
 
 func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	retryPeriod := retryPeriodMs * time.Millisecond
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
 	})

@@ -132,7 +132,7 @@ impl Client {
             Some(c) => Ok(c),
             None => {
                 error!("invalid Rust client pointer");
-                Err(CGOErrCode::ErrCodeFailure)
+                Err(CGOErrCode::ErrCodeClientPtr)
             }
         }
     }
@@ -352,10 +352,10 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                return Err(RdpError::TryError(format!(
+                Err(RdpError::TryError(format!(
                     "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
-                )));
+                )))
             }
         }
     });
@@ -386,10 +386,10 @@ fn connect_rdp_inner(
                 }
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Err(RdpError::TryError(format!(
+                    Err(RdpError::TryError(format!(
                         "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
-                    )));
+                    )))
                 }
             }
         });
@@ -419,10 +419,10 @@ fn connect_rdp_inner(
                 }
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Err(RdpError::TryError(format!(
+                    Err(RdpError::TryError(format!(
                         "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
-                    )));
+                    )))
                 }
             }
         });
@@ -451,10 +451,10 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                return Err(RdpError::TryError(format!(
+                Err(RdpError::TryError(format!(
                     "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
-                )));
+                )))
             }
         }
     });
@@ -484,12 +484,10 @@ fn connect_rdp_inner(
                 }
                 Ok(())
             }
-            Err(_) => {
-                return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {:?}",
-                    req.path
-                )));
-            }
+            Err(_) => Err(RdpError::TryError(format!(
+                "path contained characters that couldn't be converted to a C string: {:?}",
+                req.path
+            ))),
         }
     });
 
@@ -519,12 +517,10 @@ fn connect_rdp_inner(
                 }
                 Ok(())
             }
-            Err(_) => {
-                return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {:?}",
-                    req.path
-                )));
-            }
+            Err(_) => Err(RdpError::TryError(format!(
+                "path contained characters that couldn't be converted to a C string: {:?}",
+                req.path
+            ))),
         }
     });
 
@@ -552,19 +548,15 @@ fn connect_rdp_inner(
                     }
                     Ok(())
                 }
-                Err(_) => {
-                    return Err(RdpError::TryError(format!(
-                            "new_path contained characters that couldn't be converted to a C string: {:?}",
-                            req.new_path
-                        )));
-                }
+                Err(_) => Err(RdpError::TryError(format!(
+                    "new_path contained characters that couldn't be converted to a C string: {:?}",
+                    req.new_path
+                ))),
             },
-            Err(_) => {
-                return Err(RdpError::TryError(format!(
-                    "original_path contained characters that couldn't be converted to a C string: {:?}",
-                    req.original_path
-                )));
-            }
+            Err(_) => Err(RdpError::TryError(format!(
+                "original_path contained characters that couldn't be converted to a C string: {:?}",
+                req.original_path
+            ))),
         }
     });
 
@@ -1391,10 +1383,11 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
+    ErrCodeClientPtr = 2,
 }
 
 #[repr(C)]
@@ -1469,6 +1462,7 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
 pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
     err_code: TdpErrCode,
+
     fso: FileSystemObject,
 }
 
@@ -1501,6 +1495,7 @@ pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
     file_type: FileType,
+    is_empty: u8,
     path: UnixPath,
 }
 
@@ -1523,6 +1518,7 @@ pub struct CGOFileSystemObject {
     pub last_modified: u64,
     pub size: u64,
     pub file_type: FileType,
+    pub is_empty: u8,
     pub path: *const c_char,
 }
 
@@ -1538,6 +1534,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 last_modified: cgo_fso.last_modified,
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
+                is_empty: cgo_fso.is_empty,
                 path: UnixPath::from(from_go_string(cgo_fso.path)),
             }
         }
@@ -1545,14 +1542,14 @@ impl From<CGOFileSystemObject> for FileSystemObject {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum FileType {
     File = 0,
     Directory = 1,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TdpErrCode {
     /// nil (no error, operation succeeded)
     Nil = 0,
