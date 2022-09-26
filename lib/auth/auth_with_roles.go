@@ -1242,7 +1242,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop:
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1325,9 +1325,11 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
 	case types.Database:
 		return r.CheckAccess(rr, mfaParams)
+	case types.Server:
+		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktop:
 		return r.CheckAccess(rr, mfaParams)
-	case types.Server:
+	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
@@ -1403,13 +1405,33 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService:
 		return newKubeChecker(a.context), nil
+	case types.KindNode:
+		return newNodeChecker(a), nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
+}
+
+type nodeChecker struct {
+	s *ServerWithRoles
+}
+
+func newNodeChecker(s *ServerWithRoles) *nodeChecker {
+	return &nodeChecker{
+		s: s,
+	}
+}
+
+func (c *nodeChecker) CanAccess(resource types.Resource) error {
+	server, ok := resource.(types.Server)
+	if !ok {
+		return trace.BadParameter("expected types.Server, got %T", resource)
+	}
+	return c.s.checkAccessToNode(server)
 }
 
 // listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
@@ -1508,6 +1530,11 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 // ListWindowsDesktops not implemented: can only be called locally.
 func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListWindowsDesktopServices not implemented: can only be called locally.
+func (a *ServerWithRoles) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -3328,6 +3355,46 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	return a.authServer.GetAuthPreference(ctx)
 }
 
+// GetInstaller retrieves an installer script resource
+func (a *ServerWithRoles) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetInstaller(ctx, name)
+}
+
+// GetInstallers gets all the installer resources.
+func (a *ServerWithRoles) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetInstallers(ctx)
+}
+
+// SetInstaller sets an Installer script resource
+func (a *ServerWithRoles) SetInstaller(ctx context.Context, inst types.Installer) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbUpdate, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.SetInstaller(ctx, inst))
+}
+
+// DeleteInstaller removes an installer script resource
+func (a *ServerWithRoles) DeleteInstaller(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteInstaller(ctx, name))
+}
+
+// DeleteAllInstallers removes all installer script resources
+func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteAllInstallers(ctx))
+}
+
 // SetAuthPreference sets cluster auth preference.
 func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
 	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
@@ -3784,15 +3851,15 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//  - Cluster administrator using "tctl auth sign --format=db" command locally
-//    on the auth server to produce a certificate for configuring a self-hosted
-//    database.
-//  - Remote user using "tctl auth sign --format=db" command with a remote
-//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//    role Db.
-//  - Database service when initiating connection to a database instance to
-//    produce a client certificate.
-//  - Proxy service when generating mTLS files to a database
+//   - Cluster administrator using "tctl auth sign --format=db" command locally
+//     on the auth server to produce a certificate for configuring a self-hosted
+//     database.
+//   - Remote user using "tctl auth sign --format=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//     role Db.
+//   - Database service when initiating connection to a database instance to
+//     produce a client certificate.
+//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if the User can `create` DatabaseCertificates
 	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)

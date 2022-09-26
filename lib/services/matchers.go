@@ -29,6 +29,24 @@ type ResourceMatcher struct {
 	Labels types.Labels
 }
 
+// AWSSSM provides options to use when executing SSM documents
+type AWSSSM struct {
+	// DocumentName is the name of the document to use when executing an
+	// SSM command
+	DocumentName string
+}
+
+// InstallerParams are passed to the AWS SSM document
+type InstallerParams struct {
+	// JoinMethod is the method to use when joining the cluster
+	JoinMethod types.JoinMethod
+	// JoinToken is the token to use when joining the cluster
+	JoinToken string
+	// ScriptName is the name of the teleport script for the EC2
+	// instance to execute
+	ScriptName string
+}
+
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
 	// Types are AWS database types to match, "rds" or "redshift".
@@ -37,6 +55,11 @@ type AWSMatcher struct {
 	Regions []string
 	// Tags are AWS tags to match.
 	Tags types.Labels
+	// Params are passed to AWS when executing the SSM document
+	Params InstallerParams
+	// SSM provides options to use when sending a document command to
+	// an EC2 node
+	SSM *AWSSSM
 }
 
 // AzureMatcher matches Azure databases.
@@ -95,7 +118,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindKubernetesCluster:
+	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -245,4 +268,6 @@ const (
 	AzureMatcherMySQL = "mysql"
 	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
 	AzureMatcherPostgres = "postgres"
+	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
+	AWSMatcherEC2 = "ec2"
 )

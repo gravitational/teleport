@@ -30,10 +30,12 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -53,7 +55,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -142,7 +144,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -322,6 +324,98 @@ func TestSAMLAuthRequest(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
 		})
+	}
+}
+
+func TestInstaller(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	_, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, srv.Auth(), "test-read", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = CreateRole(ctx, srv.Auth(), "test-update", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = CreateRole(ctx, srv.Auth(), "test-delete", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	user, err := CreateUser(srv.Auth(), "testuser")
+	require.NoError(t, err)
+
+	inst, err := types.NewInstallerV1(installers.InstallerScriptName, "contents")
+	require.NoError(t, err)
+	err = srv.Auth().SetInstaller(ctx, inst)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		roles           []string
+		assert          require.ErrorAssertionFunc
+		installerAction func(*Client) error
+	}{{
+		roles:  []string{"test-empty"},
+		assert: require.Error,
+		installerAction: func(c *Client) error {
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}, {
+		roles:  []string{"test-read"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}, {
+		roles:  []string{"test-update"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
+			require.NoError(t, err)
+			return c.SetInstaller(ctx, inst)
+		},
+	}, {
+		roles:  []string{"test-delete"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}} {
+		user.SetRoles(tc.roles)
+		err = srv.Auth().UpsertUser(user)
+		require.NoError(t, err)
+
+		client, err := srv.NewClient(TestUser(user.GetName()))
+		require.NoError(t, err)
+		tc.assert(t, tc.installerAction(client))
 	}
 }
 
@@ -948,7 +1042,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := native.GenerateKeyPair()
+			_, pub, err := testauthority.New().GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1046,7 +1140,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -2966,6 +3060,50 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	})
 }
 
+// TestListNodesBuiltinRole makes sure that remote proxy builin role has
+// permissions to list nodes.
+func TestListNodesBuiltinRole(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		node, err := types.NewServer(fmt.Sprintf("node-%v", i), types.KindNode, types.ServerSpecV2{
+			Addr:     fmt.Sprintf("192.168.1.%v", i),
+			Hostname: fmt.Sprintf("node-%v", i),
+		})
+		require.NoError(t, err)
+		_, err = srv.AuthServer.UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	identities := []TestIdentity{
+		TestBuiltin(types.RoleAdmin),
+		TestBuiltin(types.RoleProxy),
+		TestRemoteBuiltin(types.RoleProxy, "remote"),
+	}
+
+	for _, ident := range identities {
+		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, ident.I))
+		require.NoError(t, err)
+
+		s := &ServerWithRoles{
+			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
+			alog:       srv.AuditLog,
+			context:    *authContext,
+		}
+
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Limit:        10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Resources, 3)
+	}
+}
+
 func TestDeleteUserAppSessions(t *testing.T) {
 	ctx := context.Background()
 
@@ -3440,7 +3578,7 @@ func TestGenerateHostCert(t *testing.T) {
 
 	clusterName := srv.ClusterName()
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	noError := func(err error) bool {

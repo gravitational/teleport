@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -3996,6 +3997,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindWindowsDesktopService:
+			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
 		case types.KindKubernetesCluster:
 			cluster, ok := resource.(*types.KubernetesClusterV3)
 			if !ok {
@@ -4188,7 +4196,102 @@ func (g *GRPCServer) CreateConnectionDiagnostic(ctx context.Context, connectionD
 	if err := auth.ServerWithRoles.CreateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &empty.Empty{}, nil
+}
 
+// SetInstaller sets the installer script resource
+func (g *GRPCServer) SetInstaller(ctx context.Context, req *types.InstallerV1) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SetInstaller(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetInstaller retrieves the installer script resource
+func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceRequest) (*types.InstallerV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res, err := auth.GetInstaller(ctx, req.Name)
+	if err != nil {
+		if trace.IsNotFound(err) && req.Name == installers.InstallerScriptName {
+			return installers.DefaultInstaller, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	inst, ok := res.(*types.InstallerV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected installer type %T", res)
+	}
+	return inst, nil
+}
+
+// GetInstallers returns all installer script resources registered in the cluster.
+func (g *GRPCServer) GetInstallers(ctx context.Context, _ *empty.Empty) (*types.InstallerV1List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res, err := auth.GetInstallers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var installersV1 []*types.InstallerV1
+	needDefault := true
+	for _, inst := range res {
+		instV1, ok := inst.(*types.InstallerV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported installer type %T", inst)
+		}
+		if inst.GetName() == installers.InstallerScriptName {
+			needDefault = false
+		}
+		installersV1 = append(installersV1, instV1)
+	}
+
+	if len(installersV1) == 0 {
+		return &types.InstallerV1List{
+			Installers: []*types.InstallerV1{
+				installers.DefaultInstaller,
+			},
+		}, nil
+	}
+
+	if needDefault {
+		installersV1 = append(installersV1, installers.DefaultInstaller)
+	}
+
+	return &types.InstallerV1List{
+		Installers: installersV1,
+	}, nil
+}
+
+// DeleteInstaller sets the installer script resource to its default
+func (g *GRPCServer) DeleteInstaller(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteInstaller(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteALlInstallers deletes all the installers
+func (g *GRPCServer) DeleteAllInstallers(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteAllInstallers(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &empty.Empty{}, nil
 }
 

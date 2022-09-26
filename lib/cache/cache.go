@@ -102,6 +102,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -138,6 +139,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -168,6 +170,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -227,6 +230,7 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
 	}
+
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
@@ -311,6 +315,19 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForDiscovery sets up watch configuration for discovery servers.
+func ForDiscovery(cfg Config) Config {
+	cfg.target = "discovery"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindNode},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
 }
 
@@ -842,23 +859,23 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 // and consistently ordered thanks to Raft. Unfortunately, DynamoDB
 // does not provide such a mechanism for its event system, so
 // some tradeofs have to be made:
-//   a. We assume that events are ordered in regards to the
-//   individual key operations which is the guarantees both Etcd and DynamodDB
-//   provide.
-//   b. Thanks to the init event sent by the server on a successful connect,
-//   and guarantees 1 and 2a, client assumes that once it connects and receives an event,
-//   it will not miss any events, however it can receive stale events.
-//   Event could be stale, if it relates to a change that happened before
-//   the version read by client from the database, for example,
-//   given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
-//   Client could have subscribed before event 1 happened,
-//   read the value a=2 and then received events 1 and 2 and 3.
-//   The cache will replay all events 1, 2 and 3 and end up in the correct
-//   state 3. If we had a consistent revision number, we could
-//   have skipped 1 and 2, but in the absence of such mechanism in Dynamo
-//   we assume that this cache will eventually end up in a correct state
-//   potentially lagging behind the state of the database.
 //
+//	a. We assume that events are ordered in regards to the
+//	individual key operations which is the guarantees both Etcd and DynamodDB
+//	provide.
+//	b. Thanks to the init event sent by the server on a successful connect,
+//	and guarantees 1 and 2a, client assumes that once it connects and receives an event,
+//	it will not miss any events, however it can receive stale events.
+//	Event could be stale, if it relates to a change that happened before
+//	the version read by client from the database, for example,
+//	given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
+//	Client could have subscribed before event 1 happened,
+//	read the value a=2 and then received events 1 and 2 and 3.
+//	The cache will replay all events 1, 2 and 3 and end up in the correct
+//	state 3. If we had a consistent revision number, we could
+//	have skipped 1 and 2, but in the absence of such mechanism in Dynamo
+//	we assume that this cache will eventually end up in a correct state
+//	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		QueueSize:       c.QueueSize,
@@ -1289,17 +1306,13 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	defer rg.Release()
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
-		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func(ctx context.Context) (interface{}, error) {
+		cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
 			ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
-			ta(ca)
 			return ca, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCA := ci.(types.CertAuthority)
-		ta(cachedCA)
 		return cachedCA.Clone(), nil
 	}
 
@@ -1334,17 +1347,13 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
-		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) (interface{}, error) {
+		cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
 			cas, err := rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
-			ta(cas)
 			return cas, trace.Wrap(err)
 		})
-		if err != nil || ci == nil {
+		if err != nil || cachedCAs == nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCAs := ci.([]types.CertAuthority)
-		ta(cachedCAs)
 		cas := make([]types.CertAuthority, 0, len(cachedCAs))
 		for _, ca := range cachedCAs {
 			cas = append(cas, ca.Clone())
@@ -1421,17 +1430,13 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.ClusterAuditConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (interface{}, error) {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
 			cfg, err := rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
-			ta(cfg)
 			return cfg, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCfg := ci.(types.ClusterAuditConfig)
-		ta(cachedCfg)
 		return cachedCfg.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
@@ -1448,17 +1453,13 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.ClusterNetworkingConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (interface{}, error) {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
-			ta(cfg)
 			return cfg, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCfg := ci.(types.ClusterNetworkingConfig)
-		ta(cachedCfg)
 		return cachedCfg.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
@@ -1475,20 +1476,46 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.ClusterName) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"name"}, func(ctx context.Context) (interface{}, error) {
+		cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
 			cfg, err := rg.clusterConfig.GetClusterName(opts...)
-			ta(cfg)
 			return cfg, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCfg := ci.(types.ClusterName)
-		ta(cachedCfg)
-		return cachedCfg.Clone(), nil
+		return cachedName.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterName(opts...)
+}
+
+// GetInstaller gets the installer script resource for the cluster
+func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	inst, err := rg.clusterConfig.GetInstaller(ctx, name)
+	return inst, trace.Wrap(err)
+}
+
+// GetInstallers gets all the installer script resources for the cluster
+func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	inst, err := rg.clusterConfig.GetInstallers(ctx)
+	return inst, trace.Wrap(err)
 }
 
 // GetRoles is a part of auth.Cache implementation
@@ -1601,21 +1628,12 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
 // must be cloned to avoid concurrent modification.
 func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	ta := func(_ []types.Server) {} // compile-time type assertion
-	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
+	cachedNodes, err := utils.FnCacheGet(ctx, c.fnCache, getNodesCacheKey{namespace}, func(ctx context.Context) ([]types.Server, error) {
 		nodes, err := rg.presence.GetNodes(ctx, namespace)
-		ta(nodes)
 		return nodes, err
 	})
-	if err != nil || ni == nil {
-		return nil, trace.Wrap(err)
-	}
-	cachedNodes, ok := ni.([]types.Server)
-	if !ok {
-		return nil, trace.Errorf("TTL-cache returned unexpexted type %T (this is a bug!).", ni)
-	}
-	ta(cachedNodes)
-	return cachedNodes, nil
+
+	return cachedNodes, trace.Wrap(err)
 }
 
 // GetAuthServers returns a list of registered servers
@@ -1674,17 +1692,14 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(ctx, remoteClustersCacheKey{}, func(ctx context.Context) (interface{}, error) {
+		cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
 			remotes, err := rg.presence.GetRemoteClusters(opts...)
-			ta(remotes)
 			return remotes, err
 		})
-		if err != nil || ri == nil {
+		if err != nil || cachedRemotes == nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedRemotes := ri.([]types.RemoteCluster)
-		ta(cachedRemotes)
+
 		remotes := make([]types.RemoteCluster, 0, len(cachedRemotes))
 		for _, remote := range cachedRemotes {
 			remotes = append(remotes, remote.Clone())
@@ -1705,17 +1720,14 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(ctx, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (interface{}, error) {
+		cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
 			remote, err := rg.presence.GetRemoteCluster(clusterName)
-			ta(remote)
 			return remote, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedRemote := ri.(types.RemoteCluster)
-		ta(cachedRemote)
+
 		return cachedRemote.Clone(), nil
 	}
 	rc, err := rg.presence.GetRemoteCluster(clusterName)
@@ -2086,6 +2098,19 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.ListWindowsDesktops(ctx, req)
+}
+
+// ListWindowsDesktopServices returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
 }
 
 // ListResources is a part of auth.Cache implementation

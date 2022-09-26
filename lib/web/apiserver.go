@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -72,6 +73,7 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -194,6 +196,14 @@ type Config struct {
 	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
 	// a reverse tunnel agent to establish a connection.
 	MinimalReverseTunnelRoutesOnly bool
+
+	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
+	// connection through a HTTP upgrade call.
+	ALPNHandler ConnectionHandler
+
+	// PublicProxyAddr is used to template the public proxy address
+	// into the installer script responses
+	PublicProxyAddr string
 }
 
 type APIHandler struct {
@@ -202,6 +212,9 @@ type APIHandler struct {
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
 }
+
+// ConnectionHandler defines a function for serving incoming connections.
+type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
@@ -451,6 +464,10 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Unauthenticated access to the message of the day
 	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
 
+	// Unauthenticated access to retrieving the script used to install
+	// Teleport
+	h.GET("/webapi/scripts/installer/:name", httplib.MakeHandler(h.installer))
+
 	// DELETE IN: 5.1.0
 	//
 	// Migrated this endpoint to /webapi/sessions/web below.
@@ -592,6 +609,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
+	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
@@ -602,6 +620,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
 	// Diagnose a Connection
 	h.POST("/webapi/sites/:site/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
+
+	// Connection upgrades.
+	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1412,6 +1433,32 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	return redirectURL.String()
+}
+
+func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+
+	installerName := p.ByName("name")
+	installer, err := h.auth.proxyClient.GetInstaller(r.Context(), installerName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ping, err := h.auth.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// semver parsing requires a 'v' at the beginning of the version string.
+	version := semver.Major("v" + ping.ServerVersion)
+	instTmpl, err := template.New("").Parse(installer.GetScript())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tmpl := installers.Template{
+		PublicProxyAddr: h.cfg.PublicProxyAddr,
+		MajorVersion:    version,
+	}
+	err = instTmpl.Execute(w, tmpl)
+	return nil, trace.Wrap(err)
 }
 
 // AuthParams are used to construct redirect URL containing auth
@@ -2768,19 +2815,77 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			clusterName = res.GetClusterName()
 		}
 
-		proxy, err := h.ProxyWithRoles(ctx)
+		site, err := h.getSite(ctx, clusterName)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to get proxy with roles.")
-			return nil, trace.Wrap(err)
-		}
-
-		site, err := proxy.GetSite(clusterName)
-		if err != nil {
-			h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
 			return nil, trace.Wrap(err)
 		}
 
 		return fn(w, r, p, ctx, site)
+	})
+}
+
+func (h *Handler) getSite(ctx *SessionContext, clusterName string) (reversetunnel.RemoteSite, error) {
+	proxy, err := h.ProxyWithRoles(ctx)
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to get proxy with roles.")
+		return nil, trace.Wrap(err)
+	}
+
+	site, err := proxy.GetSite(clusterName)
+	if err != nil {
+		h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
+		return nil, trace.Wrap(err)
+	}
+
+	return site, nil
+}
+
+// ClusterClientProvider is an interface for a type which can provide
+// authenticated clients to remote clusters.
+type ClusterClientProvider interface {
+	// UserClientForCluster returns a client to the local or remote cluster
+	// identified by clusterName and is authenticated with the identity of the
+	// user.
+	UserClientForCluster(clusterName string) (auth.ClientI, error)
+}
+
+type clusterClientProvider struct {
+	h   *Handler
+	ctx *SessionContext
+}
+
+// UserClientForCluster returns a client to the local or remote cluster
+// identified by clusterName and is authenticated with the identity of the user.
+func (r clusterClientProvider) UserClientForCluster(clusterName string) (auth.ClientI, error) {
+	site, err := r.h.getSite(r.ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := r.ctx.GetUserClient(site)
+	return clt, trace.Wrap(err)
+}
+
+// ClusterClientHandler is an authenticated handler which can get a client for
+// any remote cluster.
+type ClusterClientHandler func(http.ResponseWriter, *http.Request, httprouter.Params, *SessionContext, ClusterClientProvider) (interface{}, error)
+
+// WithClusterClientProvider wraps a ClusterClientHandler to ensure that a
+// request is authenticated to this proxy (the same as WithAuth), and passes a
+// ClusterClientProvider so that the handler can access remote clusters. Use
+// this instead of WithClusterAuth when the remote cluster cannot be encoded in
+// the path or multiple clusters may need to be accessed from a single handler.
+func (h *Handler) WithClusterClientProvider(fn ClusterClientHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		ctx, err := h.AuthenticateRequest(w, r, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		g := clusterClientProvider{
+			h:   h,
+			ctx: ctx,
+		}
+		return fn(w, r, p, ctx, g)
 	})
 }
 

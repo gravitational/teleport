@@ -35,7 +35,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
@@ -361,15 +362,15 @@ type GCPSQLAdminClientMock struct {
 	EphemeralCert *tls.Certificate
 }
 
-func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, sessionCtx *common.Session, user *sqladmin.User) error {
+func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error {
 	return nil
 }
 
-func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, sessionCtx *common.Session) (*sqladmin.DatabaseInstance, error) {
+func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error) {
 	return g.DatabaseInstance, nil
 }
 
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *common.Session) (*tls.Certificate, error) {
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, identity tlsca.Identity) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
 }
 
