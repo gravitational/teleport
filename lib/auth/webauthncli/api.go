@@ -123,16 +123,23 @@ func Login(
 		user = opts.User
 	}
 
+	if webauthnwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
+		return webauthnwin.Login(ctx, origin, assertion, &webauthnwin.LoginOpts{
+			AuthenticatorAttachment: webauthnwin.AuthenticatorAttachment(attachment),
+		})
+	}
+
 	switch attachment {
 	case AttachmentCrossPlatform:
 		log.Debug("Cross-platform login")
 		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
 	case AttachmentPlatform:
 		log.Debug("Platform login")
-		return platformLogin(ctx, origin, user, assertion, prompt, opts)
+		return platformLogin(origin, user, assertion, prompt)
 	default:
 		log.Debug("Attempting platform login")
-		resp, credentialUser, err := platformLogin(ctx, origin, user, assertion, prompt, opts)
+		resp, credentialUser, err := platformLogin(origin, user, assertion, prompt)
 		if !errors.Is(err, &touchid.ErrAttemptFailed{}) {
 			return resp, credentialUser, trace.Wrap(err)
 		}
@@ -151,15 +158,6 @@ func crossPlatformLogin(
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
-	if webauthnwin.IsAvailable() {
-		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential creation")
-		inOpts := &webauthnwin.LoginOpts{}
-		if opts != nil {
-			inOpts.AuthenticatorAttachment = webauthnwin.AuthenticatorAttachment(opts.AuthenticatorAttachment)
-		}
-		return webauthnwin.Login(ctx, origin, assertion, inOpts)
-	}
-
 	if err := prompt.PromptTouch(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -167,16 +165,7 @@ func crossPlatformLogin(
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(ctx context.Context, origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-	if webauthnwin.IsAvailable() {
-		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential assertion")
-		inOpts := &webauthnwin.LoginOpts{}
-		if opts != nil {
-			inOpts.AuthenticatorAttachment = webauthnwin.AuthenticatorAttachment(opts.AuthenticatorAttachment)
-		}
-		return webauthnwin.Login(ctx, origin, assertion, inOpts)
-	}
-
+func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
 	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
@@ -210,14 +199,14 @@ type RegisterPrompt interface {
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
+	if webauthnwin.IsAvailable() {
+		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
+		return webauthnwin.Register(ctx, origin, cc)
+	}
+
 	if IsFIDO2Available() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)
-	}
-
-	if webauthnwin.IsAvailable() {
-		log.Debug("WIN_WEBAUTHN: Using windows webauthn for credential creation")
-		return webauthnwin.Register(ctx, origin, cc)
 	}
 
 	if err := prompt.PromptTouch(); err != nil {

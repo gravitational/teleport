@@ -54,9 +54,6 @@ type nativeWebauthn interface {
 }
 
 // Login implements Login for Windows Webauthn API.
-// It returns an MFAAuthenticateResponse.
-// Most callers should call Login directly, as it is correctly guarded by
-// IsAvailable.
 func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, opts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 	switch {
 	case origin == "":
@@ -71,7 +68,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	resp, err := native.GetAssertion(origin, assertion, opts)
 	if err != nil {
 		// TODO(tobiaszheller): proper error
-		return nil, "", err
+		return nil, "", trace.Wrap(err)
 	}
 
 	return &proto.MFAAuthenticateResponse{
@@ -82,8 +79,6 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 }
 
 // Register implements Register for Windows Webauthn API.
-// Most callers should call Register directly, as it is correctly guarded by
-// IsAvailable.
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation,
@@ -119,7 +114,7 @@ func Register(
 	resp, err := native.MakeCredential(origin, cc)
 	if err != nil {
 		// TODO(tobiaszheller): proper error
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &proto.MFARegisterResponse{

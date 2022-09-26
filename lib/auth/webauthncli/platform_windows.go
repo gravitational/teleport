@@ -14,8 +14,10 @@
 
 package webauthncli
 
+import "github.com/gravitational/teleport/lib/auth/webauthnwin"
+
 // HasPlatformSupport returns true if the platform supports client-side
 // WebAuthn-compatible logins.
 func HasPlatformSupport() bool {
-	return true
+	return webauthnwin.IsAvailable()
 }
