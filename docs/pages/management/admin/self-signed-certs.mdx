@@ -24,8 +24,8 @@ to the Proxy Service.
   makes it easier for attackers to intercept communications
   between the Proxy Service and clients, since there is no
   way to verify the authenticity of the certificates.
-  It is therefore important to [properly configure certificates](#configuring-certificates-properly)
-  when using Teleport in production.
+  It is therefore important to properly configure certificates
+  when using Teleport in a production environment.
 </Notice>
 
 ## Prerequisites
@@ -205,14 +205,9 @@ If the Teleport Proxy Service is using self-signed certificates, then `tsh` will
 certificate.
 In order to use `tsh` in this case, you need to use the `--insecure` flag.
 
-## Configuring certificates properly
-
-Now that you have learned how to use Teleport with self-signed certificates, you may be interested in how to do 
-things *the right way*.
-
-(!docs/pages/includes/tls-certificate-setup.mdx!)
 
 ## Further reading
 
+- [Configuring Teleport TLS Certs](../../deploy-a-cluster/open-source.mdx#configure-teleport)
 - [Teleport Proxy](../../architecture/proxy.mdx)
 - [Teleport Authentication](../../architecture/authentication.mdx)
