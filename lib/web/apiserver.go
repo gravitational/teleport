@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -42,6 +43,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/mod/semver"
 
@@ -50,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -65,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -206,6 +210,9 @@ type Config struct {
 	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
 	// connection through a HTTP upgrade call.
 	ALPNHandler ConnectionHandler
+
+	// TraceClient is used to forward spans to the upstream collector for the webui
+	TraceClient otlptrace.Client
 }
 
 type APIHandler struct {
@@ -479,6 +486,8 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	//
 	// Migrated this endpoint to /webapi/sessions/web below.
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
+
+	h.POST("/webapi/traces", httplib.MakeHandler(h.traces))
 
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
@@ -903,6 +912,65 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	as.LoadAllCAs = pingResp.LoadAllCAs
 
 	return as, nil
+}
+
+// traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
+// disabled then the forwarding is a noop.
+func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+	var data tracepb.TracesData
+	if err := jsonpb.Unmarshal(r.Body, &data); err != nil {
+		h.log.WithError(err).Error("Failed to unmarshal traces request")
+		return nil, trace.Wrap(err)
+	}
+
+	if len(data.ResourceSpans) == 0 {
+		return nil, nil
+	}
+
+	// Unmarshalling of TraceId, SpanId, and ParentSpanId are all incorrect. The raw values are
+	// hex encoded, but the unmarshal call above will decode them as base64. In order to ensure
+	// the ids are in the right format and won't be rejected by the upstream collector we need to
+	// convert them back into their raw form and then hex decode them.
+	for _, resourceSpan := range data.ResourceSpans {
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+
+				traceId := base64.StdEncoding.EncodeToString(span.TraceId)
+				tid, err := oteltrace.TraceIDFromHex(traceId)
+				if err != nil {
+					h.log.WithError(err).Error("Failed to decode trace id")
+					return nil, trace.Wrap(err)
+				}
+				span.TraceId = tid[:]
+
+				spanId := base64.StdEncoding.EncodeToString(span.SpanId)
+				sid, err := oteltrace.SpanIDFromHex(spanId)
+				if err != nil {
+					h.log.WithError(err).Error("Failed to decode span id")
+					return nil, trace.Wrap(err)
+				}
+				span.SpanId = sid[:]
+
+				if len(span.ParentSpanId) > 0 {
+					parentSpanID := base64.StdEncoding.EncodeToString(span.ParentSpanId)
+					psid, err := oteltrace.SpanIDFromHex(parentSpanID)
+					if err != nil {
+						h.log.WithError(err).Error("Failed to decode parent span id")
+						return nil, trace.Wrap(err)
+					}
+					span.ParentSpanId = psid[:]
+				}
+			}
+		}
+	}
+
+	if err := h.cfg.TraceClient.UploadTraces(r.Context(), data.ResourceSpans); err != nil {
+		h.log.WithError(err).Errorf("Failed to upload traces")
+		return nil, trace.Wrap(err)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	return nil, nil
 }
 
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2101,7 +2169,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(h.cfg.Context)
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(r.Context())
 	if err != nil {
 		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return nil, trace.Wrap(err)
@@ -2125,7 +2193,7 @@ func (h *Handler) siteNodeConnect(
 
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
-	term.Serve(w, r)
+	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
 
 	return nil, nil
 }
@@ -3054,7 +3122,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		Tracer:            tracing.NoopProvider().Tracer("test"),
+		Tracer:            apitracing.DefaultProvider().Tracer("webTerminal"),
 	}
 
 	return config, nil
