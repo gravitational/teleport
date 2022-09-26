@@ -1011,7 +1011,7 @@ func getPostgresDefaultPort(cfg *service.Config) int {
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
-	// From v2 onwards. if an address is not provided don't fall back to the default values.
+	// From v2 onwards if an address is not provided don't fall back to the default values.
 	if cfg.Version != defaults.TeleportConfigVersionV1 {
 		return
 	}
