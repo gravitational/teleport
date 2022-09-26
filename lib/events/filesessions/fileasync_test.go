@@ -482,7 +482,6 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 		Streamer:   pack.streamer,
 		Clock:      pack.clock,
 		EventsC:    pack.eventsC,
-		AuditLog:   &events.DiscardAuditLog{},
 	})
 	require.NoError(t, err)
 	pack.uploader = uploader
@@ -518,7 +517,6 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		ScanPeriod: scanPeriod,
 		Streamer:   test.streamer,
 		Clock:      clock,
-		AuditLog:   &events.DiscardAuditLog{},
 	})
 	require.Nil(t, err)
 	go uploader.Serve(ctx)

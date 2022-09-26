@@ -261,6 +261,8 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			if g.APIConfig.MetadataGetter != nil {
 				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				// TODO(zmb3): this may result in duplicate upload events, as the upload
+				// completer will emit its own session.upload
 				event := &apievents.SessionUpload{
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
@@ -4044,6 +4046,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindWindowsDesktopService:
+			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
 		case types.KindKubernetesCluster:
 			cluster, ok := resource.(*types.KubernetesClusterV3)
 			if !ok {
