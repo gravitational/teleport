@@ -1136,6 +1136,7 @@ type WindowsDesktopConfig struct {
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
+	Labels     map[string]string
 }
 
 type LDAPDiscoveryConfig struct {
@@ -1191,6 +1192,8 @@ type LDAPConfig struct {
 	Username string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }

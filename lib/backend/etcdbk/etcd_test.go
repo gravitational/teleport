@@ -19,6 +19,7 @@ package etcdbk
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -51,6 +52,10 @@ var commonEtcdParams = backend.Params{
 	"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
 }
 
+var commonEtcdOptions = []Option{
+	LeaseBucket(time.Second), // tests are more picky about expiry granularity
+}
+
 func TestEtcd(t *testing.T) {
 	if !etcdTestEnabled() {
 		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
@@ -69,7 +74,7 @@ func TestEtcd(t *testing.T) {
 		// No need to check target backend - all Etcd backends create by this test
 		// point to the same datastore.
 
-		bk, err := New(context.Background(), commonEtcdParams)
+		bk, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -93,7 +98,7 @@ func TestPrefix(t *testing.T) {
 	ctx := context.Background()
 
 	// Given an etcd backend with a minimal configuration...
-	unprefixedUut, err := New(context.Background(), commonEtcdParams)
+	unprefixedUut, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
 	require.NoError(t, err)
 	defer unprefixedUut.Close()
 
@@ -104,7 +109,7 @@ func TestPrefix(t *testing.T) {
 	}
 	cfg["prefix"] = customPrefix
 
-	prefixedUut, err := New(context.Background(), cfg)
+	prefixedUut, err := New(context.Background(), cfg, commonEtcdOptions...)
 	require.NoError(t, err)
 	defer prefixedUut.Close()
 
@@ -176,7 +181,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 		"tls_ca_file":                    "../../../examples/etcd/certs/ca-cert.pem",
 		"dial_timeout":                   500 * time.Millisecond,
 		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
-	})
+	}, commonEtcdOptions...)
 	require.NoError(t, err)
 	defer bk.Close()
 	prefix := test.MakePrefix()
@@ -190,6 +195,52 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	)
 	require.True(t, trace.IsLimitExceeded(err))
 	require.Regexp(t, ".*ResourceExhausted.*", err)
+}
+
+func TestLeaseBucketing(t *testing.T) {
+	const pfx = "lease-bucket-test"
+	const count = 40
+
+	if !etcdTestEnabled() {
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var opts []Option
+	opts = append(opts, commonEtcdOptions...)
+	opts = append(opts, LeaseBucket(time.Second*2))
+
+	bk, err := New(ctx, commonEtcdParams, opts...)
+	require.NoError(t, err)
+	defer bk.Close()
+
+	for i := 0; i < count; i++ {
+		_, err := bk.Put(ctx, backend.Item{
+			Key:     backend.Key(pfx, fmt.Sprintf("%d", i)),
+			Value:   []byte(fmt.Sprintf("val-%d", i)),
+			Expires: time.Now().Add(time.Minute),
+		})
+		require.NoError(t, err)
+		time.Sleep(time.Millisecond * 200)
+	}
+
+	start := backend.Key(pfx, "")
+
+	rslt, err := bk.GetRange(ctx, start, backend.RangeEnd(start), backend.NoLimit)
+	require.NoError(t, err)
+	require.Len(t, rslt.Items, count)
+
+	leases := make(map[int64]struct{})
+	for _, item := range rslt.Items {
+		leases[item.LeaseID] = struct{}{}
+	}
+
+	// ensure that we averaged more than 1 item per lease, but
+	// also spanned more than one bucket.
+	require.Greater(t, len(leases), 1)
+	require.Less(t, len(leases), count/2)
 }
 
 func etcdTestEnabled() bool {

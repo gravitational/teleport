@@ -942,6 +942,7 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+  failure: ignore
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -6979,6 +6980,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: c2a0204245e9de488fc71b0842529e8dac875f8c39368f606abe5ccf754fe3cb
+hmac: 1fdc6ecd5dcf95f7bbcf14d579d1a96137902144d88e5be43929931ac7b97d05
 
 ...

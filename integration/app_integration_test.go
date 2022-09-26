@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -1649,15 +1650,21 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 	require.NoError(t, err)
 	require.Equal(t, len(configs), len(servers))
 
-	for _, appServer := range servers {
+	for i, appServer := range servers {
 		srv := appServer
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
 	}
 
 	return servers
+}
+
+func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, hostUUID string, apps []service.App) {
+	// Make sure that the app server is ready to accept connections.
+	// The remote site cache needs to be filled with new registered application services.
+	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
 func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
@@ -1769,12 +1776,12 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 	require.NoError(t, err)
 	require.Equal(t, len(configs), len(servers))
 
-	for _, appServer := range servers {
+	for i, appServer := range servers {
 		srv := appServer
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID)
+		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
 	}
 
 	return servers
@@ -1787,4 +1794,23 @@ var forwardedHeaderNames = []string{
 	"X-Forwarded-Host",
 	"X-Forwarded-Server",
 	"X-Forwarded-For",
+}
+
+func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnel.Server, clusterName string, cfgApps []service.App, hostUUID string) {
+	require.Eventually(t, func() bool {
+		site, err := tunnel.GetSite(clusterName)
+		require.NoError(t, err)
+		ap, err := site.CachingAccessPoint()
+		require.NoError(t, err)
+		apps, err := ap.GetApplicationServers(context.Background(), apidefaults.Namespace)
+		require.NoError(t, err)
+
+		counter := 0
+		for _, v := range apps {
+			if v.GetHostID() == hostUUID {
+				counter++
+			}
+		}
+		return len(cfgApps) == counter
+	}, time.Minute*2, time.Millisecond*200)
 }
