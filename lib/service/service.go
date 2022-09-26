@@ -3498,6 +3498,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessPoint:  accessPoint,
 		}
 
+		traceClt := tracing.NewNoopClient()
+		if cfg.Tracing.Enabled {
+			traceConf, err := process.Config.Tracing.Config()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+			clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			traceClt = clt
+		}
+
 		webConfig := web.Config{
 			Proxy:            tsrv,
 			AuthServers:      cfg.AuthServerAddresses()[0],
@@ -3518,6 +3534,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySettings:    proxySettings,
 			PublicProxyAddr:  process.proxyPublicAddr().Addr,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
+			TraceClient:      traceClt,
 		}
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
@@ -3544,8 +3561,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 		}
 
+		handler := httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy)
 		webServer = &http.Server{
-			Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if len(r.URL.Query()["traceparent"]) > 0 {
+					r.Header.Add("traceparent", r.URL.Query()["traceparent"][0])
+				}
+
+				handler.ServeHTTP(w, r)
+			}),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 		}
