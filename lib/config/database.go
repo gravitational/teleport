@@ -113,7 +113,7 @@ db_service:
     tags:
       "*": "*"
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions }}
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions}}
   # Matchers for registering Azure-hosted databases.
   azure:
   {{- end }}
@@ -141,6 +141,21 @@ db_service:
     # Azure regions to register databases from.
     regions:
     {{- range .AzurePostgresDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # Azure resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if or .AzureRedisDiscoveryRegions }}
+  # Azure Cache For Redis databases auto-discovery.
+  # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-redis/
+  - subscriptions: ["*"]
+    resource_groups: ["*"]
+    types: ["redis"]
+    # Azure regions to register databases from.
+    regions:
+    {{- range .AzureRedisDiscoveryRegions }}
     - {{ . }}
     {{- end }}
     # Azure resource tags to match when registering databases.
@@ -331,6 +346,9 @@ type DatabaseSampleFlags struct {
 	// AzurePostgresDiscoveryRegions is a list of regions Azure auto-discovery is
 	// configured to discover Postgres servers in.
 	AzurePostgresDiscoveryRegions []string
+	// AzureRedisDiscoveryRegions is a list of regions Azure auto-discovery is
+	// configured to discover Azure Cache for Redis servers in.
+	AzureRedisDiscoveryRegions []string
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
