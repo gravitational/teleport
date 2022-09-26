@@ -174,7 +174,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		// doesn't exist, create it as a directory
 		if len(c.srcPaths) > 1 {
 			if err := c.dstFS.Mkdir(c.dstPath, teleport.SharedDirMode); err != nil {
-				return trace.Wrap(err)
+				return trace.Errorf("error creating %s directory: %w", c.dstFS.Type(), err)
 			}
 			dstIsDir = true
 		}
@@ -229,12 +229,12 @@ func (c *Config) transfer(ctx context.Context) error {
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	err := c.dstFS.Mkdir(dstPath, srcFileInfo.Mode())
 	if err != nil && !errors.Is(err, os.ErrExist) {
-		return trace.Wrap(err)
+		return trace.Errorf("error creating %s directory: %w", c.dstFS.Type(), err)
 	}
 
 	infos, err := c.srcFS.ReadDir(srcPath)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("error reading %s directory: %w", c.srcFS.Type(), err)
 	}
 
 	for _, info := range infos {
@@ -257,7 +257,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 	if c.opts.PreserveAttrs {
 		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Errorf("error changing times of %s directory: %w", c.dstFS.Type(), err)
 		}
 	}
 
@@ -268,13 +268,13 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	srcFile, err := c.srcFS.Open(srcPath)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("error opening %s file: %w", c.srcFS.Type(), err)
 	}
 	defer srcFile.Close()
 
 	dstFile, err := c.dstFS.Create(dstPath, srcFileInfo.Mode())
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("error creating %s file: %w", c.dstFS.Type(), err)
 	}
 	defer dstFile.Close()
 
@@ -294,7 +294,13 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 
 	n, err := io.Copy(writer, srcFile)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("error copying %s file %q to %s file %q: %w",
+			c.srcFS.Type(),
+			srcPath,
+			c.dstFS.Type(),
+			dstPath,
+			err,
+		)
 	}
 	if n != srcFileInfo.Size() {
 		return trace.Errorf("short write: written %v, expected %v", n, srcFileInfo.Size())
@@ -303,7 +309,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	if c.opts.PreserveAttrs {
 		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Errorf("error changing times of %s file: %w", c.dstFS.Type(), err)
 		}
 	}
 
