@@ -103,24 +103,21 @@ func TestPlainHttpFallback(t *testing.T) {
 	}
 }
 
-func TestGetTunnelAddr(t *testing.T) {
-	t.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
-	tunnelAddr, err := GetTunnelAddr(&Config{Context: context.Background(), ProxyAddr: "", Insecure: false})
-	require.NoError(t, err)
-	require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
-}
-
 func TestTunnelAddr(t *testing.T) {
 	type testCase struct {
 		proxyAddr          string
 		settings           ProxySettings
 		expectedTunnelAddr string
+		setup              func(*testing.T)
 	}
 
-	testTunnelAddr := func(tc testCase) func(*testing.T) {
+	testTunnelAddr := func(tc testCase) func(t *testing.T) {
 		return func(t *testing.T) {
-			t.Parallel()
-			tunnelAddr, err := tunnelAddr(tc.proxyAddr, tc.settings)
+			if tc.setup != nil {
+				tc.setup(t)
+			}
+			tc.settings.webAddr = tc.proxyAddr
+			tunnelAddr, err := tc.settings.TunnelAddr()
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedTunnelAddr, tunnelAddr)
 		}
@@ -218,6 +215,15 @@ func TestTunnelAddr(t *testing.T) {
 			TLSRoutingEnabled: true,
 		},
 		expectedTunnelAddr: "proxy.example.com:443",
+	}))
+
+	t.Run("TELEPORT_TUNNEL_PUBLIC_ADDR overrides tunnel address", testTunnelAddr(testCase{
+		proxyAddr:          "proxy.example.com",
+		settings:           ProxySettings{},
+		expectedTunnelAddr: "tunnel.example.com:4024",
+		setup: func(t *testing.T) {
+			t.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
+		},
 	}))
 }
 
