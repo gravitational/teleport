@@ -1122,14 +1122,14 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		proxyServer := process.Config.ProxyServer
 		if !proxyServer.IsEmpty() {
 			logger := process.log.WithField("proxy-server", proxyServer.String())
-			logger.Debug("Attempting to connect to Proxy Server through tunnel.")
+			logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
 			tunnelClient, err := process.newClientThroughTunnel([]utils.NetAddr{proxyServer}, tlsConfig, sshClientConfig)
 			if err != nil {
 				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
 
-			logger.Debug("Connected to Proxy Server through tunnel.")
+			logger.Debug("Connected to Auth Server through tunnel.")
 
 			return tunnelClient, nil
 		}
