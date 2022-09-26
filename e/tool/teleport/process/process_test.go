@@ -21,10 +21,11 @@ func TestProxyWithoutLicense(t *testing.T) {
 		Proxy: service.ProxyConfig{
 			Enabled: true,
 		},
+		AuthServers: []utils.NetAddr{
+			*utils.MustParseAddr("tcp://127.0.0.1:8080"),
+		},
 		Log: utils.WrapLogger(logrus.WithField("test", t.Name())),
 	}
-
-	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
 
 	_, err := NewTeleport(config)
 	require.Nil(t, err)
@@ -52,10 +53,11 @@ func TestMissingLicenseError(t *testing.T) {
 			ListenAddr:   *utils.MustParseAddr("tcp://127.0.0.1:0"),
 		},
 		Hostname: "localhost",
-		Log:      utils.WrapLogger(logrus.WithField("test", t.Name())),
+		AuthServers: []utils.NetAddr{
+			*utils.MustParseAddr("tcp://127.0.0.1:8080"),
+		},
+		Log: utils.WrapLogger(logrus.WithField("test", t.Name())),
 	}
-
-	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
 
 	_, err = NewTeleport(config)
 	require.True(t, trace.IsAccessDenied(err))
