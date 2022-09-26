@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -84,7 +85,7 @@ type AgentPool struct {
 	cancel context.CancelFunc
 
 	// backoff limits the rate at which new agents are created.
-	backoff utils.Retry
+	backoff retryutils.Retry
 	log     logrus.FieldLogger
 }
 
@@ -177,10 +178,10 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:      time.Second,
 		Max:       maxBackoff,
-		Jitter:    utils.NewJitter(),
+		Jitter:    retryutils.NewJitter(),
 		AutoReset: 4,
 	})
 	if err != nil {

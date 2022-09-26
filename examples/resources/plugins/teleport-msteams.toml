@@ -1,0 +1,50 @@
+# Example Microsoft Teams plugin configuration TOML file
+
+# If true, channels and users existence is checked on plugin start. When a
+# user is checked, the app is installed for the user if it was not
+# already. Installation can take up to 10 seconds per user. It is
+# advised to enable preloading unless you are sure all users already got
+# the app installed to avoid possible timeouts when treating an access request.
+preload = true
+
+[teleport]
+# Teleport Auth/Proxy Server address.
+# addr = "example.com:3025"
+#
+# Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
+# For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
+
+# Credentials generated with `tctl auth sign`.
+#
+# When using --format=file:
+# identity = "/var/lib/teleport/plugins/msteams/auth_id"    # Identity file
+#
+# When using --format=tls:
+# client_key = "/var/lib/teleport/plugins/msteams/auth.key" # Teleport TLS secret key
+# client_crt = "/var/lib/teleport/plugins/msteams/auth.crt" # Teleport TLS certificate
+# root_cas = "/var/lib/teleport/plugins/msteams/auth.cas"   # Teleport CA certs
+addr = "localhost:3025"
+identity = "identity"
+
+[msapi]
+# MS API ID's. Please, check the documentation.
+app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# Either contains the app secret or the path of a file containing the secret
+app_secret = "XXXXXXXXXXXXXXXXXXXXXX"
+tenant_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+teams_app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+[role_to_recipients]
+# Map roles to recipients.
+#
+# Provide msteams user email/id or channel URL recipients for access requests for specific roles.
+# role.suggested_reviewers will automatically be treated as additional email recipients.
+# "*" must be provided to match non-specified roles.
+#
+# "dev" = "devs-slack-channel"
+# "*" = ["admin@email.com", "admin-slack-channel"]
+"*" = ["foo@example.com"]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/msteams.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

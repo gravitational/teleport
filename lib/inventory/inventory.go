@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -83,7 +84,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 	return handle
 }
 
-func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.InventoryHeartbeat, retry utils.Retry) {
+func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.InventoryHeartbeat, retry retryutils.Retry) {
 	for {
 		select {
 		case sender := <-handle.Sender():
