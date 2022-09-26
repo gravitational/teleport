@@ -135,7 +135,7 @@ Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
 | Port | Service | Description |
 | - | - | - |
 | 443 | Proxy | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
-| 3021 | Proxy | Port used by Teleport Proxy Service Instance to dial agents in Proxy Peering mode. |
+| 3021 | Proxy | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
 | 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. Only used when Teleport Node is replacing SSH.|
 | 3025 | Auth | TLS port used by the Auth Service to serve its API to other Nodes in a cluster.|
 | 3028 | Desktop | When using Desktop Service `windows_desktop_service.listen_addr` |
