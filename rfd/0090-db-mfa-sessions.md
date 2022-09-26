@@ -169,7 +169,7 @@ Here are some alternatives we can do. They are not necessarily mutually-exclusiv
    - Pro: Keeping certs in memory does make cert exfiltration harder (though not impossible, especially in a garbage collected language where hardening against memory dumping is extremely difficult)
    - Pro: Keeping certs in memory makes it clear that a "session" is limited by a user starting a local proxy, so users can't reuse certs for many sessions - essentially we are considering a local proxy process as a single session.
    - Con: Even if we could rely on memory to prevent exfiltration, a cert is not a secret! It is necessarily sent unencrypted to do the TLS handshake - a MITM attack can steal the cert when client tries to connect to server.
-   - Con: If the key itself is still on disk, then it's actually easier to exfiltrate the private key than it is to steal the public cert.
+   - Con: If the key itself is still on disk, then it's actually easier to exfiltrate the private key than it is to steal the public cert from memory.
      - This is mitigated by work on keeping private keys in yubikeys, in which case the private key would be safe and stealing a cert won't help an attacker.
    - Con: Keeping certs in memory requires a local proxy tunnel, and if an attacker can already read the client ~/.tsh keys, they can almost certainly just connect to this running proxy and gain access.
      - IP pinning doesn't help against a remote attacker either.
