@@ -3,11 +3,11 @@ title: Configure Teleport to Automatically Enroll EC2 instances
 description: How to configure Teleport to automatically enroll EC2 instances.
 ---
 
-Teleport can be configured to run a discovery service that will
-connect to EC2 and automatically discover and enroll EC2 instances
-matching configured labels. It will then execute an install script on
-these discovered instances using AWS Systems Manager that will install
-Teleport, start it and join the cluster.
+Teleport can run as a Discovery Node by configuring the discovery
+service. This will connect to EC2 and automatically discover and
+enroll EC2 instances matching configured labels. It will then execute
+an install script on these discovered instances using AWS Systems
+Manager that will install Teleport, start it and join the cluster.
 
 ## Prerequisites
 
@@ -196,7 +196,7 @@ This policy includes the following permissions:
 
 ## Step 4/5. Configure Teleport to discover EC2 instances
 
-The Discovery Service requires a valid auth token to connect to the cluster. Generate one by running the following command against your Teleport Auth Service and save it in `/tmp/token` on the node that will run the Discovery Service:
+The discovery service requires a valid auth token to connect to the cluster. Generate one by running the following command against your Teleport Auth Service and save it in `/tmp/token` on the node that will run the discovery service:
 
 ```code
 $ tctl tokens add --type=discovery
@@ -271,6 +271,23 @@ The `installer` resource has the following templating options:
 - `{{ .MajorVersion }}`: the major version of Teleport to use when
   installing from the repository.
 - `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to connect to.
+
+These can be used as follows:
+```yaml
+kind: installer
+metadata:
+  name: default-installer
+spec:
+  script: |
+    echo {{ .PublicProxyAddr }}
+    echo Teleport-{{ .MajorVersion }}
+version: v1
+```
+Which, when retreived by the Systems Manager document will evaluate to a script with the following contents:
+```sh
+echo teleport.example.com
+echo Teleport-(=teleport.version=)
+```
 
 The default installer will take the following actions:
 - Add an official Teleport repository to supported Linux distributions.
