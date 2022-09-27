@@ -30,6 +30,7 @@ func relcliPipeline(trigger trigger, name string, stepName string, command strin
 				`[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)`,
 			},
 		},
+		waitForDockerStep(),
 		pullRelcliStep(),
 		executeRelcliStep(stepName, command),
 	}

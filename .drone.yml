@@ -819,6 +819,13 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Pull relcli
   image: docker:cli
   commands:
@@ -6907,6 +6914,13 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
 - name: Pull relcli
   image: docker:cli
   commands:
@@ -7188,6 +7202,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 7ecfe55d87bbf11012fef5405be913831d1b7330f10e3c1c900d0a408557f58f
+hmac: 707c836fc9c2d0b3ee8074d258b3723651a6e53dcada5b5fcf0417b10f455b45
 
 ...
