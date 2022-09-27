@@ -1962,6 +1962,15 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
+func (c *Client) getTokenV2(ctx context.Context, name string) (types.ProvisionToken, error) {
+	//nolint:staticcheck // SA1019 Deprecated call will be removed in 13.0
+	resp, err := c.grpc.GetToken(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.V3(), nil
+}
+
 // GetToken returns a provision token by name.
 func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
 	if name == "" {
@@ -1969,16 +1978,38 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 	}
 	resp, err := c.grpc.GetTokenV3(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		err = trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			return c.getTokenV2(ctx, name)
+		}
+		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *Client) getTokensV2(ctx context.Context) ([]types.ProvisionToken, error) {
+	//nolint:staticcheck // SA1019 Deprecated call will be removed in 13.0
+	resp, err := c.grpc.GetTokens(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
+	for i, token := range resp.ProvisionTokens {
+		tokens[i] = token.V3()
+	}
+	return tokens, nil
 }
 
 // GetTokens returns a list of active provision tokens for nodes and users.
 func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	resp, err := c.grpc.GetTokensV3(ctx, &empty.Empty{}, c.callOpts...)
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		err = trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			return c.getTokensV2(ctx)
+		}
+		return nil, err
 	}
 
 	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
