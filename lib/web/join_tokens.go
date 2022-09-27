@@ -292,7 +292,13 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	version := proxyServers[0].GetTeleportVersion()
-	hostname, portStr, err := utils.SplitHostPort(proxyServers[0].GetPublicAddr())
+
+	publicAddr := proxyServers[0].GetPublicAddr()
+	if publicAddr == "" {
+		publicAddr = defaults.ProxyWebListenAddr().Addr
+	}
+
+	hostname, portStr, err := utils.SplitHostPort(publicAddr)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
