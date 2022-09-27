@@ -168,16 +168,6 @@ func RemoveCASecrets(ca CertAuthority) {
 	if !ok {
 		return
 	}
-	cav2.Spec.SigningKeys = nil
-
-	for i := range cav2.Spec.TLSKeyPairs {
-		cav2.Spec.TLSKeyPairs[i].Key = nil
-	}
-
-	for i := range cav2.Spec.JWTKeyPairs {
-		cav2.Spec.JWTKeyPairs[i].PrivateKey = nil
-	}
-
 	cav2.Spec.ActiveKeys = cav2.Spec.ActiveKeys.WithoutSecrets()
 	cav2.Spec.AdditionalTrustedKeys = cav2.Spec.AdditionalTrustedKeys.WithoutSecrets()
 }
@@ -259,38 +249,8 @@ func (ca *CertAuthorityV2) ID() *CertAuthID {
 	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
 }
 
-func (ca *CertAuthorityV2) getOldKeySet(index int) (keySet CAKeySet) {
-	// in the "old" CA schema, index 0 contains the active keys and index 1 the
-	// additional trusted keys
-	if index < 0 || index > 1 {
-		return
-	}
-	if len(ca.Spec.CheckingKeys) > index {
-		kp := &SSHKeyPair{
-			PrivateKeyType: PrivateKeyType_RAW,
-			PublicKey:      utils.CopyByteSlice(ca.Spec.CheckingKeys[index]),
-		}
-		if len(ca.Spec.SigningKeys) > index {
-			kp.PrivateKey = utils.CopyByteSlice(ca.Spec.SigningKeys[index])
-		}
-		keySet.SSH = []*SSHKeyPair{kp}
-	}
-	if len(ca.Spec.TLSKeyPairs) > index {
-		keySet.TLS = []*TLSKeyPair{ca.Spec.TLSKeyPairs[index].Clone()}
-	}
-	if len(ca.Spec.JWTKeyPairs) > index {
-		keySet.JWT = []*JWTKeyPair{ca.Spec.JWTKeyPairs[index].Clone()}
-	}
-	return keySet
-}
-
 func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet {
-	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
-	if haveNewCAKeys {
-		return ca.Spec.ActiveKeys
-	}
-	// fall back to old schema
-	return ca.getOldKeySet(0)
+	return ca.Spec.ActiveKeys
 }
 
 func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
@@ -302,12 +262,7 @@ func (ca *CertAuthorityV2) SetActiveKeys(ks CAKeySet) error {
 }
 
 func (ca *CertAuthorityV2) GetAdditionalTrustedKeys() CAKeySet {
-	haveNewCAKeys := len(ca.Spec.AdditionalTrustedKeys.SSH) > 0 || len(ca.Spec.AdditionalTrustedKeys.TLS) > 0 || len(ca.Spec.AdditionalTrustedKeys.JWT) > 0
-	if haveNewCAKeys {
-		return ca.Spec.AdditionalTrustedKeys
-	}
-	// fall back to old schema
-	return ca.getOldKeySet(1)
+	return ca.Spec.AdditionalTrustedKeys
 }
 
 func (ca *CertAuthorityV2) SetAdditionalTrustedKeys(ks CAKeySet) error {
