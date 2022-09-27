@@ -96,7 +96,7 @@ Additional security could be provided by only granting `INSERT` (and `SELECT`) p
 
 Azure Blob Storage offers similar functionality to S3, including all we need for `lib/events.MultipartUploader` in the strictest sense. In addition to that, it's possible to configure containers (the equivalent of a S3 bucket) to have a time-based immutability policy that prevents moving, renaming, overwriting or deleting a blob for a fixed amount of time after it's first written, which seems to be exactly what we're currently using versioning for.
 
-Similarly to other cloud-based session storage, it would be configured like this, specifying a storage account URL, replacing the `https` schema with `azblob`; an (undocumented?) alternate `azblob-http` schema will be provided to use an endpoint without encryption, for local development.
+Similarly to other cloud-based session storage, the configuration looks like this, specifying a storage account URL.
 
 ```yaml
 teleport:
