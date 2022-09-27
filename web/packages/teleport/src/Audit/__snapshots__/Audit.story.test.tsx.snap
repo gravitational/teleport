@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            129
+            132
           </strong>
            of
            
           <strong>
-            129
+            132
           </strong>
         </div>
         <button
@@ -436,6 +436,117 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Elasticsearch Request
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has ran a [SEARCH] query in [myelastic], request path: [/_search], query string: [{"term":{"user.id":"bob"}}]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-27T13:11:01.071Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Elasticsearch Request
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has ran a [SEARCH] query in [myelastic], request path: [/_all/_search], query string: [{"term":{"user.id":"bob"}}], target: [_all]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-27T13:09:33.419Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Elasticsearch Request
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has ran a [GENERAL] query in [myelastic], request path: [/]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-27T11:43:58.433Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"

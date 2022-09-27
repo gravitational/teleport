@@ -143,6 +143,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.MYSQL_DEBUG]: Icons.Database,
   [eventCodes.MYSQL_REFRESH]: Icons.Database,
   [eventCodes.SQLSERVER_RPC_REQUEST]: Icons.Database,
+  [eventCodes.ELASTICSEARCH_REQUEST]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_ENDED]: Icons.Desktop,

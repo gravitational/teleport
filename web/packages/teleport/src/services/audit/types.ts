@@ -84,6 +84,7 @@ export const eventCodes = {
   MYSQL_DEBUG: 'TMY12I',
   MYSQL_REFRESH: 'TMY13I',
   SQLSERVER_RPC_REQUEST: 'TMS00I',
+  ELASTICSEARCH_REQUEST: 'TES00I',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -773,6 +774,18 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       proc_name: string;
+    }
+  >;
+  [eventCodes.ELASTICSEARCH_REQUEST]: RawEvent<
+    typeof eventCodes.ELASTICSEARCH_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<
