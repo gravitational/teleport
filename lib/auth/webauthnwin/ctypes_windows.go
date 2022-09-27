@@ -152,32 +152,32 @@ type webauthnCredentialList struct {
 }
 
 type webauthnCredentialAttestation struct {
-	DwVersion uint32
+	dwVersion uint32
 	// Attestation format type
-	PwszFormatType *uint16
-	// Size of CbAuthenticatorData.
-	CbAuthenticatorData uint32
+	pwszFormatType *uint16
+	// Size of cbAuthenticatorData.
+	cbAuthenticatorData uint32
 	// Authenticator data that was created for this credential.
-	PbAuthenticatorData *byte
+	pbAuthenticatorData *byte
 	// Size of CBOR encoded attestation information
 	//0 => encoded as CBOR null value.
-	CbAttestation uint32
+	cbAttestation uint32
 	//Encoded CBOR attestation information
-	PbAttestation           *byte
-	DwAttestationDecodeType uint32
+	pbAttestation           *byte
+	dwAttestationDecodeType uint32
 	// Following depends on the dwAttestationDecodeType
 	//  WEBAUTHN_ATTESTATION_DECODE_NONE
 	//      NULL - not able to decode the CBOR attestation information
 	//  WEBAUTHN_ATTESTATION_DECODE_COMMON
 	//      PWEBAUTHN_COMMON_ATTESTATION;
-	PvAttestationDecode *byte
+	pvAttestationDecode *byte
 	// The CBOR encoded Attestation Object to be returned to the RP.
-	CbAttestationObject uint32
-	PbAttestationObject *byte
+	cbAttestationObject uint32
+	pbAttestationObject *byte
 	// The CredentialId bytes extracted from the Authenticator Data.
 	// Used by Edge to return to the RP.
-	CbCredentialId uint32
-	PbCredentialId *byte
+	cbCredentialId uint32
+	pbCredentialId *byte
 
 	//
 	// Following fields have been added in WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_2
@@ -191,15 +191,15 @@ type webauthnCredentialAttestation struct {
 
 	// One of the WEBAUTHN_CTAP_TRANSPORT_* bits will be set corresponding to
 	// the transport that was used.
-	DwUsedTransport uint32
+	dwUsedTransport uint32
 
 	//
 	// Following fields have been added in WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_4
 	//
 
-	EpAtt              uint32
-	LargeBlobSupported uint32
-	ResidentKey        uint32
+	bEpAtt              uint32
+	bLargeBlobSupported uint32
+	bResidentKey        uint32
 }
 
 type webauthnClientData struct {
