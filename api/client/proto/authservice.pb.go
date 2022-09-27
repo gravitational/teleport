@@ -2448,7 +2448,7 @@ type Features struct {
 	MachineID bool `protobuf:"varint,12,opt,name=MachineID,proto3" json:"machine_id"`
 	// ResourceAccessRequests enables resource access requests product
 	ResourceAccessRequests bool `protobuf:"varint,13,opt,name=ResourceAccessRequests,proto3" json:"resource_access_requests"`
-	// HardwareKey enables HardwareKey support
+	// HardwareKey enables hardware key support.
 	HardwareKey          bool     `protobuf:"varint,14,opt,name=HardwareKey,proto3" json:"hardware_key"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

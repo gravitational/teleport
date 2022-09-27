@@ -3417,35 +3417,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var sshLoginFunc SSHLoginFunc
-	switch authType := pr.Auth.Type; {
-	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
-		// Sanity check settings.
-		if !pr.Auth.AllowPasswordless {
-			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
-		}
-		sshLoginFunc = tc.pwdlessLogin
-	case authType == constants.Local:
-		sshLoginFunc = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
-		}
-	case authType == constants.OIDC:
-		sshLoginFunc = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.OIDC.Name, constants.OIDC)
-		}
-	case authType == constants.SAML:
-		sshLoginFunc = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.SAML.Name, constants.SAML)
-		}
-	case authType == constants.Github:
-		sshLoginFunc = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, pr.Auth.Github.Name, constants.Github)
-		}
-	default:
-		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	// Get the SSHLoginFunc that matches client and cluster settings.
+	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Only set private key policy from ping response if not already set.
+	// Set private key policy from ping response if not already set.
 	if tc.PrivateKeyPolicy == "" {
 		tc.PrivateKeyPolicy = pr.Auth.PrivateKeyPolicy
 	}
@@ -3464,6 +3442,36 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	return key, nil
+}
+
+// getSSHLoginFunc returns an SSHLoginFunc that matches client and cluster settings.
+func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginFunc, error) {
+	switch authType := pr.Auth.Type; {
+	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
+		// Sanity check settings.
+		if !pr.Auth.AllowPasswordless {
+			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
+		}
+		return tc.pwdlessLogin, nil
+	case authType == constants.Local:
+		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
+		}, nil
+	case authType == constants.OIDC:
+		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.ssoLogin(ctx, priv, pr.Auth.OIDC.Name, constants.OIDC)
+		}, nil
+	case authType == constants.SAML:
+		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.ssoLogin(ctx, priv, pr.Auth.SAML.Name, constants.SAML)
+		}, nil
+	case authType == constants.Github:
+		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.ssoLogin(ctx, priv, pr.Auth.Github.Name, constants.Github)
+		}, nil
+	default:
+		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	}
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.

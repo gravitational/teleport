@@ -207,21 +207,21 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
+			switch {
 			// propagate connection problem error so we can differentiate
 			// between connection failed and access denied
-			if trace.IsConnectionProblem(err) {
+			case trace.IsConnectionProblem(err):
 				return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-			} else if trace.IsAccessDenied(err) {
+			case trace.IsAccessDenied(err):
 				// don't print stack trace, just log the warning
 				log.Warn(err)
-			} else if keys.IsPrivateKeyPolicyError(err) {
+			case keys.IsPrivateKeyPolicyError(err):
 				// private key policy errors should be returned to the client
 				// unaltered so that they know to reauthenticate with a valid key.
 				return nil, trace.Unwrap(err)
-			} else {
+			default:
 				log.Warn(trace.DebugReport(err))
 			}
-
 			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
 		auth := &ServerWithRoles{

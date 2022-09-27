@@ -523,7 +523,7 @@ message Features {
   bool MachineID = 12 [(gogoproto.jsontag) = "machine_id"];
   // ResourceAccessRequests enables resource access requests product
   bool ResourceAccessRequests = 13 [(gogoproto.jsontag) = "resource_access_requests"];
-  // HardwareKey enables HardwareKey support
+  // HardwareKey enables hardware key support.
   bool HardwareKey = 14 [(gogoproto.jsontag) = "hardware_key"];
 }
 

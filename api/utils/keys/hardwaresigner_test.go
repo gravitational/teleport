@@ -27,19 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestHardwareSigner tests the HardwareSigner interface with different private keys.
+// TestHardwareSigner tests the HardwareSigner interface with hardware keys.
 func TestHardwareSigner(t *testing.T) {
-	// Non-hardware keys should return a nil attestation statement and PrivateKeyPolicyNone.
-	priv, err := ParsePrivateKey(rsaKeyPEM)
-	require.NoError(t, err)
-
-	att, err := GetAttestationStatement(priv)
-	require.NoError(t, err)
-	require.Nil(t, att)
-
-	policy := GetPrivateKeyPolicy(priv)
-	require.Equal(t, PrivateKeyPolicyNone, policy)
-
 	// The rest of the  test expects a yubiKey to be connected with default PIV settings
 	// and will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
@@ -50,13 +39,27 @@ func TestHardwareSigner(t *testing.T) {
 	resetYubikey(ctx, t)
 
 	// Generate a new YubiKeyPrivateKey. It should return a valid attestation statement and key policy.
-	priv, err = GetOrGenerateYubiKeyPrivateKey(ctx, false)
+	priv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
 	require.NoError(t, err)
 
-	att, err = GetAttestationStatement(priv)
+	att, err := GetAttestationStatement(priv)
 	require.NoError(t, err)
 	require.NotNil(t, att)
 
-	policy = GetPrivateKeyPolicy(priv)
+	policy := GetPrivateKeyPolicy(priv)
 	require.Equal(t, PrivateKeyPolicyHardwareKey, policy)
+}
+
+// TestNonHardwareSigner tests the HardwareSigner interface with non-hardware keys.
+func TestNonHardwareSigner(t *testing.T) {
+	// Non-hardware keys should return a nil attestation statement and PrivateKeyPolicyNone.
+	priv, err := ParsePrivateKey(rsaKeyPEM)
+	require.NoError(t, err)
+
+	att, err := GetAttestationStatement(priv)
+	require.NoError(t, err)
+	require.Nil(t, att)
+
+	policy := GetPrivateKeyPolicy(priv)
+	require.Equal(t, PrivateKeyPolicyNone, policy)
 }

@@ -65,7 +65,7 @@ type Features struct {
 	MachineID bool
 	// ResourceAccessRequests turns on resource access requests
 	ResourceAccessRequests bool
-	// HardwarePrivateKey enables HardwarePrivateKey support
+	// HardwareKey enables hardware key support.
 	HardwareKey bool
 }
 

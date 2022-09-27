@@ -56,6 +56,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
 func resetYubikey(ctx context.Context, t *testing.T) {
+	t.Helper()
 	y, err := findYubiKey(ctx, 0)
 	require.NoError(t, err)
 	yk, err := y.open(ctx)

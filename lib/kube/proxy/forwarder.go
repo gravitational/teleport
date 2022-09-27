@@ -422,17 +422,14 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		case trace.IsAccessDenied(err):
 			// don't print stack trace, just log the warning
 			f.log.Warn(err)
-			return nil, trace.AccessDenied(accessDeniedMsg)
+		case keys.IsPrivateKeyPolicyError(err):
+			// private key policy errors should be returned to the client
+			// unaltered so that they know to reauthenticate with a valid key.
+			return nil, trace.Unwrap(err)
 		default:
-			if keys.IsPrivateKeyPolicyError(err) {
-				// private key policy errors should be returned to the client
-				// unaltered so that they know to reauthenticate with a valid key.
-				return nil, trace.Unwrap(err)
-			}
-
 			f.log.Warn(trace.DebugReport(err))
-			return nil, trace.AccessDenied(accessDeniedMsg)
 		}
+		return nil, trace.AccessDenied(accessDeniedMsg)
 	}
 	peers := req.TLS.PeerCertificates
 	if len(peers) > 1 {
