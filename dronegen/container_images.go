@@ -59,7 +59,7 @@ import (
 // * `ConfigureForPRTestingOnly` has been set to false, and `make dronegen` has been reran afterwords
 
 const (
-	ConfigureForPRTestingOnly bool   = true
+	ConfigureForPRTestingOnly bool   = false
 	TestingSecretPrefix       string = "TEST_"
 	TestingQuayRegistryOrg    string = "fred_heinecke"
 	TestingECRRegistryOrg     string = "u8j2q1d9"
