@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/constants"
@@ -27,7 +28,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // StatusCommand implements `tctl token` group of commands.
@@ -159,6 +162,30 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 			return "Remote clusters\n\n" + table.AsBuffer().String()
 		}
 		fmt.Print(view())
+	}
+
+	// Grab on login alerts.
+	alertCtx, _ := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
+		Labels: map[string]string{
+			types.AlertOnLogin: "yes",
+		},
+	})
+	if err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	types.SortClusterAlerts(alerts)
+
+	for _, alert := range alerts {
+		if err := alert.CheckMessage(); err != nil {
+			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
+		}
+		if _, ok := alert.Metadata.Labels[types.AlertLicenseExpired]; ok {
+			// Skip license expired alert warnings as they should already have been shown by now.
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "%s\n\n", utils.FormatAlertOutput(alert))
 	}
 	return nil
 }

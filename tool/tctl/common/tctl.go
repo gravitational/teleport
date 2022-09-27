@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -193,6 +194,26 @@ func TryRun(commands []CLICommand, args []string) error {
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
+	}
+
+	// Get license expired alerts.
+	alertCtx, _ := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
+		Labels: map[string]string{
+			types.AlertLicenseExpired: "yes",
+		},
+	})
+	if err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	types.SortClusterAlerts(alerts)
+
+	for _, alert := range alerts {
+		if err := alert.CheckMessage(); err != nil {
+			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
+		}
+		fmt.Fprintf(os.Stderr, "%s\n\n", utils.FormatAlertOutput(alert))
 	}
 
 	// execute whatever is selected:

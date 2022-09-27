@@ -1585,7 +1585,8 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// get any "on login" alerts
-	alerts, err := tc.GetClusterAlerts(cf.Context, types.GetClusterAlertsRequest{
+	alertCtx, _ := context.WithTimeout(cf.Context, constants.TimeoutGetClusterAlerts)
+	alerts, err := tc.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
 		Labels: map[string]string{
 			types.AlertOnLogin: "yes",
 		},
@@ -1600,7 +1601,7 @@ func onLogin(cf *CLIConf) error {
 		if err := alert.CheckMessage(); err != nil {
 			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
 		}
-		fmt.Fprintf(os.Stderr, "%s\n\n", alert.Spec.Message)
+		fmt.Fprintf(os.Stdout, "%s\n\n", utils.FormatAlertOutput(alert))
 	}
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
