@@ -31,7 +31,7 @@ type webauthnwinCommand struct {
 // newWebauthnwinCommand returns webauthnwin subcommands.
 // support is always available.
 func newWebauthnwinCommand(app *kingpin.Application) *webauthnwinCommand {
-	wid := app.Command("webauthnwin", "Manage Windoes webauthn").Hidden()
+	wid := app.Command("webauthnwin", "Manage Windows WebAuthn").Hidden()
 	cmd := &webauthnwinCommand{
 		support:     newWebauthnwinSupportCommand(wid),
 		diagnostics: newWebauthnwinDiagnosticsCommand(wid),

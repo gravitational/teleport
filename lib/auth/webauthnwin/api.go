@@ -67,7 +67,8 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	}
 	resp, err := native.GetAssertion(origin, assertion, opts)
 	if err != nil {
-		// TODO(tobiaszheller): proper error
+		// TODO(tobiaszheller): right now error directly from webauthn.dll is
+		// returned. At some point probably we want to introducde typed errors.
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -113,7 +114,8 @@ func Register(
 
 	resp, err := native.MakeCredential(origin, cc)
 	if err != nil {
-		// TODO(tobiaszheller): proper error
+		// TODO(tobiaszheller): right now error directly from webauthn.dll is
+		// returned. At some point probably we want to introducde typed errors.
 		return nil, trace.Wrap(err)
 	}
 
