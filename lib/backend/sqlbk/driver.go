@@ -98,9 +98,10 @@ type Tx interface {
 	// DeleteEvents created before expiryTime.
 	DeleteEvents(expiryTime time.Time)
 
-	// DeleteExpiredLeases removes leases whose expires column is not null and is
-	// less than the current time.
-	DeleteExpiredLeases()
+	// DeleteExpiredLeases removes leases whose expires column is not null and
+	// is less than the current time. It returns the set of backend items
+	// deleted. The returned items include only Key and ID.
+	DeleteExpiredLeases() []backend.Item
 
 	// DeleteItems not referencing an event or a valid lease.
 	DeleteItems()

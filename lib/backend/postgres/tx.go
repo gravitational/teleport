@@ -22,12 +22,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/sqlbk"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v4"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/sqlbk"
 )
 
 // pgTx implements sqlbk.Tx for postgres.
@@ -113,15 +114,33 @@ func (tx *pgTx) DeleteEvents(expiryTime time.Time) {
 }
 
 // DeleteExpiredLeases removes leases whose expires column is not null and is
-// less than the current time.
-func (tx *pgTx) DeleteExpiredLeases() {
+// less than the current time. It returns the set of backend items deleted. The
+// returned items include only Key and ID.
+func (tx *pgTx) DeleteExpiredLeases() []backend.Item {
 	if tx.err != nil {
-		return
+		return nil
 	}
 
-	const query = `DELETE FROM lease WHERE (expires IS NOT NULL AND expires < $1)`
-	_, err := tx.sqlTx.ExecContext(tx.ctx, query, tx.now())
-	tx.rollback(err)
+	const query = `DELETE FROM lease WHERE (expires IS NOT NULL AND expires < $1) RETURNING key, id`
+	rows, err := tx.sqlTx.QueryContext(tx.ctx, query, tx.now())
+	if tx.rollback(err) {
+		return nil
+	}
+
+	var items []backend.Item
+	for rows.Next() {
+		var item backend.Item
+		err = rows.Scan(&item.Key, &item.ID)
+		if tx.rollback(err) {
+			return nil
+		}
+		items = append(items, item)
+	}
+	if tx.rollback(rows.Err()) {
+		return nil
+	}
+
+	return items
 }
 
 // DeleteItems not referencing an event or a valid lease.

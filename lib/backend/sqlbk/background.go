@@ -137,26 +137,26 @@ func (b *Backend) run(eventID int64) {
 	}
 }
 
-// purge events and expired items.
+// purge items not referenced by leases or events.
 func (b *Backend) purge() error {
 	ctx, cancel := context.WithTimeout(b.closeCtx, b.PollStreamPeriod)
 	defer cancel()
 	tx := b.db.Begin(ctx)
-	tx.DeleteExpiredLeases()
-	tx.DeleteEvents(b.now().Add(-backend.DefaultEventsTTL))
 	tx.DeleteItems()
 	return tx.Commit()
 }
 
-// poll for expired leases and create delete events. Then emit events whose ID
-// is greater than fromEventID. Events are emitted in the order they were
-// created. Return the event ID of the last event emitted.
+// poll for expired leases, delete them and create delete events; delete events
+// older than the TTL, and then emit events whose ID is greater than
+// fromEventID. Events are emitted in the order they were created. Return the
+// event ID of the last event emitted.
 //
 // This function also resets the buffer when it detects latency emitting events.
 // The buffer is reset when the number of events remaining to emit combined with
 // the maximum number of events emitted each poll period exceeds EventsTTL. Or
 // simply, there are too many events to emit before they will be deleted, so we
-// need to start over to prevent missing events and corrupting downstream caches.
+// need to start over to prevent missing events and corrupting downstream
+// caches.
 func (b *Backend) poll(fromEventID int64) (lastEventID int64, err error) {
 	ctx, cancel := context.WithTimeout(b.closeCtx, b.PollStreamPeriod)
 	defer cancel()
@@ -164,7 +164,7 @@ func (b *Backend) poll(fromEventID int64) (lastEventID int64, err error) {
 	tx := b.db.Begin(ctx)
 
 	var item backend.Item
-	for _, lease := range tx.GetExpiredLeases() {
+	for _, lease := range tx.DeleteExpiredLeases() {
 		item.ID = lease.ID
 		item.Key = lease.Key
 		tx.InsertEvent(types.OpDelete, item)
@@ -172,6 +172,7 @@ func (b *Backend) poll(fromEventID int64) (lastEventID int64, err error) {
 			return fromEventID, tx.Err()
 		}
 	}
+	tx.DeleteEvents(b.now().Add(-backend.DefaultEventsTTL))
 
 	limit := b.Config.BufferSize / 2
 	events := tx.GetEvents(fromEventID, limit)
