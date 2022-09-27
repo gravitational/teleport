@@ -387,3 +387,61 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 	}
 	return certs, keys, nil
 }
+
+func TestFormatDatabaseConnectArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		cluster string
+		route   tlsca.RouteToDatabase
+		want    string
+	}{
+		{
+			name:    "match user and db name, cluster set",
+			cluster: "foo",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			want:    "tsh db connect --cluster=foo --db-user=<user> --db-name=<name> svc",
+		},
+		{
+			name:    "match user and db name",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			want:    "tsh db connect --db-user=<user> --db-name=<name> svc",
+		},
+		{
+			name:    "match user and db name, username given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Username: "bob", ServiceName: "svc"},
+			want:    "tsh db connect --db-name=<name> svc",
+		},
+		{
+			name:    "match user and db name, db name given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", ServiceName: "svc"},
+			want:    "tsh db connect --db-user=<user> svc",
+		},
+		{
+			name:    "match user and db name, both given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", Username: "bob", ServiceName: "svc"},
+			want:    "tsh db connect svc",
+		},
+		{
+			name:    "match user name",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, ServiceName: "svc"},
+			want:    "tsh db connect --db-user=<user> svc",
+		},
+		{
+			name:    "match user name, given",
+			cluster: "",
+			route:   tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
+			want:    "tsh db connect svc",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := formatConnectCommand(tt.cluster, tt.route)
+			require.Equal(t, tt.want, out)
+		})
+	}
+}
