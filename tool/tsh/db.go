@@ -672,7 +672,6 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	// client certificate that will be used to route connections.
 	switch arg.routeToDatabase.Protocol {
 	case defaults.ProtocolSQLServer, defaults.ProtocolCassandra:
-		opts.certFile = arg.profile.DatabaseCertPathForCluster("", arg.routeToDatabase.ServiceName)
 		opts.certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
 		opts.keyFile = arg.profile.KeyPath()
 	}

@@ -162,13 +162,14 @@ func (e *Engine) handleServerConnection(serverConn net.Conn) error {
 	return nil
 }
 
-func validateCassandraUsername(ses *common.Session, msg *message.AuthResponse) error {
+// validateUsername checks if provided cassandra username matches the database session username.
+func validateUsername(ses *common.Session, msg *message.AuthResponse) error {
 	var userCredentials client.AuthCredentials
 	if err := userCredentials.Unmarshal(msg.Token); err != nil {
 		return trace.AccessDenied("invalid credentials format")
 	}
 	if ses.DatabaseUser != userCredentials.Username {
-		return trace.AccessDenied("user %s is not authorized to access the database", userCredentials.Username)
+		return trace.AccessDenied("cassandra user %q doesn't match db session username %q  ", userCredentials.Username, ses.DatabaseUser)
 	}
 	return nil
 }
@@ -183,7 +184,7 @@ func (e *Engine) processPacket(packet *protocol.Packet) error {
 		// Startup message is sent by the client to initialize the cassandra handshake.
 		// Skip audit for this message.
 	case *message.AuthResponse:
-		if err := validateCassandraUsername(e.sessionCtx, msg); err != nil {
+		if err := validateUsername(e.sessionCtx, msg); err != nil {
 			return trace.Wrap(err)
 		}
 	case *message.Query:

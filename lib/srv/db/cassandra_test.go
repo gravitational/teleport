@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -27,6 +28,8 @@ import (
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
 	"github.com/gocql/gocql"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
+
+func init() {
+	log.Logger = zerolog.New(io.Discard).Level(zerolog.Disabled)
+}
 
 func TestAccessCassandra(t *testing.T) {
 	t.Parallel()
