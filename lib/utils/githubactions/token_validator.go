@@ -19,28 +19,30 @@ type IDTokenValidatorConfig struct {
 
 type IDTokenValidator struct {
 	IDTokenValidatorConfig
+	oidc *oidc.Provider
 }
 
-func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
+func NewIDTokenValidator(ctx context.Context, cfg IDTokenValidatorConfig) (*IDTokenValidator, error) {
 	if cfg.IssuerURL == "" {
 		cfg.IssuerURL = IssuerURL
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
-	return &IDTokenValidator{
-		IDTokenValidatorConfig: cfg,
-	}
-}
 
-func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
-	// TODO: Extract this so we aren't producing a new provider for each attempt
-	p, err := oidc.NewProvider(ctx, id.IssuerURL)
+	p, err := oidc.NewProvider(ctx, cfg.IssuerURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	verifier := p.Verifier(&oidc.Config{
+	return &IDTokenValidator{
+		IDTokenValidatorConfig: cfg,
+		oidc:                   p,
+	}, nil
+}
+
+func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
+	verifier := id.oidc.Verifier(&oidc.Config{
 		// TODO: Ensure this matches the cluster name once we start injecting
 		// that into the token.
 		ClientID: "teleport.cluster.local",
