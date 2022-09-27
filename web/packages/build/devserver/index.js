@@ -83,7 +83,9 @@ const devServer = new WebpackDevServer(
     allowedHosts: 'all',
     client: {
       overlay: false,
+      webSocketURL: 'auto://0.0.0.0:0/ws',
     },
+    webSocketServer: 'ws',
     devMiddleware: {
       stats: 'minimal',
     },
