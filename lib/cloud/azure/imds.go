@@ -200,7 +200,7 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 // a minimum version. Versions are represented as dates of the form YYYY-MM-DD.
 func selectVersion(versions []string, minimumVersion string) (string, error) {
 	if len(versions) == 0 {
-		return "", trace.BadParameter("No versions to select from")
+		return "", trace.BadParameter("azure did not provide any versions to select from")
 	}
 	// Versions are in ascending order.
 	targetVersion := versions[len(versions)-1]
