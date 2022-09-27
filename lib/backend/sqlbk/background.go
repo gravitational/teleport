@@ -18,7 +18,6 @@ package sqlbk
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -106,40 +105,40 @@ func (b *Backend) run(eventID int64) {
 	})
 	defer purgePeriodic.Stop()
 
-	var err error
-	var loggedError bool // don't spam logs
+	purgeDone := make(chan struct{})
+	go func() {
+		defer close(purgeDone)
+		for {
+			select {
+			case <-b.closeCtx.Done():
+				return
+			case <-purgePeriodic.Next():
+				if err := b.purge(); err != nil {
+					b.Log.WithError(err).Warn("Failed to clean up data in the background.")
+				}
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-b.closeCtx.Done():
+			<-purgeDone
 			return
 
 		case <-pollPeriodic.Next():
+			var err error
 			eventID, err = b.poll(eventID)
-
-		case <-purgePeriodic.Next():
-			err = b.purge()
-		}
-
-		if err == nil {
-			loggedError = false
-			continue
-		}
-
-		if !loggedError {
-			// Downgrade log level on timeout. Operation will try again.
-			if errors.Is(err, context.Canceled) {
-				b.Log.Warn(err)
-			} else {
-				b.Log.Error(err)
+			if err != nil {
+				b.Log.WithError(err).Warn("Failed to poll for data.")
 			}
-			loggedError = true
 		}
 	}
 }
 
 // purge items not referenced by leases or events.
 func (b *Backend) purge() error {
-	ctx, cancel := context.WithTimeout(b.closeCtx, b.PollStreamPeriod)
+	ctx, cancel := context.WithTimeout(b.closeCtx, time.Minute)
 	defer cancel()
 	tx := b.db.Begin(ctx)
 	tx.DeleteItems()
@@ -158,7 +157,7 @@ func (b *Backend) purge() error {
 // need to start over to prevent missing events and corrupting downstream
 // caches.
 func (b *Backend) poll(fromEventID int64) (lastEventID int64, err error) {
-	ctx, cancel := context.WithTimeout(b.closeCtx, b.PollStreamPeriod)
+	ctx, cancel := context.WithTimeout(b.closeCtx, b.PollStreamPeriod*3)
 	defer cancel()
 
 	tx := b.db.Begin(ctx)
