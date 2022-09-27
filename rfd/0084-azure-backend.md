@@ -32,9 +32,7 @@ As using Postgres as the backend storage for Teleport has been possible (in Prev
 
 ### Configuration
 
-This are some options on how the configuration side might look like.
-
-The original SQL Backend RFD imagined something like:
+Following the idea in the original SQL Backend RFD, the configuration is as such:
 
 ```yaml
 teleport:
@@ -48,36 +46,7 @@ teleport:
       username: pgusername@pgservername
 ```
 
-Alternatively, we could provide additional aliases for the Postgres backend:
-
-```yaml
-teleport:
-  storage:
-    type: azurepostgres
-    addr: pgservername.postgres.database.azure.com
-    username: pgusername@pgservername
-    database: dbname_defaulting_to_teleport
-    tls:
-      ca_file: path/to/azure_postgres_trust_roots.pem
-```
-
-Or we could add some "authentication type" field:
-
-```yaml
-teleport:
-  storage:
-    type: postgres
-    addr: pgservername.postgres.database.azure.com
-    username: pgusername@pgservername
-    database: dbname_defaulting_to_teleport
-    authentication: azure
-    tls:
-      ca_file: path/to/azure_postgres_trust_roots.pem
-```
-
-Other options such as checking for the `.postgres.database.azure.com` suffix in the hostname seem a bit too fragile.
-
-Authentication will happen according to the default behavior of [the Azure Go SDK](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity), which will try to use credentials from envvars, from the IDMS accessible from Azure VMs, and from the command-line `az` tool - it would be straightforward to add some tunables to the configuration file if some specific need arose in the future.
+Authentication will happen according to the default behavior of [the Azure Go SDK](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity), which will try to use credentials from envvars, from the IDMS accessible from Azure VMs, and from the command-line `az` tool. If the optional parameter `client_id` is specified under `azure:`, only authentication using credentials from the matching managed identity will be attempted (to allow for different client IDs to be specified for different services).
 
 ## Audit log
 
