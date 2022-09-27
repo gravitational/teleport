@@ -68,7 +68,6 @@ func TestNewProvisionTokenFromSpec(t *testing.T) {
 	}, tok)
 }
 
-// ProvisionTokenV1 tests
 func TestProvisionTokenV1_V3(t *testing.T) {
 	roles := SystemRoles{RoleNop}
 	name := "foo-tok"
@@ -95,7 +94,6 @@ func TestProvisionTokenV1_V3(t *testing.T) {
 	}, v3)
 }
 
-// ProvisionTokenV2 tests
 func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 	tests := []struct {
 		desc        string
@@ -474,7 +472,6 @@ func TestProvisionTokenV2_V3(t *testing.T) {
 	}
 }
 
-// ProvisionTokenV3 tests
 func validProvisionTokenV3(modifier func(p *ProvisionTokenV3)) *ProvisionTokenV3 {
 	token := &ProvisionTokenV3{
 		Kind:    KindToken,

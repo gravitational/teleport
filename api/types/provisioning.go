@@ -502,9 +502,8 @@ func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
 func (p *ProvisionTokenV3) GetAWSIIDTTL() Duration {
 	ec2 := p.Spec.EC2
 	if ec2 == nil {
-		// TODO: This should be safe, but double check.
-		// It may even be reasonable to panic here. `GetAWSIIDTTL()` should
-		// never be called for a token that is not ec2 join type.
+		// `GetAWSIIDTTL()` should never be called for a token that is not ec2
+		// join type - so this branch is unlikely to execute.
 		return 0
 	}
 	return ec2.IIDTTL
