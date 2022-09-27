@@ -1,4 +1,4 @@
-.version: &version "v10.2.7-nklaassen.fix-exec-race.1"
+.version: &version "10.2.7-nklaassen.fix-exec-race.2"
 
 name: teleport-kube-agent
 apiVersion: v2
