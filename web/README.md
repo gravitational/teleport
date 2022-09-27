@@ -68,6 +68,17 @@ requests to the given target.
 > Keep in mind that you have to use a local user because social
 > logins (google/github) are not supported by development server.
 
+#### Caching
+
+By default, Webpack will store a cache in `node_modules/.cache/webpack` during development. This
+makes starting `webpack-dev-server` really quick after having ran it once, as it will re-use the
+cache from the last time it was running.
+
+If you want to change the location of the cache, you can set `WEBPACK_CACHE_DIRECTORY` to an 
+absolute file path of the folder where you want to store Webpack's cache.
+
+If you wish to disable the cache, you can set `WEBPACK_CACHE_DISABLED` to `yes`.
+
 #### Source Maps
 
 During development, Webpack will default to generating source maps using `eval-source-map`.

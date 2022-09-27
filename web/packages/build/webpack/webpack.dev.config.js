@@ -19,11 +19,28 @@ const configFactory = require('./webpack.base');
 process.env.BABEL_ENV = 'development';
 process.env.NODE_ENV = 'development';
 
+function getCacheConfig() {
+  if (process.env.WEBPACK_CACHE_DISABLED === 'yes') {
+    return undefined;
+  }
+
+  const cache = {
+    type: 'filesystem',
+  };
+
+  if (process.env.WEBPACK_CACHE_DIRECTORY) {
+    cache.cacheDirectory = process.env.WEBPACK_CACHE_DIRECTORY;
+  }
+
+  return cache;
+}
+
 /**
  * @type { import('webpack').webpack.Configuration }
  */
 module.exports = {
   ...configFactory.createDefaultConfig(),
+  cache: getCacheConfig(),
   output: {
     ...configFactory.createDefaultConfig().output,
     filename: '[name].js',
