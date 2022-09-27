@@ -1075,7 +1075,9 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
 	case teleport.RecordingProxyReqType:
-		s.handleRecordingProxy(r)
+		s.handleRecordingProxy(ctx, r)
+	case teleport.ClusterDetailsReqType:
+		s.handleClusterDetails(ctx, r)
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
 	case teleport.TerminalSizeRequest:
@@ -1890,32 +1892,63 @@ func (s *Server) handleKeepAlive(req *ssh.Request) {
 	s.Logger.Debugf("Replied to %q", req.Type)
 }
 
-// handleRecordingProxy responds to global out-of-band with a bool which
-// indicates if it is in recording mode or not.
-func (s *Server) handleRecordingProxy(req *ssh.Request) {
-	var recordingProxy bool
-
+// handleClusterDetails responds to global out-of-band with details about the cluster.
+func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
 	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
 
-	if req.WantReply {
-		// get the cluster config, if we can't get it, reply false
-		recConfig, err := s.authService.GetSessionRecordingConfig(s.ctx)
-		if err != nil {
-			err := req.Reply(false, nil)
-			if err != nil {
-				s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
-			}
-			return
+	if !req.WantReply {
+		return
+	}
+	// get the cluster config, if we can't get it, reply false
+	recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if err := req.Reply(false, nil); err != nil {
+			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
 		}
+		return
+	}
 
-		// reply true that we were able to process the message and reply with a
-		// bool if we are in recording mode or not
-		recordingProxy = services.IsRecordAtProxy(recConfig.GetMode())
-		err = req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
-		if err != nil {
-			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
-			return
+	details := sshutils.ClusterDetails{
+		RecordingProxy: services.IsRecordAtProxy(recConfig.GetMode()),
+		FIPSEnabled:    s.fips,
+	}
+
+	if err = req.Reply(true, ssh.Marshal(details)); err != nil {
+		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, details, err)
+		return
+	}
+
+	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, details)
+}
+
+// handleRecordingProxy responds to global out-of-band with a bool which
+// indicates if it is in recording mode or not.
+//
+// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+// cluster information.
+// TODO(tross):DELETE IN 12.0
+func (s *Server) handleRecordingProxy(ctx context.Context, req *ssh.Request) {
+	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
+
+	if !req.WantReply {
+		return
+	}
+
+	// get the cluster config, if we can't get it, reply false
+	recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if err := req.Reply(false, nil); err != nil {
+			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
 		}
+		return
+	}
+
+	// reply true that we were able to process the message and reply with a
+	// bool if we are in recording mode or not
+	recordingProxy := services.IsRecordAtProxy(recConfig.GetMode())
+	if err := req.Reply(true, []byte(strconv.FormatBool(recordingProxy))); err != nil {
+		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
+		return
 	}
 
 	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)

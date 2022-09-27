@@ -697,6 +697,12 @@ type (
 	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
 
+// ClusterDetails specifies information about a cluster
+type ClusterDetails struct {
+	RecordingProxy bool
+	FIPSEnabled    bool
+}
+
 // connectionWrapper allows the SSH server to perform custom handshake which
 // lets teleport proxy servers to relay a true remote client IP address
 // to the SSH server.
