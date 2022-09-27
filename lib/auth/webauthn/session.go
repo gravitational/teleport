@@ -42,6 +42,7 @@ func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(codingllama): Record extensions in stored session data.
 	return &wantypes.SessionData{
 		Challenge:        rawChallenge,
 		UserId:           sd.UserID,
@@ -51,6 +52,7 @@ func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 }
 
 func sessionFromPB(sd *wantypes.SessionData) *wan.SessionData {
+	// TODO(codingllama): Record extensions in stored session data.
 	return &wan.SessionData{
 		Challenge:            base64.RawURLEncoding.EncodeToString(sd.Challenge),
 		UserID:               sd.UserId,
