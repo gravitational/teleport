@@ -109,8 +109,17 @@ func (tx *pgTx) DeleteEvents(expiryTime time.Time) {
 	}
 
 	const query = `DELETE FROM event WHERE created < $1`
-	_, err := tx.sqlTx.ExecContext(tx.ctx, query, expiryTime)
-	tx.rollback(err)
+	t, err := tx.sqlTx.ExecContext(tx.ctx, query, expiryTime)
+	if tx.rollback(err) {
+		return
+	}
+	n, err := t.RowsAffected()
+	if tx.rollback(err) {
+		return
+	}
+	if n > 0 {
+		tx.cfg.Log.WithField("deleted_rows", n).Warn("DeleteEvents")
+	}
 }
 
 // DeleteExpiredLeases removes leases whose expires column is not null and is
@@ -140,6 +149,10 @@ func (tx *pgTx) DeleteExpiredLeases() []backend.Item {
 		return nil
 	}
 
+	if len(items) > 0 {
+		tx.cfg.Log.WithField("deleted_rows", len(items)).Warn("DeleteExpiredLeases")
+	}
+
 	return items
 }
 
@@ -158,8 +171,19 @@ func (tx *pgTx) DeleteItems() {
 			WHERE event.key IS NULL
 		    AND (lease.key IS NULL OR lease.expires < $1)
 		)`
-	_, err := tx.sqlTx.ExecContext(tx.ctx, query, tx.now())
-	tx.rollback(err)
+	t, err := tx.sqlTx.ExecContext(tx.ctx, query, tx.now())
+	if tx.rollback(err) {
+		return
+	}
+
+	n, err := t.RowsAffected()
+	if tx.rollback(err) {
+		return
+	}
+
+	if n > 0 {
+		tx.cfg.Log.WithField("deleted_rows", n).Warn("DeleteItems")
+	}
 }
 
 // DeleteLease by key returning the backend item ID from the deleted lease.
@@ -217,7 +241,7 @@ func (tx *pgTx) GetEvents(fromEventID int64, limit int) sqlbk.Events {
 	}
 
 	const query = `
-		SELECT event.eventid, event.key, event.id, event.type, item.value 
+		SELECT event.eventid, event.key, event.id, event.type, item.value
 		FROM event JOIN item USING (key, id)
 		WHERE event.eventid > $1
 		ORDER BY event.eventid LIMIT $2`

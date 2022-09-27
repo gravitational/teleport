@@ -2139,7 +2139,8 @@ func (process *TeleportProcess) newAsyncEmitter(clt apievents.Emitter) (*events.
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
-		Inner: emitter,
+		Inner:      emitter,
+		BufferSize: 65536,
 	})
 }
 
