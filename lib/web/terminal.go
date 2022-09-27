@@ -88,6 +88,8 @@ type AuthProvider interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
+	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
+	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -384,35 +386,104 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
-	pc, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer pc.Close()
-
 	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-		RouteToCluster: t.params.Cluster,
-		NodeName:       t.params.Server,
-		ExistingCreds: &client.Key{
-			PrivateKey: pk,
-			Cert:       t.ctx.session.GetPub(),
-			TLSCert:    t.ctx.session.GetTLSCert(),
+	mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
+		Target: &authproto.IsMFARequiredRequest_Node{
+			Node: &authproto.NodeLogin{
+				Node:  t.params.Server,
+				Login: tc.HostLogin,
+			},
 		},
-	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       t.ctx.session.GetPub(),
+		TLSCert:    t.ctx.session.GetTLSCert(),
+	}
 	am, err := key.AsAuthMethod()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if !mfaRequiredResp.Required {
+		tc.AuthMethods = []ssh.AuthMethod{am}
+		return nil
+	}
+
+	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
+	stream, err := t.authProvider.GenerateUserSingleUseCerts(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stream.CloseSend()
+
+	tlsCert, err := key.TeleportTLSCertificate()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_Init{
+		Init: &authproto.UserCertsRequest{
+			PublicKey:      key.MarshalSSHPublicKey(),
+			Username:       tlsCert.Subject.CommonName,
+			Expires:        tlsCert.NotAfter,
+			RouteToCluster: t.params.Cluster,
+			NodeName:       t.params.Server,
+			Usage:          authproto.UserCertsRequest_SSH,
+			Format:         tc.CertificateFormat,
+		},
+	}}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	challenge := resp.GetMFAChallenge()
+	if challenge == nil {
+		return trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
+	}
+
+	assertion, err := promptMFAChallenge(ws, t.wsLock, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: assertion}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err = stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certResp := resp.GetCert()
+	if certResp == nil {
+		return trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
+	}
+
+	switch crt := certResp.Cert.(type) {
+	case *authproto.SingleUseUserCert_SSH:
+		key.Cert = crt.SSH
+	default:
+		return trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
+	}
+
+	key.ClusterName = t.params.Cluster
 	tc.AuthMethods = []ssh.AuthMethod{am}
+
 	return nil
 }
 
