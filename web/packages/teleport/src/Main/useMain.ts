@@ -18,13 +18,13 @@ import React, { useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
-import { Feature } from 'teleport/types';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
+
+import { useFeatures } from 'teleport/FeaturesContext';
 
 import type { ClusterAlert } from 'teleport/services/alerts';
 
 export interface UseMainConfig {
-  features: Feature[];
   customBanners?: React.ReactNode[];
   initialAlerts?: ClusterAlert[];
 }
@@ -33,6 +33,8 @@ export default function useMain(config: UseMainConfig) {
   const ctx = useTeleport();
   const { attempt, setAttempt, run } = useAttempt('processing');
   const { alerts, dismissAlert } = useAlerts(config.initialAlerts);
+
+  const features = useFeatures();
 
   useEffect(() => {
     // Two routes that uses this hook that can trigger this effect:
@@ -50,7 +52,7 @@ export default function useMain(config: UseMainConfig) {
       return;
     }
 
-    run(() => ctx.init(config.features));
+    run(() => ctx.init(features));
   }, []);
 
   return {

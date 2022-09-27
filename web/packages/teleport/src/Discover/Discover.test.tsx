@@ -24,6 +24,7 @@ import { Access, Acl, makeUserContext } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 const fullAccess: Access = {
   list: true,
@@ -86,7 +87,9 @@ describe('discover', () => {
     return render(
       <MemoryRouter initialEntries={[{ state: { entity: initialEntry } }]}>
         <TeleportContextProvider ctx={ctx}>
-          <Discover />
+          <FeaturesContextProvider>
+            <Discover />
+          </FeaturesContextProvider>
         </TeleportContextProvider>
       </MemoryRouter>
     );

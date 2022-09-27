@@ -20,7 +20,7 @@ import { Router } from 'react-router';
 import { Flex } from 'design';
 
 import { ContextProvider, Context } from 'teleport';
-import getFeatures from 'teleport/features';
+import { getOSSFeatures } from 'teleport/features';
 
 import { clusters } from 'teleport/Clusters/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
@@ -31,6 +31,8 @@ import { databases } from 'teleport/Databases/fixtures';
 
 import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
+
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 import { userContext } from './fixtures';
 import { Main } from './Main';
@@ -52,7 +54,7 @@ function createTeleportContext() {
   ctx.desktopService.fetchDesktops = () =>
     Promise.resolve({ agents: desktops });
   ctx.storeUser.setState(userContext);
-  getFeatures().forEach(f => f.register(ctx));
+  getOSSFeatures().forEach(f => f.register(ctx));
 
   return ctx;
 }
@@ -66,9 +68,11 @@ export function OSS() {
   return (
     <Flex my={-3} mx={-4}>
       <ContextProvider ctx={ctx}>
-        <Router history={history}>
-          <Main customBanners={[]} />
-        </Router>
+        <FeaturesContextProvider value={getOSSFeatures()}>
+          <Router history={history}>
+            <Main customBanners={[]} />
+          </Router>
+        </FeaturesContextProvider>
       </ContextProvider>
     </Flex>
   );
