@@ -24,8 +24,10 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
@@ -159,7 +161,11 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		return nil, trace.Wrap(err)
 	}
 
-	return privateKey.(crypto.Signer).Sign(rand, digest, opts)
+	withDelayedTouchPrompt(y.ctx, signTouchPromptDelay, func() {
+		signature, err = privateKey.(crypto.Signer).Sign(rand, digest, opts)
+	})
+
+	return signature, trace.Wrap(err)
 }
 
 func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
@@ -257,7 +263,11 @@ func (y *yubiKey) generatePrivateKey(ctx context.Context, slot piv.Slot, touchPo
 		PINPolicy:   piv.PINPolicyNever,
 		TouchPolicy: touchPolicy,
 	}
-	pub, err := yk.GenerateKey(piv.DefaultManagementKey, slot, opts)
+
+	var pub crypto.PublicKey
+	withDelayedTouchPrompt(ctx, generateKeyTouchPromptDelay, func() {
+		pub, err = yk.GenerateKey(piv.DefaultManagementKey, slot, opts)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -430,4 +440,61 @@ func selfSignedTeleportClientCertificate(priv crypto.PrivateKey, pub crypto.Publ
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
+}
+
+// YubiKeys require touch when generating a private key that requires touch, or using
+// a private key (Sign) with touch required. Unfortunately, there is no good way to
+// check whether touch is cached by the PIV module at a given time. In order to require
+// touch only when needed, we prompt for touch after a short delay when we expect the
+// request would succeed if touch were not required.
+//
+// There are some X factors which determine how long a request may take, such as the
+// YubiKey model and firmware version, so the delays below may need to be adjusted to
+// suit more models. The durations mentioned below were retrieved from testing with my
+// YubiKey 5 nano (5.2.7) and my YubiKey NFC (5.4.3).
+const (
+	// Sign consistently takes ~70 milliseconds. We don't want to delay signatures
+	// much since they happen frequently, so we use a liberal delay of 100ms.
+	signTouchPromptDelay = time.Millisecond * 100
+	// GenerateKey can take between 80 and 320ms. We use a slightly more
+	// conservative delay of 500ms since this only occurs once on login.
+	generateKeyTouchPromptDelay = time.Millisecond * 200
+)
+
+// withDelayedTouchPrompt runs the given function, prompting for touch after the given delay.
+func withDelayedTouchPrompt(ctx context.Context, delay time.Duration, do func()) {
+	touchCtx, cancel := context.WithTimeout(ctx, delay)
+	defer cancel()
+	go func() {
+		<-touchCtx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintln(os.Stderr, "Tap your YubiKey")
+		}
+	}()
+
+	do()
+}
+
+// withContext runs the given function, but returns early if the given ctx is closed.
+func withContext(ctx context.Context, do func()) error {
+	// piv-go does not provide us a way to cancel ongoing PIV requests
+	// with a ctx. Therefore, if the program is canceled during a PIV request,
+	// the connection won't be closed. This can leave the PIV module unusable
+	// for a few seconds before the connection is cleaned up automatically.
+	//
+	// This usually is not a problem as PIV requests are quick enough to beat the
+	// cancelation. However, this issue is much more likely to occur during a PIV
+	// touch prompt, which doesn't complete until the user completes the touch action.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		do()
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
 }
