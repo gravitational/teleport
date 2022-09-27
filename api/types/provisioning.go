@@ -641,8 +641,11 @@ func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, error) {
 	return v2, nil
 }
 
-// Validation for provider specific config
-
+// checkAndSetDefault ensures that the AWS EC2 specific configuration is
+// valid.
+// It must provide allow rules, and those allow rules must have account or
+// role configured.
+// A default value for IIDTTL is also applied if not provided.
 func (a *ProvisionTokenSpecV3AWSEC2) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
@@ -662,6 +665,10 @@ func (a *ProvisionTokenSpecV3AWSEC2) checkAndSetDefaults() error {
 	return nil
 }
 
+// checkAndSetDefault ensures that the AWS IAM specific configuration is
+// valid.
+// It must provide allow rules, and those allow rules must have account or
+// arn configured.
 func (a *ProvisionTokenSpecV3AWSIAM) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodIAM)
