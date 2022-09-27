@@ -208,7 +208,7 @@ func TestProvisionTokenV2_V3(t *testing.T) {
 							{
 								Account: "a-account",
 								Regions: []string{"a-region"},
-								Role:    "a-role",
+								RoleARN: "a-role",
 							},
 						},
 					},
@@ -387,12 +387,12 @@ func TestProvisionTokenV3_GetAllowRules(t *testing.T) {
 							{
 								Account: "foo",
 								Regions: []string{"eu-west-666", "us-coast-612"},
-								Role:    "a-role",
+								RoleARN: "a-role",
 							},
 							{
 								Account: "bar",
 								Regions: []string{"a-region"},
-								Role:    "b-role",
+								RoleARN: "b-role",
 							},
 						},
 					},
@@ -531,7 +531,7 @@ func TestProvisionTokenV3_V2(t *testing.T) {
 							{
 								Account: "xyzzy",
 								Regions: []string{"eurasia-1"},
-								Role:    "lord-commander",
+								RoleARN: "lord-commander",
 							},
 						},
 					},
