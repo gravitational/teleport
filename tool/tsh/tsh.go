@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -1719,15 +1720,28 @@ func formatDatabaseLabels(database types.Database) string {
 // formatConnectCommand formats an appropriate database connection command
 // for a user based on the provided database parameters.
 func formatConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	// figure out if we need --db-user and --db-name
+	matchers := role.DatabaseRoleMatchers(active.Protocol, active.Username, active.Database)
+	needUser := false
+	needDatabase := false
+
+	for _, matcher := range matchers {
+		_, userMatcher := matcher.(*services.DatabaseUserMatcher)
+		needUser = needUser || userMatcher
+
+		_, nameMatcher := matcher.(*services.DatabaseNameMatcher)
+		needDatabase = needDatabase || nameMatcher
+	}
+
 	cmdTokens := []string{"tsh", "db", "connect"}
 
 	if clusterFlag != "" {
 		cmdTokens = append(cmdTokens, fmt.Sprintf("--cluster=%s", clusterFlag))
 	}
-	if active.Username == "" {
+	if active.Username == "" && needUser {
 		cmdTokens = append(cmdTokens, "--db-user=<user>")
 	}
-	if active.Database == "" {
+	if active.Database == "" && needDatabase {
 		cmdTokens = append(cmdTokens, "--db-name=<name>")
 	}
 
