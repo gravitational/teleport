@@ -793,7 +793,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go (main.tagCleanupPipeline)
+# Generated at dronegen/relcli.go (main.relcliPipeline)
 ################################################
 
 kind: pipeline
@@ -834,7 +834,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Cleanup previously built artifacts
+- name: Clean up previously built artifacts
   image: docker:git
   commands:
   - mkdir -p /tmpfs/creds
@@ -6881,7 +6881,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/publish.go (main.publishReleasePipeline)
+# Generated at dronegen/relcli.go (main.relcliPipeline)
 ################################################
 
 kind: pipeline
@@ -7188,6 +7188,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 7ff4848ac1174cca0c7937dc3c266bdac6bda01da29af0dabf27e8ec8cbec4a5
+hmac: c78e0ccc3de4c361e85baff0486b2a8250bb316a375b60ea3a376f7498726c01
 
 ...

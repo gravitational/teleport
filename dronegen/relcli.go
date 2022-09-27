@@ -16,12 +16,12 @@ package main
 
 const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3"
 
-func publishReleasePipeline() pipeline {
-	p := newKubePipeline("publish-rlz")
+func relcliPipeline(trigger trigger, name string, stepName string, command string) pipeline {
+	p := newKubePipeline(name)
 	p.Environment = map[string]value{
 		"RELCLI_IMAGE": {raw: relcliImage},
 	}
-	p.Trigger = triggerPromote
+	p.Trigger = trigger
 	p.Steps = []step{
 		{
 			Name:  "Check if commit is tagged",
@@ -31,8 +31,9 @@ func publishReleasePipeline() pipeline {
 			},
 		},
 		pullRelcliStep(),
-		executeRelcliStep("Publish in Release API", "relcli auto_publish -f -v 6"),
+		executeRelcliStep(stepName, command),
 	}
+
 	p.Services = []service{
 		dockerService(volumeRefTmpfs),
 	}

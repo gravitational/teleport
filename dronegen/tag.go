@@ -570,27 +570,5 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 }
 
 func tagCleanupPipeline() pipeline {
-	p := newKubePipeline(tagCleanupPipelineName)
-	p.Environment = map[string]value{
-		"RELCLI_IMAGE": {raw: relcliImage},
-	}
-	p.Trigger = triggerTag
-
-	p.Steps = []step{
-		{
-			Name:  "Check if commit is tagged",
-			Image: "alpine",
-			Commands: []string{
-				`[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)`,
-			},
-		},
-		pullRelcliStep(),
-		executeRelcliStep("Cleanup previously built artifacts", "relcli auto_destroy -f -v 6"),
-	}
-	p.Services = []service{
-		dockerService(volumeRefTmpfs),
-	}
-	p.Volumes = dockerVolumes(volumeTmpfs)
-
-	return p
+	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "relcli auto_destroy -f -v 6")
 }
