@@ -726,7 +726,7 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 			UserVisibleState:         &state,
 			Version:                  &version,
 		},
-		Tags: labelsToAzureTags(labels),
+		Tags: azure.ToMapOfPtrs(labels),
 		ID:   &id,
 		Name: &name,
 		Type: &resourceType,
@@ -767,7 +767,7 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 			UserVisibleState:         &state,
 			Version:                  &version,
 		},
-		Tags: labelsToAzureTags(labels),
+		Tags: azure.ToMapOfPtrs(labels),
 		ID:   &id,
 		Name: &name,
 		Type: &resourceType,
@@ -789,7 +789,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)),
 		Type:     to.Ptr("Microsoft.Cache/Redis"),
 		Location: to.Ptr(region),
-		Tags:     labelsToAzureTags(labels),
+		Tags:     azure.ToMapOfPtrs(labels),
 		Properties: &armredis.Properties{
 			HostName:          to.Ptr(fmt.Sprintf("%v.redis.cache.windows.net", name)),
 			SSLPort:           to.Ptr(int32(6380)),
@@ -808,7 +808,7 @@ func makeAzureRedisEnterpriseCluster(t *testing.T, cluster, subscription, group,
 		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v", subscription, group, cluster)),
 		Type:     to.Ptr("Microsoft.Cache/Redis"),
 		Location: to.Ptr(region),
-		Tags:     labelsToAzureTags(labels),
+		Tags:     azure.ToMapOfPtrs(labels),
 		Properties: &armredisenterprise.ClusterProperties{
 			HostName: to.Ptr(fmt.Sprintf("%v.%v.redisenterprise.cache.azure.net", cluster, region)),
 		},
@@ -1085,15 +1085,6 @@ func labelsToTags(labels map[string]string) (tags []*rds.Tag) {
 			Key:   aws.String(key),
 			Value: aws.String(val),
 		})
-	}
-	return tags
-}
-
-func labelsToAzureTags(labels map[string]string) map[string]*string {
-	tags := make(map[string]*string, len(labels))
-	for k, v := range labels {
-		v := v
-		tags[k] = &v
 	}
 	return tags
 }

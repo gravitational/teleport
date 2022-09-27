@@ -25,14 +25,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// newAzureMySQLFetcher creates a fetcher for Azure MySQL.
 func newAzureMySQLFetcher(config azureFetcherConfig) (Fetcher, error) {
-	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureMySQLPlugin{})
+	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
+// newAzureMySQLFetcher creates a fetcher for Azure PostgresSQL.
 func newAzurePostgresFetcher(config azureFetcherConfig) (Fetcher, error) {
-	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azurePostgresPlugin{})
+	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
+// azureDBServerPlugin implements azureFetcherPlugin for MySQL and PostgresSQL.
 type azureDBServerPlugin struct {
 }
 
@@ -65,20 +68,15 @@ func (p *azureDBServerPlugin) GetServerLocation(server *azure.DBServer) string {
 	return server.Location
 }
 
-type azureMySQLPlugin struct {
-	azureDBServerPlugin
-}
-
-func (p *azureMySQLPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
-	client, err := cfg.AzureClients.GetAzureMySQLClient(subID)
-	return client, trace.Wrap(err)
-}
-
-type azurePostgresPlugin struct {
-	azureDBServerPlugin
-}
-
-func (p *azurePostgresPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
-	client, err := cfg.AzureClients.GetAzurePostgresClient(subID)
-	return client, trace.Wrap(err)
+func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
+	switch cfg.Type {
+	case services.AzureMatcherMySQL:
+		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)
+		return client, trace.Wrap(err)
+	case services.AzureMatcherPostgres:
+		client, err := cfg.AzureClients.GetAzurePostgresClient(subID)
+		return client, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("unknown matcher type %q", cfg.Type)
+	}
 }

@@ -30,11 +30,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// azureListClient defines an interface for a client that can list Azure
+// resources.
 type azureListClient[DBType comparable] interface {
 	ListAll(ctx context.Context) ([]DBType, error)
 	ListWithinGroup(ctx context.Context, group string) ([]DBType, error)
 }
 
+// azureFetcherPlugin defines an interface that provides DBType specific
+// functions that can be used by the common Azure fetcher.
 type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] interface {
 	NewDatabasesFromServer(server DBType, log logrus.FieldLogger) types.Databases
 	GetListClient(cfg *azureFetcherConfig, subID string) (ListClient, error)
@@ -48,8 +52,7 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 	}
 
 	fetcher := &azureFetcher[DBType, ListClient]{
-		azureFetcherPlugin: plugin,
-		cfg:                config,
+		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: "watch:azure",
 			"labels":        config.Labels,
@@ -58,6 +61,7 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 			"subscription":  config.Subscription,
 			"type":          config.Type,
 		}),
+		azureFetcherPlugin: plugin,
 	}
 	return fetcher, nil
 }

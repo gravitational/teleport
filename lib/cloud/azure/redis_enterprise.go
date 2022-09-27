@@ -18,6 +18,7 @@ package azure
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -115,9 +116,9 @@ func (c *redisEnterpriseClient) getClusterAndDatabaseName(id *arm.ResourceID) (s
 	}
 }
 
-// ListAll returns all Azure Redis Enterprise clusters within an Azure subscription.
-func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]*RedisEnterpriseCluster, error) {
-	var allClusters []*RedisEnterpriseCluster
+// ListAll returns all Azure Redis Enterprise databases within an Azure subscription.
+func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]*RedisEnterpriseDatabase, error) {
+	var allDatabases []*RedisEnterpriseDatabase
 	pager := c.clusterAPI.NewListPager(&armredisenterprise.ClientListOptions{})
 	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
@@ -125,18 +126,18 @@ func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]*RedisEnterprise
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 
-		clusters, err := c.listByClusters(ctx, page.Value)
+		databases, err := c.listDatabasesByClusters(ctx, page.Value)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
-		allClusters = append(allClusters, clusters...)
+		allDatabases = append(allDatabases, databases...)
 	}
-	return allClusters, nil
+	return allDatabases, nil
 }
 
-// ListWithinGroup returns all Azure Redis Enterprise clusters within an Azure resource group.
-func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseCluster, error) {
-	var allClusters []*RedisEnterpriseCluster
+// ListWithinGroup returns all Azure Redis Enterprise databases within an Azure resource group.
+func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseDatabase, error) {
+	var allDatabases []*RedisEnterpriseDatabase
 	pager := c.clusterAPI.NewListByResourceGroupPager(group, &armredisenterprise.ClientListByResourceGroupOptions{})
 	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
@@ -144,72 +145,87 @@ func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group strin
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 
-		clusters, err := c.listByClusters(ctx, page.Value)
+		databases, err := c.listDatabasesByClusters(ctx, page.Value)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
-		allClusters = append(allClusters, clusters...)
+		allDatabases = append(allDatabases, databases...)
 	}
-	return allClusters, nil
+	return allDatabases, nil
 }
 
-func (c *redisEnterpriseClient) listByClusters(ctx context.Context, clusters []*armredisenterprise.Cluster) ([]*RedisEnterpriseCluster, error) {
-	allClusters := make([]*RedisEnterpriseCluster, 0, len(clusters))
+// listDatabasesByClusters fetches databases for the provided clusters.
+func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clusters []*armredisenterprise.Cluster) ([]*RedisEnterpriseDatabase, error) {
+	var allDatabases []*RedisEnterpriseDatabase
 	for _, cluster := range clusters {
 		if cluster == nil { // should never happen, but checking just in case.
 			continue
 		}
 
-		// If listByCluster fails for any reason, make a log and continue to
+		// If listDatabasesByCluster fails for any reason, make a log and continue to
 		// other clusters.
-		databases, err := c.listByCluster(ctx, cluster)
+		databases, err := c.listDatabasesByCluster(ctx, cluster)
 		if err != nil {
 			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-				logrus.Debugf("Failed to listByCluster on Redis Enterprise cluster %v: %v.", stringVal(cluster.Name), err.Error())
+				logrus.Debugf("Failed to listDatabasesByCluster on Redis Enterprise cluster %v: %v.", StringVal(cluster.Name), err.Error())
 			} else {
-				logrus.Warnf("Failed to listByCluster on Redis Enterprise cluster %v: %v.", stringVal(cluster.Name), err.Error())
+				logrus.Warnf("Failed to listDatabasesByCluster on Redis Enterprise cluster %v: %v.", StringVal(cluster.Name), err.Error())
 			}
 			continue
 		}
 
-		allClusters = append(allClusters, &RedisEnterpriseCluster{
-			Cluster:   cluster,
-			Databases: databases,
-		})
+		allDatabases = append(allDatabases, databases...)
 	}
-	return allClusters, nil
+	return allDatabases, nil
 }
 
-func (c *redisEnterpriseClient) listByCluster(ctx context.Context, cluster *armredisenterprise.Cluster) ([]*armredisenterprise.Database, error) {
-	resourceID, err := arm.ParseResourceID(stringVal(cluster.ID))
+// listDatabasesByCluster fetches databases for the provided cluster.
+func (c *redisEnterpriseClient) listDatabasesByCluster(ctx context.Context, cluster *armredisenterprise.Cluster) ([]*RedisEnterpriseDatabase, error) {
+	resourceID, err := arm.ParseResourceID(StringVal(cluster.ID))
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 
-	var databases []*armredisenterprise.Database
-	pager := c.databaseAPI.NewListByClusterPager(resourceID.ResourceGroupName, stringVal(cluster.Name), &armredisenterprise.DatabasesClientListByClusterOptions{})
+	var databases []*RedisEnterpriseDatabase
+	pager := c.databaseAPI.NewListByClusterPager(resourceID.ResourceGroupName, StringVal(cluster.Name), &armredisenterprise.DatabasesClientListByClusterOptions{})
 	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
-		databases = append(databases, page.Value...)
+
+		for _, database := range page.Value {
+			databases = append(databases, &RedisEnterpriseDatabase{
+				Database: database,
+				Cluster:  cluster,
+			})
+		}
 	}
 	return databases, nil
 }
 
-// TODO
-type RedisEnterpriseCluster struct {
-	*armredisenterprise.Cluster
+// RedisEnterpriseCluster is a wrapper of a armredisenterprise.Database and
+// it's parent cluster.
+type RedisEnterpriseDatabase struct {
+	*armredisenterprise.Database
 
-	// TODO
-	Databases []*armredisenterprise.Database
+	// Cluster is the parent cluster.
+	Cluster *armredisenterprise.Cluster
+}
+
+// String returns the description of the database.
+func (d *RedisEnterpriseDatabase) String() string {
+	if StringVal(d.Name) == RedisEnterpriseClusterDefaultDatabase {
+		return fmt.Sprintf("cluster %v", StringVal(d.Cluster.Name))
+	}
+	return fmt.Sprintf("cluster %v (database %v)", StringVal(d.Cluster.Name), StringVal(d.Database.Name))
 }
 
 const (
 	// RedisEnterpriseClusterDefaultDatabase is the default database name for a
 	// Redis Enterprise cluster.
 	RedisEnterpriseClusterDefaultDatabase = "default"
-	// TODO
+	// RedisEnterpriseClusterPolicyOSS indicates the Redis Enterprise cluster
+	// is running in OSS mode.
 	RedisEnterpriseClusterPolicyOSS = string(armredisenterprise.ClusteringPolicyOSSCluster)
 )

@@ -120,9 +120,17 @@ db_service:
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
   # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
-  - subscriptions: ["*"]
-    resource_groups: ["*"]
-    types: ["mysql"]
+  - types: ["mysql"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - {{ . }}
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - {{ . }}
+    {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzureMySQLDiscoveryRegions }}
@@ -135,9 +143,17 @@ db_service:
   {{- if or .AzurePostgresDiscoveryRegions }}
   # Azure Postgres databases auto-discovery.
   # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
-  - subscriptions: ["*"]
-    resource_groups: ["*"]
-    types: ["postgres"]
+  - types: ["postgres"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - {{ . }}
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - {{ . }}
+    {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzurePostgresDiscoveryRegions }}
@@ -150,9 +166,17 @@ db_service:
   {{- if or .AzureRedisDiscoveryRegions }}
   # Azure Cache For Redis databases auto-discovery.
   # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-redis/
-  - subscriptions: ["*"]
-    resource_groups: ["*"]
-    types: ["redis"]
+  - types: ["redis"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - {{ . }}
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - {{ . }}
+    {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzureRedisDiscoveryRegions }}
@@ -379,6 +403,10 @@ type DatabaseSampleFlags struct {
 	DatabaseGCPInstanceID string
 	// DatabaseCACertFile is the database CA cert path.
 	DatabaseCACertFile string
+	// DatabaseAzureSubscriptions is a list of Azure subscriptions.
+	DatabaseAzureSubscriptions []string
+	// DatabaseAzureResourceGroups is a list of Azure resource groups.
+	DatabaseAzureResourceGroups []string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.

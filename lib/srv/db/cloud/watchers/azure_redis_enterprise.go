@@ -27,7 +27,7 @@ import (
 )
 
 func newAzureRedisEnterpriseFetcher(config azureFetcherConfig) (Fetcher, error) {
-	return newAzureFetcher[*azure.RedisEnterpriseCluster, azure.RedisEnterpriseClient](config, &azureRedisEnterprisePlugin{})
+	return newAzureFetcher[*azure.RedisEnterpriseDatabase, azure.RedisEnterpriseClient](config, &azureRedisEnterprisePlugin{})
 }
 
 type azureRedisEnterprisePlugin struct {
@@ -38,56 +38,47 @@ func (p *azureRedisEnterprisePlugin) GetListClient(cfg *azureFetcherConfig, subI
 	return client, trace.Wrap(err)
 }
 
-func (p *azureRedisEnterprisePlugin) GetServerLocation(cluster *azure.RedisEnterpriseCluster) string {
-	return stringVal(cluster.Location)
+func (p *azureRedisEnterprisePlugin) GetServerLocation(server *azure.RedisEnterpriseDatabase) string {
+	return azure.StringVal(server.Cluster.Location)
 }
 
-func (p *azureRedisEnterprisePlugin) NewDatabasesFromServer(cluster *azure.RedisEnterpriseCluster, log logrus.FieldLogger) types.Databases {
-	if cluster.Properties == nil {
+func (p *azureRedisEnterprisePlugin) NewDatabasesFromServer(server *azure.RedisEnterpriseDatabase, log logrus.FieldLogger) types.Databases {
+	if server.Properties == nil || server.Cluster.Properties == nil {
 		return nil
 	}
 
-	var databases types.Databases
-	for _, clusterDatabase := range cluster.Databases {
-		if clusterDatabase == nil || clusterDatabase.Properties == nil {
-			continue
-		}
-
-		if stringVal(clusterDatabase.Properties.ClientProtocol) != string(armredisenterprise.ProtocolEncrypted) {
-			log.Debugf("Azure Redis Enterprise cluster %v (database %v) is running unsupported protocol %v. Skipping.",
-				stringVal(cluster.Name),
-				stringVal(clusterDatabase.Name),
-				stringVal(clusterDatabase.Properties.ClientProtocol),
-			)
-			continue
-		}
-
-		if !p.isDatabaseAvailable(cluster.Cluster, clusterDatabase) {
-			log.Debugf("The current status of Azure Enterprise Redis clsuter %q (database %v) is %q. Skipping.",
-				stringVal(clusterDatabase.Properties.ResourceState),
-				stringVal(cluster.Name),
-				stringVal(clusterDatabase.Name),
-			)
-			return nil
-		}
-
-		database, err := services.NewDatabaseFromAzureRedisEnterprise(cluster.Cluster, clusterDatabase)
-		if err != nil {
-			log.Warnf("Could not convert Azure Redis Enterprise Redis cluster %q (database %v) to database resource: %v.",
-				stringVal(cluster.Name),
-				stringVal(clusterDatabase.Name),
-				err,
-			)
-			return nil
-		}
-
-		databases = append(databases, database)
+	if azure.StringVal(server.Properties.ClientProtocol) != string(armredisenterprise.ProtocolEncrypted) {
+		log.Debugf("Azure Redis Enterprise %v is running unsupported protocol %v. Skipping.",
+			server,
+			azure.StringVal(server.Properties.ClientProtocol),
+		)
+		return nil
 	}
-	return databases
+
+	if !p.isAvailable(server) {
+		log.Debugf("The current status of Azure Enterprise Redis is %q. Skipping.",
+			server,
+			azure.StringVal(server.Properties.ProvisioningState),
+		)
+		return nil
+	}
+
+	database, err := services.NewDatabaseFromAzureRedisEnterprise(server.Cluster, server.Database)
+	if err != nil {
+		log.Warnf("Could not convert Azure Redis Enterprise Redis %v to database resource: %v.",
+			server,
+			err,
+		)
+		return nil
+	}
+
+	return types.Databases{database}
 }
 
-func (p *azureRedisEnterprisePlugin) isDatabaseAvailable(cluster *armredisenterprise.Cluster, clusterDatabase *armredisenterprise.Database) bool {
-	switch armredisenterprise.ProvisioningState(stringVal(clusterDatabase.Properties.ProvisioningState)) {
+// isAvailable checks the status of the database and returns true if the
+// database is available.
+func (p *azureRedisEnterprisePlugin) isAvailable(server *azure.RedisEnterpriseDatabase) bool {
+	switch armredisenterprise.ProvisioningState(azure.StringVal(server.Properties.ProvisioningState)) {
 	case armredisenterprise.ProvisioningStateSucceeded,
 		armredisenterprise.ProvisioningStateUpdating:
 		return true
@@ -97,10 +88,9 @@ func (p *azureRedisEnterprisePlugin) isDatabaseAvailable(cluster *armredisenterp
 		armredisenterprise.ProvisioningStateFailed:
 		return false
 	default:
-		logrus.Warnf("Unknown status type: %q. Assuming Azure Enterprise Redis cluster %q (database %v) is available.",
-			stringVal(clusterDatabase.Properties.ProvisioningState),
-			stringVal(cluster.Name),
-			stringVal(clusterDatabase.Name),
+		logrus.Warnf("Unknown status type: %q. Assuming Azure Enterprise Redis %v is available.",
+			azure.StringVal(server.Properties.ProvisioningState),
+			server,
 		)
 		return true
 	}

@@ -67,6 +67,7 @@ type CacheForRedisClient interface {
 	GetToken(ctx context.Context, resourceID string) (string, error)
 }
 
+// RedisClient is an interface for a Redis client.
 type RedisClient interface {
 	CacheForRedisClient
 
@@ -76,11 +77,12 @@ type RedisClient interface {
 	ListWithinGroup(ctx context.Context, group string) ([]*armredis.ResourceInfo, error)
 }
 
+// RedisEnterpriseClient is an interface for a Redis Enterprise client.
 type RedisEnterpriseClient interface {
 	CacheForRedisClient
 
-	// ListAll returns all Azure Redis Enterprise clusters within an Azure subscription.
-	ListAll(ctx context.Context) ([]*RedisEnterpriseCluster, error)
-	// ListWithinGroup returns all Azure Redis Enterprise clusters within an Azure resource group.
-	ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseCluster, error)
+	// ListAll returns all Azure Redis Enterprise databases within an Azure subscription.
+	ListAll(ctx context.Context) ([]*RedisEnterpriseDatabase, error)
+	// ListWithinGroup returns all Azure Redis Enterprise databases within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseDatabase, error)
 }

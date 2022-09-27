@@ -136,9 +136,13 @@ func setDBNameByLabel(overrideLabel string, meta types.Metadata, firstNamePart s
 
 	return meta
 }
+
+// setDBName sets database name if override label labelTeleportDBName is present.
 func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
 	return setDBNameByLabel(labelTeleportDBName, meta, firstNamePart, extraNameParts...)
 }
+
+// setDBName sets database name if override label labelTeleportDBNameAzure is present.
 func setAzureDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
 	return setDBNameByLabel(labelTeleportDBNameAzure, meta, firstNamePart, extraNameParts...)
 }
@@ -173,10 +177,10 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 
 // NewDatabaseFromAzureRedis creates a database resource from an Azure Redis server.
 func NewDatabaseFromAzureRedis(server *armredis.ResourceInfo) (types.Database, error) {
-	if server.Properties == nil { // should never happen, but checking just in case.
+	if server.Properties == nil {
 		return nil, trace.BadParameter("missing properties")
 	}
-	if server.Properties.SSLPort == nil { // should never happen, but checking just in case.
+	if server.Properties.SSLPort == nil {
 		return nil, trace.BadParameter("missing SSL port")
 	}
 	labels, err := labelsFromAzureRedis(server)
@@ -187,26 +191,25 @@ func NewDatabaseFromAzureRedis(server *armredis.ResourceInfo) (types.Database, e
 		setAzureDBName(types.Metadata{
 			Description: fmt.Sprintf("Azure %v server in %v",
 				defaults.ReadableDatabaseProtocol(defaults.ProtocolRedis),
-				stringVal(server.Location)),
+				azure.StringVal(server.Location)),
 			Labels: labels,
-		}, stringVal(server.Name)),
+		}, azure.StringVal(server.Name)),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
-			URI:      fmt.Sprintf("%v:%v", stringVal(server.Properties.HostName), *server.Properties.SSLPort),
+			URI:      fmt.Sprintf("%v:%v", azure.StringVal(server.Properties.HostName), *server.Properties.SSLPort),
 			Azure: types.Azure{
-				Name:       stringVal(server.Name),
-				ResourceID: stringVal(server.ID),
+				Name:       azure.StringVal(server.Name),
+				ResourceID: azure.StringVal(server.ID),
 			},
 		})
-	return nil, nil
 }
 
 // NewDatabaseFromAzureRedisEnterprise creates a database resource from an Azure Redis Enterprise server.
 func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (types.Database, error) {
-	if cluster.Properties == nil || database.Properties == nil { // should never happen, but checking just in case.
+	if cluster.Properties == nil || database.Properties == nil {
 		return nil, trace.BadParameter("missing properties")
 	}
-	if database.Properties.Port == nil { // should never happen, but checking just in case.
+	if database.Properties.Port == nil {
 		return nil, trace.BadParameter("missing port")
 	}
 	labels, err := labelsFromAzureRedisEnterprise(cluster, database)
@@ -215,29 +218,28 @@ func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, da
 	}
 
 	var nameSuffixes []string
-	if stringVal(database.Name) != azure.RedisEnterpriseClusterDefaultDatabase {
-		nameSuffixes = append(nameSuffixes, stringVal(database.Name))
+	if azure.StringVal(database.Name) != azure.RedisEnterpriseClusterDefaultDatabase {
+		nameSuffixes = append(nameSuffixes, azure.StringVal(database.Name))
 	}
 
 	return types.NewDatabaseV3(
 		setAzureDBName(types.Metadata{
 			Description: fmt.Sprintf("Azure %v Enterprise server in %v",
 				defaults.ReadableDatabaseProtocol(defaults.ProtocolRedis),
-				stringVal(cluster.Location)),
+				azure.StringVal(cluster.Location)),
 			Labels: labels,
-		}, stringVal(cluster.Name), nameSuffixes...),
+		}, azure.StringVal(cluster.Name), nameSuffixes...),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
-			URI:      fmt.Sprintf("%v:%v", stringVal(cluster.Properties.HostName), *database.Properties.Port),
+			URI:      fmt.Sprintf("%v:%v", azure.StringVal(cluster.Properties.HostName), *database.Properties.Port),
 			Azure: types.Azure{
-				Name:       strings.Join(append([]string{stringVal(cluster.Name)}, nameSuffixes...), "-"),
-				ResourceID: stringVal(database.ID),
+				Name:       strings.Join(append([]string{azure.StringVal(cluster.Name)}, nameSuffixes...), "-"),
+				ResourceID: azure.StringVal(database.ID),
 				Redis: types.AzureRedis{
-					ClusteringPolicy: stringVal(database.Properties.ClusteringPolicy),
+					ClusteringPolicy: azure.StringVal(database.Properties.ClusteringPolicy),
 				},
 			},
 		})
-	return nil, nil
 }
 
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
@@ -641,21 +643,21 @@ func withLabelsFromAzureResourceID(labels map[string]string, resourceID string) 
 
 // labelsFromAzureRedis creates database labels from the provided Azure Redis instance.
 func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, error) {
-	labels := azureTagsToLabels(convertAzureTags(server.Tags))
+	labels := azureTagsToLabels(azure.ToMapOfString(server.Tags))
 	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelRegion] = stringVal(server.Location)
-	labels[labelEngineVersion] = stringVal(server.Properties.RedisVersion)
-	return withLabelsFromAzureResourceID(labels, stringVal(server.ID))
+	labels[labelRegion] = azure.StringVal(server.Location)
+	labels[labelEngineVersion] = azure.StringVal(server.Properties.RedisVersion)
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
 
 // labelsFromAzureRedisEnterprise creates database labels from the provided Azure Redis Enterprise server.
 func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (map[string]string, error) {
-	labels := azureTagsToLabels(convertAzureTags(cluster.Tags))
+	labels := azureTagsToLabels(azure.ToMapOfString(cluster.Tags))
 	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelRegion] = stringVal(cluster.Location)
-	labels[labelEngineVersion] = stringVal(cluster.Properties.RedisVersion)
-	labels[labelEndpointType] = stringVal(database.Properties.ClusteringPolicy)
-	return withLabelsFromAzureResourceID(labels, stringVal(database.ID))
+	labels[labelRegion] = azure.StringVal(cluster.Location)
+	labels[labelEngineVersion] = azure.StringVal(cluster.Properties.RedisVersion)
+	labels[labelEndpointType] = azure.StringVal(database.Properties.ClusteringPolicy)
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(database.ID))
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
@@ -975,21 +977,6 @@ func GetMySQLEngineVersion(labels map[string]string) string {
 		return ""
 	}
 	return version
-}
-
-func stringVal[T ~string](s *T) string {
-	if s != nil {
-		return string(*s)
-	}
-	return ""
-}
-
-func convertAzureTags(tags map[string]*string) map[string]string {
-	result := make(map[string]string, len(tags))
-	for k, v := range tags {
-		result[k] = stringVal(v)
-	}
-	return result
 }
 
 const (

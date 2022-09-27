@@ -132,16 +132,69 @@ func TestRedisEnterpriseClient(t *testing.T) {
 				t.Parallel()
 
 				c := NewRedisEnterpriseClientByAPI(test.mockClusterAPI, test.mockDatabaseAPI)
-				resources, err := c.ListAll(context.TODO())
+				clusters, err := c.ListAll(context.TODO())
 				if test.expectError {
 					require.Error(t, err)
 				} else {
 					require.NoError(t, err)
-					require.Len(t, resources, 3)
+					requireClusterDatabases(t, test.expectClusterDatabases, clusters)
 				}
 			})
 		}
 	})
+
+	t.Run("ListWithinGroup", func(t *testing.T) {
+		tests := []struct {
+			name                   string
+			mockDatabaseAPI        armRedisEnterpriseDatabaseClient
+			mockClusterAPI         armRedisEnterpriseClusterClient
+			inputGroup             string
+			expectError            bool
+			expectClusterDatabases map[string][]string
+		}{
+			{
+				name:            "access denied",
+				mockDatabaseAPI: mockDatabaseAPINoAuth,
+				mockClusterAPI:  mockClusterAPINoAuth,
+				inputGroup:      "group-prod",
+				expectError:     true,
+			},
+			{
+				name:            "succeed",
+				mockDatabaseAPI: mockDatabaseAPI,
+				mockClusterAPI:  mockClusterAPI,
+				inputGroup:      "group-prod",
+				expectClusterDatabases: map[string][]string{
+					"redis-prod-1": []string{"default"},
+					"redis-prod-2": []string{"db-x", "db-y"},
+				},
+			},
+		}
+
+		for _, test := range tests {
+			test := test
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				c := NewRedisEnterpriseClientByAPI(test.mockClusterAPI, test.mockDatabaseAPI)
+				clusters, err := c.ListWithinGroup(context.TODO(), test.inputGroup)
+				if test.expectError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+					requireClusterDatabases(t, test.expectClusterDatabases, clusters)
+				}
+			})
+		}
+	})
+}
+
+func requireClusterDatabases(t *testing.T, expectClusterDatabases map[string][]string, databases []*RedisEnterpriseDatabase) {
+	actualClusterDatabases := make(map[string][]string)
+	for _, database := range databases {
+		actualClusterDatabases[StringVal(database.Cluster.Name)] = append(actualClusterDatabases[StringVal(database.Cluster.Name)], StringVal(database.Name))
+	}
+	require.Equal(t, expectClusterDatabases, actualClusterDatabases)
 }
 
 func makeRedisEnterpriceCluster(name, group string) *armredisenterprise.Cluster {

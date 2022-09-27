@@ -197,7 +197,6 @@ func (m *ARMPostgresMock) NewListByResourceGroupPager(group string, _ *armpostgr
 			if len(servers) == 0 {
 				return armpostgresql.ServersClientListByResourceGroupResponse{}, trace.NotFound("Resource group '%v' could not be found.", group)
 			}
-
 			return armpostgresql.ServersClientListByResourceGroupResponse{
 				ServerListResult: armpostgresql.ServerListResult{
 					Value: servers,
@@ -319,6 +318,7 @@ func (m *ARMRedisEnterpriseClusterMock) NewListByResourceGroupPager(resourceGrou
 	})
 }
 
+// newPagerHelper is a helper for creating a runtime.Pager for common ARM mocks.
 func newPagerHelper[T any](noAuth bool, newT func() (T, error)) *runtime.Pager[T] {
 	return runtime.NewPager(runtime.PagingHandler[T]{
 		More: func(_ T) bool {
@@ -334,12 +334,16 @@ func newPagerHelper[T any](noAuth bool, newT func() (T, error)) *runtime.Pager[T
 	})
 }
 
+// filterByResourceGroup filters input slice of resources by matching resource group.
 func filterByResourceGroup[T any](s []T, group string) ([]T, error) {
 	return filterByCheckingResourceID(s, func(id *arm.ResourceID) bool {
 		return id.ResourceGroupName == group
 	})
 }
 
+// filterByCheckingResourceID filters input slice of resources by using the
+// passed in custom check function on the resource ID of each resource in the
+// slice.
 func filterByCheckingResourceID[T any](s []T, check func(*arm.ResourceID) bool) ([]T, error) {
 	var servers []T
 	for _, e := range s {
@@ -361,21 +365,23 @@ func filterByCheckingResourceID[T any](s []T, check func(*arm.ResourceID) bool) 
 	return servers, nil
 }
 
-func getStringAttrFromStruct(i interface{}, name string) (string, error) {
+// getStringAttrFromStruct uses reflect magic to get the string value of an
+// attribute of the input i.
+func getStringAttrFromStruct(i interface{}, attrName string) (string, error) {
 	structValue := reflect.ValueOf(i)
 	if structValue.Kind() == reflect.Pointer {
 		structValue = structValue.Elem()
 	}
 
-	attrValue := structValue.FieldByName(name)
+	attrValue := structValue.FieldByName(attrName)
 	if !attrValue.IsValid() {
-		return "", trace.NotFound("%v field not found", name)
+		return "", trace.NotFound("%v field not found", attrName)
 	}
 	if attrValue.Kind() == reflect.Pointer {
 		attrValue = attrValue.Elem()
 	}
 	if attrValue.Kind() != reflect.String {
-		return "", trace.BadParameter("%v field is not a string", name)
+		return "", trace.BadParameter("%v field is not a string", attrName)
 	}
 	return attrValue.String(), nil
 }

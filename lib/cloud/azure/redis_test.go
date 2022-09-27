@@ -108,7 +108,7 @@ func TestRedisClient(t *testing.T) {
 					require.NoError(t, err)
 					require.Len(t, resources, len(test.expectNames))
 					for i, resource := range resources {
-						require.Equal(t, test.expectNames[i], stringVal(resource.Name))
+						require.Equal(t, test.expectNames[i], StringVal(resource.Name))
 					}
 				}
 			})
@@ -150,7 +150,7 @@ func TestRedisClient(t *testing.T) {
 					require.NoError(t, err)
 					require.Len(t, resources, len(test.expectNames))
 					for i, resource := range resources {
-						require.Equal(t, test.expectNames[i], stringVal(resource.Name))
+						require.Equal(t, test.expectNames[i], StringVal(resource.Name))
 					}
 				}
 			})
