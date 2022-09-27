@@ -1,8 +1,9 @@
 package helpers
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"time"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
