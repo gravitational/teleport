@@ -10,10 +10,7 @@ state: draft
 - Product: Sasha `@klizhentas`, Xin `@xinding33`
 
 ## What
-When per-session-MFA is enabled, we should not restrict database cert TTL to 1 minute.
-
-Instead, database cert TTL should be restricted to `max_session_ttl`, and the cert
-should be kept in-memory by a local proxy tunnel.
+Prevent database access users from being required to tap an MFA device every minute when per-session-MFA is enabled.
 
 ## Why
 Database access via GUI client such as DataGrip requires the user to start a local proxy to connect to: `tsh proxy db --tunnel <db>`.
@@ -25,9 +22,13 @@ Currently, database certs are issued with 1 minute ttl if per-session-MFA is ena
 This causes poor UX when the GUI client can establish a new connection at any time,
 and a user may be prompt once per minute for their MFA.
 
-We should remove this 1 minute restriction on database cert TTL to improve UX.
+We should remove the 1 minute restriction on database cert TTL to improve UX.
 
 ## Details
+When per-session-MFA is enabled, we should not restrict database cert TTL to 1 minute.
+
+Instead, database cert TTL should be restricted to `max_session_ttl`, and the cert
+should be kept in-memory by a local proxy tunnel.
 
 "Doesn't this just disable per-session-mfa for database access?" (My initial thinking)
 
