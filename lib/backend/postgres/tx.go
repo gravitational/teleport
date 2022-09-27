@@ -95,7 +95,7 @@ func (tx *pgTx) rollback(err error) bool {
 	if err == nil {
 		return false
 	}
-	if e := tx.sqlTx.Rollback(); e != nil {
+	if e := tx.sqlTx.Rollback(); e != nil && e != sql.ErrTxDone {
 		tx.cfg.Log.WithError(err).Errorf("Failed to rollback: %v", e)
 	}
 	tx.err = convertError(err)
