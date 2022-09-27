@@ -730,8 +730,8 @@ github.com/gravitational/reporting v0.0.0-20210923183620-237377721140 h1:UACNXsu
 github.com/gravitational/reporting v0.0.0-20210923183620-237377721140/go.mod h1:rBJeI3JYVzbL7Yw2hYrp4QdKIkncb1pUHo95DyoEGns=
 github.com/gravitational/roundtrip v1.0.1 h1:eD/y0av12Gu9VIwNgPY/ltmpeVk0Azek/yIJvOPuTuY=
 github.com/gravitational/roundtrip v1.0.1/go.mod h1:qccpLd30tAJVSpx7aOEEnws4ZT3njPwdbtT8lNQxbAs=
-github.com/gravitational/sftp v1.13.6-0.20220926142929-99c2d88f68f3 h1:9r8JZ67aT0STmH+75xsqJ6qPDITMraYU77SafCIGny4=
-github.com/gravitational/sftp v1.13.6-0.20220926142929-99c2d88f68f3/go.mod h1:wHDZ0IZX6JcBYRK1TH9bcVq8G7TLpVHYIGJRFnmPfxg=
+github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055 h1:iUQqKNaW1lywWSVZkeCQX0vygPfJ63UGx6Ng94e2t1o=
+github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055/go.mod h1:wHDZ0IZX6JcBYRK1TH9bcVq8G7TLpVHYIGJRFnmPfxg=
 github.com/gravitational/trace v1.1.16-0.20220114165159-14a9a7dd6aaf/go.mod h1:zXqxTI6jXDdKnlf8s+nT+3c8LrwUEy3yNpO4XJL90lA=
 github.com/gravitational/trace v1.1.19-0.20220627095334-f3550c86f648 h1:077EB1f9UVtnwjyVR+IiVB9Dls4YAKLjhtY9xBggMp8=
 github.com/gravitational/trace v1.1.19-0.20220627095334-f3550c86f648/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
