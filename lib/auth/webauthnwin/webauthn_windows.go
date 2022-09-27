@@ -98,7 +98,7 @@ func (n *nativeImpl) CheckSupport() CheckSupportResult {
 // either security key or Windows Hello).
 // It does not accept username - during passwordless login webauthn.dll provides
 // its own dialog with credentials selection.
-func (n nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (n *nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -169,7 +169,7 @@ func (n nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion, 
 // wanlib.CredentialCreation (using auto starts with Windows Hello but there is
 // option to select other devices).
 // Windows Hello keys are always resident.
-func (n nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
+func (n *nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -300,7 +300,7 @@ func isUVPlatformAuthenticatorAvailable() (bool, error) {
 	return out == 1, nil
 }
 
-func (n nativeImpl) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
+func (n *nativeImpl) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
 	allowCredList, err := credentialsExToCType(in.AllowedCredentials)
 	if err != nil {
 		return nil, err
@@ -554,7 +554,7 @@ func requireResidentKeyToCType(in *bool) uint32 {
 	return boolToUint32(*in)
 }
 
-func (n nativeImpl) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
+func (n *nativeImpl) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
 	exCredList, err := credentialsExToCType(in.CredentialExcludeList)
 	if err != nil {
 		return nil, err
