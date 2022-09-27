@@ -45,7 +45,7 @@ func relcliPipeline(trigger trigger, name string, stepName string, command strin
 func pullRelcliStep() step {
 	return step{
 		Name:  "Pull relcli",
-		Image: "docker:git",
+		Image: "docker:cli",
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
 			"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},

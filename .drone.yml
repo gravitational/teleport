@@ -820,7 +820,7 @@ steps:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Pull relcli
-  image: docker:git
+  image: docker:cli
   commands:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -6908,7 +6908,7 @@ steps:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Pull relcli
-  image: docker:git
+  image: docker:cli
   commands:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -7188,6 +7188,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: c78e0ccc3de4c361e85baff0486b2a8250bb316a375b60ea3a376f7498726c01
+hmac: 7ecfe55d87bbf11012fef5405be913831d1b7330f10e3c1c900d0a408557f58f
 
 ...
