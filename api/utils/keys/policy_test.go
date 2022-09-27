@@ -57,8 +57,8 @@ func TestPrivateKeyPolicyError(t *testing.T) {
 			expectIsKeyPolicy:  false,
 			expectKeyPolicyErr: true,
 		}, {
-			desc:               "unkown_key_policy",
-			errIn:              newPrivateKeyPolicyError("unkown_key_policy"),
+			desc:               "unknown_key_policy",
+			errIn:              newPrivateKeyPolicyError("unknown_key_policy"),
 			expectIsKeyPolicy:  true,
 			expectKeyPolicyErr: true,
 		}, {

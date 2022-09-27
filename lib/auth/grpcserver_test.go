@@ -1074,7 +1074,7 @@ func TestIsMFARequired(t *testing.T) {
 				err = srv.Auth().UpsertRole(ctx, role)
 				require.NoError(t, err)
 
-				cl, err := srv.NewClient(TestUser(user.GetName()))
+				cl, err := srv.NewClient(TestHardwareKeyUser(user.GetName()))
 				require.NoError(t, err)
 
 				resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
