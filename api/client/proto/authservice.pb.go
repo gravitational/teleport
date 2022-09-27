@@ -13674,24 +13674,25 @@ type AuthServiceClient interface {
 	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetToken retrieves a v2 token described by the given request.
 	// Deprecated: use GetTokenV3.
-	// DELETE IN 13.0.
+	// DELETE IN 13.0 (strideynet).
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
 	// GetTokenV3 retrieves a token described by the given request.
 	GetTokenV3(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV3, error)
 	// GetTokens retrieves all v2 tokens.
 	// Deprecated: use GetTokensV3.
-	// DELETE IN 13.0.
+	// DELETE IN 13.0 (strideynet).
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
 	// GetTokensV3 retrieves all tokens.
 	GetTokensV3(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV3List, error)
 	// UpsertToken upserts a v2 token in a backend.
 	// Deprecated: use UpsertTokenV3.
-	// DELETE IN 13.0.
+	// DELETE IN 13.0 (strideynet).
 	UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertTokenV3 upserts a v3 token in a backend.
 	UpsertTokenV3(ctx context.Context, in *types.ProvisionTokenV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: CreateToken creates a v2 token in a backend.
-	// DELETE IN 13.0. Use CreateTokenV3.
+	// CreateToken creates a v2 token in a backend.
+	// Deprecated: Use CreateTokenV3.
+	// DELETE IN 13.0 (strideynet)
 	CreateToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateTokenV3 creates a v3 token in a backend.
 	CreateTokenV3(ctx context.Context, in *types.ProvisionTokenV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -16454,24 +16455,25 @@ type AuthServiceServer interface {
 	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// GetToken retrieves a v2 token described by the given request.
 	// Deprecated: use GetTokenV3.
-	// DELETE IN 13.0.
+	// DELETE IN 13.0 (strideynet).
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
 	// GetTokenV3 retrieves a token described by the given request.
 	GetTokenV3(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV3, error)
 	// GetTokens retrieves all v2 tokens.
 	// Deprecated: use GetTokensV3.
-	// DELETE IN 13.0.
+	// DELETE IN 13.0 (strideynet).
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
 	// GetTokensV3 retrieves all tokens.
 	GetTokensV3(context.Context, *emptypb.Empty) (*types.ProvisionTokenV3List, error)
 	// UpsertToken upserts a v2 token in a backend.
 	// Deprecated: use UpsertTokenV3.
-	// DELETE IN 13.0.
+	// DELETE IN 13.0 (strideynet).
 	UpsertToken(context.Context, *types.ProvisionTokenV2) (*emptypb.Empty, error)
 	// UpsertTokenV3 upserts a v3 token in a backend.
 	UpsertTokenV3(context.Context, *types.ProvisionTokenV3) (*emptypb.Empty, error)
-	// Deprecated: CreateToken creates a v2 token in a backend.
-	// DELETE IN 13.0. Use CreateTokenV3.
+	// CreateToken creates a v2 token in a backend.
+	// Deprecated: Use CreateTokenV3.
+	// DELETE IN 13.0 (strideynet)
 	CreateToken(context.Context, *types.ProvisionTokenV2) (*emptypb.Empty, error)
 	// CreateTokenV3 creates a v3 token in a backend.
 	CreateTokenV3(context.Context, *types.ProvisionTokenV3) (*emptypb.Empty, error)

@@ -1962,6 +1962,7 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
+// DELETE IN 13.0 (strideynet)
 func (c *Client) getTokenV2(ctx context.Context, name string) (types.ProvisionToken, error) {
 	//nolint:staticcheck // SA1019 Deprecated call will be removed in 13.0
 	resp, err := c.grpc.GetToken(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
@@ -1987,6 +1988,7 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 	return resp, nil
 }
 
+// DELETE IN 13.0 (strideynet)
 func (c *Client) getTokensV2(ctx context.Context) ([]types.ProvisionToken, error) {
 	//nolint:staticcheck // SA1019 Deprecated call will be removed in 13.0
 	resp, err := c.grpc.GetTokens(ctx, &empty.Empty{}, c.callOpts...)

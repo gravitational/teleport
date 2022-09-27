@@ -74,7 +74,7 @@ type ProvisionToken interface {
 	// This exists for the transition period where the V2 Token RPCs still exist
 	// and we may need to be able to convert V3 tokens to a V2 representation
 	// for serialization.
-	// DELETE IN 13.0
+	// DELETE IN 13.0 (strideynet)
 	V2() (*ProvisionTokenV2, error)
 }
 
@@ -421,8 +421,8 @@ func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
 var ProvisionTokenNotBackwardsCompatibleErr = trace.Errorf("token cannot be converted to V2 and must be fetched using V3 API")
 
 // V2 returns the V2 representation of a ProvisionToken
-// DELETE IN 13.0 - This will no longer be necessary once v2 RPCs have been
-// removed.
+// DELETE IN 13.0 (strideynet) - This will no longer be necessary once v2 RPCs
+// have been removed
 func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, error) {
 	v2 := &ProvisionTokenV2{
 		Kind:     KindToken,

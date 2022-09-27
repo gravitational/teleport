@@ -3021,8 +3021,9 @@ type ProvisionTokenSpecV3 struct {
 	// - "ec2"
 	// - "iam"
 	JoinMethod JoinMethod `protobuf:"bytes,2,opt,name=JoinMethod,proto3,casttype=JoinMethod" json:"join_method"`
-	// BotName is the name of the bot this token grants access to. This option
-	// can only be configured when the "bot" role is includes within Roles.
+	// BotName is the name of the bot this token grants access to.
+	// This field must be set if the token includes the `Bot` role. It cannot be
+	// set if the token does not include this role.
 	BotName string `protobuf:"bytes,3,opt,name=BotName,proto3" json:"bot_name,omitempty"`
 	// SuggestedLabels is a set of labels that resources should set when using
 	// this token to enroll themselves in the cluster.
