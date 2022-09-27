@@ -999,9 +999,15 @@ message ProvisionTokenV3 {
   option (gogoproto.stringer) = false;
 
   // Kind is a resource kind
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  string Kind = 1 [
+    (gogoproto.jsontag) = "kind",
+    json_name = "kind"
+  ];
   // SubKind is an optional resource sub kind, used in some resources
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  string SubKind = 2 [
+    (gogoproto.jsontag) = "sub_kind,omitempty",
+    json_name = "sub_kind"
+  ];
   // Version is version
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
@@ -1022,6 +1028,13 @@ message ProvisionTokenV3List {
   repeated ProvisionTokenV3 ProvisionTokens = 1;
 }
 
+enum ProvisionTokenJoinMethod {
+  undefined = 0;
+  token = 1;
+  ec2 = 2;
+  iam = 3;
+}
+
 message ProvisionTokenSpecV3 {
   // Roles is a list of roles associated with the token, that will be converted
   // to metadata in the SSH and X509 certificates issued to the user of the
@@ -1031,14 +1044,7 @@ message ProvisionTokenSpecV3 {
     (gogoproto.casttype) = "SystemRole"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include:
-  // - "token"
-  // - "ec2"
-  // - "iam"
-  string JoinMethod = 2 [
-    (gogoproto.jsontag) = "join_method",
-    (gogoproto.casttype) = "JoinMethod"
-  ];
+  ProvisionTokenJoinMethod JoinMethod = 2 [(gogoproto.jsontag) = "join_method"];
   // BotName is the name of the bot this token grants access to. This option
   // can only be configured when the "bot" role is includes within Roles.
   string BotName = 3 [(gogoproto.jsontag) = "bot_name,omitempty"];

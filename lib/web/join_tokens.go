@@ -102,14 +102,14 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 		if err == nil {
 			// check if the token found has the right rules
-			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
+			if t.GetJoinMethod() != types.ProvisionTokenJoinMethod_iam || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
 				return nil, trace.BadParameter("failed to create token: token with name %q already exists and does not have the expected allow rules", tokenName)
 			}
 
 			return &nodeJoinToken{
 				ID:     t.GetName(),
 				Expiry: *t.GetMetadata().Expires,
-				Method: t.GetJoinMethod(),
+				Method: types.JoinMethod(t.GetJoinMethod().String()),
 			}, nil
 		}
 
@@ -163,7 +163,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	return &nodeJoinToken{
 		ID:              tokenName,
 		Expiry:          expires,
-		Method:          provisionToken.GetJoinMethod(),
+		Method:          types.JoinMethod(provisionToken.GetJoinMethod().String()),
 		SuggestedLabels: suggestedLabels,
 	}, nil
 }

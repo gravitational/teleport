@@ -302,7 +302,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if provisionToken.GetJoinMethod() != types.JoinMethodIAM {
+	if provisionToken.GetJoinMethod() != types.ProvisionTokenJoinMethod_iam {
 		return trace.AccessDenied("this token does not support the IAM join method")
 	}
 

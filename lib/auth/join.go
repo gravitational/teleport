@@ -29,12 +29,12 @@ import (
 )
 
 // tokenJoinMethod returns the join method of the token with the given tokenName
-func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.JoinMethod {
+func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.ProvisionTokenJoinMethod {
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
 		// could not find dynamic token, assume static token. If it does not
 		// exist this will be caught later.
-		return types.JoinMethodToken
+		return types.ProvisionTokenJoinMethod_token
 	}
 	return provisionToken.GetJoinMethod()
 }
@@ -99,16 +99,16 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	switch a.tokenJoinMethod(ctx, req.Token) {
-	case types.JoinMethodEC2:
+	case types.ProvisionTokenJoinMethod_ec2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodIAM:
+	case types.ProvisionTokenJoinMethod_iam:
 		// IAM join method must use the gRPC RegisterUsingIAMMethod
 		return nil, trace.AccessDenied("this token is only valid for the IAM " +
 			"join method but the node has connected to the wrong endpoint, make " +
 			"sure your node is configured to use the IAM join method")
-	case types.JoinMethodToken:
+	case types.ProvisionTokenJoinMethod_token:
 		// carry on to common token checking logic
 	default:
 		// this is a logic error, all valid join methods should be captured
@@ -142,9 +142,9 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		// certs for IAM method should not be renewable
 		var renewable bool
 		switch joinMethod {
-		case types.JoinMethodToken:
+		case types.ProvisionTokenJoinMethod_token:
 			renewable = true
-		case types.JoinMethodIAM:
+		case types.ProvisionTokenJoinMethod_iam:
 			renewable = false
 		default:
 			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
@@ -155,13 +155,13 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		}
 
 		switch joinMethod {
-		case types.JoinMethodToken:
+		case types.ProvisionTokenJoinMethod_token:
 			// delete ephemeral bot join tokens so they can't be re-used
 			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
 				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
 					string(backend.MaskKeyName(provisionToken.GetName())))
 			}
-		case types.JoinMethodIAM:
+		case types.ProvisionTokenJoinMethod_iam:
 			// don't delete long-lived IAM join tokens
 		default:
 			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)

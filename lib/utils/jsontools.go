@@ -18,6 +18,8 @@ package utils
 
 import (
 	"bytes"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"io"
 	"reflect"
 	"unicode"
@@ -154,6 +156,21 @@ func isDoc(val reflect.Value) bool {
 
 // writeYAML writes marshaled YAML to writer
 func writeYAML(w io.Writer, values interface{}) error {
+	pbMsg, ok := values.(proto.Message)
+	if ok {
+		jsonBytes := &bytes.Buffer{}
+		err := (&jsonpb.Marshaler{}).Marshal(jsonBytes, pbMsg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		//yamlBytes, err := yaml.JSONToYAML(jsonBytes.Bytes())
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
+		_, err = w.Write(jsonBytes.Bytes())
+		return trace.Wrap(err)
+	}
+
 	data, err := yaml.Marshal(values)
 	if err != nil {
 		return trace.Wrap(err)

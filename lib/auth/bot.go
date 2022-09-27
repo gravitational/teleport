@@ -174,7 +174,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		UserName:   resourceName,
 		RoleName:   resourceName,
 		TokenTTL:   proto.Duration(time.Until(*provisionToken.GetMetadata().Expires)),
-		JoinMethod: provisionToken.GetJoinMethod(),
+		JoinMethod: types.JoinMethod(provisionToken.GetJoinMethod().String()),
 	}, nil
 }
 
@@ -275,7 +275,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 				req.TokenID, provisionToken.GetBotName(), botName)
 		}
 		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodToken, types.JoinMethodIAM:
+		case types.ProvisionTokenJoinMethod_token, types.ProvisionTokenJoinMethod_iam:
 		default:
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
@@ -297,7 +297,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 
 	tokenSpec := types.ProvisionTokenSpecV3{
 		Roles:      types.SystemRoles{types.RoleBot},
-		JoinMethod: types.JoinMethodToken,
+		JoinMethod: types.ProvisionTokenJoinMethod_token,
 		BotName:    botName,
 	}
 	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)

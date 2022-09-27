@@ -55,7 +55,7 @@ type ProvisionToken interface {
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
-	GetJoinMethod() JoinMethod
+	GetJoinMethod() ProvisionTokenJoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
 
@@ -81,7 +81,7 @@ type ProvisionToken interface {
 // NewProvisionToken returns a new provision token with the given roles.
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
 	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV3{
-		JoinMethod: JoinMethodToken,
+		JoinMethod: ProvisionTokenJoinMethod_token,
 		Roles:      roles,
 	})
 }
@@ -130,7 +130,6 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 		Metadata: p.Metadata,
 		Spec: ProvisionTokenSpecV3{
 			Roles:           p.Spec.Roles,
-			JoinMethod:      p.Spec.JoinMethod,
 			BotName:         p.Spec.BotName,
 			SuggestedLabels: p.Spec.SuggestedLabels,
 		},
@@ -146,6 +145,7 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 			})
 		}
 		v3.Spec.IAM = iam
+		v3.Spec.JoinMethod = ProvisionTokenJoinMethod_iam
 	case JoinMethodEC2:
 		ec2 := &ProvisionTokenSpecV3AWSEC2{}
 		for _, rule := range p.Spec.Allow {
@@ -157,6 +157,11 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 		}
 		ec2.IIDTTL = p.Spec.AWSIIDTTL
 		v3.Spec.EC2 = ec2
+		v3.Spec.JoinMethod = ProvisionTokenJoinMethod_ec2
+	case JoinMethodToken:
+		v3.Spec.JoinMethod = ProvisionTokenJoinMethod_token
+	default:
+		v3.Spec.JoinMethod = ProvisionTokenJoinMethod_undefined
 	}
 	return v3
 }
@@ -199,7 +204,7 @@ func (p *ProvisionTokenV1) V3() *ProvisionTokenV3 {
 		},
 		Spec: ProvisionTokenSpecV3{
 			Roles:      p.Roles,
-			JoinMethod: JoinMethodToken,
+			JoinMethod: ProvisionTokenJoinMethod_token,
 		},
 	}
 	if !p.Expires.IsZero() {
@@ -247,7 +252,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 	}
 
 	switch p.Spec.JoinMethod {
-	case JoinMethodIAM:
+	case ProvisionTokenJoinMethod_iam:
 		providerCfg := p.Spec.IAM
 		if providerCfg == nil {
 			return trace.BadParameter(
@@ -258,7 +263,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	case JoinMethodEC2:
+	case ProvisionTokenJoinMethod_ec2:
 		providerCfg := p.Spec.EC2
 		if providerCfg == nil {
 			return trace.BadParameter(
@@ -269,12 +274,9 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	case JoinMethodToken:
-	case "":
+	case ProvisionTokenJoinMethod_token:
+	case ProvisionTokenJoinMethod_undefined:
 		return trace.BadParameter(`"join_method" must be specified`)
-	default:
-		return trace.BadParameter(`join method %q not recognized. check documentation for valid values.`, p.Spec.JoinMethod)
-
 	}
 	return nil
 }
@@ -287,14 +289,14 @@ func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
 	// method will be gotten ridden of.
 	rules := []*TokenRule{}
 	switch p.Spec.JoinMethod {
-	case JoinMethodIAM:
+	case ProvisionTokenJoinMethod_iam:
 		for _, rule := range p.Spec.IAM.Allow {
 			rules = append(rules, &TokenRule{
 				AWSAccount: rule.Account,
 				AWSARN:     rule.ARN,
 			})
 		}
-	case JoinMethodEC2:
+	case ProvisionTokenJoinMethod_ec2:
 		for _, rule := range p.Spec.EC2.Allow {
 			rules = append(rules, &TokenRule{
 				AWSAccount: rule.Account,
@@ -395,7 +397,7 @@ func (p *ProvisionTokenV3) SetMetadata(meta Metadata) {
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
-func (p *ProvisionTokenV3) GetJoinMethod() JoinMethod {
+func (p *ProvisionTokenV3) GetJoinMethod() ProvisionTokenJoinMethod {
 	return p.Spec.JoinMethod
 }
 
@@ -431,16 +433,18 @@ func (p *ProvisionTokenV3) V2() (*ProvisionTokenV2, error) {
 		Spec: ProvisionTokenSpecV2{
 			Roles:           p.Spec.Roles,
 			BotName:         p.Spec.BotName,
-			JoinMethod:      p.Spec.JoinMethod,
 			SuggestedLabels: p.Spec.SuggestedLabels,
 			Allow:           p.GetAllowRules(),
 		},
 	}
 	switch p.Spec.JoinMethod {
-	case JoinMethodEC2:
+	case ProvisionTokenJoinMethod_ec2:
 		v2.Spec.AWSIIDTTL = p.Spec.EC2.IIDTTL
-	case JoinMethodToken, JoinMethodIAM:
-	// No special action to take
+		v2.Spec.JoinMethod = JoinMethodEC2
+	case ProvisionTokenJoinMethod_token:
+		v2.Spec.JoinMethod = JoinMethodToken
+	case ProvisionTokenJoinMethod_iam:
+		v2.Spec.JoinMethod = JoinMethodIAM
 	default:
 		return nil, trace.Wrap(ProvisionTokenNotBackwardsCompatibleErr)
 	}
