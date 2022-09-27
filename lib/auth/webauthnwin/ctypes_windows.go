@@ -20,7 +20,8 @@ type webauthnRPEntityInformation struct {
 	dwVersion uint32
 	// Identifier for the RP. This field is required.
 	pwszId *uint16
-	// Contains the friendly name of the Relying Party, such as "Acme Corporation", "Widgets Inc" or "Awesome Site".
+	// Contains the friendly name of the Relying Party, such as
+	// "Acme Corporation", "Widgets Inc" or "Awesome Site".
 	// This field is required.
 	pwszName *uint16
 	// Optional URL pointing to RP's logo.
@@ -32,7 +33,9 @@ type webauthnUserEntityInformation struct {
 	// Identifier for the User. This field is required.
 	cbId uint32
 	pbId *byte
-	// Contains a detailed name for this account, such as "john.p.smith@example.com".
+	// Contains a detailed name for this account, such as
+	// "john.p.smith@example.com".
+	// It holds the Teleport user name.
 	pwszName *uint16
 	// Optional URL that can be used to retrieve an image containing the user's current avatar,
 	// or a data URI that contains the image data.
@@ -140,7 +143,7 @@ type webauthnCredentialEX struct {
 	pbId *byte
 	// Well-known credential type specifying what this particular credential is.
 	pwszCredentialType *uint16
-	// Transports. 0 implies no transport restrictions.
+	// Transports. 0 means no transport restrictions.
 	dwTransports uint32
 }
 type webauthnCredentialList struct {
@@ -295,7 +298,7 @@ type webauthnAssertion struct {
 type webauthnX5C struct {
 	// Length of X.509 encoded certificate
 	cbData uint32
-	// X.509 encoded certificate bytes
+	// X.509 DER encoded certificate bytes
 	pbData *byte
 }
 
@@ -317,7 +320,7 @@ type webauthnCommonAttestation struct {
 	cX5c uint32
 	pX5c *webauthnX5C
 
-	// Following are also set for tpm
+	// Following are also set for TPM
 	pwszVer    *uint16 // L"2.0"
 	cbCertInfo uint32
 	pbCertInfo *byte
