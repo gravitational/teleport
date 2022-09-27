@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -48,16 +47,6 @@ type Provisioner interface {
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 }
 
-// MustCreateProvisionToken returns a new valid provision token
-// or panics, used in tests
-func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
-	t, err := types.NewProvisionToken(token, roles, expires)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
 // UnmarshalProvisionToken unmarshals the ProvisionToken resource from JSON.
 func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.ProvisionToken, error) {
 	if len(data) == 0 {
@@ -77,18 +66,35 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 
 	switch h.Version {
 	case "":
+		// ProvisionTokenV1 is converted to V3, as ProvisionTokenV1 no longer
+		// implements the ProvisionToken interface.
 		var p types.ProvisionTokenV1
 		err := utils.FastUnmarshal(data, &p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		v2 := p.V2()
+		v3 := p.V3()
 		if cfg.ID != 0 {
-			v2.SetResourceID(cfg.ID)
+			v3.SetResourceID(cfg.ID)
 		}
-		return v2, nil
+		return v3, nil
 	case types.V2:
+		// ProvisionTokenV2 is converted to V3, as ProvisionTokenV2 is no
+		// longer supported.
 		var p types.ProvisionTokenV2
+		if err := utils.FastUnmarshal(data, &p); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		v3 := p.V3()
+		if cfg.ID != 0 {
+			v3.SetResourceID(cfg.ID)
+		}
+		if err := v3.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v3, nil
+	case types.V3:
+		var p types.ProvisionTokenV3
 		if err := utils.FastUnmarshal(data, &p); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -115,16 +121,13 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 	}
 
 	switch provisionToken := provisionToken.(type) {
-	case *types.ProvisionTokenV2:
+	case *types.ProvisionTokenV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
 			copy := *provisionToken
 			copy.SetResourceID(0)
 			provisionToken = &copy
-		}
-		if cfg.GetVersion() == types.V1 {
-			return utils.FastMarshal(provisionToken.V1())
 		}
 		return utils.FastMarshal(provisionToken)
 	default:
