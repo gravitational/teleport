@@ -90,21 +90,20 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		}
 		return v3, nil
 	case types.V2:
-		// For now, we continue to return these as V2.
-		// At a later date, once the V2 based RPCs are removed, we can
-		// switch to
-		// TODO: In 13.0 - call .V3() before returning.
+		// ProvisionTokenV2 is converted to V3, as ProvisionTokenV2 is no
+		// longer supported.
 		var p types.ProvisionTokenV2
 		if err := utils.FastUnmarshal(data, &p); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		if err := p.CheckAndSetDefaults(); err != nil {
+		v3 := p.V3()
+		if cfg.ID != 0 {
+			v3.SetResourceID(cfg.ID)
+		}
+		if err := v3.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			p.SetResourceID(cfg.ID)
-		}
-		return &p, nil
+		return v3, nil
 	case types.V3:
 		var p types.ProvisionTokenV3
 		if err := utils.FastUnmarshal(data, &p); err != nil {
@@ -133,19 +132,6 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 	}
 
 	switch provisionToken := provisionToken.(type) {
-	case *types.ProvisionTokenV2:
-		// For now, we continue to accept the marshaling of ProvisionTokenV2
-		// Once we remove the RPCs for submitting ProvisionTokenV2s, we can
-		// remove the support here.
-		// REMOVE IN 13.0
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *provisionToken
-			copy.SetResourceID(0)
-			provisionToken = &copy
-		}
-		return utils.FastMarshal(provisionToken)
 	case *types.ProvisionTokenV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object

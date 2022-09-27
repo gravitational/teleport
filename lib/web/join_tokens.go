@@ -137,10 +137,14 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
 	}
 
-	provisionToken, err := types.NewProvisionTokenV2FromSpec(tokenName, expires, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	v2 := types.ProvisionTokenV2{
+		Metadata: types.Metadata{
+			Name:    tokenName,
+			Expires: &expires,
+		},
+		Spec: req,
 	}
+	provisionToken := v2.V3()
 
 	err = clt.CreateToken(r.Context(), provisionToken)
 	if err != nil {

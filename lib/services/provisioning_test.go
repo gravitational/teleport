@@ -67,7 +67,7 @@ func TestUnmarshalProvisionToken(t *testing.T) {
 		{
 			name: "v2",
 			data: []byte(`{"kind":"token","version":"v2","metadata":{"name":"foo","expires":"1999-11-30T00:00:00Z"},"spec":{"roles":["Nop"],"join_method":"token"}}`),
-			want: &types.ProvisionTokenV2{
+			want: (&types.ProvisionTokenV2{
 				Kind:    types.KindToken,
 				Version: types.V2,
 				Metadata: types.Metadata{
@@ -79,7 +79,7 @@ func TestUnmarshalProvisionToken(t *testing.T) {
 					Roles:      types.SystemRoles{types.RoleNop},
 					JoinMethod: types.JoinMethodToken,
 				},
-			},
+			}).V3(),
 		},
 		{
 			name: "v3",
@@ -108,8 +108,6 @@ func TestMarshalProvisionToken(t *testing.T) {
 		time.Date(2000, 0, 0, 0, 0, 0, 0, time.UTC),
 	)
 	v3.SetResourceID(1337)
-	v2, err := v3.V2()
-	require.NoError(t, err)
 
 	tests := []struct {
 		name  string
@@ -117,17 +115,8 @@ func TestMarshalProvisionToken(t *testing.T) {
 		opts  []MarshalOption
 	}{
 		{
-			name:  "v2",
-			token: v2,
-		},
-		{
 			name:  "v3",
 			token: v3,
-		},
-		{
-			name:  "v2 - PreserveResourceID",
-			token: v2,
-			opts:  []MarshalOption{PreserveResourceID()},
 		},
 		{
 			name:  "v3 - PreserveResourceID",

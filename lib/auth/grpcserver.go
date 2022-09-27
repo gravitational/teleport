@@ -3005,7 +3005,7 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token.V3()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
@@ -3030,7 +3030,7 @@ func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionToke
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
+	if err = auth.ServerWithRoles.CreateToken(ctx, token.V3()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil

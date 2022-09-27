@@ -138,9 +138,6 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		challengeResponseOptions []challengeResponseOption
 		challengeResponseErr     error
 		assertError              require.ErrorAssertionFunc
-
-		v2TokenSpec types.ProvisionTokenSpecV2
-		useV2Token  bool
 	}{
 		{
 			desc:             "basic passing case",
@@ -155,33 +152,6 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 							Account: "1234",
 							ARN:     "arn:aws::1111",
 						},
-					},
-				},
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(awsIdentity{
-					Account: "1234",
-					Arn:     "arn:aws::1111",
-				}),
-			},
-			assertError: require.NoError,
-		},
-		// REMOVE IN 13.0
-		// From 13.0 onwards, ProvisionTokenV2s will not be returned from the
-		// backend.
-		{
-			desc:             "ProvisionTokenV2 - basic passing case",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			useV2Token:       true,
-			v2TokenSpec: types.ProvisionTokenSpecV2{
-				Roles:      []types.SystemRole{types.RoleNode},
-				JoinMethod: types.JoinMethodIAM,
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
 					},
 				},
 			},
@@ -580,20 +550,11 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// add token to auth server
-			var token types.ProvisionToken
-			if tc.useV2Token {
-				token, err = types.NewProvisionTokenV2FromSpec(
-					tc.tokenName,
-					time.Now().Add(time.Minute),
-					tc.v2TokenSpec)
-				require.NoError(t, err)
-			} else {
-				token, err = types.NewProvisionTokenFromSpec(
-					tc.tokenName,
-					time.Now().Add(time.Minute),
-					tc.tokenSpec)
-				require.NoError(t, err)
-			}
+			token, err := types.NewProvisionTokenFromSpec(
+				tc.tokenName,
+				time.Now().Add(time.Minute),
+				tc.tokenSpec)
+			require.NoError(t, err)
 
 			require.NoError(t, a.UpsertToken(ctx, token))
 			defer func() {

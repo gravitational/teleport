@@ -1962,14 +1962,6 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
-func (c *Client) getTokenV2(ctx context.Context, name string) (types.ProvisionToken, error) {
-	resp, err := c.grpc.GetToken(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return resp, nil
-}
-
 // GetToken returns a provision token by name.
 func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
 	if name == "" {
@@ -1977,17 +1969,14 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 	}
 	resp, err := c.grpc.GetTokenV3(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	if err != nil {
-		err = trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			return c.getTokenV2(ctx, name)
-		}
-		return nil, err
+		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
 }
 
-func (c *Client) getTokensV2(ctx context.Context) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokens(ctx, &empty.Empty{}, c.callOpts...)
+// GetTokens returns a list of active provision tokens for nodes and users.
+func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	resp, err := c.grpc.GetTokensV3(ctx, &empty.Empty{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1999,72 +1988,16 @@ func (c *Client) getTokensV2(ctx context.Context) ([]types.ProvisionToken, error
 	return tokens, nil
 }
 
-// GetTokens returns a list of active provision tokens for nodes and users.
-func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokensV3(ctx, &empty.Empty{}, c.callOpts...)
-	if err != nil {
-		err = trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			return c.getTokensV2(ctx)
-		}
-		return nil, err
-	}
-
-	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
-	for i, token := range resp.ProvisionTokens {
-		tokens[i] = token
-	}
-	return tokens, nil
-}
-
-const tokenV3Unsupported = "ProvisionTokenV3 is not supported by the auth server. Submit a V2 resource or upgrade."
-
 // UpsertToken creates or updates a provision token.
-// In cases where a consumer of the library wants to ensure backwards compat,
-// they will need to ensure that they handle the situation where submitting a
-// v3 resource to an older server results in an unimplemented error.
 func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
-	var err error
-	var isV3 bool
-	switch v := token.(type) {
-	case *types.ProvisionTokenV2:
-		//nolint:staticcheck // SA1019 Deprecated call will be removed in 13.0
-		_, err = c.grpc.UpsertToken(ctx, v, c.callOpts...)
-	case *types.ProvisionTokenV3:
-		isV3 = true
-		_, err = c.grpc.UpsertTokenV3(ctx, v, c.callOpts...)
-	default:
-		return trace.BadParameter("invalid type %T", token)
-	}
-	err = trail.FromGRPC(err)
-	if isV3 && trace.IsNotImplemented(err) {
-		return trace.WrapWithMessage(err, tokenV3Unsupported)
-	}
-	return err
+	_, err := c.grpc.UpsertTokenV3(ctx, token.V3(), c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 // CreateToken creates a provision token.
-// In cases where a consumer of the library wants to ensure backwards compat,
-// they will need to ensure that they handle the situation where submitting a
-// v3 resource to an older server results in an unimplemented error.
 func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	var err error
-	var isV3 bool
-	switch v := token.(type) {
-	case *types.ProvisionTokenV2:
-		//nolint:staticcheck // SA1019 Deprecated call will be removed in 13.0
-		_, err = c.grpc.CreateToken(ctx, v, c.callOpts...)
-	case *types.ProvisionTokenV3:
-		isV3 = true
-		_, err = c.grpc.CreateTokenV3(ctx, v, c.callOpts...)
-	default:
-		return trace.BadParameter("invalid type %T", token)
-	}
-	err = trail.FromGRPC(err)
-	if isV3 && trace.IsNotImplemented(err) {
-		return trace.WrapWithMessage(err, tokenV3Unsupported)
-	}
-	return err
+	_, err := c.grpc.CreateTokenV3(ctx, token.V3(), c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 // GenerateToken generates a new auth token for the given service roles.
