@@ -300,19 +300,6 @@ func isUVPlatformAuthenticatorAvailable() (bool, error) {
 	return out == 1, nil
 }
 
-func (n nativeImpl) getAssertionOptionsVersion() uint32 {
-	// Mapped based on:
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L96
-	switch n.webauthnAPIVersion {
-	case 1, 2:
-		return 4
-	case 3:
-		return 5
-	default: // >= 4
-		return 6
-	}
-}
-
 func (n nativeImpl) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
 	allowCredList, err := credentialsExToCType(in.AllowedCredentials)
 	if err != nil {
@@ -332,7 +319,8 @@ func (n nativeImpl) assertOptionsToCType(in protocol.PublicKeyCredentialRequestO
 	return &webauthnAuthenticatorGetAssertionOptions{
 		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
 		// contains information about different versions.
-		dwVersion:                     n.getAssertionOptionsVersion(),
+		// We can set newest version and it still works on older APIs.
+		dwVersion:                     6,
 		dwTimeoutMilliseconds:         uint32(in.Timeout),
 		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
 		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
@@ -566,19 +554,6 @@ func requireResidentKeyToCType(in *bool) uint32 {
 	return boolToUint32(*in)
 }
 
-func (n nativeImpl) getMakeCredentialOptionsVersion() uint32 {
-	// Mapped based on:
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L96
-	switch n.webauthnAPIVersion {
-	case 1, 2:
-		return 3
-	case 3:
-		return 4
-	default: // >= 4
-		return 5
-	}
-}
-
 func (n nativeImpl) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
 	exCredList, err := credentialsExToCType(in.CredentialExcludeList)
 	if err != nil {
@@ -591,7 +566,8 @@ func (n nativeImpl) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreati
 	return &webauthnAuthenticatorMakeCredentialOptions{
 		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
 		// contains information about different versions.
-		dwVersion:                         n.getMakeCredentialOptionsVersion(),
+		// We can set newest version and it still works on older APIs.
+		dwVersion:                         5,
 		dwTimeoutMilliseconds:             uint32(in.Timeout),
 		dwAuthenticatorAttachment:         attachmentToCType(in.AuthenticatorSelection.AuthenticatorAttachment),
 		dwAttestationConveyancePreference: conveyancePreferenceToCType(in.Attestation),
