@@ -42,29 +42,29 @@ var (
 	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
 	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
 
-	moduser32               = windows.NewLazySystemDLL("user32.dll")
-	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
+	modUser32               = windows.NewLazySystemDLL("user32.dll")
+	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
 )
 
-var native nativeWebauthn = newClient()
+var native nativeWebauthn = newNativeImpl()
 
-// client keeps diagnostic informations about windows webauthn support.
-type client struct {
+// nativeImpl keeps diagnostic informations about windows webauthn support.
+type nativeImpl struct {
 	webauthnAPIVersion int
 	hasCompileSupport  bool
 	isAvailable        bool
 	hasPlatformUV      bool
 }
 
-// newClient creates client which contains diagnostics info.
+// newNativeImpl creates nativeImpl which contains diagnostics info.
 // Diagnostics are safe to cache because dll isn't something that
 // could change during program invocation.
 // Client will be always created, even if dll is missing on system.
-func newClient() *client {
+func newNativeImpl() *nativeImpl {
 	v, err := checkIfDLLExistsAndGetAPIVersionNumber()
 	if err != nil {
 		log.WithError(err).Warn("WebAuthnWin: failed to check version")
-		return &client{
+		return &nativeImpl{
 			hasCompileSupport: true,
 			isAvailable:       false,
 		}
@@ -76,7 +76,7 @@ func newClient() *client {
 		log.WithError(err).Warn("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
 	}
 
-	return &client{
+	return &nativeImpl{
 		webauthnAPIVersion: v,
 		hasCompileSupport:  true,
 		hasPlatformUV:      uvPlatform,
@@ -84,12 +84,12 @@ func newClient() *client {
 	}
 }
 
-func (c *client) CheckSupport() CheckSupportResult {
+func (n *nativeImpl) CheckSupport() CheckSupportResult {
 	return CheckSupportResult{
-		HasCompileSupport:  c.hasCompileSupport,
-		IsAvailable:        c.isAvailable,
-		HasPlatformUV:      c.hasPlatformUV,
-		WebAuthnAPIVersion: c.webauthnAPIVersion,
+		HasCompileSupport:  n.hasCompileSupport,
+		IsAvailable:        n.isAvailable,
+		HasPlatformUV:      n.hasPlatformUV,
+		WebAuthnAPIVersion: n.webauthnAPIVersion,
 	}
 }
 
@@ -100,7 +100,7 @@ func (c *client) CheckSupport() CheckSupportResult {
 // either security key or Windows Hello).
 // It does not accept username - during passwordless login webauthn.dll provides
 // its own dialog with credentials selection.
-func (c client) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (n nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,7 +113,7 @@ func (c client) GetAssertion(origin string, in *wanlib.CredentialAssertion, logi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	opts, err := c.assertOptionsToCType(in.Response, loginOpts)
+	opts, err := n.assertOptionsToCType(in.Response, loginOpts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,7 +170,8 @@ func (c client) GetAssertion(origin string, in *wanlib.CredentialAssertion, logi
 // It interacts with both FIDO2 and Windows Hello depending on
 // wanlib.CredentialCreation (using auto starts with Windows Hello but there is
 // option to select other devices).
-func (c client) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
+// Windows Hello keys are always resident.
+func (n nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -191,7 +192,7 @@ func (c client) MakeCredential(origin string, in *wanlib.CredentialCreation) (*w
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	opts, err := c.makeCredOptionsToCType(in.Response)
+	opts, err := n.makeCredOptionsToCType(in.Response)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -220,7 +221,7 @@ func (c client) MakeCredential(origin string, in *wanlib.CredentialCreation) (*w
 	// We don't care about free error so ignore it explicitly.
 	defer func() { _ = freeCredentialAttestation(out) }()
 
-	credential := bytesFromCBytes(out.CbCredentialId, out.PbCredentialId)
+	credential := bytesFromCBytes(out.cbCredentialId, out.pbCredentialId)
 
 	return &wanlib.CredentialCreationResponse{
 		PublicKeyCredential: wanlib.PublicKeyCredential{
@@ -234,7 +235,7 @@ func (c client) MakeCredential(origin string, in *wanlib.CredentialCreation) (*w
 			AuthenticatorResponse: wanlib.AuthenticatorResponse{
 				ClientDataJSON: jsonEncodedCD,
 			},
-			AttestationObject: bytesFromCBytes(out.CbAttestationObject, out.PbAttestationObject),
+			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),
 		},
 	}, nil
 }
@@ -301,20 +302,7 @@ func isUVPlatformAuthenticatorAvailable() (bool, error) {
 	return out == 1, nil
 }
 
-func (c client) getAssertionOptionsVersion() uint32 {
-	// Mapped based on:
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L96
-	switch c.webauthnAPIVersion {
-	case 1, 2:
-		return 4
-	case 3:
-		return 5
-	default: // >= 4
-		return 6
-	}
-}
-
-func (c client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
+func (n nativeImpl) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
 	allowCredList, err := credentialsExToCType(in.AllowedCredentials)
 	if err != nil {
 		return nil, err
@@ -333,7 +321,8 @@ func (c client) assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptio
 	return &webauthnAuthenticatorGetAssertionOptions{
 		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
 		// contains information about different versions.
-		dwVersion:                     c.getAssertionOptionsVersion(),
+		// We can set newest version and it still works on older APIs.
+		dwVersion:                     6,
 		dwTimeoutMilliseconds:         uint32(in.Timeout),
 		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
 		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
@@ -567,33 +556,20 @@ func requireResidentKeyToCType(in *bool) uint32 {
 	return boolToUint32(*in)
 }
 
-func (c client) getMakeCredentialOptionsVersion() uint32 {
-	// Mapped based on:
-	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L96
-	switch c.webauthnAPIVersion {
-	case 1, 2:
-		return 3
-	case 3:
-		return 4
-	default: // >= 4
-		return 5
-	}
-}
-
-func (c client) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
+func (n nativeImpl) makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
 	exCredList, err := credentialsExToCType(in.CredentialExcludeList)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO (tobiaszheller): version of duo-labs/webatuhn used in teleport does
-	// not support PreferResidentKey field. We cannot easily update version due
-	// to dependency issues.
+	// TODO (tobiaszheller): teleport server right now does not support
+	// preferResidentKey.
 	var bPreferResidentKey uint32
 	return &webauthnAuthenticatorMakeCredentialOptions{
 		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
 		// contains information about different versions.
-		dwVersion:                         c.getMakeCredentialOptionsVersion(),
+		// We can set newest version and it still works on older APIs.
+		dwVersion:                         5,
 		dwTimeoutMilliseconds:             uint32(in.Timeout),
 		dwAuthenticatorAttachment:         attachmentToCType(in.AuthenticatorSelection.AuthenticatorAttachment),
 		dwAttestationConveyancePreference: conveyancePreferenceToCType(in.Attestation),

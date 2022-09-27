@@ -20,7 +20,8 @@ type webauthnRPEntityInformation struct {
 	dwVersion uint32
 	// Identifier for the RP. This field is required.
 	pwszId *uint16
-	// Contains the friendly name of the Relying Party, such as "Acme Corporation", "Widgets Inc" or "Awesome Site".
+	// Contains the friendly name of the Relying Party, such as
+	// "Acme Corporation", "Widgets Inc" or "Awesome Site".
 	// This field is required.
 	pwszName *uint16
 	// Optional URL pointing to RP's logo.
@@ -32,7 +33,9 @@ type webauthnUserEntityInformation struct {
 	// Identifier for the User. This field is required.
 	cbId uint32
 	pbId *byte
-	// Contains a detailed name for this account, such as "john.p.smith@example.com".
+	// Contains a detailed name for this account, such as
+	// "john.p.smith@example.com".
+	// It holds the Teleport user name.
 	pwszName *uint16
 	// Optional URL that can be used to retrieve an image containing the user's current avatar,
 	// or a data URI that contains the image data.
@@ -140,7 +143,7 @@ type webauthnCredentialEX struct {
 	pbId *byte
 	// Well-known credential type specifying what this particular credential is.
 	pwszCredentialType *uint16
-	// Transports. 0 implies no transport restrictions.
+	// Transports. 0 means no transport restrictions.
 	dwTransports uint32
 }
 type webauthnCredentialList struct {
@@ -149,32 +152,32 @@ type webauthnCredentialList struct {
 }
 
 type webauthnCredentialAttestation struct {
-	DwVersion uint32
+	dwVersion uint32
 	// Attestation format type
-	PwszFormatType *uint16
-	// Size of CbAuthenticatorData.
-	CbAuthenticatorData uint32
+	pwszFormatType *uint16
+	// Size of cbAuthenticatorData.
+	cbAuthenticatorData uint32
 	// Authenticator data that was created for this credential.
-	PbAuthenticatorData *byte
+	pbAuthenticatorData *byte
 	// Size of CBOR encoded attestation information
 	//0 => encoded as CBOR null value.
-	CbAttestation uint32
+	cbAttestation uint32
 	//Encoded CBOR attestation information
-	PbAttestation           *byte
-	DwAttestationDecodeType uint32
+	pbAttestation           *byte
+	dwAttestationDecodeType uint32
 	// Following depends on the dwAttestationDecodeType
 	//  WEBAUTHN_ATTESTATION_DECODE_NONE
 	//      NULL - not able to decode the CBOR attestation information
 	//  WEBAUTHN_ATTESTATION_DECODE_COMMON
 	//      PWEBAUTHN_COMMON_ATTESTATION;
-	PvAttestationDecode *byte
+	pvAttestationDecode *byte
 	// The CBOR encoded Attestation Object to be returned to the RP.
-	CbAttestationObject uint32
-	PbAttestationObject *byte
+	cbAttestationObject uint32
+	pbAttestationObject *byte
 	// The CredentialId bytes extracted from the Authenticator Data.
 	// Used by Edge to return to the RP.
-	CbCredentialId uint32
-	PbCredentialId *byte
+	cbCredentialId uint32
+	pbCredentialId *byte
 
 	//
 	// Following fields have been added in WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_2
@@ -188,15 +191,15 @@ type webauthnCredentialAttestation struct {
 
 	// One of the WEBAUTHN_CTAP_TRANSPORT_* bits will be set corresponding to
 	// the transport that was used.
-	DwUsedTransport uint32
+	dwUsedTransport uint32
 
 	//
 	// Following fields have been added in WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_4
 	//
 
-	EpAtt              uint32
-	LargeBlobSupported uint32
-	ResidentKey        uint32
+	bEpAtt              uint32
+	bLargeBlobSupported uint32
+	bResidentKey        uint32
 }
 
 type webauthnClientData struct {
@@ -295,7 +298,7 @@ type webauthnAssertion struct {
 type webauthnX5C struct {
 	// Length of X.509 encoded certificate
 	cbData uint32
-	// X.509 encoded certificate bytes
+	// X.509 DER encoded certificate bytes
 	pbData *byte
 }
 
@@ -317,7 +320,7 @@ type webauthnCommonAttestation struct {
 	cX5c uint32
 	pX5c *webauthnX5C
 
-	// Following are also set for tpm
+	// Following are also set for TPM
 	pwszVer    *uint16 // L"2.0"
 	cbCertInfo uint32
 	pbCertInfo *byte
