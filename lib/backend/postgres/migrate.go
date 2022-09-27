@@ -35,8 +35,12 @@ func (db *pgDB) migrate(ctx context.Context) error {
 	}
 
 	dbVersion := tx.getSchemaVersion()
-	if tx.err != nil || dbVersion == schemaVersion {
+	if tx.err != nil {
 		return tx.err
+	}
+
+	if dbVersion == schemaVersion {
+		return tx.Commit()
 	}
 
 	// Can't migrate backwards.
