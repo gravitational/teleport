@@ -20,16 +20,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/gravitational/trace"
 )
 
 // migrate the database to the most recent schema version.
 func (db *pgDB) migrate(ctx context.Context) error {
-	tx := db.begin(ctx, db.readWriteOpts)
+	tx := db.begin(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 
-	tx.setTxIsolationLevel(serializableTxIsolationLevel)
 	if !tx.migrateTableExists() {
 		tx.createMigrateTable()
 	}
@@ -70,50 +68,6 @@ func (db *pgDB) migrate(ctx context.Context) error {
 	}
 
 	return tx.Commit()
-}
-
-// setTxIsolationLevel sets the current database's target isolation level to targetLevel.
-func (tx *pgTx) setTxIsolationLevel(targetLevel string) {
-	if tx.err != nil {
-		return
-	}
-
-	// Query for database's default isolation level.
-	const levelQuery = `SELECT setting FROM pg_settings WHERE name='default_transaction_isolation'`
-	var level string
-	err := tx.sqlTx.QueryRowContext(tx.ctx, levelQuery).Scan(&level)
-	if tx.rollback(err) {
-		return
-	}
-
-	// Return if we're already set to serializable.
-	if level == targetLevel {
-		return
-	}
-
-	// Query for the database name (needed for the next alter db call). We
-	// could've passed the name in from the backend's configuration, but we
-	// only need the name once when initializing a new db.
-	var dbName string
-	err = tx.sqlTx.QueryRowContext(tx.ctx, "SELECT current_catalog").Scan(&dbName)
-	if tx.rollback(err) {
-		return
-	}
-
-	// Change default isolation level for the database.
-	const alterQuery = "ALTER DATABASE %s SET DEFAULT_TRANSACTION_ISOLATION TO '%s'"
-	_, err = tx.sqlTx.ExecContext(tx.ctx, fmt.Sprintf(alterQuery, dbName, targetLevel))
-	if tx.rollback(err) {
-		return
-	}
-
-	// Change isolation level for the current connection. Changing the database
-	// level doesn't change the level for the current connection. This connection
-	// is part of a pool, so it may be reused again. This connection should be
-	// the only one in the pool at this point.
-	const setQuery = "SET DEFAULT_TRANSACTION_ISOLATION = '%s'"
-	_, err = tx.sqlTx.ExecContext(tx.ctx, fmt.Sprintf(setQuery, targetLevel))
-	tx.rollback(err)
 }
 
 // migrateTableExists returns true if the migrate table exists.
@@ -171,5 +125,3 @@ func (tx *pgTx) getSchemaVersion() int {
 	}
 	return version
 }
-
-const serializableTxIsolationLevel = "serializable"

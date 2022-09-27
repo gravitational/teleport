@@ -106,10 +106,8 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 	db.SetMaxOpenConns(d.cfg.MaxOpenConns)
 
 	pgdb := &pgDB{
-		DB:            db,
-		pgDriver:      d,
-		readOnlyOpts:  &sql.TxOptions{ReadOnly: true},
-		readWriteOpts: &sql.TxOptions{},
+		DB:       db,
+		pgDriver: d,
 	}
 
 	err = pgdb.migrate(ctx)
@@ -194,19 +192,17 @@ func databaseExists(ctx context.Context, pgConn *pgx.Conn, dbName string) (exist
 type pgDB struct {
 	*sql.DB
 	*pgDriver
-	readOnlyOpts  *sql.TxOptions
-	readWriteOpts *sql.TxOptions
 }
 
 // Begin a read/write transaction.
 func (db *pgDB) Begin(ctx context.Context) sqlbk.Tx {
-	return db.begin(ctx, db.readWriteOpts)
+	return db.begin(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 }
 
 // ReadOnly begins a read-only transaction. Calling a mutating Tx method
 // will result in a failed transaction.
 func (db *pgDB) ReadOnly(ctx context.Context) sqlbk.Tx {
-	return db.begin(ctx, db.readOnlyOpts)
+	return db.begin(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true})
 }
 
 // begin a transaction with options (read/write or read-only).
