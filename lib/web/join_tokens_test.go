@@ -303,11 +303,11 @@ func TestGetNodeJoinScript(t *testing.T) {
 		},
 		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
 			if token == validToken || token == validIAMToken {
-				return &types.ProvisionTokenV2{
+				return &types.ProvisionTokenV3{
 					Metadata: types.Metadata{
 						Name: token,
 					},
-					Spec: types.ProvisionTokenSpecV2{
+					Spec: types.ProvisionTokenSpecV3{
 						SuggestedLabels: types.Labels{
 							types.InternalResourceIDLabel: utils.Strings{internalResourceID},
 						},
@@ -399,7 +399,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{
 		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
 			if token == testTokenID {
-				return &types.ProvisionTokenV2{
+				return &types.ProvisionTokenV3{
 					Metadata: types.Metadata{
 						Name: token,
 					},
