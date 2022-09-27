@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package sftp
 
 import (
@@ -32,9 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	fileMaxSize = 1000
-)
+const fileMaxSize = 1000
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -292,16 +291,49 @@ func TestDownload(t *testing.T) {
 	}
 }
 
+func TestHomeDirExpansion(t *testing.T) {
+	tests := []struct {
+		name         string
+		path         string
+		expandedPath string
+	}{
+		{
+			name:         "absolute path",
+			path:         "/foo/bar",
+			expandedPath: "/foo/bar",
+		},
+		{
+			name:         "path with tilde",
+			path:         "~/foo/bar",
+			expandedPath: "/home/user/foo/bar",
+		},
+		{
+			name:         "just tilde",
+			path:         "~",
+			expandedPath: "/home/user",
+		},
+	}
+
+	getHomeDirFunc := func() (string, error) {
+		return "/home/user", nil
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expanded, err := expandPath(tt.path, getHomeDirFunc)
+			require.NoError(t, err)
+			require.Equal(t, tt.expandedPath, expanded)
+		})
+	}
+}
+
 func createFile(t *testing.T, rootDir, path string) {
 	dir := filepath.Dir(path)
 	if dir != path {
 		createDir(t, rootDir, dir)
 	}
 
-	// ensure we can read and write to this file, but give random permissions
-	// to everyone to test that file permissions are retained when transferring
-	mode := os.FileMode(0o660 + rand.Intn(8))
-	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode)
+	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o664)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, f.Close())
@@ -315,10 +347,7 @@ func createFile(t *testing.T, rootDir, path string) {
 }
 
 func createDir(t *testing.T, rootDir, path string) {
-	// ensure we can read and write to this dir, but give random permissions
-	// to everyone to test that dir permissions are retained when transferring
-	mode := os.FileMode(0o770 + rand.Intn(8))
-	err := os.MkdirAll(filepath.Join(rootDir, path), mode)
+	err := os.MkdirAll(filepath.Join(rootDir, path), 0o775)
 	if err != nil {
 		t.Fatalf("error creating directory: %v", err)
 	}

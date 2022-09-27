@@ -48,6 +48,8 @@ type Options struct {
 	PreserveAttrs bool
 }
 
+type homeDirRetriever func() (string, error)
+
 // Config describes the settings of a file transfer
 type Config struct {
 	srcPaths []string
@@ -55,6 +57,13 @@ type Config struct {
 	srcFS    FileSystem
 	dstFS    FileSystem
 	opts     Options
+
+	// getHomeDir returns the home directory of the remote user of the
+	// SSH session
+	getHomeDir homeDirRetriever
+	// homeDir is the cached home directory of the remote user of the SSH
+	// session
+	homeDir string
 
 	// ProgressWriter is a writer for printing the progress
 	// (used only on the client)
@@ -181,44 +190,52 @@ func (c *Config) initFS(ctx context.Context, sshClient *ssh.Client, client *sftp
 	}
 
 	if haveRemoteFS {
-		return trace.Wrap(c.expandPaths(srcOK, dstOK, sshClient))
+		if c.getHomeDir == nil {
+			c.getHomeDir = func() (_ string, err error) {
+				// if home directory has already been cached, just return it
+				if c.homeDir != "" {
+					return c.homeDir, nil
+				}
+
+				c.homeDir, err = getRemoteHomeDir(sshClient)
+				return c.homeDir, err
+			}
+		}
+		return trace.Wrap(c.expandPaths(srcOK, dstOK))
 	}
 
 	return nil
 }
 
-func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool, sshClient *ssh.Client) (err error) {
-	var homeDir string
-	expandPath := func(path string) (string, error) {
-		if !needsExpansion(path) {
-			return path, nil
-		}
-
-		if homeDir == "" {
-			homeDir, err = getHomeDir(sshClient)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-		}
-
-		// this is safe because we verified that all paths are non-empty
-		// in CreateUploadConfig/CreateDownloadConfig
-		return filepath.Join(homeDir, path[1:]), nil
-	}
-
+func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
 	if srcIsRemote {
 		for i, srcPath := range c.srcPaths {
-			c.srcPaths[i], err = expandPath(srcPath)
+			c.srcPaths[i], err = expandPath(srcPath, c.getHomeDir)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	}
 	if dstIsRemote {
-		c.dstPath, err = expandPath(c.dstPath)
+		c.dstPath, err = expandPath(c.dstPath, c.getHomeDir)
 	}
 
 	return trace.Wrap(err)
+}
+
+func expandPath(path string, getHomeDir homeDirRetriever) (string, error) {
+	if !needsExpansion(path) {
+		return path, nil
+	}
+
+	homeDir, err := getHomeDir()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// this is safe because we verified that all paths are non-empty
+	// in CreateUploadConfig/CreateDownloadConfig
+	return filepath.Join(homeDir, path[1:]), nil
 }
 
 // needsExpansion returns true if path is '~' or begins with '~/'
@@ -231,9 +248,9 @@ func needsExpansion(path string) bool {
 	return strings.HasPrefix(path, "~"+string(filepath.Separator))
 }
 
-// getHomeDir returns the home directory of the remote user of the SSH
-// connection
-func getHomeDir(sshClient *ssh.Client) (string, error) {
+// getRemoteHomeDir returns the home directory of the remote user of
+// the SSH connection
+func getRemoteHomeDir(sshClient *ssh.Client) (string, error) {
 	s, err := sshClient.NewSession()
 	if err != nil {
 		return "", trace.Wrap(err)
