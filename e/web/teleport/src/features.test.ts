@@ -1,12 +1,12 @@
-import getFeaturesOss from 'teleport/features';
+import { getOSSFeatures } from 'teleport/features';
 
-import getFeaturesE from 'e-teleport/features';
+import { getEnterpriseFeatures } from 'e-teleport/features';
 
 test('enterprise features are a superset of oss features', () => {
-  const featuresE = getFeaturesE();
+  const featuresE = getEnterpriseFeatures();
 
   // For each feature in OSS, check that there is an equivalent in Enterprise
-  getFeaturesOss().forEach(featureOss => {
+  getOSSFeatures().forEach(featureOss => {
     expect(
       featuresE.find(
         featureE => featureE.route.title === featureOss.route.title

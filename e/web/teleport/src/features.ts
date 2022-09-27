@@ -91,7 +91,7 @@ class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
   };
 }
 
-export default function getFeatures() {
+export function getEnterpriseFeatures() {
   return [
     new OSS.FeatureNodes(),
     new OSS.FeatureApps(),
