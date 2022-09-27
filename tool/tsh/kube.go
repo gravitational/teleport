@@ -265,18 +265,11 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
+		ac := pc.CurrentCluster()
 		defer ac.Close()
 
-		cn, err := ac.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		teleportCluster = cn.GetClusterName()
-
+		teleportCluster = pc.ClusterName()
 		kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
 		if err != nil {
 			return trace.Wrap(err)

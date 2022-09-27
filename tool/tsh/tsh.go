@@ -2035,15 +2035,27 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hostAuthFunc, err := key.HostKeyCallback(cf.InsecureSkipVerify)
+
+		rootCluster, err := key.RootClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if cf.SiteName == "" {
+			cf.SiteName = rootCluster
+		}
+
+		hostAuthFunc, err = key.HostKeyCallback(cf.InsecureSkipVerify)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if hostAuthFunc != nil {
 			c.HostKeyCallback = hostAuthFunc
 		} else {
 			return nil, trace.BadParameter("missing trusted certificate authorities in the identity, upgrade to newer version of tctl, export identity and try again")
 		}
+
 		certUsername, err := key.CertUsername()
 		if err != nil {
 			return nil, trace.Wrap(err)

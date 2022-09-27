@@ -1489,12 +1489,7 @@ func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Cli
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := proxyClient.NewTracingClient(ctx, site.Name)
+	clt, err := proxyClient.NewTracingClient(ctx, tc.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1526,10 +1521,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	siteInfo, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
@@ -1541,7 +1533,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
+		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -1581,7 +1573,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(command) > 0 {
 		if len(nodeAddrs) > 1 {
 			fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.")
-			return tc.runCommandOnNodes(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
+			return tc.runCommandOnNodes(ctx, tc.SiteName, nodeAddrs, proxyClient, command)
 		}
 		// Reuse the existing nodeClient we connected above.
 		return tc.runCommand(ctx, nodeClient, command)
@@ -1644,10 +1636,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
 
 	// find the session ID on the site:
 	sessions, err := site.GetSessions(ctx, namespace)
@@ -1739,10 +1728,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
+
 	// request events for that session (to get timing data)
 	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
@@ -1789,10 +1776,8 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
+
 	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1847,11 +1832,6 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	}
 	defer proxyClient.Close()
 
-	clusterInfo, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
@@ -1863,7 +1843,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: clusterInfo.Name},
+		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -1922,17 +1902,14 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 
 	// helper function connects to the src/target node:
 	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
-		// determine which cluster we're connecting to:
-		siteInfo, err := proxyClient.currentCluster(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		if hostLogin == "" {
 			hostLogin = tc.Config.HostLogin
 		}
-		return proxyClient.ConnectToNode(ctx,
-			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
-			hostLogin)
+		return proxyClient.ConnectToNode(
+			ctx,
+			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+			hostLogin,
+		)
 	}
 
 	// gets called to convert SSH error code to tc.ExitStatus
@@ -2436,7 +2413,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		return nil, trace.Wrap(err)
 	}
 
-	return &ProxyClient{
+	pc := &ProxyClient{
 		teleportClient:  tc,
 		Client:          sshClient,
 		proxyAddress:    sshProxyAddr,
@@ -2447,7 +2424,24 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
 		Tracer:          tc.Tracer,
-	}, nil
+	}
+
+	// Create the auth.ClientI for the local auth server
+	// once per ProxyClient. This is an inexpensive
+	// operation since the actual dialing of the auth
+	// server is lazy - meaning it won't happen until the
+	// first use of the auth.ClientI. By establishing
+	// the auth.ClientI here we can ensure that any connections
+	// to the local cluster will end up reusing this auth.ClientI
+	// for the lifespan of the ProxyClient.
+	clt, err := pc.ConnectToCluster(ctx, pc.siteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pc.currentCluster = clt
+
+	return pc, nil
 }
 
 // makeProxySSHClient creates an SSH client by following steps:
@@ -2926,7 +2920,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName)
+	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
