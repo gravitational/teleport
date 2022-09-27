@@ -78,6 +78,11 @@ func (m *Metadata) SetClusterName(clusterName string) {
 	m.ClusterName = clusterName
 }
 
+// GetUser returns event user
+func (m *UserMetadata) GetUser() string {
+	return m.User
+}
+
 // GetServerID returns event server ID
 func (m *ServerMetadata) GetServerID() string {
 	return m.ServerID

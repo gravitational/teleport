@@ -104,7 +104,7 @@ type WatchKind struct {
 	// Kind is a resource kind to watch
 	Kind string
 	// SubKind optionally specifies the subkind of resource to watch.
-	// Some resource kinds are ambigious like web sessions, subkind in this case
+	// Some resource kinds are ambiguous like web sessions, subkind in this case
 	// specifies the type of web session
 	SubKind string
 	// Name is an optional specific resource type to watch,

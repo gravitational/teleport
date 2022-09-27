@@ -44,7 +44,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 	}
 
 	// TODO: ctx is being swallowed here because the current implementation of
-	// s.Uncached.CreateUser is an older implementation that does not curently
+	// s.Uncached.CreateUser is an older implementation that does not currently
 	// accept a context.
 	if err := s.Services.CreateUser(user); err != nil {
 		return trace.Wrap(err)
