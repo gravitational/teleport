@@ -2920,6 +2920,7 @@ func (g *GRPCServer) DeleteTrustedCluster(ctx context.Context, req *types.Resour
 }
 
 // GetToken retrieves a v2 token by name.
+// DELETE IN 13
 func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2954,6 +2955,7 @@ func (g *GRPCServer) GetTokenV3(ctx context.Context, req *types.ResourceRequest)
 }
 
 // GetTokens retrieves all tokens.
+// DELETE IN 13
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2997,6 +2999,7 @@ func (g *GRPCServer) GetTokensV3(ctx context.Context, _ *empty.Empty) (*types.Pr
 }
 
 // UpsertToken upserts a token.
+// DELETE IN 13
 func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -3021,6 +3024,7 @@ func (g *GRPCServer) UpsertTokenV3(ctx context.Context, token *types.ProvisionTo
 }
 
 // CreateToken creates a token.
+// DELETE IN 13
 func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
