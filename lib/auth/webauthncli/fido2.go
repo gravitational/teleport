@@ -330,8 +330,17 @@ func fido2Register(
 		return nil, trace.BadParameter("credential creation relying party ID required")
 	}
 
-	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	var rrk bool
+	switch cc.Response.AuthenticatorSelection.ResidentKey {
+	case "":
+		// If ResidentKey is not set, then fallback to the legacy RequireResidentKey
+		// field.
+		rrk = cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	case protocol.ResidentKeyRequirementRequired:
+		rrk = true
+	}
 	log.Debugf("FIDO2: registration: resident key=%v", rrk)
+
 	if rrk {
 		// Be more pedantic with resident keys, some of this info gets recorded with
 		// the credential.
