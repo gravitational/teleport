@@ -42,8 +42,8 @@ var (
 	procWebAuthNFreeAssertion                                 = modWebAuthn.NewProc("WebAuthNFreeAssertion")
 	procWebAuthNGetErrorName                                  = modWebAuthn.NewProc("WebAuthNGetErrorName")
 
-	moduser32               = windows.NewLazySystemDLL("user32.dll")
-	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
+	modUser32               = windows.NewLazySystemDLL("user32.dll")
+	procGetForegroundWindow = modUser32.NewProc("GetForegroundWindow")
 )
 
 // nativeImpl keeps diagnostic informations about windows webauthn support.
@@ -219,7 +219,7 @@ func (n nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation)
 	// We don't care about free error so ignore it explicitly.
 	defer func() { _ = freeCredentialAttestation(out) }()
 
-	credential := bytesFromCBytes(out.CbCredentialId, out.PbCredentialId)
+	credential := bytesFromCBytes(out.cbCredentialId, out.pbCredentialId)
 
 	return &wanlib.CredentialCreationResponse{
 		PublicKeyCredential: wanlib.PublicKeyCredential{
@@ -233,7 +233,7 @@ func (n nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation)
 			AuthenticatorResponse: wanlib.AuthenticatorResponse{
 				ClientDataJSON: jsonEncodedCD,
 			},
-			AttestationObject: bytesFromCBytes(out.CbAttestationObject, out.PbAttestationObject),
+			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),
 		},
 	}, nil
 }
