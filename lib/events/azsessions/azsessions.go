@@ -318,7 +318,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	markerBlob, err := h.uploadMarkerBlob(upload)
 	if err != nil {
-		return nil
+		return trace.Wrap(err)
 	}
 
 	// TODO(espadolini): explore the possibility of using leases to get
