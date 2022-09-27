@@ -67,7 +67,6 @@ func fakeGithubIDP(t *testing.T) (*httptest.Server, jose.Signer) {
 		}
 		responseBytes, err := json.Marshal(response)
 		require.NoError(t, err)
-		w.WriteHeader(200)
 		_, err = w.Write(responseBytes)
 		require.NoError(t, err)
 	})
@@ -83,7 +82,6 @@ func fakeGithubIDP(t *testing.T) (*httptest.Server, jose.Signer) {
 		}
 		responseBytes, err := json.Marshal(jwks)
 		require.NoError(t, err)
-		w.WriteHeader(200)
 		_, err = w.Write(responseBytes)
 		require.NoError(t, err)
 
