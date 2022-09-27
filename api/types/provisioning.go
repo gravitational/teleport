@@ -151,7 +151,7 @@ func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 		for _, rule := range p.Spec.Allow {
 			ec2.Allow = append(ec2.Allow, &ProvisionTokenSpecV3AWSEC2_Rule{
 				Account: rule.AWSAccount,
-				Role:    rule.AWSRole,
+				RoleARN: rule.AWSRole,
 				Regions: rule.AWSRegions,
 			})
 		}
@@ -299,7 +299,7 @@ func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
 			rules = append(rules, &TokenRule{
 				AWSAccount: rule.Account,
 				AWSRegions: rule.Regions,
-				AWSRole:    rule.Role,
+				AWSRole:    rule.RoleARN,
 			})
 		}
 	}
@@ -457,7 +457,7 @@ func (a *ProvisionTokenSpecV3AWSEC2) checkAndSetDefaults() error {
 		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
 	}
 	for _, allowRule := range a.Allow {
-		if allowRule.Account == "" && allowRule.Role == "" {
+		if allowRule.Account == "" && allowRule.RoleARN == "" {
 			return trace.BadParameter(
 				`allow rule for %q join method must set "account" or "role"`,
 				JoinMethodEC2,

@@ -1064,7 +1064,7 @@ message ProvisionTokenSpecV3AWSEC2 {
     repeated string Regions = 2 [(gogoproto.jsontag) = "regions,omitempty"];
     // Role is the the ARN of the AWS role that the auth server will assume
     // in order to call the ec2 API.
-    string Role = 3 [(gogoproto.jsontag) = "role,omitempty"];
+    string RoleARN = 3 [(gogoproto.jsontag) = "role_arn,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
