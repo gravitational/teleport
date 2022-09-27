@@ -752,6 +752,21 @@ export const formatters: Formatters = {
     desc: 'Database Deleted',
     format: ({ user, name }) => `User [${user}] deleted database [${name}]`,
   },
+  [eventCodes.APP_CREATED]: {
+    type: 'app.create',
+    desc: 'Application Created',
+    format: ({ user, name }) => `User [${user}] created application [${name}]`,
+  },
+  [eventCodes.APP_UPDATED]: {
+    type: 'app.update',
+    desc: 'Application Updated',
+    format: ({ user, name }) => `User [${user}] updated application [${name}]`,
+  },
+  [eventCodes.APP_DELETED]: {
+    type: 'app.delete',
+    desc: 'Application Deleted',
+    format: ({ user, name }) => `User [${user}] deleted application [${name}]`,
+  },
   [eventCodes.POSTGRES_PARSE]: {
     type: 'db.session.postgres.statements.parse',
     desc: 'PostgreSQL Statement Parse',

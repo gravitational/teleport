@@ -49,6 +49,9 @@ export const eventCodes = {
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
   APP_SESSION_END: 'T2011I',
+  APP_CREATED: 'TAP03I',
+  APP_UPDATED: 'TAP04I',
+  APP_DELETED: 'TAP05I',
   AUTH_ATTEMPT_FAILURE: 'T3007W',
   BILLING_INFORMATION_UPDATE: 'TBL03I',
   BILLING_CARD_CREATE: 'TBL00I',
@@ -214,6 +217,24 @@ export type RawEvents = {
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
+  >;
+  [eventCodes.APP_CREATED]: RawEvent<
+    typeof eventCodes.APP_CREATED,
+    {
+      name: string;
+    }
+  >;
+  [eventCodes.APP_UPDATED]: RawEvent<
+    typeof eventCodes.APP_UPDATED,
+    {
+      name: string;
+    }
+  >;
+  [eventCodes.APP_DELETED]: RawEvent<
+    typeof eventCodes.APP_DELETED,
+    {
+      name: string;
+    }
   >;
   [eventCodes.CLIENT_DISCONNECT]: RawEvent<
     typeof eventCodes.CLIENT_DISCONNECT,
