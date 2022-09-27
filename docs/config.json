@@ -225,6 +225,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["oss", "enterprise", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
