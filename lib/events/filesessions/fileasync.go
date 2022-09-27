@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -55,8 +56,6 @@ type UploaderConfig struct {
 	EventsC chan events.UploadEvent
 	// Component is used for logging purposes
 	Component string
-	// AuditLog is used for storing logs
-	AuditLog events.IAuditLog
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -66,9 +65,6 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.ScanDir == "" {
 		return trace.BadParameter("missing parameter ScanDir")
-	}
-	if cfg.AuditLog == nil {
-		return trace.BadParameter("missing parameter AuditLog")
 	}
 	if cfg.ConcurrentUploads <= 0 {
 		cfg.ConcurrentUploads = defaults.UploaderConcurrentUploads
@@ -97,7 +93,6 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 			trace.Component: cfg.Component,
 		}),
 		closeC:    make(chan struct{}),
-		auditLog:  cfg.AuditLog,
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
@@ -121,7 +116,6 @@ type Uploader struct {
 	log *log.Entry
 
 	eventsCh chan events.UploadEvent
-	auditLog events.IAuditLog
 	closeC   chan struct{}
 }
 
@@ -154,7 +148,7 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
-	backoff, err := utils.NewLinear(utils.LinearConfig{
+	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
 		Clock: u.cfg.Clock,
