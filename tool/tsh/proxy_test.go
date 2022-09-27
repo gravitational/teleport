@@ -590,9 +590,7 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 
 func TestFormatCommand(t *testing.T) {
 	setEnv := func(command *exec.Cmd, envs ...string) *exec.Cmd {
-		for _, env := range envs {
-			command.Env = append(command.Env, env)
-		}
+		command.Env = append(command.Env, envs...)
 		return command
 	}
 

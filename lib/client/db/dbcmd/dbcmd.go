@@ -62,8 +62,8 @@ const (
 	snowsqlBin = "snowsql"
 	// curlBin is the program name for `curl`, which is used as Elasticsearch client if other options are unavailable.
 	curlBin = "curl"
-	// elasticsearchSqlBin is the Elasticsearch SQL client program name.
-	elasticsearchSqlBin = "elasticsearch-sql-cli"
+	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
+	elasticsearchSQLBin = "elasticsearch-sql-cli"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -363,8 +363,8 @@ func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 }
 
 // isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
-func (c *CLICommandBuilder) isElasticsearchSqlBinAvailable() bool {
-	_, err := c.options.exe.LookPath(elasticsearchSqlBin)
+func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
+	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
 	return err == nil
 }
 
@@ -583,15 +583,14 @@ func pythonKeywordArgs(args map[string]string) string {
 // - the last option is a `curl` command.
 func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	if c.options.noTLS {
-		return c.options.exe.Command(elasticsearchSqlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
-	} else {
-		return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSqlBin)
+		return c.options.exe.Command(elasticsearchSQLBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
 	}
+	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() map[string]*exec.Cmd {
 	commands := map[string]*exec.Cmd{}
-	if c.isElasticsearchSqlBinAvailable() {
+	if c.isElasticsearchSQLBinAvailable() {
 		if cmd, err := c.getElasticsearchCommand(); err == nil {
 			commands["interactive SQL connection"] = cmd
 		}

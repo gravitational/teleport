@@ -445,13 +445,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 			templateArgs["command"] = cmd
 			err = dbProxyAuthTpl.Execute(os.Stdout, templateArgs)
 			return trace.Wrap(err)
-		} else {
-			// multiple command options, use a different template.
-			templateArgs["commands"] = fmtMap
-			err = dbProxyAuthMultiTpl.Execute(os.Stdout, templateArgs)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		}
+
+		// multiple command options, use a different template.
+		templateArgs["commands"] = fmtMap
+		err = dbProxyAuthMultiTpl.Execute(os.Stdout, templateArgs)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]string{

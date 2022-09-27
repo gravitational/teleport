@@ -650,9 +650,8 @@ func TestCLICommandBuilderGetConnectCommandOptions(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				return
-			} else {
-				require.NoError(t, err)
 			}
+			require.NoError(t, err)
 
 			commands := map[string][]string{}
 			for key, cmd := range commandOptions {
