@@ -129,7 +129,7 @@ func TestAddKey(t *testing.T) {
 	// check that we've loaded a cert as well as a private key into the teleport agent
 	// and it's for the user we expected to add a certificate for
 	require.Len(t, teleportAgentKeys, 2)
-	require.Equal(t, "ssh-rsa-cert-v01@openssh.com", teleportAgentKeys[0].Type())
+	require.Equal(t, ssh.CertAlgoRSAv01, teleportAgentKeys[0].Type())
 	require.Equal(t, "teleport:"+s.username, teleportAgentKeys[0].Comment)
 	require.Equal(t, "ssh-rsa", teleportAgentKeys[1].Type())
 	require.Equal(t, "teleport:"+s.username, teleportAgentKeys[1].Comment)
@@ -144,7 +144,7 @@ func TestAddKey(t *testing.T) {
 	require.True(t, found)
 	found = false
 	for _, sak := range systemAgentKeys {
-		if sak.Comment == "teleport:"+s.username && sak.Type() == "ssh-rsa-cert-v01@openssh.com" {
+		if sak.Comment == "teleport:"+s.username && sak.Type() == ssh.CertAlgoRSAv01 {
 			found = true
 		}
 	}

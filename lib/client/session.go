@@ -133,6 +133,7 @@ func newSession(ctx context.Context,
 		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
 		terminal:              term,
+		shouldClearOnExit:     client.FIPSEnabled || isFIPS(),
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
@@ -163,16 +164,6 @@ func newSession(ctx context.Context,
 	}
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
-
-	// Determine if terminal should clear on exit.
-	ns.shouldClearOnExit = isFIPS()
-	if client.Proxy != nil {
-		boring, err := client.Proxy.isAuthBoring(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ns.shouldClearOnExit = ns.shouldClearOnExit || boring
-	}
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
