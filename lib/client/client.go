@@ -72,11 +72,12 @@ type ProxyClient struct {
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Namespace string
-	Tracer    oteltrace.Tracer
-	Client    *tracessh.Client
-	Proxy     *ProxyClient
-	TC        *TeleportClient
+	Namespace   string
+	Tracer      oteltrace.Tracer
+	Client      *tracessh.Client
+	Proxy       *ProxyClient
+	TC          *TeleportClient
+	FIPSEnabled bool
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -642,23 +643,6 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	return watcher, nil
 }
 
-// isAuthBoring checks whether or not the auth server for the current cluster was compiled with BoringCrypto.
-func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/isAuthBoring",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	resp, err := site.Ping(ctx)
-	return resp.IsBoring, trace.Wrap(err)
-}
-
 // FindServersByLabels returns list of the nodes which have labels exactly matching
 // the given label set.
 //
@@ -1104,10 +1088,65 @@ type proxyResponse struct {
 	err      error
 }
 
+// clusterDetails retrieves information about the current cluster needed to connect to nodes.
+func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterDetails, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/clusterDetails",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	var details sshutils.ClusterDetails
+	ok, resp, err := proxy.Client.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	// server understood the ClusterDetailsReqType
+	if ok {
+		err = ssh.Unmarshal(resp, &details)
+		return details, trace.Wrap(err)
+	}
+
+	// talking to an older server which doesn't know about ClusterDetailsReqType
+	// fallback to sending multiple requests
+	recordingProxy, err := proxy.isRecordingProxy(ctx)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	clt, err := proxy.ConnectToCurrentCluster(ctx)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	pong, err := clt.Ping(ctx)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	details.RecordingProxy = recordingProxy
+	details.FIPSEnabled = pong.IsBoring
+
+	return details, nil
+}
+
 // isRecordingProxy returns true if the proxy is in recording mode. Note, this
 // function can only be called after authentication has occurred and should be
 // called before the first session is created.
+//
+// DEPRECATED: clusterDetails should be used instead to avoid multiple round trips for
+// cluster information.
+// TODO(tross):DELETE IN 12.0
 func (proxy *ProxyClient) isRecordingProxy(ctx context.Context) (bool, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/isRecordingProxy",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	responseCh := make(chan proxyResponse)
 
 	// we have to run this in a goroutine because older version of Teleport handled
@@ -1297,9 +1336,8 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return nil, trace.Wrap(err)
 	}
 
-	// after auth but before we create the first session, find out if the proxy
-	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
+	// after auth but before we create the first session, find out cluster details
+	details, err := proxy.clusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1333,7 +1371,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
+	if details.RecordingProxy {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
@@ -1389,11 +1427,12 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	close(emptyCh)
 
 	nc := &NodeClient{
-		Client:    tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:     proxy,
-		Namespace: apidefaults.Namespace,
-		TC:        proxy.teleportClient,
-		Tracer:    proxy.Tracer,
+		Client:      tracessh.NewClient(conn, chans, emptyCh),
+		Proxy:       proxy,
+		Namespace:   apidefaults.Namespace,
+		TC:          proxy.teleportClient,
+		Tracer:      proxy.Tracer,
+		FIPSEnabled: details.FIPSEnabled,
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
@@ -1428,7 +1467,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
+	details, err := proxy.clusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1437,7 +1476,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
+	if details.RecordingProxy {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
