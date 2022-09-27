@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/azsessions"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
@@ -1316,6 +1317,16 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		}
 
 		handler, err := s3sessions.NewHandler(ctx, config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler, nil
+	case teleport.SchemeAZBlob, teleport.SchemeAZBlobHTTP:
+		var config azsessions.Config
+		if err := config.SetFromURL(uri); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		handler, err := azsessions.NewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4316,7 +4327,7 @@ func (process *TeleportProcess) initApps() {
 			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 			// run the resolver. this will check configuration for errors.
-			_, err := tunnelAddrResolver(process.ExitContext())
+			_, _, err := tunnelAddrResolver(process.ExitContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -4733,12 +4744,12 @@ func (process *TeleportProcess) initDebugApp() {
 // singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
-	return func(context.Context) (*utils.NetAddr, error) {
+	return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
-			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
+			return nil, mode, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
 		}
-		return addr, nil
+		return addr, mode, nil
 	}
 }
 
