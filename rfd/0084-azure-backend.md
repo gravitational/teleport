@@ -68,7 +68,7 @@ CREATE INDEX ON audit (time, event, sid, ei);
 
 We'll have to make sure to leave the SQL backend schema and the SQL audit log schema compatible, so that they can use the same database and credentials, for ease of setup.
 
-Configuration will be something like the following:
+Configuration will be something like the following for static credentials:
 
 ```yaml
 teleport:
@@ -78,15 +78,17 @@ teleport:
     audit_events_uri: ['postgres://host:123/database?sslmode=verify-full&sslrootcert=cafile&sslcert=certfile&sslkey=keyfile']
 ```
 
-IAM authentication in such case would require some bespoke parameter in the query or fragment of the URI:
+And for Azure IAM authentication:
 
 ```yaml
 teleport:
   storage:
     ...
 
-    audit_events_uri: ['postgres://host:123/database?sslmode=verify-full&sslrootcert=cafile&user=pgusername%40pgservername#auth=azure']
+    audit_events_uri: ['postgres://host:123/database?sslmode=verify-full&sslrootcert=cafile&user=pgusername@pgservername&auth_mode=azure']
 ```
+
+Optionally, the `azure_client_id` parameter can also be specified, to define which managed identity to use.
 
 Additional security could be provided by only granting `INSERT` (and `SELECT`) privileges to the Postgres user on the table that stores audit events, but not `UPDATE` or `DELETE` privileges; such a setup couldn't be automatically managed by Teleport, and thus would require detailed documentation and some care.
 
