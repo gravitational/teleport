@@ -153,7 +153,7 @@ func crossPlatformLogin(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if IsFIDO2Available() {
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
@@ -204,7 +204,7 @@ func Register(
 		return webauthnwin.Register(ctx, origin, cc)
 	}
 
-	if IsFIDO2Available() {
+	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
@@ -213,4 +213,10 @@ func Register(
 		return nil, trace.Wrap(err)
 	}
 	return U2FRegister(ctx, origin, cc)
+}
+
+// IsFIDO2Available returns true if FIDO2 is implemented either via native
+// lifdo2 library or windows webauthn API.
+func IsFIDO2Available() bool {
+	return isLibfido2Enabled() || webauthnwin.IsAvailable()
 }

@@ -72,8 +72,8 @@ var fidoNewDevice = func(path string) (FIDODevice, error) {
 	return libfido2.NewDevice(path)
 }
 
-// IsFIDO2Available returns true if libfido2 is available in the current build.
-func IsFIDO2Available() bool {
+// isLibfido2Enabled returns true if libfido2 is available in the current build.
+func isLibfido2Enabled() bool {
 	val, ok := os.LookupEnv("TELEPORT_FIDO2")
 	// Default to enabled, otherwise obey the env variable.
 	return !ok || val == "1"
