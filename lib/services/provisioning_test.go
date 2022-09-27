@@ -26,25 +26,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMustCreateProvisionToken(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		token := MustCreateProvisionToken(
-			"foo",
-			types.SystemRoles{types.RoleNop},
-			time.Date(2000, 1, 1, 1, 1, 1, 1, time.UTC),
-		)
-		require.NotNil(t, token)
-		require.Equal(t, "foo", token.GetName())
-	})
-	t.Run("panics on failure", func(t *testing.T) {
-		require.Panics(t, func() {
-			_ = MustCreateProvisionToken(
-				"foo",
-				nil,
-				time.Date(2000, 1, 1, 1, 1, 1, 1, time.UTC),
-			)
-		})
-	})
+func mustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
+	t, err := types.NewProvisionToken(token, roles, expires)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }
 
 func TestUnmarshalProvisionToken(t *testing.T) {
@@ -84,7 +71,7 @@ func TestUnmarshalProvisionToken(t *testing.T) {
 		{
 			name: "v3",
 			data: []byte(`{"kind":"token","version":"v3","metadata":{"name":"foo","expires":"1999-11-30T00:00:00Z"},"spec":{"roles":["Nop"],"join_method":"token"}}`),
-			want: MustCreateProvisionToken(
+			want: mustCreateProvisionToken(
 				"foo",
 				types.SystemRoles{types.RoleNop},
 				expiry,
@@ -102,7 +89,7 @@ func TestUnmarshalProvisionToken(t *testing.T) {
 }
 
 func TestMarshalProvisionToken(t *testing.T) {
-	v3 := MustCreateProvisionToken(
+	v3 := mustCreateProvisionToken(
 		"foo",
 		types.SystemRoles{types.RoleNop},
 		time.Date(2000, 0, 0, 0, 0, 0, 0, time.UTC),

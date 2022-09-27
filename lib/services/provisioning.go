@@ -18,8 +18,6 @@ package services
 
 import (
 	"context"
-	"time"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -46,16 +44,6 @@ type Provisioner interface {
 
 	// GetTokens returns all non-expired tokens
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
-}
-
-// MustCreateProvisionToken returns a new valid provision token
-// or panics, used in tests
-func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
-	t, err := types.NewProvisionToken(token, roles, expires)
-	if err != nil {
-		panic(err)
-	}
-	return t
 }
 
 // UnmarshalProvisionToken unmarshals the ProvisionToken resource from JSON.

@@ -101,16 +101,6 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	return t, nil
 }
 
-// MustCreateProvisionToken returns a new valid provision token
-// or panics, used in tests.
-func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
-	t, err := NewProvisionToken(token, roles, expires)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
 // V3 returns V3 version of the ProvisionTokenV2 resource.
 func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
 	hasAllowRules := len(p.Spec.Allow) > 0

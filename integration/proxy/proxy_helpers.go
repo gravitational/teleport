@@ -384,7 +384,7 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 
 			trustedClusterToken := "trustedclustertoken"
 			err := root.Process.GetAuthServer().UpsertToken(context.Background(),
-				types.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+				helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 			require.NoError(t, err)
 			trustedCluster := root.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 				{Remote: rootRole.GetName(), Local: []string{secondRole.GetName()}},
