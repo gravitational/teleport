@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "10.2.6"
+	Version = "v10.2.7-nklaassen.fix-exec-race.1"
 )
 
 // Gitref variable is automatically set to the output of git-describe
