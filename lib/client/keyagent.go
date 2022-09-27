@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/sirupsen/logrus"
@@ -666,4 +667,23 @@ func (a *LocalKeyAgent) ClientCertPool(cluster string) (*x509.CertPool, error) {
 		}
 	}
 	return pool, nil
+}
+
+// GetClusterNames gets the names of the Teleport clusters this
+// key agent knows about.
+func (a *LocalKeyAgent) GetClusterNames() ([]string, error) {
+	certs, err := a.GetTrustedCertsPEM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var clusters []string
+	for _, cert := range certs {
+		cert, err := tlsca.ParseCertificatePEM(cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clusters = append(clusters, cert.Subject.CommonName)
+	}
+	return clusters, nil
 }

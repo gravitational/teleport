@@ -1900,7 +1900,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer proxyClient.Close()
 
 	if tc.LoadAllHostCAs {
-		clusters, err := tc.GetSiteNames(ctx)
+		clusters, err := tc.LocalAgent().GetClusterNames()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -4544,22 +4544,4 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
-}
-
-// GetSiteNames returns list of the "sites" (AKA teleport clusters) connected to the
-// client's proxy server.
-func (tc *TeleportClient) GetSiteNames(ctx context.Context) ([]string, error) {
-	pc, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sites, err := pc.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	siteNames := make([]string, 0, len(sites))
-	for _, site := range sites {
-		siteNames = append(siteNames, site.Name)
-	}
-	return siteNames, nil
 }

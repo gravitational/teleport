@@ -3143,7 +3143,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		tc.LoadAllHostCAs = pr.Auth.LoadAllHostCAs
 
 		if tc.LoadAllHostCAs {
-			sites, err := tc.GetSiteNames(cf.Context)
+			sites, err := tc.LocalAgent().GetClusterNames()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

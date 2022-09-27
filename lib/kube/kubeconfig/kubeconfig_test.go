@@ -351,8 +351,8 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 		loadAllHostCAs bool
 		expectedNumCAs int
 	}{
-		{false, 1},
-		{true, 2},
+		{loadAllHostCAs: false, expectedNumCAs: 1},
+		{loadAllHostCAs: true, expectedNumCAs: 2},
 	}
 	for _, tc := range tests {
 		t.Run(fmt.Sprintf("LoadAllHostCAs=%v", tc.loadAllHostCAs), func(t *testing.T) {
