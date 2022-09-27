@@ -41,12 +41,12 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	auth, err := NewAuth(AuthConfig{
 		AuthClient: new(authClientMock),
 		Clients: &cloud.TestCloudClients{
-			AzureRedis: &azureCacheForRedisMock{
-				token: "azure-redis-token",
-			},
-			AzureRedisEnterprise: &azureCacheForRedisMock{
-				token: "azure-redis-enterprise-token",
-			},
+			AzureRedis: libcloudazure.NewRedisClientByAPI(&libcloudazure.ARMRedisMock{
+				Token: "azure-redis-token",
+			}),
+			AzureRedisEnterprise: libcloudazure.NewRedisEnterpriseClientByAPI(&libcloudazure.ARMRedisEnterpriseDatabaseMock{
+				Token: "azure-redis-enterprise-token",
+			}),
 		},
 	})
 	require.NoError(t, err)
@@ -255,17 +255,6 @@ func newRedshiftDatabase(t *testing.T, ca string) types.Database {
 	})
 	require.NoError(t, err)
 	return database
-}
-
-// azureCacheForRedisMock is a mock that implements libcloudazure.CacheForRedisClient.
-type azureCacheForRedisMock struct {
-	libcloudazure.CacheForRedisClient
-
-	token string
-}
-
-func (m *azureCacheForRedisMock) GetToken(_ context.Context, _ string) (string, error) {
-	return m.token, nil
 }
 
 // authClientMock is a mock that implements AuthClient interface.
