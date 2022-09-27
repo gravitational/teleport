@@ -2769,6 +2769,15 @@ func TestJoinParams(t *testing.T) {
 			desc: "empty",
 		},
 		{
+			desc: "auth_token",
+			input: `
+teleport:
+  auth_token: xxxyyy
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodToken,
+		},
+		{
 			desc: "join_params token",
 			input: `
 teleport:
@@ -2808,6 +2817,17 @@ teleport:
   join_params:
     token_name: xxxyyy
     method: invalid
+`,
+			expectError: true,
+		},
+		{
+			desc: "both set",
+			input: `
+teleport:
+  auth_token: xxxyyy
+  join_params:
+    token_name: xxxyyy
+    method: iam
 `,
 			expectError: true,
 		},

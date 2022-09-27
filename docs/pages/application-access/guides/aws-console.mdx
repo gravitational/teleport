@@ -168,11 +168,9 @@ teleport:
   # Data directory for the Application Proxy service. If running on the same
   # node as Auth/Proxy service, make sure to use different data directories.
   data_dir: /var/lib/teleport-app
-  # Instructs the service to load the join token from the specified file
+  # Instructs the service to load the auth token from the specified file
   # during initial registration with the cluster.
-  join_params:
-    method: token
-    token_name: /var/lib/teleport-app/token
+  auth_token: /var/lib/teleport-app/token
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the app service always connects to the cluster over a reverse
   # tunnel.

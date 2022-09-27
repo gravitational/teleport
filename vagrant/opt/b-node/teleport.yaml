@@ -2,9 +2,7 @@
 version: v3
 teleport:
   nodename: bear
-  join_params:
-    method: token
-    token_name: hello
+  auth_token: hello
   auth_server: b-auth:5025
   log:
     output: stderr

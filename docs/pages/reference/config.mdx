@@ -116,6 +116,18 @@ teleport:
     # PID file for Teleport process
     #pid_file: /var/run/teleport.pid
 
+    # The invitation token or an absolute path to a file containing the token used
+    # to join a cluster. It is not used on subsequent starts.
+    # If using a file, it only needs to exist when teleport is first ran.
+    #
+    # File path example:
+    # auth_token: /var/lib/teleport/tokenjoin
+    #
+    # This is the same as setting join_params.method to "token", and join_params.token_name
+    # to the value of auth_token.
+    # You should only use either auth_token or join_params.
+    auth_token: xxxx-token-xxxx
+
     # join_params are parameters to set when joining a cluster via
     # EC2, IAM or a token.
     #
@@ -124,7 +136,8 @@ teleport:
     # IAM join method documentation:
     # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
     join_params:
-        # method when set to "token", is equivalent to using auth_token.
+        # When `method` is set to "token", it is the equivalent to using `auth_token` above.
+        # You should only use either auth_token or join_params.
         method: "token"|"ec2"|"iam"
 
         # If method is "iam" or "ec2", token_name will be will be the name of
@@ -821,8 +834,6 @@ kubernetes_service:
 **Introduced in Teleport v11**
 
 Replaced `teleport.auth_servers` with either `teleport.auth_server` or `teleport.proxy_server`.
-
-Removed `teleport.auth_token` in favor of `teleport.join_params.token_name`.
 
 ### v2
 

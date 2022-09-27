@@ -26,9 +26,7 @@ teleport:
   advertise_ip: 10.10.10.1:3022
   pid_file: /var/run/teleport.pid
   auth_server: auth0.server.example.org:3024
-  join_params:
-    method: token
-    token_name: xxxyyy
+  auth_token: xxxyyy
   log:
     output: stderr
     severity: INFO
@@ -90,9 +88,7 @@ teleport:
   nodename: cat.example.com
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
-  join_params:
-    method: token
-    token_name: %v
+  auth_token: %v
   auth_server: auth0.server.example.org:3024
   log:
     output: stderr

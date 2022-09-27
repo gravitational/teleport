@@ -66,9 +66,7 @@ Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
 version: v3
 teleport:
   nodename: graviton-node
-  join_params:
-    method: token
-    token_name: exampletoken
+  auth_token: exampletoken
   # Replace with the address of the Teleport Auth Server.
   auth_server: 127.0.0.1:3025
   data_dir: /var/lib/teleport

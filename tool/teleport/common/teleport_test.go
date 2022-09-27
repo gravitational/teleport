@@ -211,9 +211,7 @@ teleport:
   advertise_ip: 10.5.5.5
   nodename: hvostongo.example.org
   auth_server: auth.server.example.org:3024
-  join_params:
-    method: token
-    token_name: xxxyyy
+  auth_token: xxxyyy
   log:
     output: stderr
     severity: DEBUG

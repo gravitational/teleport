@@ -43,9 +43,7 @@ teleport:
   nodename: {{ .NodeName }}
   data_dir: {{ .DataDir }}
   proxy_server: {{ .ProxyServer }}
-  join_params: 
-    method: token
-    token_name: {{ .AuthToken }}
+  auth_token: {{ .AuthToken }}
   {{- if .CAPins }}
   ca_pin:
   {{- range .CAPins }}

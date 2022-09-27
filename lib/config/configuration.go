@@ -2248,21 +2248,15 @@ func splitRoles(roles string) []string {
 
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
-	// config v1 and v2 allow for `auth_token` to set `join_params.method` and `join_params.token_name`
-	if fc.Version == defaults.TeleportConfigVersionV1 || fc.Version == defaults.TeleportConfigVersionV2 {
-		if fc.AuthToken != "" {
-			if fc.JoinParams != (JoinParams{}) {
-				return trace.BadParameter("only one of auth_token or join_params should be set")
-			}
-
-			cfg.JoinMethod = types.JoinMethodToken
-			cfg.SetToken(fc.AuthToken)
-
-			return nil
+	if fc.AuthToken != "" {
+		if fc.JoinParams != (JoinParams{}) {
+			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-	} else if fc.AuthToken != "" {
-		// from config v3 onwards, we have removed auth_token
-		return trace.BadParameter("auth_token is no longer supported in config v3 onwards, use join_params instead")
+
+		cfg.JoinMethod = types.JoinMethodToken
+		cfg.SetToken(fc.AuthToken)
+
+		return nil
 	}
 
 	if fc.JoinParams != (JoinParams{}) {

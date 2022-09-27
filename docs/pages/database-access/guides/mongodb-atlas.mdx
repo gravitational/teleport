@@ -77,9 +77,7 @@ On the node where you will run the Teleport Database Service, run
 ```yaml
 version: v3
 teleport:
-  join_params:
-    method: token
-    token_name: "/tmp/token"
+  auth_token: "/tmp/token"
   proxy_server: teleport.example.com:443
 db_service:
   enabled: "yes"
@@ -126,9 +124,7 @@ On the node where you will run the Teleport Database Service, run
 ```yaml
 version: v3
 teleport:
-  join_params:
-    method: token
-    token_name: "/tmp/token"
+  auth_token: "/tmp/token"
   proxy_server: mytenant.teleport.sh
 db_service:
   enabled: "yes"

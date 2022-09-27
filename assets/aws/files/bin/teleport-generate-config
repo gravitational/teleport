@@ -309,9 +309,7 @@ elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
     cat >${USE_CONFIG_PATH} <<EOF
 version: v3
 teleport:
-  join_params:
-    method: token
-    token_name: /var/lib/teleport/token
+  auth_token: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
@@ -378,9 +376,7 @@ elif [[ "${TELEPORT_ROLE}" == "node" ]]; then
     cat >${USE_CONFIG_PATH} <<EOF
 version: v3
 teleport:
-  join_params:
-      method: token
-      token_name: /var/lib/teleport/token
+  auth_token: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
@@ -777,9 +773,7 @@ teleport:
     output: stderr
     severity: INFO
   data_dir: /var/lib/teleport
-  join_params:
-    method: token
-    token_name: ${TELEPORT_JOIN_TOKEN}
+  auth_token: ${TELEPORT_JOIN_TOKEN}
   proxy_server: ${TELEPORT_PROXY_SERVER_LB}
 
 auth_service:

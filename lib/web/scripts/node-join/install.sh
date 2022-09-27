@@ -417,9 +417,7 @@ install_teleport_app_config() {
 version: v3
 teleport:
   nodename: ${NODENAME}
-  join_params:
-    method: token
-    token_name: ${JOIN_TOKEN}
+  auth_token: ${JOIN_TOKEN}
 ${CA_PINS_CONFIG}
   proxy_server: ${TARGET_HOSTNAME}:${TARGET_PORT}
   log:

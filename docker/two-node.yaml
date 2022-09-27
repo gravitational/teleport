@@ -3,9 +3,7 @@ version: v3
 teleport:
   nodename: node-on-second-cluster
   auth_server: two-auth
-  join_params:
-    method: token
-    token_name: foo
+  auth_token: foo
   advertise_ip: 172.10.1.4
   log:
     output: stdout

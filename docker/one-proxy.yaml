@@ -1,9 +1,7 @@
 # standalone proxy connected to
 version: v3
 teleport:
-  join_params:
-    method: token
-    token_name: foo
+  auth_token: foo
   nodename: one-proxy
   advertise_ip: 172.10.1.10
   log:

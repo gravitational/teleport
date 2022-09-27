@@ -79,9 +79,7 @@ the following contents:
 ```yaml
 version: v3
 teleport:
-  join_params:
-    method: token
-    token_name: "/tmp/token"
+  auth_token: "/tmp/token"
   proxy_server: teleport.example.com:3080
 auth_service:
   enabled: "no"
