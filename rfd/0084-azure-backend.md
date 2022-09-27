@@ -135,7 +135,7 @@ teleport:
     audit_sessions_uri: "azblob://accountname.blob.core.windows.net"
 ```
 
-Other configuration options, if required, will be passed in as query parameters in the URI, like the other session storage backends.
+It's possible to specify a client ID for a managed identity (to allow for different identities to be used for backend, events and sessions, as opposed to setting the `AZURE_CLIENT_ID` envvar and using the default credentials) by specifying a URL fragment of `#azure_client_id=11111111-2222-3333-4444-555555555555`. The `azblob` schema is only used by Teleport to identify the storage backend, and will actually result in a `https` URL. For testing against simulators (or other services with the same API surface) over `http`, the `azblob-http` schema is also supported (but we should probably leave it undocumented for end users).
 
 Teleport will require access to two containers in the storage account, named `session`, which will store the completed session files, and `inprogress`, which will be used as temporary space to hold parts.
 
