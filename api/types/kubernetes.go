@@ -40,6 +40,10 @@ type KubeCluster interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the kube cluster dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
+	// GetKubeconfig returns the kubeconfig payload.
+	GetKubeconfig() []byte
+	// SetKubeconfig sets the kubeconfig.
+	SetKubeconfig([]byte)
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// String returns string representation of the kube cluster.
@@ -163,6 +167,16 @@ func (k *KubernetesClusterV3) GetStaticLabels() map[string]string {
 // SetStaticLabels sets the static labels.
 func (k *KubernetesClusterV3) SetStaticLabels(sl map[string]string) {
 	k.Metadata.Labels = sl
+}
+
+// GetKubeconfig returns the kubeconfig payload.
+func (k *KubernetesClusterV3) GetKubeconfig() []byte {
+	return k.Spec.Kubeconfig
+}
+
+// SetKubeconfig sets the kubeconfig.
+func (k *KubernetesClusterV3) SetKubeconfig(cfg []byte) {
+	k.Spec.Kubeconfig = cfg
 }
 
 // GetDynamicLabels returns the dynamic labels.

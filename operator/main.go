@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
@@ -109,7 +109,7 @@ func main() {
 
 	var bot *sidecar.Bot
 
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: 100 * time.Millisecond,
 		Max:  time.Second,
 	})

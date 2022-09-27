@@ -224,6 +224,62 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 	}, nil
 }
 
+func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	reqLimit := req.Limit
+	if reqLimit <= 0 {
+		return nil, trace.BadParameter("nonpositive parameter limit")
+	}
+
+	rangeStart := backend.Key(windowsDesktopServicesPrefix, req.StartKey)
+	rangeEnd := backend.RangeEnd(backend.Key(windowsDesktopServicesPrefix, ""))
+	filter := services.MatchResourceFilter{
+		ResourceKind:        types.KindWindowsDesktopService,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+	}
+
+	// Get most limit+1 results to determine if there will be a next key.
+	maxLimit := reqLimit + 1
+	var desktopServices []types.WindowsDesktopService
+	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(desktopServices) == maxLimit {
+				break
+			}
+
+			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			switch match, err := services.MatchResourceByFilters(desktop, filter, nil /* ignore dup matches */); {
+			case err != nil:
+				return false, trace.Wrap(err)
+			case match:
+				desktopServices = append(desktopServices, desktop)
+			}
+		}
+
+		return len(desktopServices) == maxLimit, nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var nextKey string
+	if len(desktopServices) > reqLimit {
+		nextKey = backend.GetPaginationKey(desktopServices[len(desktopServices)-1])
+		// Truncate the last item that was used to determine next row existence.
+		desktopServices = desktopServices[:reqLimit]
+	}
+
+	return &types.ListWindowsDesktopServicesResponse{
+		DesktopServices: desktopServices,
+		NextKey:         nextKey,
+	}, nil
+}
+
 const (
 	windowsDesktopsPrefix = "windowsDesktop"
 )

@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // Interval functions similarly to time.Ticker, with the added benefit of being
@@ -54,7 +54,7 @@ type Config struct {
 	// It is usually preferable to use a smaller jitter (e.g. NewSeventhJitter())
 	// for this parameter, since periodic operations are typically costly and the
 	// effect of the jitter is cumulative.
-	Jitter utils.Jitter
+	Jitter retryutils.Jitter
 }
 
 // NewNoop creates a new interval that will never fire.
