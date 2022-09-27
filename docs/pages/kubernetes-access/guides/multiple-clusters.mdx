@@ -71,7 +71,7 @@ $ tsh kube ls
 
 # kubeconfig now points to the cookie cluster
 $ tsh kube login cookie
-# Logged into Kubernetes cluster "cookie"
+# Logged into Kubernetes cluster "cookie". Try 'kubectl version' to test the connection.
 
 # kubectl command executed on `cookie` but is routed through the `tele.example.com` cluster.
 $ kubectl get pods
@@ -121,7 +121,7 @@ $ tsh kube ls
 
 # kubeconfig now points to the cookie cluster
 $ tsh kube login cookie
-# Logged into Kubernetes cluster "cookie"
+# Logged into Kubernetes cluster "cookie". Try 'kubectl version' to test the connection.
 
 # kubectl command executed on `cookie` but is routed through the `mytenant.teleport.sh` cluster.
 $ kubectl get pods

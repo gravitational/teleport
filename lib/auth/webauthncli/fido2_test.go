@@ -1436,6 +1436,23 @@ func TestFIDO2Register(t *testing.T) {
 				assert.Equal(t, cred.ID, ccr.RawId, "RawId mismatch (want bio1 resident credential)")
 			},
 		},
+		{
+			name:  "passwordless ResidentKey=required",
+			fido2: newFakeFIDO2(pin2),
+			setUP: pin2.setUP,
+			createCredential: func() *wanlib.CredentialCreation {
+				cp := pwdlessCC
+				cp.Response.AuthenticatorSelection.RequireResidentKey = nil
+				cp.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
+				return &cp
+			},
+			prompt: pin2,
+			assertResponse: func(t *testing.T, ccr *wanpb.CredentialCreationResponse, attObj *protocol.AttestationObject) {
+				require.NotEmpty(t, pin2.credentials, "no resident credentials added to pin2")
+				cred := pin2.credentials[len(pin2.credentials)-1]
+				assert.Equal(t, cred.ID, ccr.RawId, "RawId mismatch (want pin2 resident credential)")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
