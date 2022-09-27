@@ -49,7 +49,7 @@ var JoinMethods = []JoinMethod{
 func ValidateJoinMethod(method JoinMethod) error {
 	hasJoinMethod := apiutils.SliceContainsStr(JoinMethods, method)
 	if !hasJoinMethod {
-		return trace.BadParameter("join_params.method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
+		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
 	}
 
 	return nil
