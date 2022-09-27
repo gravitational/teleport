@@ -33,9 +33,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -305,7 +305,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	}
 
 	// kicking off async tasks
-	linearConfig := utils.LinearConfig{
+	linearConfig := retryutils.LinearConfig{
 		Step: b.RetryPeriod / 10,
 		Max:  b.RetryPeriod,
 	}
@@ -579,8 +579,8 @@ func (b *Backend) keyToDocumentID(key []byte) string {
 }
 
 // RetryingAsyncFunctionRunner wraps a task target in retry logic
-func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearConfig, logger *log.Logger, task func() error, taskName string) {
-	retry, err := utils.NewLinear(retryConfig)
+func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig retryutils.LinearConfig, logger *log.Logger, task func() error, taskName string) {
+	retry, err := retryutils.NewLinear(retryConfig)
 	if err != nil {
 		logger.WithError(err).Error("Bad retry parameters, returning and not running.")
 		return
