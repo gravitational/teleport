@@ -21,11 +21,7 @@ func publishReleasePipeline() pipeline {
 	p.Environment = map[string]value{
 		"RELCLI_IMAGE": {raw: relcliImage},
 	}
-	p.Trigger = trigger{
-		Event:  triggerRef{Include: []string{"promote"}},
-		Target: triggerRef{Include: []string{"production"}},
-		Repo:   triggerRef{Include: []string{"gravitational/*"}},
-	}
+	p.Trigger = triggerPromote
 	p.Steps = []step{
 		{
 			Name:  "Check if commit is tagged",
@@ -38,15 +34,9 @@ func publishReleasePipeline() pipeline {
 		executeRelcliStep("Publish in Release API", "relcli auto_publish -f -v 6"),
 	}
 	p.Services = []service{
-		dockerService(volumeRef{
-			Name: "tmpfs",
-			Path: "/tmpfs",
-		}),
+		dockerService(volumeRefTmpfs),
 	}
-	p.Volumes = dockerVolumes(volume{
-		Name: "tmpfs",
-		Temp: &volumeTemp{Medium: "memory"},
-	})
+	p.Volumes = dockerVolumes(volumeTmpfs)
 
 	return p
 }

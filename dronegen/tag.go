@@ -588,15 +588,9 @@ func tagCleanupPipeline() pipeline {
 		executeRelcliStep("Cleanup previously built artifacts", "relcli auto_destroy -f -v 6"),
 	}
 	p.Services = []service{
-		dockerService(volumeRef{
-			Name: "tmpfs",
-			Path: "/tmpfs",
-		}),
+		dockerService(volumeRefTmpfs),
 	}
-	p.Volumes = dockerVolumes(volume{
-		Name: "tmpfs",
-		Temp: &volumeTemp{Medium: "memory"},
-	})
+	p.Volumes = dockerVolumes(volumeTmpfs)
 
 	return p
 }
