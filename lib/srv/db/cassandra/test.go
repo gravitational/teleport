@@ -21,10 +21,8 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"reflect"
 	"strings"
 	"time"
-	"unsafe"
 
 	"github.com/datastax/go-cassandra-native-protocol/client"
 	"github.com/datastax/go-cassandra-native-protocol/datatype"
@@ -100,17 +98,6 @@ type TestServer struct {
 	server    *client.CqlServer
 }
 
-// unsafeGetServerListener is a hack to get the listener from the server.
-// Allows to start server on port random port and obtain the port number from
-// private client.CqlServer field.
-func unsafeGetServerListener(server *client.CqlServer) net.Listener {
-	v := reflect.ValueOf(server)
-	ve := reflect.Indirect(v)
-	lf := ve.FieldByName("listener")
-	ptr := reflect.NewAt(lf.Type(), unsafe.Pointer(lf.UnsafeAddr())).Elem().Interface()
-	return ptr.(net.Listener)
-}
-
 // NewTestServer returns a new instance of a test Snowflake server.
 func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	address := "localhost:0"
@@ -118,12 +105,14 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig.InsecureSkipVerify = true
 
 	server := client.NewCqlServer(address, &client.AuthCredentials{
 		Password: "cassandra",
 		Username: "cassandra",
 	})
+	if config.Listener != nil {
+		server.Listener = tls.NewListener(config.Listener, tlsConfig)
+	}
 
 	server.RequestHandlers = []client.RequestHandler{
 		client.HandshakeHandler,
@@ -133,9 +122,6 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		handleMessageExecute,
 		handleMessageBatch,
 		handleMessageRegister,
-		func(request *frame.Frame, conn *client.CqlServerConnection, ctx client.RequestHandlerContext) (response *frame.Frame) {
-			return nil
-		},
 	}
 
 	server.TLSConfig = tlsConfig
@@ -143,7 +129,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		return nil, trace.Wrap(err)
 	}
 
-	_, port, err := net.SplitHostPort(unsafeGetServerListener(server).Addr().String())
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -69,9 +69,9 @@ type databaseClusterPack struct {
 	mongoAddr        string
 	mongo            *mongodb.TestServer
 	name             string
-	cassandraService service.Database
-	cassandraAddr    string
+	CassandraService service.Database
 	cassandra        *cassandra.TestServer
+	cassandraAddr    string
 }
 
 func mustListen(t *testing.T) (net.Listener, string) {
@@ -88,7 +88,7 @@ func mustListen(t *testing.T) (net.Listener, string) {
 func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clockwork.Clock) {
 	var err error
 
-	var postgresListener, mysqlListener, mongoListener net.Listener
+	var postgresListener, mysqlListener, mongoListener, cassandaListener net.Listener
 
 	postgresListener, pack.postgresAddr = mustListen(t)
 	pack.PostgresService = service.Database{
@@ -110,10 +110,12 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      pack.mongoAddr,
 	}
-	pack.cassandraService = service.Database{
+
+	cassandaListener, pack.cassandraAddr = mustListen(t)
+	pack.CassandraService = service.Database{
 		Name:     fmt.Sprintf("%s-cassandra", pack.name),
-		Protocol: defaults.ProtocolMongoDB,
-		URI:      pack.mongoAddr,
+		Protocol: defaults.ProtocolCassandra,
+		URI:      pack.cassandraAddr,
 	}
 
 	conf := service.MakeDefaultConfig()
@@ -125,7 +127,14 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 			Addr:        pack.Cluster.Web,
 		},
 	}
+
 	conf.Databases.Enabled = true
+	conf.Databases.Databases = []service.Database{
+		pack.PostgresService,
+		pack.MysqlService,
+		pack.MongoService,
+		pack.CassandraService,
+	}
 	conf.Clock = clock
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	pack.dbProcess, pack.dbAuthClient, err = pack.Cluster.StartDatabase(conf)
@@ -163,28 +172,14 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	go pack.mongo.Serve()
 	t.Cleanup(func() { pack.mongo.Close() })
 
-	// Create and start test Cassandra in the root cluster.
 	pack.cassandra, err = cassandra.NewTestServer(common.TestServerConfig{
 		AuthClient: pack.dbAuthClient,
-		Name:       pack.cassandraService.Name,
+		Name:       pack.CassandraService.Name,
+		Listener:   cassandaListener,
 	})
 	require.NoError(t, err)
 	go pack.cassandra.Serve()
-	t.Cleanup(func() {
-		pack.cassandra.Close()
-	})
-	pack.cassandraService = service.Database{
-		Name:     fmt.Sprintf("%s-cassandra", pack.name),
-		Protocol: defaults.ProtocolMongoDB,
-		URI:      fmt.Sprintf("localhost:%s", pack.cassandra.Port()),
-	}
-
-	conf.Databases.Databases = []service.Database{
-		pack.PostgresService,
-		pack.MysqlService,
-		pack.MongoService,
-		pack.cassandraService,
-	}
+	t.Cleanup(func() { pack.cassandra.Close() })
 }
 
 type testOptions struct {
