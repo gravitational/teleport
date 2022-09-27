@@ -459,7 +459,7 @@ export class FeatureDesktops extends Feature {
   }
 }
 
-export default function getFeatures(): Feature[] {
+export function getOSSFeatures(): Feature[] {
   return [
     new FeatureNodes(),
     new FeatureApps(),

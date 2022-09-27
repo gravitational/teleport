@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
 import { Indicator, Text } from 'design';
@@ -22,7 +22,6 @@ import { Danger } from 'design/Alert';
 
 import { Prompt } from 'react-router-dom';
 
-import getFeatures from 'teleport/features';
 import * as main from 'teleport/Main';
 import { TopBarContainer } from 'teleport/TopBar';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -46,8 +45,6 @@ interface DiscoverProps {
 }
 
 export function Discover(props: DiscoverProps) {
-  const [features] = useState(() => getFeatures());
-
   const {
     alerts,
     initAttempt,
@@ -60,7 +57,6 @@ export function Discover(props: DiscoverProps) {
     views,
     ...agentProps
   } = useDiscover({
-    features,
     initialAlerts: props.initialAlerts,
     customBanners: props.customBanners,
   });
