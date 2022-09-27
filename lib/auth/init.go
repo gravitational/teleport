@@ -521,9 +521,6 @@ func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	if err := migrateRemoteClusters(ctx, asrv); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := migrateCertAuthorities(ctx, asrv); err != nil {
-		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
-	}
 	return nil
 }
 
@@ -1042,35 +1039,6 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-// DELETE IN: 8.0.0
-// migrateCertAuthorities migrates the keypair storage format in cert
-// authorities to the new format.
-func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
-	var errors []error
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		cas, err := asrv.Services.GetCertAuthorities(ctx, caType, true)
-		if err != nil {
-			errors = append(errors, trace.Wrap(err, "fetching %v CAs", caType))
-			continue
-		}
-		for _, ca := range cas {
-			if err := migrateCertAuthority(asrv, ca); err != nil {
-				errors = append(errors, trace.Wrap(err, "failed to migrate %v: %v", ca, err))
-				continue
-			}
-		}
-	}
-	if len(errors) > 0 {
-		log.Errorf("Failed to migrate certificate authorities to the v7 storage format.")
-		log.Errorf("Please report the *exact* errors below and *redacted* output of 'tctl get cert_authority' at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md")
-		for _, err := range errors {
-			log.Errorf("    %v", err)
-		}
-		return trace.Errorf("fail to migrate certificate authorities to the v7 storage format")
-	}
-	return nil
-}
-
 // migrateDBAuthority copies Host CA as Database CA. Before v9.0 database access was using host CA to sign all
 // DB certificates. In order to support existing installations Teleport copies Host CA as Database CA on
 // the first run after update to v9.0+.
@@ -1149,32 +1117,5 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 		}
 	}
 
-	return nil
-}
-
-func migrateCertAuthority(asrv *Server, ca types.CertAuthority) error {
-	// Check if we need to migrate.
-	if needsMigration, err := services.CertAuthorityNeedsMigration(ca); err != nil || !needsMigration {
-		return trace.Wrap(err)
-	}
-	log.Infof("Migrating %v to 7.0 storage format.", ca)
-	// CA rotation can cause weird edge cases during migration, don't allow
-	// rotation and migration in parallel.
-	if ca.GetRotation().State == types.RotationStateInProgress {
-		return trace.BadParameter("CA rotation is in progress; please finish CA rotation before upgrading teleport")
-	}
-
-	if err := services.SyncCertAuthorityKeys(ca); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Sanity-check and upsert the modified CA.
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err, "the migrated CA is invalid: %v", err)
-	}
-	if err := asrv.UpsertCertAuthority(ca); err != nil {
-		return trace.Wrap(err, "failed storing the migrated CA: %v", err)
-	}
-	log.Infof("Successfully migrated %v to 7.0 storage format.", ca)
 	return nil
 }
