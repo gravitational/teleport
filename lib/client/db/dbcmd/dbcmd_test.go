@@ -493,93 +493,22 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "elasticsearch remote proxy",
-			dbProtocol:   defaults.ProtocolElasticsearch,
-			opts:         []ConnectCommandFunc{WithLocalProxy("", 0, "") /* negate default WithLocalProxy*/},
-			execer:       &fakeExec{},
-			databaseName: "warehouse1",
-			cmd: []string{"curl",
-				"https://proxy.example.com:3080/",
-				"--key", "/tmp/keys/example.com/bob",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"--http1.1"},
-			wantErr: false,
-		},
-		{
 			name:         "elasticsearch no TLS",
 			dbProtocol:   defaults.ProtocolElasticsearch,
 			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer:       &fakeExec{},
 			databaseName: "warehouse1",
-			cmd:          []string{"curl", "http://localhost:12345/"},
-			wantErr:      false,
-		},
-		{
-			name:       "elasticsearch no TLS, python client",
-			dbProtocol: defaults.ProtocolElasticsearch,
-			opts:       []ConnectCommandFunc{WithNoTLS()},
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"python": {},
-				},
-			},
-			databaseName: "warehouse1",
-			cmd: []string{"python", "-i", "-c", `
-from elasticsearch import Elasticsearch
-print("# To connect with curl:", '''/usr/bin/curl http://localhost:12345/''')
-es = Elasticsearch('''http://localhost:12345/''')
-print("es =", es)
-print("es.search(): ", es.search())
-`},
-			wantErr: false,
-		},
-		{
-			name:       "elasticsearch with TLS, python client",
-			dbProtocol: defaults.ProtocolElasticsearch,
-			opts:       []ConnectCommandFunc{},
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"python": {},
-				},
-			},
-			databaseName: "warehouse1",
-			cmd: []string{"python", "-i", "-c", `
-from elasticsearch import Elasticsearch
-print("# To connect with curl:", '''/usr/bin/curl https://localhost:12345/ --key /tmp/keys/example.com/bob --cert /tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem''')
-es = Elasticsearch('''https://localhost:12345/''',client_key='''/tmp/keys/example.com/bob''' ,client_cert='''/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem''')
-print("es =", es)
-print("es.search(): ", es.search())
-`},
-			wantErr: false,
-		},
-		{
-			name:       "elasticsearch no TLS, use elasticsearch-sql-cli",
-			dbProtocol: defaults.ProtocolElasticsearch,
-			opts:       []ConnectCommandFunc{WithNoTLS()},
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"elasticsearch-sql-cli": {},
-				},
-			},
-			databaseName: "warehouse1",
 			cmd:          []string{"elasticsearch-sql-cli", "http://localhost:12345/"},
 			wantErr:      false,
 		},
 		{
-			name:       "elasticsearch with proxy, don't use elasticsearch-sql-cli",
-			dbProtocol: defaults.ProtocolElasticsearch,
-			opts:       []ConnectCommandFunc{},
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"elasticsearch-sql-cli": {},
-				},
-			},
+			name:         "elasticsearch with TLS, errors",
+			dbProtocol:   defaults.ProtocolElasticsearch,
+			opts:         []ConnectCommandFunc{},
+			execer:       &fakeExec{},
 			databaseName: "warehouse1",
-			cmd: []string{"curl",
-				"https://localhost:12345/",
-				"--key", "/tmp/keys/example.com/bob",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
-			wantErr: false,
+			cmd:          nil,
+			wantErr:      true,
 		},
 	}
 
@@ -612,6 +541,125 @@ print("es.search(): ", es.search())
 
 			require.NoError(t, err)
 			require.Equal(t, tt.cmd, got.Args)
+		})
+	}
+}
+
+func TestCLICommandBuilderGetConnectCommandOptions(t *testing.T) {
+	conf := &client.Config{
+		HomePath:     t.TempDir(),
+		Host:         "localhost",
+		WebProxyAddr: "proxy.example.com",
+		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
+	}
+
+	tc, err := client.NewClient(conf)
+	require.NoError(t, err)
+
+	profile := &client.ProfileStatus{
+		Name:     "example.com",
+		Username: "bob",
+		Dir:      "/tmp",
+	}
+
+	tests := []struct {
+		name         string
+		opts         []ConnectCommandFunc
+		dbProtocol   string
+		databaseName string
+		execer       *fakeExec
+		cmd          map[string][]string
+		wantErr      bool
+	}{
+		{
+			name:         "postgres no TLS",
+			dbProtocol:   defaults.ProtocolPostgres,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer:       &fakeExec{},
+			cmd:          map[string][]string{"default command": {"psql", "postgres://myUser@localhost:12345/mydb"}},
+			wantErr:      false,
+		},
+		{
+			name:         "elasticsearch with TLS",
+			dbProtocol:   defaults.ProtocolElasticsearch,
+			opts:         []ConnectCommandFunc{},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd:          map[string][]string{"run single request with cURL": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
+			wantErr:      false,
+		},
+		{
+			name:       "elasticsearch with TLS, python and SQL",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"python":                {},
+					"elasticsearch-sql-cli": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: map[string][]string{
+				"run query with Python":        {"python", "-i", "-c", "from elasticsearch import Elasticsearch\nes = Elasticsearch('''https://localhost:12345/''',client_cert='''/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem''' ,client_key='''/tmp/keys/example.com/bob''')\nprint('es.search(): ', es.search())\nprint('More about Python client: https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/overview.html ')"},
+				"run single request with cURL": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
+			wantErr: false,
+		},
+		{
+			name:       "elasticsearch with no TLS, python and SQL",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"python":                {},
+					"elasticsearch-sql-cli": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: map[string][]string{
+				"interactive SQL connection":   {"elasticsearch-sql-cli", "http://localhost:12345/"},
+				"run query with Python":        {"python", "-i", "-c", "from elasticsearch import Elasticsearch\nes = Elasticsearch('''http://localhost:12345/''')\nprint('es.search(): ', es.search())\nprint('More about Python client: https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/overview.html ')"},
+				"run single request with cURL": {"curl", "http://localhost:12345/"},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			database := &tlsca.RouteToDatabase{
+				Protocol:    tt.dbProtocol,
+				Database:    tt.databaseName,
+				Username:    "myUser",
+				ServiceName: "mysql",
+			}
+
+			opts := append([]ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithExecer(tt.execer),
+			}, tt.opts...)
+
+			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c.uid = utils.NewFakeUID()
+
+			commandOptions, err := c.GetConnectCommandOptions()
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
+
+			commands := map[string][]string{}
+			for key, cmd := range commandOptions {
+				commands[key] = cmd.Args
+			}
+
+			require.Equal(t, tt.cmd, commands)
 		})
 	}
 }
@@ -746,7 +794,7 @@ func TestPythonKeywordArgs(t *testing.T) {
 				"bar": "123",
 				"baz": "'''dummy'''",
 			},
-			want: ",foo=False ,bar=123 ,baz='''dummy'''",
+			want: ",bar=123 ,baz='''dummy''' ,foo=False",
 		},
 	}
 	for _, tt := range tests {

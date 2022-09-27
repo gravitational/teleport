@@ -24,11 +24,13 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
+	"unicode"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -316,6 +318,33 @@ func proxySession(ctx context.Context, sess *tracessh.Session) error {
 	return trace.NewAggregate(errs...)
 }
 
+// formatCommand formats command making it suitable for the end user to copy the command and paste it into terminal.
+func formatCommand(cmd *exec.Cmd) string {
+	// environment variables
+	env := strings.Join(cmd.Env, " ")
+
+	var args []string
+	for _, arg := range cmd.Args {
+		// escape the potential quotes within
+		arg = strings.Replace(arg, `"`, `\"`, -1)
+
+		// if there is whitespace within, surround with quotes
+		if strings.IndexFunc(arg, unicode.IsSpace) != -1 {
+			args = append(args, fmt.Sprintf(`"%s"`, arg))
+		} else {
+			args = append(args, arg)
+		}
+	}
+
+	argsfmt := strings.Join(args, " ")
+
+	if len(env) > 0 {
+		return fmt.Sprintf("%s %s", env, argsfmt)
+	}
+
+	return argsfmt
+}
+
 func onProxyCommandDB(cf *CLIConf) error {
 	client, err := makeClient(cf, false)
 	if err != nil {
@@ -383,24 +412,46 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		cmdMap, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
-		).GetConnectCommand()
+		).GetConnectCommandOptions()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
+
+		// shared template arguments
+		templateArgs := map[string]any{
 			"database": routeToDatabase.ServiceName,
 			"type":     dbProtocolToText(routeToDatabase.Protocol),
 			"cluster":  client.SiteName,
-			"command":  fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()),
 			"address":  listener.Addr().String(),
-		})
-		if err != nil {
+		}
+
+		// format the command line
+		fmtMap := map[string]string{}
+		for key, cmd := range cmdMap {
+			fmtMap[key] = formatCommand(cmd)
+		}
+
+		// there is only one command, use plain template.
+		if len(fmtMap) == 1 {
+			var cmd string
+			for _, c := range fmtMap {
+				cmd = c
+			}
+			templateArgs["command"] = cmd
+			err = dbProxyAuthTpl.Execute(os.Stdout, templateArgs)
 			return trace.Wrap(err)
+		} else {
+			// multiple command options, use a different template.
+			templateArgs["commands"] = fmtMap
+			err = dbProxyAuthMultiTpl.Execute(os.Stdout, templateArgs)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]string{
@@ -676,6 +727,18 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 
 Use the following command to connect to the database:
   $ {{.command}}
+`))
+
+// dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.
+var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
+	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
+
+Use one of the following commands to connect to the database:
+{{range $key, $value := .commands}}
+  * {{$key}}: 
+
+  $ {{$value}}
+{{end}}
 `))
 
 const (

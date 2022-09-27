@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -179,10 +180,26 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 		return c.getSnowflakeCommand(), nil
 
 	case defaults.ProtocolElasticsearch:
-		return c.getElasticsearchCommand(), nil
+		return c.getElasticsearchCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
+}
+
+// GetConnectCommandOptions returns optional connection commands for protocols that offer multiple options.
+// Otherwise, it falls back to GetConnectCommand.
+// The keys in the returned map are command descriptions suitable for display to the end user.
+func (c *CLICommandBuilder) GetConnectCommandOptions() (map[string]*exec.Cmd, error) {
+	switch c.db.Protocol {
+	case defaults.ProtocolElasticsearch:
+		return c.getElasticsearchAlternativeCommands(), nil
+	}
+
+	cmd, err := c.GetConnectCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return map[string]*exec.Cmd{"default command": cmd}, nil
 }
 
 // GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
@@ -555,6 +572,8 @@ func pythonKeywordArgs(args map[string]string) string {
 		els = append(els, fmt.Sprintf(",%v=%v", key, value))
 	}
 
+	sort.Strings(els)
+
 	return strings.Join(els, " ")
 }
 
@@ -562,17 +581,23 @@ func pythonKeywordArgs(args map[string]string) string {
 // - we default to `elasticsearch-sql-cli` if we can find it;
 // - a first fallback option is Python with `elasticsearch` package available;
 // - the last option is a `curl` command.
-func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
+	if c.options.noTLS {
+		return c.options.exe.Command(elasticsearchSqlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
+	} else {
+		return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSqlBin)
+	}
+}
+
+func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() map[string]*exec.Cmd {
+	commands := map[string]*exec.Cmd{}
 	if c.isElasticsearchSqlBinAvailable() {
-		if c.options.noTLS {
-			return c.options.exe.Command(elasticsearchSqlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
-		} else {
-			c.options.log.Warnf("%v is only supported in --tunnel mode, moving to next client.", elasticsearchSqlBin)
+		if cmd, err := c.getElasticsearchCommand(); err == nil {
+			commands["interactive SQL connection"] = cmd
 		}
 	}
 
 	var curlCommand *exec.Cmd
-
 	if c.options.noTLS {
 		curlCommand = c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
 	} else {
@@ -598,6 +623,7 @@ func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
 
 		curlCommand = c.options.exe.Command(curlBin, args...)
 	}
+	commands["run single request with cURL"] = curlCommand
 
 	if pythonBin, found := c.findPythonBin(); found {
 		if c.checkPythonPackage(pythonBin, "elasticsearch") {
@@ -619,25 +645,20 @@ func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
 				}
 			}
 
-			esPart := fmt.Sprintf("es = Elasticsearch(%v%v)", pythonStringLiteral(esHost), pythonKeywordArgs(kwArgs))
-			script := `
-from elasticsearch import Elasticsearch
-print("# To connect with curl:", %v)
-%v
-print("es =", es)
-print("es.search(): ", es.search())
-`
-
-			script = fmt.Sprintf(script, pythonStringLiteral(curlCommand.String()), esPart)
+			script := `from elasticsearch import Elasticsearch
+es = Elasticsearch(%v%v)
+print('es.search(): ', es.search())
+print('More about Python client: https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/overview.html ')`
+			script = fmt.Sprintf(script, pythonStringLiteral(esHost), pythonKeywordArgs(kwArgs))
 			pythonCommand := c.options.exe.Command(pythonBin, "-i", "-c", script)
 
 			c.options.log.Debugf("Final Python invocation for Elasticsearch access: %v", pythonCommand.String())
 
-			return pythonCommand
+			commands["run query with Python"] = pythonCommand
 		}
 	}
 
-	return curlCommand
+	return commands
 }
 
 type connectionCommandOpts struct {

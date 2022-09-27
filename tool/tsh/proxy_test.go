@@ -587,3 +587,46 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 	}
 	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
 }
+
+func TestFormatCommand(t *testing.T) {
+	setEnv := func(command *exec.Cmd, envs ...string) *exec.Cmd {
+		for _, env := range envs {
+			command.Env = append(command.Env, env)
+		}
+		return command
+	}
+
+	tests := []struct {
+		name string
+		cmd  *exec.Cmd
+		want string
+	}{
+		{
+			name: "simple command",
+			cmd:  exec.Command("echo", "hello"),
+			want: "echo hello",
+		},
+		{
+			name: "whitespace arguments",
+			cmd: exec.Command("echo", "hello world", "return\n\r", `1
+2
+3`),
+			want: "echo \"hello world\" \"return\n\r\" \"1\n2\n3\"",
+		},
+		{
+			name: "args and env",
+			cmd:  setEnv(exec.Command("echo", "hello"), "DEBUG=1", "RUN=YES"),
+			want: "DEBUG=1 RUN=YES echo hello",
+		},
+		{
+			name: "args, whitespace and env",
+			cmd:  setEnv(exec.Command("echo", "hello\"\nworld"), "DEBUG=1", "RUN=YES"),
+			want: "DEBUG=1 RUN=YES echo \"hello\\\"\nworld\"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, formatCommand(tt.cmd))
+		})
+	}
+}
