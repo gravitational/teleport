@@ -165,46 +165,43 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := service.NewContainerClient(sessionContainerName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	ensureContainer := func(name string) (*azblob.ContainerClient, error) {
+		container, err := service.NewContainerClient(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	inprogress, err := service.NewContainerClient(inprogressContainerName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := cErr2(session.GetProperties(ctx, nil)); err != nil {
+		_, err = cErr2(container.GetProperties(ctx, nil))
+		if err == nil {
+			return container, nil
+		}
 		if !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		}
-		cfg.Log.WithError(err).Debug("Failed to confirm that the " + sessionContainerName + " container exists, attempting creation.")
+
+		cfg.Log.WithError(err).Debugf("Failed to confirm that the %v container exists, attempting creation.", name)
 		// someone else might've created the container between GetProperties and
 		// Create, so we ignore AlreadyExists
-		if _, err := cErr2(session.Create(ctx, nil)); err != nil && !trace.IsAlreadyExists(err) {
-			if !trace.IsAccessDenied(err) {
-				return nil, trace.Wrap(err)
-			}
-			cfg.Log.WithError(err).Warn(
-				"Could not create the " + sessionContainerName + " container, please ensure it exists or session recordings will not be stored correctly.")
+		_, err = cErr2(container.Create(ctx, nil))
+		if err == nil || trace.IsAlreadyExists(err) {
+			return container, nil
 		}
+		if trace.IsAccessDenied(err) {
+			cfg.Log.WithError(err).Warnf(
+				"Could not create the %v container, please ensure it exists or session recordings will not be stored correctly.", name)
+			return container, nil
+		}
+		return nil, trace.Wrap(err)
 	}
 
-	if _, err := cErr2(inprogress.GetProperties(ctx, nil)); err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		cfg.Log.WithError(err).Debug("Failed to confirm that the " + inprogressContainerName + " container exists, attempting creation.")
-		// someone else might've created the container between GetProperties and
-		// Create, so we ignore AlreadyExists
-		if _, err := cErr2(inprogress.Create(ctx, nil)); err != nil && !trace.IsAlreadyExists(err) {
-			if !trace.IsAccessDenied(err) {
-				return nil, trace.Wrap(err)
-			}
-			cfg.Log.WithError(err).Warn(
-				"Could not create the " + inprogressContainerName + " container, please ensure it exists or session recordings will not be stored correctly.")
-		}
+	session, err := ensureContainer(sessionContainerName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inprogress, err := ensureContainer(inprogressContainerName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &Handler{c: cfg, cred: cred, session: session, inprogress: inprogress}, nil
