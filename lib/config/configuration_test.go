@@ -1215,7 +1215,7 @@ func TestParseCachePolicy(t *testing.T) {
 }
 
 func checkStaticConfig(t *testing.T, conf *FileConfig) {
-	require.Equal(t, conf.JoinParams.TokenName, "xxxyyy")
+	require.Equal(t, conf.AuthToken, "xxxyyy")
 	require.Equal(t, conf.AdvertiseIP, "10.10.10.1:3022")
 	require.Equal(t, conf.PIDFile, "/var/run/teleport.pid")
 
