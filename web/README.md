@@ -91,6 +91,15 @@ To turn them off, set `WEBPACK_SOURCE_MAP` to `none` -
 $ WEBPACK_SOURCE_MAP=none yarn start-teleport --target=https://example.com:3080/web
 ```
 
+#### Changing the port Webpack runs on
+
+To make Webpack listen on a different port, you can set the `WEBPACK_PORT` environment variable
+to whatever port you need.
+
+```
+$ WEBPACK_PORT=6060 yarn start-teleport --target=https://example.com:3080/web
+```
+
 #### Custom HTTPS configuration
 
 If you'd like to provide your own key/certificate for Webpack's development server, you can
