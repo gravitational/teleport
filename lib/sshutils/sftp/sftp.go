@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -189,22 +190,23 @@ func (c *Config) initFS(ctx context.Context, sshClient *ssh.Client, client *sftp
 		haveRemoteFS = true
 	}
 
-	if haveRemoteFS {
-		if c.getHomeDir == nil {
-			c.getHomeDir = func() (_ string, err error) {
-				// if home directory has already been cached, just return it
-				if c.homeDir != "" {
-					return c.homeDir, nil
-				}
-
-				c.homeDir, err = getRemoteHomeDir(sshClient)
-				return c.homeDir, err
-			}
-		}
-		return trace.Wrap(c.expandPaths(srcOK, dstOK))
+	if !haveRemoteFS {
+		return nil
 	}
 
-	return nil
+	if c.getHomeDir == nil {
+		c.getHomeDir = func() (_ string, err error) {
+			// if home directory has already been cached, just return it
+			if c.homeDir != "" {
+				return c.homeDir, nil
+			}
+
+			c.homeDir, err = getRemoteHomeDir(sshClient)
+			return c.homeDir, err
+		}
+	}
+	return trace.Wrap(c.expandPaths(srcOK, dstOK))
+
 }
 
 func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
@@ -238,14 +240,18 @@ func expandPath(path string, getHomeDir homeDirRetriever) (string, error) {
 	return filepath.Join(homeDir, path[1:]), nil
 }
 
-// needsExpansion returns true if path is '~' or begins with '~/'
+// needsExpansion returns true if path is '~', '~/', or '~\' on Windows
 func needsExpansion(path string) bool {
 	if len(path) == 1 {
 		return path == "~"
 	}
 
-	path = filepath.ToSlash(path)
-	return strings.HasPrefix(path, "~"+string(filepath.Separator))
+	// allow '~\' or '~/' on Windows since '\' is the canonical path
+	// separator but some users may use '/' instead
+	if runtime.GOOS == "windows" && strings.HasPrefix(path, `~\`) {
+		return true
+	}
+	return strings.HasPrefix(path, "~/")
 }
 
 // getRemoteHomeDir returns the home directory of the remote user of
@@ -278,7 +284,7 @@ func (c *Config) transfer(ctx context.Context) error {
 	dstInfo, err := c.dstFS.Stat(ctx, c.dstPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			return trace.Errorf("error accessing %s path %q: %v", c.dstFS.Type(), c.dstPath, err)
+			return trace.NotFound("error accessing %s path %q: %v", c.dstFS.Type(), c.dstPath, err)
 		}
 		// if there are multiple source paths and the destination path
 		// doesn't exist, create it as a directory

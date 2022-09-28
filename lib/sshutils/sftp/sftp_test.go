@@ -348,9 +348,7 @@ func createFile(t *testing.T, rootDir, path string) {
 
 func createDir(t *testing.T, rootDir, path string) {
 	err := os.MkdirAll(filepath.Join(rootDir, path), 0o775)
-	if err != nil {
-		t.Fatalf("error creating directory: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string) {
