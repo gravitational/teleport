@@ -914,7 +914,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		if fc.Version != defaults.TeleportConfigVersionV1 {
+		if fc.Version != "" && fc.Version != defaults.TeleportConfigVersionV1 {
 			cfg.Proxy.Kube.Enabled = true
 		}
 	}
