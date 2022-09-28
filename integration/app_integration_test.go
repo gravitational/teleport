@@ -103,13 +103,13 @@ func (p *pack) appAccessForward(t *testing.T) {
 	}{
 		{
 			desc:          "root cluster, valid application session cookie, success",
-			inCookie:      p.createAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
+			inCookie:      p.createAppSession(t, p.rootAppPublicAddr, p.rootAppName, p.rootAppURI, p.rootAppClusterName, false),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid application session cookie, success",
-			inCookie:      p.createAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName),
+			inCookie:      p.createAppSession(t, p.leafAppPublicAddr, p.leafAppName, p.leafAppURI, p.leafAppClusterName, false),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.leafMessage,
 		},
@@ -141,22 +141,22 @@ func (p *pack) appAccessWebsockets(t *testing.T) {
 	}{
 		{
 			desc:       "root cluster, valid application session cookie, successful websocket (ws://) request",
-			inCookie:   p.createAppSession(t, p.rootWSPublicAddr, p.rootAppClusterName),
+			inCookie:   p.createAppSession(t, p.rootWSPublicAddr, p.rootWSAppName, p.rootWSAppURI, p.rootAppClusterName, false),
 			outMessage: p.rootWSMessage,
 		},
 		{
 			desc:       "root cluster, valid application session cookie, successful secure websocket (wss://) request",
-			inCookie:   p.createAppSession(t, p.rootWSSPublicAddr, p.rootAppClusterName),
+			inCookie:   p.createAppSession(t, p.rootWSSPublicAddr, p.rootWSSAppName, p.rootWSSAppURI, p.rootAppClusterName, false),
 			outMessage: p.rootWSSMessage,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful websocket (ws://) request",
-			inCookie:   p.createAppSession(t, p.leafWSPublicAddr, p.leafAppClusterName),
+			inCookie:   p.createAppSession(t, p.leafWSPublicAddr, p.leafWSAppName, p.leafWSAppURI, p.leafAppClusterName, false),
 			outMessage: p.leafWSMessage,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful secure websocket (wss://) request",
-			inCookie:   p.createAppSession(t, p.leafWSSPublicAddr, p.leafAppClusterName),
+			inCookie:   p.createAppSession(t, p.leafWSSPublicAddr, p.leafWSSAppName, p.leafWSSAppURI, p.leafAppClusterName, false),
 			outMessage: p.leafWSSMessage,
 		},
 		{
@@ -259,7 +259,7 @@ func (p *pack) appAccessFlush(t *testing.T) {
 	req, err := http.NewRequest("GET", p.assembleRootProxyURL("/"), nil)
 	require.NoError(t, err)
 
-	cookie := p.createAppSession(t, p.flushAppPublicAddr, p.flushAppClusterName)
+	cookie := p.createAppSession(t, p.flushAppPublicAddr, p.flushAppName, p.flushAppURI, p.flushAppClusterName, false)
 	req.AddCookie(&http.Cookie{
 		Name:  app.CookieName,
 		Value: cookie,
@@ -315,13 +315,13 @@ func (p *pack) appAccessForwardModes(t *testing.T) {
 	}{
 		{
 			desc:          "root cluster, valid application session cookie, success",
-			inCookie:      p.createAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
+			inCookie:      p.createAppSession(t, p.rootAppPublicAddr, p.rootAppName, p.rootAppURI, p.rootAppClusterName, false),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid application session cookie, success",
-			inCookie:      p.createAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName),
+			inCookie:      p.createAppSession(t, p.leafAppPublicAddr, p.leafAppName, p.leafAppURI, p.leafAppClusterName, false),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.leafMessage,
 		},
@@ -340,7 +340,7 @@ func (p *pack) appAccessForwardModes(t *testing.T) {
 // appAccessLogout verifies the session is removed from the backend when the user logs out.
 func (p *pack) appAccessLogout(t *testing.T) {
 	// Create an application session.
-	appCookie := p.createAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	appCookie := p.createAppSession(t, p.rootAppPublicAddr, p.rootAppName, p.rootAppURI, p.rootAppClusterName, false)
 
 	// Log user out of session.
 	status, _, err := p.makeRequest(appCookie, http.MethodGet, "/teleport-logout")
@@ -357,7 +357,7 @@ func (p *pack) appAccessLogout(t *testing.T) {
 // be validated.
 func (p *pack) appAccessJWT(t *testing.T) {
 	// Create an application session.
-	appCookie := p.createAppSession(t, p.jwtAppPublicAddr, p.jwtAppClusterName)
+	appCookie := p.createAppSession(t, p.jwtAppPublicAddr, p.jwtAppName, p.jwtAppURI, p.jwtAppClusterName, false)
 
 	// Get JWT.
 	status, token, err := p.makeRequest(appCookie, http.MethodGet, "/")
@@ -368,7 +368,7 @@ func (p *pack) appAccessJWT(t *testing.T) {
 	verifyJWT(t, p, token, p.jwtAppURI)
 
 	// Connect to websocket application that dumps the upgrade request.
-	wsCookie := p.createAppSession(t, p.wsHeaderAppPublicAddr, p.wsHeaderAppClusterName)
+	wsCookie := p.createAppSession(t, p.wsHeaderAppPublicAddr, p.wsHeaderAppName, p.wsHeaderAppURI, p.wsHeaderAppClusterName, false)
 	body, err := p.makeWebsocketRequest(wsCookie, "/")
 	require.NoError(t, err)
 
@@ -415,7 +415,7 @@ func verifyJWT(t *testing.T, pack *pack, token, appURI string) {
 // by values passed in by the user.
 func (p *pack) appAccessNoHeaderOverrides(t *testing.T) {
 	// Create an application session.
-	appCookie := p.createAppSession(t, p.headerAppPublicAddr, p.headerAppClusterName)
+	appCookie := p.createAppSession(t, p.headerAppPublicAddr, p.headerAppName, p.headerAppURI, p.headerAppClusterName, false)
 
 	// Get HTTP headers forwarded to the application.
 	status, origHeaderResp, err := p.makeRequest(appCookie, http.MethodGet, "/")
@@ -452,7 +452,7 @@ func (p *pack) appAccessNoHeaderOverrides(t *testing.T) {
 // rewrite configuration are correctly passed to proxied applications in root.
 func (p *pack) appAccessRewriteHeadersRoot(t *testing.T) {
 	// Create an application session for dumper app in root cluster.
-	appCookie := p.createAppSession(t, "dumper-root.example.com", "example.com")
+	appCookie := p.createAppSession(t, "dumper-root.example.com", "dumper-root", "dumper-host", "example.com", false)
 
 	// Get headers response and make sure headers were passed.
 	status, resp, err := p.makeRequest(appCookie, http.MethodGet, "/", service.Header{
@@ -485,7 +485,7 @@ func (p *pack) appAccessRewriteHeadersRoot(t *testing.T) {
 // rewrite configuration are correctly passed to proxied applications in leaf.
 func (p *pack) appAccessRewriteHeadersLeaf(t *testing.T) {
 	// Create an application session for dumper app in leaf cluster.
-	appCookie := p.createAppSession(t, "dumper-leaf.example.com", "leaf.example.com")
+	appCookie := p.createAppSession(t, "dumper-leaf.example.com", "dumper-leaf", "dumper-host", "leaf.example.com", false)
 
 	// Get headers response and make sure headers were passed.
 	status, resp, err := p.makeRequest(appCookie, http.MethodGet, "/", service.Header{
@@ -509,58 +509,75 @@ func (p *pack) appAccessRewriteHeadersLeaf(t *testing.T) {
 }
 
 func (p *pack) appAuditEvents(t *testing.T) {
-	inCookie := p.createAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	for _, useWebAPI := range []bool{false, true} {
+		appUUID, err := uuid.NewUUID()
+		require.NoError(t, err)
+		appName := appUUID.String()
 
-	status, body, err := p.makeRequest(inCookie, http.MethodGet, "/")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, body, p.rootMessage)
+		startTime := time.Now()
+		inCookie := p.createAppSession(t, p.rootAppPublicAddr, appName, p.rootAppURI, p.rootAppClusterName, useWebAPI)
 
-	// session start event
-	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
-		expectedEvent := &apievents.AppSessionStart{
-			Metadata: apievents.Metadata{
-				Type:        events.AppSessionStartEvent,
-				Code:        events.AppSessionStartCode,
-				ClusterName: p.rootAppClusterName,
-			},
-			AppMetadata: apievents.AppMetadata{
-				AppURI:        p.rootAppURI,
-				AppPublicAddr: p.rootAppPublicAddr,
-				AppName:       p.rootAppName,
-			},
-			PublicAddr: p.rootAppPublicAddr,
-		}
-		require.Empty(t, cmp.Diff(
-			expectedEvent,
-			event,
-			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
-		))
-	})
+		status, body, err := p.makeRequest(inCookie, http.MethodGet, "/")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Contains(t, body, p.rootMessage)
 
-	// session chunk event
-	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
-		expectedEvent := &apievents.AppSessionChunk{
-			Metadata: apievents.Metadata{
-				Type:        events.AppSessionChunkEvent,
-				Code:        events.AppSessionChunkCode,
-				ClusterName: p.rootAppClusterName,
-			},
-			AppMetadata: apievents.AppMetadata{
-				AppURI:        p.rootAppURI,
-				AppPublicAddr: p.rootAppPublicAddr,
-				AppName:       p.rootAppName,
-			},
-		}
-		require.Empty(t, cmp.Diff(
-			expectedEvent,
-			event,
-			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
-			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
-		))
-	})
+		// session start event
+		p.ensureAuditEvent(t, events.AppSessionStartEvent, startTime, func(event apievents.AuditEvent) bool {
+			apiSessionStartEvent := event.(*apievents.AppSessionStart)
+			return apiSessionStartEvent.AppMetadata.AppName == appName
+		},
+			func(event apievents.AuditEvent) {
+				expectedEvent := &apievents.AppSessionStart{
+					Metadata: apievents.Metadata{
+						Type:        events.AppSessionStartEvent,
+						Code:        events.AppSessionStartCode,
+						ClusterName: p.rootAppClusterName,
+					},
+					AppMetadata: apievents.AppMetadata{
+						AppURI:        p.rootAppURI,
+						AppPublicAddr: p.rootAppPublicAddr,
+						AppName:       appName,
+					},
+					PublicAddr: p.rootAppPublicAddr,
+				}
+				require.Empty(t, cmp.Diff(
+					expectedEvent,
+					event,
+					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+				))
+				require.True(t, event.GetTime().After(startTime))
+			})
+
+		// session chunk event
+		p.ensureAuditEvent(t, events.AppSessionChunkEvent, startTime, func(event apievents.AuditEvent) bool {
+			apiSessionStartEvent := event.(*apievents.AppSessionChunk)
+			return apiSessionStartEvent.AppMetadata.AppName == appName
+		},
+			func(event apievents.AuditEvent) {
+				expectedEvent := &apievents.AppSessionChunk{
+					Metadata: apievents.Metadata{
+						Type:        events.AppSessionChunkEvent,
+						Code:        events.AppSessionChunkCode,
+						ClusterName: p.rootAppClusterName,
+					},
+					AppMetadata: apievents.AppMetadata{
+						AppURI:        p.rootAppURI,
+						AppPublicAddr: p.rootAppPublicAddr,
+						AppName:       appName,
+					},
+				}
+				require.Empty(t, cmp.Diff(
+					expectedEvent,
+					event,
+					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
+					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+				))
+				require.True(t, event.GetTime().After(startTime))
+			})
+	}
 }
 
 func (p *pack) appServersHA(t *testing.T) {
@@ -568,6 +585,8 @@ func (p *pack) appServersHA(t *testing.T) {
 		clusterName    string
 		publicHTTPAddr string
 		publicWSAddr   string
+		appName        string
+		appURI         string
 		appServers     []*service.TeleportProcess
 	}
 
@@ -582,6 +601,8 @@ func (p *pack) appServersHA(t *testing.T) {
 					clusterName:    pack.rootAppClusterName,
 					publicHTTPAddr: pack.rootAppPublicAddr,
 					publicWSAddr:   pack.rootWSPublicAddr,
+					appName:        pack.rootAppName,
+					appURI:         pack.rootAppURI,
 					appServers:     pack.rootAppServers,
 				}
 			},
@@ -598,6 +619,8 @@ func (p *pack) appServersHA(t *testing.T) {
 					clusterName:    pack.leafAppClusterName,
 					publicHTTPAddr: pack.leafAppPublicAddr,
 					publicWSAddr:   pack.leafWSPublicAddr,
+					appName:        pack.leafAppName,
+					appURI:         pack.leafAppURI,
 					appServers:     pack.leafAppServers,
 				}
 			},
@@ -643,8 +666,8 @@ func (p *pack) appServersHA(t *testing.T) {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
 			info := test.packInfo(p)
-			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
-			wsCookie := p.createAppSession(t, info.publicWSAddr, info.clusterName)
+			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.appName, info.appURI, info.clusterName, false)
+			wsCookie := p.createAppSession(t, info.publicWSAddr, info.appName, info.appURI, info.clusterName, false)
 
 			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 
@@ -693,7 +716,7 @@ func (p *pack) appInvalidateAppSessionsOnLogout(t *testing.T) {
 	})
 
 	// Create an application session.
-	appCookie := p.createAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	appCookie := p.createAppSession(t, p.rootAppPublicAddr, p.rootAppName, p.rootAppURI, p.rootAppClusterName, false)
 
 	// Issue a request to the application to guarantee everything is working correctly.
 	status, _, err := p.makeRequest(appCookie, http.MethodGet, "/")
@@ -1230,25 +1253,38 @@ func (p *pack) initTeleportClient(t *testing.T) {
 
 // createAppSession creates an application session with the root cluster. The
 // application that the user connects to may be running in a leaf cluster.
-func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) string {
+func (p *pack) createAppSession(t *testing.T, publicAddr, appName, appURI, clusterName string, useWebAPI bool) string {
 	require.NotEmpty(t, p.webCookie)
 	require.NotEmpty(t, p.webToken)
 
-	casReq, err := json.Marshal(web.CreateAppSessionRequest{
-		FQDNHint:    publicAddr,
+	if useWebAPI {
+		casReq, err := json.Marshal(web.CreateAppSessionRequest{
+			FQDNHint:    publicAddr,
+			PublicAddr:  publicAddr,
+			ClusterName: clusterName,
+		})
+		require.NoError(t, err)
+		statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, statusCode)
+
+		var casResp *web.CreateAppSessionResponse
+		err = json.Unmarshal(body, &casResp)
+		require.NoError(t, err)
+
+		return casResp.CookieValue
+	}
+
+	session, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.username,
 		PublicAddr:  publicAddr,
+		AppName:     appName,
+		AppURI:      appURI,
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
-	statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, statusCode)
 
-	var casResp *web.CreateAppSessionResponse
-	err = json.Unmarshal(body, &casResp)
-	require.NoError(t, err)
-
-	return casResp.CookieValue
+	return session.GetName()
 }
 
 // makeWebapiRequest makes a request to the root cluster Web API.
@@ -1275,11 +1311,11 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 	return statusCode, []byte(body), trace.Wrap(err)
 }
 
-func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
+func (p *pack) ensureAuditEvent(t *testing.T, eventType string, startTime time.Time, isMatch func(event apievents.AuditEvent) bool, checkEvent func(event apievents.AuditEvent)) {
 	require.Eventuallyf(t, func() bool {
 		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(
-			time.Now().Add(-time.Hour),
-			time.Now().Add(time.Hour),
+			startTime,
+			time.Now(),
 			apidefaults.Namespace,
 			[]string{eventType},
 			1,
@@ -1291,7 +1327,13 @@ func (p *pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(
 			return false
 		}
 
-		checkEvent(events[0])
+		// Match against the first event that returns true for the given predicate.
+		for _, event := range events {
+			if isMatch(event) {
+				checkEvent(event)
+				break
+			}
+		}
 		return true
 	}, 500*time.Millisecond, 50*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
 }
