@@ -319,6 +319,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	errs := make(chan error, 2)
 
 	go func() {
+		enc := tdp.PNGEncoder()
 		defer closeOnce.Do(close)
 
 		// we avoid using io.Copy here, as we want to make sure
@@ -339,6 +340,11 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 			if err != nil {
 				errs <- err
 				return
+			}
+
+			// reuse the same encoder when re-encoding PNGs
+			if png, ok := msg.(tdp.PNGFrame); ok {
+				msg = tdp.NewPNG(png.Img, enc)
 			}
 
 			encoded, err := msg.Encode()
