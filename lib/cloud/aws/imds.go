@@ -70,8 +70,7 @@ func (client *InstanceMetadataClient) GetType() types.InstanceMetadataType {
 	return types.InstanceMetadataTypeEC2
 }
 
-// EC2 resource ID is i-{8 or 17 hex digits}, see
-// 	https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+// EC2 resource ID is i-{8 or 17 hex digits}, see https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
 var ec2ResourceIDRE = regexp.MustCompile("^i-[0-9a-f]{8}([0-9a-f]{9})?$")
 
 // IsAvailable checks if instance metadata is available.
