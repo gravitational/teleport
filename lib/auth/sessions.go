@@ -18,17 +18,23 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"google.golang.org/grpc/peer"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -66,6 +72,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	appSessionID := uuid.New().String()
 	certs, err := s.generateUserCert(certRequest{
 		user:           user,
 		publicKey:      publicKey,
@@ -76,7 +83,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New().String(),
+		appSessionID:   appSessionID,
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
@@ -103,6 +110,78 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err = s.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// User metadata from the audit event
+	userMetadata := identity.GetUserMetadata()
+	userMetadata.User = session.GetUser()
+	userMetadata.AWSRoleARN = req.AWSRoleARN
+
+	// Record peer for the address of the requesting connection.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.Wrap(errors.New("unable to get peer from context"))
+	}
+
+	// Lookup the application using the requested public address.
+	allApps, err := s.GetApps(ctx) // Start by listing dynamic apps
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appServers, err := s.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var app types.Application
+	for _, appServer := range appServers {
+		allApps = append(allApps, appServer.GetApp())
+	}
+
+	for _, currentApp := range allApps {
+		// Make sure the user has access to the app
+		err := checker.CheckAccess(currentApp, services.AccessMFAParams{Verified: true})
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil && currentApp.GetPublicAddr() == req.PublicAddr {
+			app = currentApp
+			break
+		}
+	}
+	if app == nil {
+		return nil, trace.Wrap(fmt.Errorf("unable to find application with public address: %s", req.PublicAddr))
+	}
+
+	// Now that the certificate has been issued, emit a "new session created"
+	// for all events associated with this certificate.
+	appSessionStartEvent := &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionStartEvent,
+			Code:        events.AppSessionStartCode,
+			ClusterName: identity.RouteToApp.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        s.ServerID,
+			ServerNamespace: apidefaults.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: appSessionID,
+			WithMFA:   identity.MFAVerified,
+		},
+		UserMetadata: identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: p.Addr.String(),
+		},
+		PublicAddr: req.PublicAddr,
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppName:       app.GetName(),
+		},
+	}
+	if err := s.emitter.EmitAuditEvent(ctx, appSessionStartEvent); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
 	UserLoginCount.Inc()
 	return session, nil
