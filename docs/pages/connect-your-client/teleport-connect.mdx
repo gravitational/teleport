@@ -31,8 +31,6 @@ further user input.
 
 Repeat the process with newer versions to upgrade.
 </TabItem>
-<TabItem label="From Source">
-</TabItem>
 </Tabs>
 
 ## User interface
@@ -58,7 +56,7 @@ The top bar of Teleport Connect consists of:
 1. Select or enter the SSH user you wish to log in as and press `Enter`.
 1. A new tab will open with a shell session on the chosen server.
 
-Alternatively, on macOS you can type `tsh ssh` into the command bar and the autocompletion will help
+Alternatively, you can type `tsh ssh` into the command bar in the Teleport Connect window, and the autocompletion will help
 you connect to a server.
 
 ## Connecting to a database
@@ -128,8 +126,8 @@ all remembered tabs and connections.
 </TabItem>
 <TabItem label="Windows">
 To force the app to log you out of all clusters, close the app and remove the
-`C:\Users\yourUser\AppData\Roaming\Teleport Connect\tsh` folder. Removing the file
-`C:\Users\yourUser\AppData\Roaming\Teleport Connect\app_state.json` will clear all remembered tabs
+`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\tsh` folder. Removing the file
+`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_state.json` will clear all remembered tabs
 and connections.
 </TabItem>
 </Tabs>
@@ -146,11 +144,11 @@ The version of the app can be found in the app menu under the About Teleport Con
 </TabItem>
 <TabItem label="Linux">
 Be sure to attach logs which can be found under `~/.config/Teleport Connect/logs`. The app version
-can be found by pressing `Alt` to access the app menu -> Help -> About Teleport Connect
+can be found by pressing `Alt` to access the app menu, then -> Help -> About Teleport Connect.
 </TabItem>
 <TabItem label="Windows">
 Be sure to attach logs which can be found under `C:\Users\yourUser\AppData\Roaming\Teleport Connect\logs`.
-The app version can be found by pressing `Alt` to access the app menu -> Help -> About Teleport Connect
+The app version can be found by pressing `Alt` to access the app menu -> Help -> About Teleport Connect.
 </TabItem>
 </Tabs>
 
@@ -187,10 +185,10 @@ $ teleport-connect --insecure
 ````
 </TabItem>
 <TabItem label="Windows">
-From the Command prompt, open Teleport Connect with the `--insecure` flag:
+From the Command Prompt, open Teleport Connect with the `--insecure` flag:
 
 ```code
-$ "C:\Users\yourUser\AppData\Local\Programs\teleport-connect\Teleport Connect.exe" --insecure
+$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>
