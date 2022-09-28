@@ -24,10 +24,10 @@ load fixtures/common
     cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^  proxy_server:" -A1 | grep -q "${TELEPORT_PROXY_SERVER_LB?}"
 }
 
-@test "[${TEST_SUITE?}] teleport.join_params.token_name is set correctly" {
+@test "[${TEST_SUITE?}] teleport.auth_token is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     cat "${TELEPORT_CONFIG_PATH?}"
-    cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^    token_name:" -A1 | grep -q "${TELEPORT_JOIN_TOKEN?}"
+    cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^  auth_token:" -A1 | grep -q "${TELEPORT_JOIN_TOKEN?}"
 }
 
 @test "[${TEST_SUITE?}] auth_service is not enabled" {
