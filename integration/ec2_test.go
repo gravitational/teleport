@@ -63,7 +63,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
-	config.AuthServers = append(config.AuthServers, authAddr)
+	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
@@ -84,7 +84,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.Proxy.EnableProxyProtocol = true
 
 	config.DataDir = t.TempDir()
-	config.AuthServers = append(config.AuthServers, authAddr)
+	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return config
@@ -107,7 +107,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, config.Auth.ListenAddr)
+	config.SetAuthServerAddress(config.Auth.ListenAddr)
 	config.Auth.StorageConfig = storageConfig
 	config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -158,12 +158,15 @@ func TestEC2NodeJoin(t *testing.T) {
 	token, err := types.NewProvisionTokenFromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
-		types.ProvisionTokenSpecV2{
-			Roles: []types.SystemRole{types.RoleNode},
-			Allow: []*types.TokenRule{
-				{
-					AWSAccount: iid.AccountID,
-					AWSRegions: []string{iid.Region},
+		types.ProvisionTokenSpecV3{
+			Roles:      []types.SystemRole{types.RoleNode},
+			JoinMethod: types.JoinMethodEC2,
+			EC2: &types.ProvisionTokenSpecV3AWSEC2{
+				Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
+					{
+						Account: iid.AccountID,
+						Regions: []string{iid.Region},
+					},
 				},
 			},
 		})
@@ -233,14 +236,16 @@ func TestIAMNodeJoin(t *testing.T) {
 	token, err := types.NewProvisionTokenFromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
-		types.ProvisionTokenSpecV2{
-			Roles: []types.SystemRole{types.RoleNode, types.RoleProxy},
-			Allow: []*types.TokenRule{
-				{
-					AWSAccount: *id.Account,
+		types.ProvisionTokenSpecV3{
+			Roles:      []types.SystemRole{types.RoleNode, types.RoleProxy},
+			JoinMethod: types.JoinMethodIAM,
+			IAM: &types.ProvisionTokenSpecV3AWSIAM{
+				Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+					{
+						Account: *id.Account,
+					},
 				},
 			},
-			JoinMethod: types.JoinMethodIAM,
 		})
 	require.NoError(t, err)
 
@@ -337,7 +342,7 @@ func TestEC2Labels(t *testing.T) {
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
 	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
@@ -442,7 +447,7 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
 	tconf.Auth.StorageConfig = storageConfig
 	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)

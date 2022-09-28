@@ -30,9 +30,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewHostUsers initialize a new HostUsers object
@@ -259,7 +259,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				MaxLeases:     1,
 				Expires:       time.Now().Add(time.Second * 20),
 			},
-			Retry: utils.LinearConfig{
+			Retry: retryutils.LinearConfig{
 				Step: time.Second * 5,
 				Max:  time.Minute,
 			},

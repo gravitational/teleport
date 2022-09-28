@@ -1459,7 +1459,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			err = env.server.Auth().UpsertWindowsDesktop(context.Background(), wd)
 			require.NoError(t, err)
-			wds, err := types.NewWindowsDesktopServiceV3(wdID, types.WindowsDesktopServiceSpecV3{
+			wds, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: wdID}, types.WindowsDesktopServiceSpecV3{
 				Addr:            wdMock.listener.Addr().String(),
 				TeleportVersion: teleport.Version,
 			})
