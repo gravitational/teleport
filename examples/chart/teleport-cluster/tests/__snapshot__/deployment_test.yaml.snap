@@ -34,9 +34,6 @@ sets Deployment annotations when specified:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -79,9 +76,6 @@ sets Pod annotations when specified:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -124,9 +118,6 @@ should add PersistentVolumeClaim as volume when in custom mode and persistence.e
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -169,9 +160,6 @@ should add PersistentVolumeClaim as volume when in standalone mode and persisten
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -249,9 +237,6 @@ should add emptyDir for data in AWS mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -353,9 +338,6 @@ should add insecureSkipProxyTLSVerify to args when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -398,9 +380,6 @@ should add named PersistentVolumeClaim as volume when in custom mode and persist
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -444,9 +423,6 @@ should add named PersistentVolumeClaim as volume when in custom mode and persist
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -495,9 +471,6 @@ should do enterprise things when when enterprise is set in values:
     - name: license
       secret:
         secretName: license
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -540,9 +513,6 @@ should expose diag port:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -585,9 +555,6 @@ should have Recreate strategy in standalone mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -642,9 +609,6 @@ should have multiple replicas when replicaCount is set:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -699,9 +663,6 @@ should mount ConfigMap for config in AWS mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -802,9 +763,6 @@ should mount ConfigMap for config in custom mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -847,9 +805,6 @@ should mount ConfigMap for config in standalone mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1186,9 +1141,6 @@ should mount cert-manager TLS secret when highAvailability.certManager.enabled i
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - name: teleport-tls
       secret:
         secretName: teleport-tls
@@ -1236,9 +1188,6 @@ should mount extraVolumes and extraVolumeMounts:
         name: my-mount
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1293,9 +1242,6 @@ should mount tls.existingCASecretName and set environment when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - name: teleport-tls
       secret:
         secretName: helm-lint-existing-tls-secret
@@ -1355,9 +1301,6 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - name: teleport-tls
       secret:
         secretName: helm-lint-existing-tls-secret
@@ -1409,9 +1352,6 @@ should mount tls.existingSecretName when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - name: teleport-tls
       secret:
         secretName: helm-lint-existing-tls-secret
@@ -1457,9 +1397,6 @@ should not add PersistentVolumeClaim as volume when in custom mode and persisten
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1501,9 +1438,6 @@ should not add PersistentVolumeClaim as volume when in standalone mode and persi
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1546,9 +1480,6 @@ should not add PersistentVolumeClaim as volume when in standalone mode and persi
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1591,9 +1522,6 @@ should not add PersistentVolumeClaim as volume when in standalone mode and persi
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1635,9 +1563,6 @@ should not do enterprise things when when enterprise is not set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1680,9 +1605,6 @@ should not have more than one replica in standalone mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1737,9 +1659,6 @@ should not have strategy in AWS mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1840,9 +1759,6 @@ should not have strategy in custom mode:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1885,9 +1801,6 @@ should not mount TLS secrets when when highAvailability.certManager.enabled is f
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -1930,9 +1843,6 @@ should not set securityContext when is empty object (default value):
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2003,9 +1913,6 @@ should provision initContainer correctly when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2057,9 +1964,6 @@ should set affinity when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2105,9 +2009,6 @@ should set environment when extraEnv set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2150,9 +2051,6 @@ should set imagePullPolicy when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2201,9 +2099,6 @@ should set postStart command if set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2247,9 +2142,6 @@ should set priorityClassName when set in values:
     priorityClassName: system-cluster-critical
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2292,9 +2184,6 @@ should set probeTimeoutSeconds when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2347,9 +2236,6 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2398,9 +2284,6 @@ should set resources when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2450,9 +2333,6 @@ should set securityContext when set in values:
         name: data
     serviceAccountName: RELEASE-NAME
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
@@ -2516,9 +2396,6 @@ should set tolerations when set in values:
       operator: Equal
       value: teleport
     volumes:
-    - name: gcp-credentials
-      secret:
-        secretName: teleport-gcp-credentials
     - configMap:
         name: RELEASE-NAME
       name: config
