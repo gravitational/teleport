@@ -1592,7 +1592,7 @@ func onLogin(cf *CLIConf) error {
 		},
 	})
 	if err != nil && !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
+		log.Warnf("getting cluster alerts: %v", trace.Wrap(err))
 	}
 
 	types.SortClusterAlerts(alerts)
