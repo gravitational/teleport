@@ -3,7 +3,11 @@ title: Health Monitoring
 description: Monitoring health and readiness.
 ---
 
-## Prerequisites
+Teleport provides health checking mechanisms in order to verify that it
+is healthy and ready to serve traffic. These can be used by things like
+Kubernetes probes to monitor the health of a Teleport process.
+
+## Enable health monitoring
 
 (!docs/pages/includes/diagnostics/diag-addr-prereqs-tabs.mdx!)
 
