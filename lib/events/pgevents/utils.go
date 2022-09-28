@@ -130,11 +130,6 @@ func (ks *keyset) ToKey() string {
 	return base64.URLEncoding.EncodeToString(b[:])
 }
 
-const (
-	insufficientPrivilegeCode = "42501"
-	duplicateDatabaseCode     = "42P04"
-)
-
 // isCode checks if the passed error is a Postgres error with the given code.
 func isCode(err error, code string) bool {
 	var pgErr *pgconn.PgError
