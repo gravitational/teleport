@@ -230,6 +230,7 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
 	}
+
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
@@ -314,6 +315,19 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForDiscovery sets up watch configuration for discovery servers.
+func ForDiscovery(cfg Config) Config {
+	cfg.target = "discovery"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindNode},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
 }
 
@@ -2084,6 +2098,19 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.ListWindowsDesktops(ctx, req)
+}
+
+// ListWindowsDesktopServices returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
 }
 
 // ListResources is a part of auth.Cache implementation

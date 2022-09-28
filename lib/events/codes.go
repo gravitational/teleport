@@ -331,6 +331,11 @@ const (
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
 
+	// SSMRunSuccessCode is the discovery script success code.
+	SSMRunSuccessCode = "TDS00I"
+	// SSMRunFailCode is the discovery script success code.
+	SSMRunFailCode = "TDS00W"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

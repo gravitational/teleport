@@ -45,6 +45,9 @@ type resourceCollector interface {
 	// notifyStale is called when the maximum acceptable staleness (if specified)
 	// is exceeded.
 	notifyStale()
+	// isInitialized is used to check if the initial state sync has
+	// been completed.
+	isInitialized() bool
 }
 
 // ResourceWatcherConfig configures resource watcher.
@@ -153,6 +156,10 @@ func (p *resourceWatcher) Done() <-chan struct{} {
 // Close closes the resource watcher and cancels all the functions.
 func (p *resourceWatcher) Close() {
 	p.cancel()
+}
+
+func (p *resourceWatcher) IsInitialized() bool {
+	return p.collector.isInitialized()
 }
 
 // hasStaleView returns true when the local view has failed to be updated
@@ -332,8 +339,9 @@ type proxyCollector struct {
 	ProxyWatcherConfig
 	// current holds a map of the currently known proxies (keyed by server name,
 	// RWMutex protected).
-	current map[string]types.Server
-	rw      sync.RWMutex
+	current     map[string]types.Server
+	rw          sync.RWMutex
+	initialized bool
 }
 
 // GetCurrent returns the currently stored proxies.
@@ -366,6 +374,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	p.rw.Lock()
 	defer p.rw.Unlock()
 	p.current = newCurrent
+	p.initialized = true
 	p.broadcastUpdate(ctx)
 	return nil
 }
@@ -413,6 +422,14 @@ func (p *proxyCollector) broadcastUpdate(ctx context.Context) {
 	case p.ProxiesC <- serverMapValues(p.current):
 	case <-ctx.Done():
 	}
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *proxyCollector) isInitialized() bool {
+	p.rw.RUnlock()
+	defer p.rw.RUnlock()
+	return p.initialized
 }
 
 func (p *proxyCollector) notifyStale() {}
@@ -483,6 +500,8 @@ type lockCollector struct {
 	currentRW sync.RWMutex
 	// fanout provides support for multiple subscribers to the lock updates.
 	fanout *Fanout
+	// initialized is used to check whether the initial sync has completed
+	initialized bool
 }
 
 // Subscribe is used to subscribe to the lock updates.
@@ -549,6 +568,14 @@ func (p *lockCollector) resourceKind() string {
 	return types.KindLock
 }
 
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *lockCollector) isInitialized() bool {
+	p.currentRW.RUnlock()
+	defer p.currentRW.RUnlock()
+	return p.initialized
+}
+
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
 func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
@@ -565,6 +592,7 @@ func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	defer p.currentRW.Unlock()
 	p.current = newCurrent
 	p.isStale = false
+	p.initialized = true
 	for _, lock := range p.current {
 		p.fanout.Emit(types.Event{Type: types.OpPut, Resource: lock})
 	}
@@ -700,11 +728,21 @@ type databaseCollector struct {
 	current map[string]types.Database
 	// lock protects the "current" map.
 	lock sync.RWMutex
+	// initialized is used to check that the
+	initialized bool
 }
 
 // resourceKind specifies the resource kind to watch.
 func (p *databaseCollector) resourceKind() string {
 	return types.KindDatabase
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *databaseCollector) isInitialized() bool {
+	p.lock.RUnlock()
+	defer p.lock.RUnlock()
+	return p.initialized
 }
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
@@ -720,6 +758,7 @@ func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) er
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.current = newCurrent
+	p.initialized = true
 
 	select {
 	case <-ctx.Done():
@@ -829,11 +868,21 @@ type appCollector struct {
 	current map[string]types.Application
 	// lock protects the "current" map.
 	lock sync.RWMutex
+	// initialized is used to check whether the initial sync has completed
+	initialized bool
 }
 
 // resourceKind specifies the resource kind to watch.
 func (p *appCollector) resourceKind() string {
 	return types.KindApp
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *appCollector) isInitialized() bool {
+	p.lock.RUnlock()
+	defer p.lock.RUnlock()
+	return p.initialized
 }
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
@@ -849,7 +898,7 @@ func (p *appCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.current = newCurrent
-
+	p.initialized = true
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
@@ -968,6 +1017,8 @@ type caCollector struct {
 	lock sync.RWMutex
 	// cas maps ca type -> cluster -> ca
 	cas map[types.CertAuthType]map[string]types.CertAuthority
+	// initialized is used to check whether the initial sync has completed
+	initialized bool
 }
 
 // Subscribe is used to subscribe to the lock updates.
@@ -1000,6 +1051,14 @@ func (c *caCollector) resourceKind() string {
 	return types.KindCertAuthority
 }
 
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (c *caCollector) isInitialized() bool {
+	c.lock.RUnlock()
+	defer c.lock.RUnlock()
+	return c.initialized
+}
+
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	var cas []types.CertAuthority
@@ -1024,6 +1083,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 		c.cas[ca.GetType()][ca.GetName()] = ca
 		c.fanout.Emit(types.Event{Type: types.OpPut, Resource: ca.Clone()})
 	}
+	c.initialized = true
 	return nil
 }
 
@@ -1132,6 +1192,8 @@ type nodeCollector struct {
 	// RWMutex protected).
 	current map[string]types.Server
 	rw      sync.RWMutex
+	// initialized is used to check whether the initial sync has completed
+	initialized bool
 }
 
 // Node is a readonly subset of the types.Server interface which
@@ -1196,6 +1258,9 @@ func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 		return trace.Wrap(err)
 	}
 	if len(nodes) == 0 {
+		n.rw.Lock()
+		n.initialized = true
+		n.rw.Unlock()
 		return nil
 	}
 	newCurrent := make(map[string]types.Server, len(nodes))
@@ -1205,6 +1270,7 @@ func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	n.rw.Lock()
 	defer n.rw.Unlock()
 	n.current = newCurrent
+	n.initialized = true
 	return nil
 }
 
@@ -1231,6 +1297,12 @@ func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 	default:
 		n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
 	}
+}
+
+func (n *nodeCollector) isInitialized() bool {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+	return n.initialized
 }
 
 func (n *nodeCollector) notifyStale() {}

@@ -145,6 +145,7 @@ traits:
 	}
 
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
@@ -192,6 +193,7 @@ traits:
 					require.Equal(t, tUser.GetName(), userName)
 					require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
 					require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+					require.Equal(t, setup.operatorName, tUser.GetCreatedBy().User.Name)
 					expectedUser := &types.UserV2{
 						Metadata: types.Metadata{},
 						Spec:     *tc.expectedSpec,
@@ -223,6 +225,11 @@ func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
 	actualJSON, _ := json.Marshal(actualUser)
 	actual := make(map[string]interface{})
 	_ = json.Unmarshal(actualJSON, &actual)
+
+	// We don't want compare spec.created_by and metadata as they were tested before and are not 100%
+	// managed by the operator
+	delete(expected["spec"].(map[string]interface{}), "created_by")
+	delete(actual["spec"].(map[string]interface{}), "created_by")
 
 	require.Equal(t, expected["spec"], actual["spec"])
 }

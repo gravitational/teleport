@@ -838,3 +838,13 @@ tests:
             value: some-value
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: should set minReadySeconds in non-standalone mode
+    set:
+      chartMode: custom
+      highAvailability:
+        minReadySeconds: 60
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 60
