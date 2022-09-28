@@ -110,6 +110,7 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 // checkNotBefore ensures the token was not issued in the future.
 // https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
 // 4.1.5.  "nbf" (Not Before) Claim
+// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
 func checkNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
 	claims := struct {
 		NotBefore *jsonTime `json:"nbf"`
@@ -129,6 +130,8 @@ func checkNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) er
 	return nil
 }
 
+// jsonTime unmarshaling sourced from https://github.com/gravitational/go-oidc/blob/master/oidc.go#L295
+// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
 type jsonTime time.Time
 
 func (j *jsonTime) UnmarshalJSON(b []byte) error {
