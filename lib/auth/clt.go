@@ -1219,6 +1219,11 @@ func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsD
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// ListWindowsDesktopServices not implemented: can only be called locally.
+func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllUsers not implemented: can only be called locally.
 func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)

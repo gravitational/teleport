@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -1850,12 +1851,7 @@ func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Cli
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := proxyClient.NewTracingClient(ctx, site.Name)
+	clt, err := proxyClient.NewTracingClient(ctx, tc.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1887,10 +1883,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	siteInfo, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
@@ -1901,9 +1894,9 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	}
 
 	if len(nodeAddrs) > 1 {
-		return tc.runShellOrCommandOnMultipleNodes(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
+		return tc.runShellOrCommandOnMultipleNodes(ctx, tc.SiteName, nodeAddrs, proxyClient, command)
 	}
-	return tc.runShellOrCommandOnSingleNode(ctx, siteInfo.Name, nodeAddrs[0], proxyClient, command, runLocally)
+	return tc.runShellOrCommandOnSingleNode(ctx, tc.SiteName, nodeAddrs[0], proxyClient, command, runLocally)
 }
 
 func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, siteName string, nodeAddr string, proxyClient *ProxyClient, command []string, runLocally bool) error {
@@ -2044,10 +2037,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
 
 	// Session joining is not supported in proxy recording mode
 	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
@@ -2132,10 +2122,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
+
 	// request events for that session (to get timing data)
 	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
@@ -2193,10 +2181,8 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
+
 	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2251,11 +2237,6 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	}
 	defer proxyClient.Close()
 
-	clusterInfo, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
@@ -2267,7 +2248,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: clusterInfo.Name},
+		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2326,17 +2307,14 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 
 	// helper function connects to the src/target node:
 	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
-		// determine which cluster we're connecting to:
-		siteInfo, err := proxyClient.currentCluster(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		if hostLogin == "" {
 			hostLogin = tc.Config.HostLogin
 		}
-		return proxyClient.ConnectToNode(ctx,
-			NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
-			hostLogin)
+		return proxyClient.ConnectToNode(
+			ctx,
+			NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+			hostLogin,
+		)
 	}
 
 	// gets called to convert SSH error code to tc.ExitStatus
@@ -3140,7 +3118,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		return nil, trace.Wrap(err)
 	}
 
-	return &ProxyClient{
+	pc := &ProxyClient{
 		teleportClient:  tc,
 		Client:          sshClient,
 		proxyAddress:    sshProxyAddr,
@@ -3151,7 +3129,24 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
 		Tracer:          tc.Tracer,
-	}, nil
+	}
+
+	// Create the auth.ClientI for the local auth server
+	// once per ProxyClient. This is an inexpensive
+	// operation since the actual dialing of the auth
+	// server is lazy - meaning it won't happen until the
+	// first use of the auth.ClientI. By establishing
+	// the auth.ClientI here we can ensure that any connections
+	// to the local cluster will end up reusing this auth.ClientI
+	// for the lifespan of the ProxyClient.
+	clt, err := pc.ConnectToCluster(ctx, pc.siteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pc.currentCluster = clt
+
+	return pc, nil
 }
 
 // makeProxySSHClient creates an SSH client by following steps:
@@ -3385,16 +3380,35 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	)
 	defer span.End()
 
+	// Get a new (or old) key to be signed via proxy on valid login.
+	var key *Key
+	var err error
+
+	// TODO (Joerger): Remove this env var check once we can pull server settings to decide whether
+	// or not to initiate PIV login - https://github.com/gravitational/teleport/pull/15336
+	if os.Getenv("PIV_LOGIN") != "" {
+		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key = NewKey(priv)
+	} else {
+		// If we find a valid key in the localAgent, reuse it instead of generating a new key.
+		// This is especially useful if the key is a hardware key, since they need to be reused
+		// between multiple login sessions and shouldn't be regenerated.
+		if key, err = tc.localAgent.GetCoreKey(); trace.IsNotFound(err) {
+			// No core key found, this is the first login for the proxy. Generate a new RSA key.
+			if key, err = GenerateRSAKey(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported, also show the message of the day if available.
 	pr, err := tc.PingAndShowMOTD(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// generate a new keypair. the public key will be signed via proxy if client's
-	// password+OTP are valid
-	key, err := GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3807,7 +3821,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName)
+	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4498,11 +4512,9 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	authClient := proxyClient.CurrentCluster()
 	defer authClient.Close()
+
 	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
 		pageSize, order, max, authClient)
 	if err != nil {
