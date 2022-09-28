@@ -289,13 +289,21 @@ const (
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
 
-	// SSH request type to keep the connection alive. A client and a server keep
-	// pining each other with it:
+	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// RecordingProxyReqType is the name of a global request which returns if
 	// the proxy is recording sessions or not.
+	//
+	// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+	// cluster information.
+	// TODO(tross):DELETE IN 12.0
 	RecordingProxyReqType = "recording-proxy@teleport.com"
+
+	// ClusterDetailsReqType is the name of a global request which returns cluster details like
+	// if the proxy is recording sessions or not and if FIPS is enabled.
+	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
 	// JSON means JSON serialization format
 	JSON = "json"
@@ -337,8 +345,20 @@ const (
 	// storage
 	SchemeGCS = "gs"
 
+	// SchemeAZBlob is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over https.
+	SchemeAZBlob = "azblob"
+
+	// SchemeAZBlobHTTP is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over http.
+	SchemeAZBlobHTTP = "azblob-http"
+
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
+
+	// AZBlobTestURI specifies the storage account URL to use for Azure Blob
+	// Storage tests.
+	AZBlobTestURI = "TEST_AZBLOB_URI"
 
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
@@ -733,6 +753,12 @@ const (
 
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
+)
+
+const (
+	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
+	// uses to get the home directory of a remote user.
+	GetHomeDirSubsystem = "gethomedir"
 )
 
 // A principal name for use in SSH certificates.
