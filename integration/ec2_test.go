@@ -319,7 +319,7 @@ func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
 }
 
 func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
-	return "mock"
+	return types.InstanceMetadataTypeEC2
 }
 
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
