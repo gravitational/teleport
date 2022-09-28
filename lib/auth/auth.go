@@ -506,6 +506,14 @@ func (a *Server) runPeriodicOperations() {
 		FirstDuration: firstReleaseCheck,
 		Jitter:        retryutils.NewFullJitter(),
 	})
+
+	// more frequent release check that just re-calculates alerts based on previously
+	// pulled versioning info.
+	localReleaseCheck := interval.New(interval.Config{
+		Duration:      time.Minute * 10,
+		FirstDuration: utils.HalfJitter(time.Second * 10),
+		Jitter:        retryutils.NewHalfJitter(),
+	})
 	defer releaseCheck.Stop()
 	for {
 		select {
@@ -535,16 +543,21 @@ func (a *Server) runPeriodicOperations() {
 		case <-promTicker.Next():
 			a.updateVersionMetrics()
 		case <-releaseCheck.Next():
-			a.checkForReleases(ctx)
+			a.syncReleaseAlerts(ctx, true)
+		case <-localReleaseCheck.Next():
+			a.syncReleaseAlerts(ctx, false)
 		}
 	}
 }
 
-// checkForReleases loads latest github releases and generates an alert if
-// an appropriate upgrade is available.
-func (a *Server) checkForReleases(ctx context.Context) {
-	const alertID = "upgrade-suggestion"
-	const secAlertID = "security-patch-available"
+const releaseAlertID = "upgrade-suggestion"
+const secAlertID = "security-patch-available"
+const verInUseLabel = "teleport.internal/ver-in-use"
+
+// syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
+// is true it pulls the latest release info from github.  Otherwise, it loads the versions used
+// for the most recent alerts and re-syncs with latest cluster state.
+func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	log.Debug("Checking for new teleport releases via github api.")
 
 	// NOTE: essentially everything in this function is going to be
@@ -563,13 +576,74 @@ func (a *Server) checkForReleases(ctx context.Context) {
 		Current: current,
 	}
 
-	var loadFailed bool
-	// scrape the github releases API with our visitor
-	if err := github.Visit(&visitor); err != nil {
-		log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
-		loadFailed = true
+	// users cannot upgrade their own auth instances in cloud, so it isn't helpful
+	// to generate alerts for releases newer than the current auth server version.
+	if modules.GetModules().Features().Cloud {
+		visitor.NotNewerThan = current
 	}
 
+	var loadFailed bool
+
+	if checkRemote {
+		// scrape the github releases API with our visitor
+		if err := github.Visit(&visitor); err != nil {
+			log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
+			loadFailed = true
+		}
+	} else {
+		if err := a.visitCachedAlertVersions(ctx, &visitor); err != nil {
+			log.Warnf("Failed to load release alert into: %v (this will not impact teleport functionality)", err)
+			loadFailed = true
+		}
+	}
+
+	a.doReleaseAlertSync(ctx, current, visitor, !loadFailed)
+}
+
+// visitCachedAlertVersions updates the visitor with targets reconstructed from the metadata
+// of existing alerts. This lets us "reevaluate" the alerts based on newer cluster state without
+// re-pulling the releases page. Future version of teleport will cache actual full release
+// descriptions, rending this unnecessary.
+func (a *Server) visitCachedAlertVersions(ctx context.Context, visitor *vc.Visitor) error {
+	// reconstruct the target for the "latest stable" alert if it exists.
+	alert, err := a.getClusterAlert(ctx, releaseAlertID)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err == nil {
+		if t := vc.NewTarget(alert.Metadata.Labels[verInUseLabel]); t.Ok() {
+			visitor.Visit(t)
+		}
+	}
+
+	// reconstruct the target for the "latest sec patch" alert if it exists.
+	alert, err = a.getClusterAlert(ctx, secAlertID)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err == nil {
+		if t := vc.NewTarget(alert.Metadata.Labels[verInUseLabel], vc.SecurityPatch(true)); t.Ok() {
+			visitor.Visit(t)
+		}
+	}
+	return nil
+}
+
+func (a *Server) getClusterAlert(ctx context.Context, id string) (types.ClusterAlert, error) {
+	alerts, err := a.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		AlertID: id,
+	})
+	if err != nil {
+		return types.ClusterAlert{}, trace.Wrap(err)
+	}
+	if len(alerts) == 0 {
+		return types.ClusterAlert{}, trace.NotFound("cluster alert %q not found", id)
+	}
+	return alerts[0], nil
+}
+
+func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visitor vc.Visitor, cleanup bool) {
+	const alertTTL = time.Minute * 30
 	// use visitor to find the oldest version among connected instances.
 	// TODO(fspmarshall): replace this check as soon as we have a backend inventory repr. using
 	// connected instances is a poor approximation and may lead to missed notifications if auth
@@ -581,31 +655,33 @@ func (a *Server) checkForReleases(ctx context.Context) {
 	})
 
 	// build the general alert msg meant for broader consumption
-	msg := makeUpgradeSuggestionMsg(visitor, current, instanceVisitor.Oldest())
+	msg, verInUse := makeUpgradeSuggestionMsg(visitor, current, instanceVisitor.Oldest())
 
 	if msg != "" {
 		alert, err := types.NewClusterAlert(
-			alertID,
+			releaseAlertID,
 			msg,
 			// Defaulting to "low" severity level. We may want to make this dynamic
 			// in the future depending on the distance from up-to-date.
 			types.WithAlertSeverity(types.AlertSeverity_LOW),
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
+			types.WithAlertLabel(verInUseLabel, verInUse),
+			types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
 		)
 		if err != nil {
-			log.Warnf("Failed to build %s alert: %v (this is a bug)", alertID, err)
+			log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
 			return
 		}
 		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-			log.Warnf("Failed to set %s alert: %v", alertID, err)
+			log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
 			return
 		}
-	} else if !loadFailed {
-		log.Debugf("Cluster appears up to date, clearing %s alert.", alertID)
-		err := a.DeleteClusterAlert(ctx, alertID)
+	} else if cleanup {
+		log.Debugf("Cluster appears up to date, clearing %s alert.", releaseAlertID)
+		err := a.DeleteClusterAlert(ctx, releaseAlertID)
 		if err != nil && !trace.IsNotFound(err) {
-			log.Warnf("Failed to delete %s alert: %v", alertID, err)
+			log.Warnf("Failed to delete %s alert: %v", releaseAlertID, err)
 		}
 	}
 
@@ -625,8 +701,10 @@ func (a *Server) checkForReleases(ctx context.Context) {
 			types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
 			// hide the normal upgrade alert for users who can see this alert in order to
 			// improve its visibility and reduce clutter.
-			types.WithAlertLabel(types.AlertSupersedes, alertID),
+			types.WithAlertLabel(types.AlertSupersedes, releaseAlertID),
 			types.WithAlertSeverity(types.AlertSeverity_HIGH),
+			types.WithAlertLabel(verInUseLabel, sp.Version()),
+			types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
 		)
 		if err != nil {
 			log.Warnf("Failed to build %s alert: %v (this is a bug)", secAlertID, err)
@@ -637,7 +715,7 @@ func (a *Server) checkForReleases(ctx context.Context) {
 			log.Warnf("Failed to set %s alert: %v", secAlertID, err)
 			return
 		}
-	} else if !loadFailed {
+	} else if cleanup {
 		err := a.DeleteClusterAlert(ctx, secAlertID)
 		if err != nil && !trace.IsNotFound(err) {
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
@@ -647,25 +725,25 @@ func (a *Server) checkForReleases(ctx context.Context) {
 
 // makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
 // needed (returns "" if everything looks up to date).
-func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) string {
+func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) (msg string, ver string) {
 	if next := visitor.NextMajor(); next.Ok() {
 		// at least one stable release exists for the next major version
 		log.Debugf("Generating alert msg for next major version. current=%s, next=%s", current.Version(), next.Version())
-		return fmt.Sprintf("The next major version of Teleport is %s. Please consider upgrading your Cluster.", next.Major())
+		return fmt.Sprintf("The next major version of Teleport is %s. Please consider upgrading your Cluster.", next.Major()), next.Version()
 	}
 
 	if nc := visitor.NewestCurrent(); nc.Ok() && nc.NewerThan(current) {
 		// newer release of the currently running major version is available
 		log.Debugf("Generating alert msg for new minor or patch release. current=%s, newest=%s", current.Version(), nc.Version())
-		return fmt.Sprintf("Teleport %s is now available, please consider upgrading your Cluster.", nc.Version())
+		return fmt.Sprintf("Teleport %s is now available, please consider upgrading your Cluster.", nc.Version()), nc.Version()
 	}
 
 	if oldestInstance.Ok() && current.NewerThan(oldestInstance) {
 		// at least one connected instance is older than this auth server
-		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them."
+		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them.", current.Version()
 	}
 
-	return ""
+	return "", ""
 }
 
 // updateVersionMetrics leverages the inventory control stream to report the versions of
