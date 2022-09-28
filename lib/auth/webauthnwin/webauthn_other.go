@@ -35,10 +35,10 @@ func (n noopNative) CheckSupport() CheckSupportResult {
 	}
 }
 
-func (n noopNative) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
+func (n noopNative) GetAssertion(origin string, in *GetAssertionRequest) (*wanlib.CredentialAssertionResponse, error) {
 	return nil, errUnavailable
 }
 
-func (n noopNative) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
+func (n noopNative) MakeCredential(origin string, in *MakeCredentialRequest) (*wanlib.CredentialCreationResponse, error) {
 	return nil, errUnavailable
 }

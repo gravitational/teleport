@@ -14,8 +14,6 @@
 
 package webauthnwin
 
-import "golang.org/x/sys/windows"
-
 type webauthnRPEntityInformation struct {
 	dwVersion uint32
 	// Identifier for the RP. This field is required.
@@ -65,11 +63,11 @@ type webauthnAuthenticatorMakeCredentialOptions struct {
 	// Optional extensions to parse when performing the operation.
 	Extensions webauthnExtenstions
 	// Optional. Platform vs Cross-Platform Authenticators.
-	dwAuthenticatorAttachment uint32
+	DwAuthenticatorAttachment uint32
 	// Optional. Require key to be resident or not. Defaulting to FALSE.
 	bRequireResidentKey uint32
 	// User Verification Requirement.
-	dwUserVerificationRequirement uint32
+	DwUserVerificationRequirement uint32
 	// Attestation Conveyance Preference.
 	dwAttestationConveyancePreference uint32
 	// Reserved for future Use
@@ -80,7 +78,7 @@ type webauthnAuthenticatorMakeCredentialOptions struct {
 	//
 
 	// Cancellation Id - Optional - See WebAuthNGetCancellationId
-	pCancellationId *windows.GUID
+	pCancellationId *GUID
 
 	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_VERSION_3
@@ -222,9 +220,9 @@ type webauthnAuthenticatorGetAssertionOptions struct {
 	// Optional extensions to parse when performing the operation.
 	Extensions webauthnExtenstions
 	// Optional. Platform vs Cross-Platform Authenticators.
-	dwAuthenticatorAttachment uint32
+	DwAuthenticatorAttachment uint32
 	// User Verification Requirement.
-	dwUserVerificationRequirement uint32
+	DwUserVerificationRequirement uint32
 	// Flags
 	dwFlags uint32
 
@@ -243,7 +241,7 @@ type webauthnAuthenticatorGetAssertionOptions struct {
 	//
 
 	// Cancellation Id - Optional - See WebAuthNGetCancellationId
-	pCancellationId *windows.GUID
+	pCancellationId *GUID
 
 	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_4
@@ -326,4 +324,11 @@ type webauthnCommonAttestation struct {
 	pbCertInfo *byte
 	cbPubArea  uint32
 	pbPubArea  *byte
+}
+
+type GUID struct {
+	Data1 uint32
+	Data2 uint16
+	Data3 uint16
+	Data4 [8]byte
 }

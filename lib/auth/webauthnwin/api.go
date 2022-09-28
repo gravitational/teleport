@@ -49,12 +49,29 @@ const (
 // Implementors must provide a global variable called `native`.
 type nativeWebauthn interface {
 	CheckSupport() CheckSupportResult
-	GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*wanlib.CredentialAssertionResponse, error)
-	MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error)
+	GetAssertion(origin string, in *GetAssertionRequest) (*wanlib.CredentialAssertionResponse, error)
+	MakeCredential(origin string, in *MakeCredentialRequest) (*wanlib.CredentialCreationResponse, error)
+}
+
+type GetAssertionRequest struct {
+	RpID          *uint16
+	Cd            *webauthnClientData
+	JsonEncodedCD []byte
+	Opts          *webauthnAuthenticatorGetAssertionOptions
+}
+
+type MakeCredentialRequest struct {
+	RP            *webauthnRPEntityInformation
+	User          *webauthnUserEntityInformation
+	Creds         *webauthnCoseCredentialParameters
+	CD            *webauthnClientData
+	JsonEncodedCD []byte
+	Opts          *webauthnAuthenticatorMakeCredentialOptions
 }
 
 // Login implements Login for Windows Webauthn API.
-func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, opts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	// TODO(tobiaszheller): move that validation login into separate FN in other PR
 	switch {
 	case origin == "":
 		return nil, "", trace.BadParameter("origin required")
@@ -65,7 +82,26 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	case assertion.Response.RelyingPartyID == "":
 		return nil, "", trace.BadParameter("assertion relying party ID required")
 	}
-	resp, err := native.GetAssertion(origin, assertion, opts)
+
+	rpid, err := utf16PtrFromString(assertion.Response.RelyingPartyID)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	cd, jsonEncodedCD, err := clientDataToCType(assertion.Response.Challenge.String(), origin, string(protocol.AssertCeremony))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	assertOpts, err := assertOptionsToCType(assertion.Response, loginOpts)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	resp, err := native.GetAssertion(origin, &GetAssertionRequest{
+		RpID:          rpid,
+		Cd:            cd,
+		JsonEncodedCD: jsonEncodedCD,
+		Opts:          assertOpts,
+	})
 	if err != nil {
 		// TODO(tobiaszheller): right now error directly from webauthn.dll is
 		// returned. At some point probably we want to introducde typed errors.
@@ -84,6 +120,7 @@ func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation,
 ) (*proto.MFARegisterResponse, error) {
+	// TODO(tobiaszheller): move that validation login into separate FN in other PR
 	switch {
 	case origin == "":
 		return nil, trace.BadParameter("origin required")
@@ -112,7 +149,34 @@ func Register(
 		}
 	}
 
-	resp, err := native.MakeCredential(origin, cc)
+	rp, err := rpToCType(cc.Response.RelyingParty)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u, err := userToCType(cc.Response.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	credParam, err := credParamToCType(cc.Response.Parameters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cd, jsonEncodedCD, err := clientDataToCType(cc.Response.Challenge.String(), origin, string(protocol.CreateCeremony))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	opts, err := makeCredOptionsToCType(cc.Response)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := native.MakeCredential(origin, &MakeCredentialRequest{
+		RP:            rp,
+		User:          u,
+		Creds:         credParam,
+		CD:            cd,
+		JsonEncodedCD: jsonEncodedCD,
+		Opts:          opts,
+	})
 	if err != nil {
 		// TODO(tobiaszheller): right now error directly from webauthn.dll is
 		// returned. At some point probably we want to introducde typed errors.

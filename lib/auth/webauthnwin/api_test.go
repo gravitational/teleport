@@ -16,22 +16,111 @@ package webauthnwin_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
+	"github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestRegister(t *testing.T) {
+	resetNativeAfterTests(t)
+
+	const origin = "https://example.com"
+	okCC := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: make([]byte, 32),
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "Teleport",
+				},
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4},
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+			},
+			Parameters: []protocol.CredentialParameter{
+				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
+				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgRS256},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+
+	tests := []struct {
+		name     string
+		origin   string
+		createCC func() *wanlib.CredentialCreation
+		wantErr  string
+		assertFn func(t *testing.T, ccr *webauthn.CredentialCreationResponse, req *webauthnwin.MakeCredentialRequest)
+	}{
+		{
+			name:     "ok",
+			origin:   origin,
+			createCC: func() *wanlib.CredentialCreation { return okCC },
+			assertFn: func(t *testing.T, ccr *webauthn.CredentialCreationResponse, req *webauthnwin.MakeCredentialRequest) {
+				assert.Equal(t, uint32(0), req.Opts.DwAuthenticatorAttachment)
+				assert.Equal(t, uint32(3), req.Opts.DwUserVerificationRequirement)
+			},
+		},
+		{
+			name:   "with UV and cross-platform",
+			origin: origin,
+			createCC: func() *wanlib.CredentialCreation {
+				cc := *okCC
+				cc.Response.AuthenticatorSelection.UserVerification = protocol.VerificationRequired
+				cc.Response.AuthenticatorSelection.AuthenticatorAttachment = protocol.CrossPlatform
+				return &cc
+			},
+			assertFn: func(t *testing.T, ccr *webauthn.CredentialCreationResponse, req *webauthnwin.MakeCredentialRequest) {
+				assert.Equal(t, uint32(1), req.Opts.DwUserVerificationRequirement)
+				assert.Equal(t, uint32(2), req.Opts.DwAuthenticatorAttachment)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fake := &fakeNative{}
+			*webauthnwin.Native = fake
+
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+			defer cancel()
+
+			resp, err := webauthnwin.Register(ctx, test.origin, test.createCC())
+			switch {
+			case test.wantErr != "" && err == nil:
+				t.Fatalf("Register returned err = nil, wantErr %q", test.wantErr)
+			case test.wantErr != "":
+				require.Contains(t, err.Error(), test.wantErr, "FIDO2Login returned err = %q, wantErr %q", err, test.wantErr)
+				return
+			default:
+				require.NoError(t, err, "FIDO2Login failed")
+				require.NotNil(t, resp, "resp nil")
+			}
+
+			if test.assertFn != nil {
+				test.assertFn(t, resp.GetWebauthn(), fake.makeCredentialReq)
+			}
+
+		})
+	}
+}
+
 func TestRegister_errors(t *testing.T) {
 	resetNativeAfterTests(t)
 
-	*webauthnwin.Native = fakeNative{}
+	*webauthnwin.Native = &fakeNative{}
 
 	const origin = "https://example.com"
 	okCC := &wanlib.CredentialCreation{
@@ -163,7 +252,7 @@ func TestRegister_errors(t *testing.T) {
 func TestLogin_errors(t *testing.T) {
 	resetNativeAfterTests(t)
 
-	*webauthnwin.Native = fakeNative{}
+	*webauthnwin.Native = &fakeNative{}
 
 	const origin = "https://example.com"
 	okAssertion := &wanlib.CredentialAssertion{
@@ -237,19 +326,24 @@ func resetNativeAfterTests(t *testing.T) {
 	})
 }
 
-type fakeNative struct{}
+type fakeNative struct {
+	getAssersionReq   *webauthnwin.GetAssertionRequest
+	makeCredentialReq *webauthnwin.MakeCredentialRequest
+}
 
-func (f fakeNative) CheckSupport() webauthnwin.CheckSupportResult {
+func (f *fakeNative) CheckSupport() webauthnwin.CheckSupportResult {
 	return webauthnwin.CheckSupportResult{
 		HasCompileSupport: true,
 		IsAvailable:       true,
 	}
 }
 
-func (f fakeNative) GetAssertion(origin string, in *wanlib.CredentialAssertion, loginOpts *webauthnwin.LoginOpts) (*wanlib.CredentialAssertionResponse, error) {
-	return nil, fmt.Errorf("not implemented in fakeNative")
+func (f *fakeNative) GetAssertion(origin string, in *webauthnwin.GetAssertionRequest) (*wanlib.CredentialAssertionResponse, error) {
+	f.getAssersionReq = in
+	return &wanlib.CredentialAssertionResponse{}, nil
 }
 
-func (f fakeNative) MakeCredential(origin string, in *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
-	return nil, fmt.Errorf("not implemented in fakeNative")
+func (f *fakeNative) MakeCredential(origin string, in *webauthnwin.MakeCredentialRequest) (*wanlib.CredentialCreationResponse, error) {
+	f.makeCredentialReq = in
+	return &wanlib.CredentialCreationResponse{}, nil
 }
