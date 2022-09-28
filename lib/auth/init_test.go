@@ -724,7 +724,6 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidUserCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 	invalidJWTCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
-	invalidJWTCA.(*types.CertAuthorityV2).Spec.JWTKeyPairs = nil
 	invalidDBCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
 	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 
