@@ -3,11 +3,12 @@ package githubactions
 import (
 	"context"
 	"encoding/json"
-	"github.com/gravitational/trace"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+
+	"github.com/gravitational/trace"
 )
 
 type tokenResponse struct {
@@ -33,7 +34,7 @@ func NewIDTokenSource() *IDTokenSource {
 	}
 }
 
-// GetIDToken utilises values set in the environment and the GitHub API to
+// GetIDToken utilizes values set in the environment and the GitHub API to
 // fetch a GitHub issued IDToken.
 func (ip *IDTokenSource) GetIDToken(ctx context.Context) (string, error) {
 	audience := "teleport.cluster.local"

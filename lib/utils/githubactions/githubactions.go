@@ -2,7 +2,7 @@ package githubactions
 
 // GitHub Workload Identity
 //
-// GH provides workloads with two environment variables to faciliate fetching
+// GH provides workloads with two environment variables to facilitate fetching
 // a ID token for that workload.
 //
 // ACTIONS_ID_TOKEN_REQUEST_TOKEN: A token that can be redeemed against the
@@ -13,7 +13,7 @@ package githubactions
 // to the specified URL with the specified token provided as a Bearer token
 // using the Authorization header.
 //
-// The `audience` query parameter can be used to customise the audience claim
+// The `audience` query parameter can be used to customize the audience claim
 // within the resulting ID token.
 //
 // Valuable reference:

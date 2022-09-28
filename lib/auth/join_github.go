@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/githubactions"
 	"github.com/gravitational/trace"

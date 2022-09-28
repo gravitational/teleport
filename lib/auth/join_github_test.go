@@ -3,26 +3,27 @@ package auth
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/utils/githubactions"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 type mockIDTokenValidator struct {
 	tokens map[string]githubactions.IDTokenClaims
 }
 
-var mockInvalidTokenErr = errors.New("invalid token")
+var errMockInvalidToken = errors.New("invalid token")
 
 func (m *mockIDTokenValidator) Validate(_ context.Context, token string) (*githubactions.IDTokenClaims, error) {
 	claims, ok := m.tokens[token]
 	if !ok {
-		return nil, mockInvalidTokenErr
+		return nil, errMockInvalidToken
 	}
 
 	return &claims, nil

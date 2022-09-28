@@ -6,14 +6,15 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 func fakeGithubIDP(t *testing.T) (*httptest.Server, jose.Signer) {

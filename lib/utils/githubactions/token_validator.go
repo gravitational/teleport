@@ -3,10 +3,11 @@ package githubactions
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/coreos/go-oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"time"
 )
 
 type IDTokenValidatorConfig struct {
