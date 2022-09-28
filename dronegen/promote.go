@@ -138,3 +138,7 @@ func buildDockerPromotionPipelineQuay() pipeline {
 
 	return dockerPipeline
 }
+
+func publishReleasePipeline() pipeline {
+	return relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "relcli auto_publish -f -v 6")
+}
