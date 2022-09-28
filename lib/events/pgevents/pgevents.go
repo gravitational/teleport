@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/pgbk"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -233,12 +235,12 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		// this will error out if the encoding of template1 is not UTF8; in such
 		// cases, the database creation should probably be done manually anyway
 		createDB := fmt.Sprintf("CREATE DATABASE \"%v\" ENCODING UTF8", cfg.PoolConfig.ConnConfig.Database)
-		if _, err := pgConn.Exec(ctx, createDB); err != nil && !isCode(err, duplicateDatabaseCode) {
+		if _, err := pgConn.Exec(ctx, createDB); err != nil && !isCode(err, pgerrcode.DuplicateDatabase) {
 			// CREATE will check permissions first and we may not have CREATEDB
 			// privileges in more hardened setups; the subsequent connection
 			// will fail immediately if we can't connect, anyway, so we can log
 			// permission errors at debug level here.
-			if isCode(err, insufficientPrivilegeCode) {
+			if isCode(err, pgerrcode.InsufficientPrivilege) {
 				cfg.Log.WithError(err).Debug("Error creating database.")
 			} else {
 				cfg.Log.WithError(err).Warn("Error creating database.")
@@ -304,8 +306,44 @@ func (l *Log) Close() error {
 // important that f resets any shared state at the beginning, and that any
 // exfiltrated data is only used after the transaction commits cleanly.
 func (l *Log) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f func(pgx.Tx) error) error {
-	// TODO(espadolini): retry logic (just for serialization errors?)
-	return trace.Wrap(l.pool.BeginTxFunc(ctx, txOptions, f))
+	retrySerialization := func() error {
+		for i := 0; i < 20; i++ {
+			err := l.pool.BeginTxFunc(ctx, txOptions, f)
+			if err == nil || !isCode(err, pgerrcode.SerializationFailure) || !isCode(err, pgerrcode.DeadlockDetected) {
+				return trace.Wrap(err)
+			}
+			l.cfg.Log.WithError(err).WithField("attempt", i).Debug("Serialization failure.")
+		}
+		return trace.LimitExceeded("too many serialization failures")
+	}
+
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  0,
+		Step:   100 * time.Millisecond,
+		Max:    750 * time.Millisecond,
+		Jitter: retryutils.NewHalfJitter(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for i := 1; i < 20; i++ {
+		err = retrySerialization()
+		if err == nil {
+			return nil
+		}
+
+		select {
+		case <-retry.After():
+			l.cfg.Log.WithError(err).WithField("attempt", i).Debug("Retrying transaction.")
+			retry.Inc()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+	}
+
+	return trace.LimitExceeded("too many retries, last error: %v", err)
 }
 
 var schemas = []string{`
@@ -333,7 +371,7 @@ func (l *Log) setupAndMigrate(ctx context.Context) error {
 				version int PRIMARY KEY CHECK (version > 0),
 				creation_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 			)`,
-		); err != nil && !isCode(err, insufficientPrivilegeCode) {
+		); err != nil && !isCode(err, pgerrcode.InsufficientPrivilege) {
 			return trace.Wrap(err)
 		}
 
