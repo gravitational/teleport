@@ -178,12 +178,10 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
-		tconf.AuthServers = []utils.NetAddr{
-			{
-				AddrNetwork: "tcp",
-				Addr:        p.leaf.Web,
-			},
-		}
+		tconf.SetAuthServerAddress(utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        p.leaf.Web,
+		})
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
@@ -384,7 +382,7 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 
 			trustedClusterToken := "trustedclustertoken"
 			err := root.Process.GetAuthServer().UpsertToken(context.Background(),
-				types.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+				helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 			require.NoError(t, err)
 			trustedCluster := root.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 				{Remote: rootRole.GetName(), Local: []string{secondRole.GetName()}},
@@ -513,16 +511,12 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	return lp
 }
 
-func makeNodeConfig(nodeName, authAddr string) *service.Config {
+func makeNodeConfig(nodeName, proxyAddr string) *service.Config {
 	nodeConfig := service.MakeDefaultConfig()
+	nodeConfig.Version = defaults.TeleportConfigVersionV3
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")
-	nodeConfig.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        authAddr,
-		},
-	}
+	nodeConfig.ProxyServer = *utils.MustParseAddr(proxyAddr)
 	nodeConfig.Auth.Enabled = false
 	nodeConfig.Proxy.Enabled = false
 	nodeConfig.SSH.Enabled = true
