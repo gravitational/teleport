@@ -52,6 +52,7 @@ Roles:              access, editor
 Logins:             someUser
 Valid until:        2022-08-12 21:57:19 +0100 IST [valid for 4h44m0s]
 Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+
 Your Teleport Enterprise Edition license will expire in 10 days. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
@@ -147,9 +148,28 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
 
 On startup and every 1 hour afterwards the auth server will check the license and generate a license warning if applicable, or clear license warning alerts if they are no longer needed.
 
-All requests to grab cluster alerts on login will be made with a timeout of 500ms.
+All requests to grab cluster alerts will be made with a timeout of 500ms.
 
 These license warning alerts will need to be auth server specific so the host id will need to be added to the cluster alert spec to allow this. The cluster alert spec may also need to be modified to add a bool for whether an alert is allowed to be dismissed.
+
+```
+message ClusterAlertSpec {
+  // Severity represents how problematic/urgent the alert is.
+  AlertSeverity Severity = 1 [(gogoproto.jsontag) = "severity"];
+  // Message is the user-facing message associated with the alert.
+  string Message = 2 [(gogoproto.jsontag) = "message"];
+  // Created is the time at which the alert was generated.
+  google.protobuf.Timestamp Created = 3 [
+    (gogoproto.jsontag) = "created,omitempty",
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  // HostID is the id of the auth server that generated the alert.
+  string HostID = 4 [(gogoproto.jsontag) = "host_id"];
+  // Dismissible is set if the alert is unable to be dismissed in the webui.
+  bool Dismissible = 5 [(gogoproto.jsontag) = "dismissible"];
+}
+```
 
 ## Security considerations
 If your license expired, you can’t disable or snooze the warning.
