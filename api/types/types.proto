@@ -2574,6 +2574,8 @@ message OIDCConnectorSpecV3 {
         (gogoproto.jsontag) = "redirect_url",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
     ];
+    // AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
+    bool AllowUnverifiedEmail = 15 [ (gogoproto.jsontag) = "allow_unverified_email,omitempty" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
