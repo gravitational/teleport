@@ -10,7 +10,7 @@ state: draft
 - Product: Sasha `@klizhentas`, Xin `@xinding33`
 
 ## What
-Prevent database access users from being required to tap an MFA device every minute when per-session-MFA is enabled.
+Use a local proxy tunnel to define the lifetime of a database MFA session, so that database access users are not required to tap an MFA device every minute when per-session-MFA is enabled.
 
 ## Why
 Database access via GUI client such as DataGrip requires the user to start a local proxy to connect to: `tsh proxy db --tunnel <db>`.
