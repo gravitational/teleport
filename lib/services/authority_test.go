@@ -69,19 +69,6 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// CA for cluster3 with old schema
-	key, cert, err = tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster3"}, nil, time.Minute)
-	require.NoError(t, err)
-	ca3, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.HostCA,
-		ClusterName: "cluster3",
-		TLSKeyPairs: []types.TLSKeyPair{{
-			Cert: cert,
-			Key:  key,
-		}},
-	})
-	require.NoError(t, err)
-
 	t.Run("ca1 with 1 cert", func(t *testing.T) {
 		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1})
 		require.NotNil(t, pool)
@@ -94,18 +81,12 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 2, count)
 	})
-	t.Run("ca3 with 1 cert", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca3})
-		require.NotNil(t, pool)
-		require.NoError(t, err)
-		require.Equal(t, 1, count)
-	})
 
-	t.Run("ca1 + ca2 + ca3 with 4 certs total", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2, ca3})
+	t.Run("ca1 + ca2 with 3 certs total", func(t *testing.T) {
+		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2})
 		require.NotNil(t, pool)
 		require.NoError(t, err)
-		require.Equal(t, 4, count)
+		require.Equal(t, 3, count)
 	})
 }
 
@@ -187,9 +168,6 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	// needed for CertAuthoritiesEquivalent, as this will get called by
-	// UnmarshalCertAuthority
-	require.NoError(t, SyncCertAuthorityKeys(caLocal))
 
 	_, offset := caLocal.GetRotation().LastRotated.Zone()
 	require.NotZero(t, offset)
