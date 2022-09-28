@@ -41,14 +41,14 @@ import (
 
 // If you are working on a PR/testing changes to this file you should configure the following for Drone testing:
 // 1. Publish the branch you're working on
-// 2. Set `PRBranch` to the name of the branch in (1)
-// 3. Set `ConfigureForPRTestingOnly` to true
+// 2. Set `prBranch` to the name of the branch in (1)
+// 3. Set `configureForPRTestingOnly` to true
 // 4. Create a public and private ECR, Quay repos for "teleport", "teleport-ent", "teleport-operator", "teleport-lab"
-// 5. Set `TestingQuayRegistryOrg` and `TestingECRRegistryOrg` to the org name(s) used in (4)
+// 5. Set `testingQuayRegistryOrg` and `testingECRRegistryOrg` to the org name(s) used in (4)
 // 6. Set the `ECRTestingDomain` to the domain used for the private ECR repos
 // 7. Create two separate IAM users, each with full access to either the public ECR repo OR the private ECR repo
 // 8. Create a Quay "robot account" with write permissions for the created Quay repos
-// 9. Set the Drone secrets for the secret names listed in "GetContainerRepos" to the credentials in (7, 8), prefixed by the value of `TestingSecretPrefix`
+// 9. Set the Drone secrets for the secret names listed in "GetContainerRepos" to the credentials in (7, 8), prefixed by the value of `testingSecretPrefix`
 //
 // On each commit, after running `make dronegen``, run the following commands and resign the file:
 // # Pull the current branch instead of v10 so the appropriate dockerfile gets loaded
@@ -56,16 +56,16 @@ import (
 //
 // When finishing up your PR check the following:
 // * The testing secrets added to Drone have been removed
-// * `ConfigureForPRTestingOnly` has been set to false, and `make dronegen` has been reran afterwords
+// * `configureForPRTestingOnly` has been set to false, and `make dronegen` has been reran afterwords
 
 const (
-	ConfigureForPRTestingOnly bool   = false
-	TestingSecretPrefix       string = "TEST_"
-	TestingQuayRegistryOrg    string = "fred_heinecke"
-	TestingECRRegistryOrg     string = "u8j2q1d9"
-	TestingECRRegion          string = "us-east-2"
-	PRBranch                  string = "fred/multiarch-teleport-container-images"
-	TestingECRDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+	configureForPRTestingOnly bool   = false
+	testingSecretPrefix       string = "TEST_"
+	testingQuayRegistryOrg    string = "fred_heinecke"
+	testingECRRegistryOrg     string = "u8j2q1d9"
+	testingECRRegion          string = "us-east-2"
+	prBranch                  string = "fred/multiarch-teleport-container-images"
+	testingECRDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com"
 )
 
 const (
@@ -73,7 +73,7 @@ const (
 	PublicEcrRegion       string = "us-east-1"
 	StagingEcrRegion      string = "us-west-2"
 
-	LocalRegistry string = "drone-docker-registry:5000"
+	localRegistry string = "drone-docker-registry:5000"
 )
 
 func buildContainerImagePipelines() []pipeline {
@@ -88,8 +88,8 @@ func buildContainerImagePipelines() []pipeline {
 		NewCronTrigger(latestMajorVersions),
 	}
 
-	if ConfigureForPRTestingOnly {
-		triggers = append(triggers, NewTestTrigger(PRBranch, branchMajorVersion))
+	if configureForPRTestingOnly {
+		triggers = append(triggers, NewTestTrigger(prBranch, branchMajorVersion))
 	}
 
 	pipelines := make([]pipeline, 0, len(triggers))
@@ -498,9 +498,9 @@ func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL strin
 	}, archDestFileMap, dockerfilePath
 }
 
-func (p *Product) GetLocalRegistryImage(arch string, version *releaseVersion) *Image {
+func (p *Product) GetlocalRegistryImage(arch string, version *releaseVersion) *Image {
 	return &Image{
-		Repo: LocalRegistry,
+		Repo: localRegistry,
 		Name: p.Name,
 		Tag: &ImageTag{
 			ShellBaseValue:   version.ShellVersion,
@@ -542,7 +542,7 @@ func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string) [
 }
 
 func (p *Product) GetBuildStepName(arch string, version *releaseVersion) string {
-	telportImageName := p.GetLocalRegistryImage(arch, version)
+	telportImageName := p.GetlocalRegistryImage(arch, version)
 	return fmt.Sprintf("Build %s image %q", p.Name, telportImageName.GetDisplayName())
 }
 
@@ -552,7 +552,7 @@ func cleanBuilderName(builderName string) string {
 }
 
 func (p *Product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
-	localRegistryImage := p.GetLocalRegistryImage(arch, version)
+	localRegistryImage := p.GetlocalRegistryImage(arch, version)
 	builderName := cleanBuilderName(fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName()))
 
 	buildxConfigFileDir := path.Join("/tmp", builderName)
@@ -594,7 +594,7 @@ func (p *Product) createBuildStep(arch string, version *releaseVersion) (step, *
 			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			fmt.Sprintf("mkdir -pv %q", buildxConfigFileDir),
-			fmt.Sprintf("echo '[registry.%q]' > %q", LocalRegistry, buildxConfigFilePath),
+			fmt.Sprintf("echo '[registry.%q]' > %q", localRegistry, buildxConfigFilePath),
 			fmt.Sprintf("echo '  http = true' >> %q", buildxConfigFilePath),
 			buildxCreateCommand,
 			buildCommand,
@@ -640,14 +640,14 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 	}
 
 	registryOrg := ProductionRegistryOrg
-	if ConfigureForPRTestingOnly {
-		accessKeyIDSecret = TestingSecretPrefix + accessKeyIDSecret
-		secretAccessKeySecret = TestingSecretPrefix + secretAccessKeySecret
-		registryOrg = TestingECRRegistryOrg
+	if configureForPRTestingOnly {
+		accessKeyIDSecret = testingSecretPrefix + accessKeyIDSecret
+		secretAccessKeySecret = testingSecretPrefix + secretAccessKeySecret
+		registryOrg = testingECRRegistryOrg
 
 		if isStaging {
-			domain = TestingECRDomain
-			ecrRegion = TestingECRRegion
+			domain = testingECRDomain
+			ecrRegion = testingECRRegion
 		}
 	}
 
@@ -680,10 +680,10 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 
 func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo {
 	registryOrg := ProductionRegistryOrg
-	if ConfigureForPRTestingOnly {
-		dockerUsername = TestingSecretPrefix + dockerUsername
-		dockerPassword = TestingSecretPrefix + dockerPassword
-		registryOrg = TestingQuayRegistryOrg
+	if configureForPRTestingOnly {
+		dockerUsername = testingSecretPrefix + dockerUsername
+		dockerPassword = testingSecretPrefix + dockerPassword
+		registryOrg = testingQuayRegistryOrg
 	}
 
 	return &ContainerRepo{
