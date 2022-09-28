@@ -76,6 +76,7 @@ func darwinTagPipeline() pipeline {
 	}
 	p := newDarwinPipeline("build-darwin-amd64")
 	p.Trigger = triggerTag
+	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Steps = []step{
 		setUpExecStorageStep(p.Workspace.Path),
 		{
