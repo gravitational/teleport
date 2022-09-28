@@ -2,6 +2,7 @@ export TELEPORT_PUBLIC_DNS_NAME="[teleport-proxy.example.com]"
 export TELEPORT_CLUSTER_NAME="[teleport-cluster-name]"
   cat > teleport.yaml << EOF
   # By default, this file should be stored in /etc/teleport.yaml
+  version: v3
   teleport:
     nodename: $TELEPORT_PUBLIC_DNS_NAME
     cluster_name: $TELEPORT_CLUSTER_NAME
@@ -11,8 +12,7 @@ export TELEPORT_CLUSTER_NAME="[teleport-cluster-name]"
       severity: ERROR
     storage:
       type: dir
-    auth_servers:
-    - 127.0.0.1:3025
+    auth_server: 127.0.0.1:3025
     log:
       output: stderr
       severity: INFO

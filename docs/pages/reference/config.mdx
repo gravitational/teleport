@@ -65,8 +65,8 @@ By default, it is stored in `/etc/teleport.yaml`.
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
-# Configuration file version. The current version is "v2".
-version: v2
+# Configuration file version. The current version is "v3".
+version: v3
 
 # This section of the configuration file applies to all teleport
 # services.
@@ -89,6 +89,10 @@ teleport:
     #
     # File path example:
     # auth_token: /var/lib/teleport/tokenjoin
+    #
+    # This is the same as setting join_params.method to "token", and join_params.token_name
+    # to the value of auth_token.
+    # You should only use either auth_token or join_params.
     auth_token: xxxx-token-xxxx
 
     # join_params are parameters to set when joining a cluster via
@@ -99,16 +103,22 @@ teleport:
     # IAM join method documentation:
     # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
     join_params:
-        # method, when set to "token", is equivalent to using auth_token.
+        # When `method` is set to "token", it is the equivalent to using `auth_token` above.
+        # You should only use either auth_token or join_params.
         method: "token"|"ec2"|"iam"
-        # When method is "token", token_name is either the
-        # token or the path to a file containing the token.
+
+        # If method is "iam" or "ec2", token_name will be will be the name of
+        # the joining token resource, e.g., "ec2-token" or "iam-token" as created
+        # in the Joining Nodes via EC2 or IAM guides.
+
+        # If method is "token", token_name will be the invitation token
+        # or an absolute path to a file containing the token used to join a cluster.
+        # It is not used on subsequent starts.
+        # If using a file, it only needs to exist when teleport is first ran.
         #
-        # If method is "iam" or "ec2", token_name will be will be
-        # the name of the joining token resource, e.g., "ec2-token" or
-        # "iam-token" as created in the Joining Nodes via EC2 or IAM
-        # guides.
-        token_name:  "token-name"
+        # File path example:
+        # token_name: /var/lib/teleport/tokenjoin
+        token_name: "token-name"
 
     # Optional CA pin of the auth server. This enables a more secure way of
     # adding new nodes to a cluster. See "Adding Nodes to your Cluster"
@@ -128,14 +138,24 @@ teleport:
     # https://goteleport.com/docs/setup/reference/metrics/
     diag_addr: "127.0.0.1:3000"
 
+
+    # Only use one of auth_server or proxy_server.
+    #
+    # When you have either the application service or database service enabled,
+    # only tunneling through the proxy is supported, so you should specify proxy_server.
+    # All other services support both tunneling through the proxy and directly connecting
+    # to the auth server, so you can specify either auth_server or proxy_server.
+
     # Auth Server address and port to connect to. If you enable the Teleport
     # Auth Server to run in High Availability configuration, the address should
     # point to a Load Balancer.
-    # If adding a node located behind NAT, use the Proxy URL. e.g.
-    #  auth_servers:
-    #     - teleport-proxy.example.com:443
-    auth_servers:
-        - 10.1.0.5:3025
+    # If adding a node located behind NAT, specify `proxy_servers` instead
+    auth_server: 10.1.0.5:3025
+
+    # Proxy Server address and port to connect to. If you enable the Teleport
+    # Proxy Server to run in High Availability configuration, the address should
+    # point to a Load Balancer.
+    proxy_server: teleport-proxy.example.com:443
 
     # cache:
     #  # The cache is enabled by default, it can be disabled with this flag
@@ -779,3 +799,17 @@ kubernetes_service:
 # This section configures the windows desktop service
 (!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```
+
+## Changelog
+
+### v3
+
+**Introduced in Teleport v11**
+
+Replaced `teleport.auth_servers` with either `teleport.auth_server` or `teleport.proxy_server`.
+
+### v2
+
+**Introduced in Teleport v8**
+
+Added support for multiplexing via `auth_service.proxy_listener_mode`.

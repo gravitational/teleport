@@ -132,7 +132,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		desc                     string
 		tokenName                string
 		requestTokenName         string
-		tokenSpec                types.ProvisionTokenSpecV2
+		tokenSpec                types.ProvisionTokenSpecV3
 		stsClient                stsClient
 		iamRegisterOptions       []iamRegisterOption
 		challengeResponseOptions []challengeResponseOption
@@ -143,15 +143,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "basic passing case",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -166,15 +168,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "wildcard arn 1",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::role/admins-*",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::role/admins-*",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -189,15 +193,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "wildcard arn 2",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::role/admins-???",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::role/admins-???",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -212,15 +218,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "wrong token",
 			tokenName:        "test-token",
 			requestTokenName: "wrong-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -235,15 +243,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "challenge response error",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -259,15 +269,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "wrong arn",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::role/admins-???",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::role/admins-???",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -282,15 +294,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "wrong challenge",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -308,15 +322,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "wrong account",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -331,15 +347,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "sts api error",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusForbidden,
@@ -351,15 +369,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "wrong sts host",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -377,15 +397,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "regional sts endpoint",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -403,15 +425,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "unsigned challenge header",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -429,15 +453,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "fips pass",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -459,15 +485,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "non-fips client pass v11",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -489,15 +517,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			desc:             "non-fips client fail v12",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
+			tokenSpec: types.ProvisionTokenSpecV3{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodIAM,
+				IAM: &types.ProvisionTokenSpecV3AWSIAM{
+					Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
+						{
+							Account: "1234",
+							ARN:     "arn:aws::1111",
+						},
 					},
 				},
-				JoinMethod: types.JoinMethodIAM,
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
@@ -525,6 +555,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				time.Now().Add(time.Minute),
 				tc.tokenSpec)
 			require.NoError(t, err)
+
 			require.NoError(t, a.UpsertToken(ctx, token))
 			defer func() {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
