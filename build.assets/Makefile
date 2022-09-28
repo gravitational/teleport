@@ -453,7 +453,7 @@ release-centos7-fips:
 .PHONY:release-windows
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) LIBPCSCLITE=yes REPRODUCIBLE=yes
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
 
 #
 # Create an unsigned Windows Teleport package using the build container.
@@ -461,7 +461,7 @@ release-windows: buildbox
 .PHONY:release-windows-unsigned
 release-windows-unsigned: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) LIBPCSCLITE=yes REPRODUCIBLE=yes
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
 
 #
 # Run docs tester to detect problems.
