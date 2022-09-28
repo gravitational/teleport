@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -368,24 +367,6 @@ func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
 	return err == nil
 }
 
-// findPythonBin attempts to find a Python interpreter binary.
-func (c *CLICommandBuilder) findPythonBin() (string, bool) {
-	names := []string{"python", "python3", "python2"}
-	for _, name := range names {
-		_, err := c.options.exe.LookPath(name)
-		if err == nil {
-			return name, true
-		}
-	}
-	return "", false
-}
-
-// checkPythonPackage verifies given Python package is available.
-func (c *CLICommandBuilder) checkPythonPackage(pythonBin string, pythonPackage string) bool {
-	_, err := c.options.exe.RunCommand(pythonBin, "-c", fmt.Sprintf("import %v", pythonPackage))
-	return err == nil
-}
-
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
 // true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
@@ -558,29 +539,7 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	return cmd
 }
 
-// pythonStringLiteral produces Python string literal, which may require escaping some characters.
-func pythonStringLiteral(lit string) string {
-	escaped := strings.Replace(lit, "'", "\\'", -1)
-	return "'''" + escaped + "'''"
-}
-
-// pythonKeywordArgs formats provided map as keyword arguments in a Python function call invocation.
-func pythonKeywordArgs(args map[string]string) string {
-	var els []string
-
-	for key, value := range args {
-		els = append(els, fmt.Sprintf(",%v=%v", key, value))
-	}
-
-	sort.Strings(els)
-
-	return strings.Join(els, " ")
-}
-
-// getElasticsearchCommand returns a command to connect to Elasticsearch.
-// - we default to `elasticsearch-sql-cli` if we can find it;
-// - a first fallback option is Python with `elasticsearch` package available;
-// - the last option is a `curl` command.
+// getElasticsearchCommand returns a command to connect to Elasticsearch. We support `elasticsearch-sql-cli`, but only in non-TLS scenario.
 func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	if c.options.noTLS {
 		return c.options.exe.Command(elasticsearchSQLBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
@@ -623,39 +582,6 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() map[string]*ex
 		curlCommand = c.options.exe.Command(curlBin, args...)
 	}
 	commands["run single request with cURL"] = curlCommand
-
-	if pythonBin, found := c.findPythonBin(); found {
-		if c.checkPythonPackage(pythonBin, "elasticsearch") {
-			kwArgs := map[string]string{}
-
-			var esHost string
-			if c.options.noTLS {
-				esHost = fmt.Sprintf("http://%v:%v/", c.host, c.port)
-			} else {
-				esHost = fmt.Sprintf("https://%v:%v/", c.host, c.port)
-				kwArgs["client_key"] = pythonStringLiteral(c.profile.KeyPath())
-				kwArgs["client_cert"] = pythonStringLiteral(c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
-
-				if c.options.caPath != "" {
-					kwArgs["ca_certs"] = pythonStringLiteral(c.options.caPath)
-				}
-				if c.tc.InsecureSkipVerify {
-					kwArgs["verify_certs"] = "False"
-				}
-			}
-
-			script := `from elasticsearch import Elasticsearch
-es = Elasticsearch(%v%v)
-print('es.search(): ', es.search())
-print('More about Python client: https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/overview.html ')`
-			script = fmt.Sprintf(script, pythonStringLiteral(esHost), pythonKeywordArgs(kwArgs))
-			pythonCommand := c.options.exe.Command(pythonBin, "-i", "-c", script)
-
-			c.options.log.Debugf("Final Python invocation for Elasticsearch access: %v", pythonCommand.String())
-
-			commands["run query with Python"] = pythonCommand
-		}
-	}
 
 	return commands
 }
