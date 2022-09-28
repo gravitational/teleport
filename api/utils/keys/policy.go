@@ -37,7 +37,7 @@ const (
 )
 
 // VerifyPolicy verifies that the given policy meets the requirements of this policy.
-// If not, it will return a private key policy error, which can be parsed to retrive
+// If not, it will return a private key policy error, which can be parsed to retrieve
 // the unmet policy.
 func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 	switch p {

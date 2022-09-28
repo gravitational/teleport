@@ -38,7 +38,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -713,21 +712,6 @@ func TestRenewableUser(username string, generation uint64) TestIdentity {
 		},
 		Renewable:  true,
 		Generation: generation,
-	}
-}
-
-// TestHardwareKeyUser returns a TestIdentity for local user
-func TestHardwareKeyUser(username string) TestIdentity {
-	return TestIdentity{
-		I: LocalUser{
-			Username: username,
-			Identity: tlsca.Identity{
-				Username: username,
-				// Use the strictest private key policy so that this user
-				// always passes private key policy checks.
-				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			},
-		},
 	}
 }
 

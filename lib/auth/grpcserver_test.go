@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -1027,6 +1028,13 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
+	// Set hardware key test modules so that attestation will always succeed.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			HardwareKey: true,
+		},
+	})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1074,7 +1082,7 @@ func TestIsMFARequired(t *testing.T) {
 				err = srv.Auth().UpsertRole(ctx, role)
 				require.NoError(t, err)
 
-				cl, err := srv.NewClient(TestHardwareKeyUser(user.GetName()))
+				cl, err := srv.NewClient(TestUser(user.GetName()))
 				require.NoError(t, err)
 
 				resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
