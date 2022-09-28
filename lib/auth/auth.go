@@ -266,7 +266,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator, err = githubactions.NewIDTokenValidator(
-			as.closeCtx,
 			githubactions.IDTokenValidatorConfig{
 				Clock: as.clock,
 			},

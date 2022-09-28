@@ -3,6 +3,7 @@ package githubactions
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -22,10 +23,12 @@ type IDTokenValidatorConfig struct {
 
 type IDTokenValidator struct {
 	IDTokenValidatorConfig
-	oidc *oidc.Provider
+
+	mu    sync.Mutex
+	_oidc *oidc.Provider
 }
 
-func NewIDTokenValidator(ctx context.Context, cfg IDTokenValidatorConfig) (*IDTokenValidator, error) {
+func NewIDTokenValidator(cfg IDTokenValidatorConfig) (*IDTokenValidator, error) {
 	if cfg.IssuerURL == "" {
 		cfg.IssuerURL = IssuerURL
 	}
@@ -33,19 +36,39 @@ func NewIDTokenValidator(ctx context.Context, cfg IDTokenValidatorConfig) (*IDTo
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
-	p, err := oidc.NewProvider(ctx, cfg.IssuerURL)
+	return &IDTokenValidator{
+		IDTokenValidatorConfig: cfg,
+	}, nil
+}
+
+// getProvider allows the lazy initialisation of the oidc provider.
+func (id *IDTokenValidator) getProvider() (*oidc.Provider, error) {
+	id.mu.Lock()
+	defer id.mu.Unlock()
+	if id._oidc != nil {
+		return id._oidc, nil
+	}
+	// Intentionally use context.Background() here since this actually controls
+	// cache functionality.
+	p, err := oidc.NewProvider(
+		context.Background(),
+		id.IDTokenValidatorConfig.IssuerURL,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &IDTokenValidator{
-		IDTokenValidatorConfig: cfg,
-		oidc:                   p,
-	}, nil
+	id._oidc = p
+	return p, nil
 }
 
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
-	verifier := id.oidc.Verifier(&oidc.Config{
+	p, err := id.getProvider()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	verifier := p.Verifier(&oidc.Config{
 		ClientID: "teleport.cluster.local",
 		Now:      id.Clock.Now,
 	})

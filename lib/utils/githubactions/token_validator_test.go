@@ -195,7 +195,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			v, err := NewIDTokenValidator(ctx, IDTokenValidatorConfig{
+			v, err := NewIDTokenValidator(IDTokenValidatorConfig{
 				Clock:     clockwork.NewRealClock(),
 				IssuerURL: providerServer.URL,
 			})
