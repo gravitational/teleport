@@ -62,9 +62,6 @@ type Config struct {
 	// getHomeDir returns the home directory of the remote user of the
 	// SSH session
 	getHomeDir homeDirRetriever
-	// homeDir is the cached home directory of the remote user of the SSH
-	// session
-	homeDir string
 
 	// ProgressWriter is a writer for printing the progress
 	// (used only on the client)
@@ -189,22 +186,17 @@ func (c *Config) initFS(ctx context.Context, sshClient *ssh.Client, client *sftp
 		dstFS.c = client
 		haveRemoteFS = true
 	}
-
+	// this will only happen in tests
 	if !haveRemoteFS {
 		return nil
 	}
 
 	if c.getHomeDir == nil {
 		c.getHomeDir = func() (_ string, err error) {
-			// if home directory has already been cached, just return it
-			if c.homeDir != "" {
-				return c.homeDir, nil
-			}
-
-			c.homeDir, err = getRemoteHomeDir(sshClient)
-			return c.homeDir, err
+			return getRemoteHomeDir(sshClient)
 		}
 	}
+
 	return trace.Wrap(c.expandPaths(srcOK, dstOK))
 
 }
