@@ -3,9 +3,11 @@ FROM centos:7 AS libfido2
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
+    yum install -y centos-release-scl-rh && \
     yum update -y && \
     yum install -y \
         cmake3 \
+        devtoolset-11-gcc* \
         git \
         libudev-devel \
         zlib-devel && \
@@ -41,18 +43,18 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Install libfido2.
 # Depends on libcbor, openssl, zlib-devel and libudev.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
-    cmake3 \
-        -DBUILD_EXAMPLES=OFF \
-        -DBUILD_MANPAGES=OFF \
-        -DBUILD_TOOLS=OFF \
-        -DCMAKE_BUILD_TYPE=Release . && \
-    make && \
+    [ "$(git rev-parse HEAD)" = "659a02679f99fd34a44e06e35dce90794f6ecc86" ] && \
+    scl enable devtoolset-11 "\
+      cmake3 \
+          -DBUILD_EXAMPLES=OFF \
+          -DBUILD_MANPAGES=OFF \
+          -DBUILD_TOOLS=OFF \
+          -DCMAKE_BUILD_TYPE=Release . && \
+      make" && \
     make install && \
-# Update ld.
-    echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
-    ldconfig
+    make clean
 
 FROM centos:7 AS libbpf
 
@@ -172,20 +174,21 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.1.1 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.11.0 \
+    /usr/local/lib64/libfido2.so.1.12.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.1.1 \
     /usr/local/lib64/libudev.a \
     /usr/local/lib64/
-RUN cd /usr/local/lib64 && \
 # Re-create usual lib64 links.
+RUN cd /usr/local/lib64 && \
     ln -s libcrypto.so.1.1 libcrypto.so && \
-    ln -s libfido2.so.1.11.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.1.1 libssl.so && \
 # Update ld.
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
+# Configure pkg-config.
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
