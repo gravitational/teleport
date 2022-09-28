@@ -999,8 +999,8 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		case <-s.doneCh:
 		}
 
-		if scx.ExecRequest.GetCommand() != "" {
-			emitExecAuditEvent(scx, scx.ExecRequest.GetCommand(), err)
+		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
+			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
 		}
 
 		if result != nil {
@@ -1114,15 +1114,20 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
+	execRequest, err := scx.GetExecRequest()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start execution. If the program failed to start, send that result back.
 	// Note this is a partial start. Teleport will have re-exec'ed itself and
 	// wait until it's been placed in a cgroup and told to continue.
-	result, err := scx.ExecRequest.Start(ctx, channel)
+	result, err := execRequest.Start(ctx, channel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if result != nil {
-		scx.Debugf("Exec request (%v) result: %v.", scx.ExecRequest, result)
+		scx.Debugf("Exec request (%v) result: %v.", execRequest, result)
 		scx.SendExecResult(*result)
 	}
 
@@ -1130,7 +1135,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// or running in a recording proxy, OpenSession is a NOP.
 	cgroupID, err := scx.srv.OpenBPFSession(scx)
 	if err != nil {
-		scx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", scx.ExecRequest.GetCommand(), err)
+		scx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", execRequest.GetCommand(), err)
 		return trace.Wrap(err)
 	}
 
@@ -1152,11 +1157,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	}
 
 	// Process has been placed in a cgroup, continue execution.
-	scx.ExecRequest.Continue()
+	execRequest.Continue()
 
 	// Process is running, wait for it to stop.
 	go func() {
-		result = scx.ExecRequest.Wait()
+		result = execRequest.Wait()
 		if result != nil {
 			scx.SendExecResult(*result)
 		}
