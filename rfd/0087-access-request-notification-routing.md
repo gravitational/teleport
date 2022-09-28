@@ -40,24 +40,24 @@ Alice should not be paged each time Bob needs to debug something during open hou
 In Teleport terms:
 
 - the role `developer` can request roles `dev-rw`, `prod-ro` and `prod-rw`;
-- the role `lead-developer` can accept requests;
+- the role `lead-developer` can approve requests;
 - only `prod-rw` access requests should trigger a PagerDuty incident; and
 - `dev-rw` and `prod-ro` access requests should trigger a MsTeams message.
 
 ### Terminology
 
 Definitions:
-- A target is the pair: (`plugin`, `recipient`);
+- A target is the pair: (`plugin`, `recipients`);
 - `plugin` is a string describing which plugin should pick up this target;
   By default each plugin are listening for their own name (`slack` for the slack plugin,
   `msteams` for the Microsoft Teams one, ...). But the plugin name can be configurable
   in the plugin configuration. This allows support for multiple instances of the same
   plugin (e.g. many orgs have multiple slack workspaces, they can run 1 plugin per workspace); and
-- `recipient` is a string describing the access request recipient. Different kinds of recipients
-  are supported depending on the plugin (user name, channel name, service name, user id,
-  channel id, URL, ...).
+- `recipients` is a list of strings describing the access request recipients.
+  Different kinds of recipients are supported depending on the plugin (user
+  name, channel name, service name, user id, channel id, URL, ...).
 
-### New Resource: `access_routing_rule`
+### New Resource: `access_request_routing_rule`
 
 This proposal introduces a new resource to add routing annotations when an access request is emitted.
 
@@ -67,25 +67,25 @@ limit the `role` spec inflation and allow more flexibility to create role-agnost
 Routing rules are evaluated on access-request creation and will add elements to a new field in
 access-requests: `targets`.
 
-An example access_routing_rule would look like:
+An example access_request_routing_rule would look like:
 
 ```yaml
-kind: access_routing_rule
+kind: access_request_routing_rule
 version: v1
 metadata:
   name: example
 spec:
   targets:
   # simplified syntax
-  - condition: 'equals(resource.spec.requested_role, "prod-rw")'
-    recipient: "Teleport Alice"
+  - condition: 'resource.spec.roles.contains("prod-rw")'
+    recipients: ["Teleport Alice"]
     plugin: "pagerduty"
   # raw expression
   - expression: >
       ifelse(
-        equals(resource.spec.requested_role, "prod-rw"),
+        resource.spec.roles.contains("prod-rw"),
         pair(),
-        pair("msteams", "alice@example.com") 
+        pair("msteams", set("alice@example.com"))
       )
 ```
 
@@ -95,13 +95,13 @@ Invoked with the role `"prod-rw"`, this would produce the following `access-requ
 kind: access_request
 spec:
   user: bob
-  roles: prod-rw
+  roles: ["prod-rw"]
   state: 1
   # [some fields were omitted for clarity]
   request_reason: "Prod is down and rollback failed"
   targets:
     - plugin: pagerduty
-      recipient: Teleport Alice
+      recipients: ["Teleport Alice"]
 ```
 
 From the plugin point of view, the recipients are additive:
@@ -112,7 +112,7 @@ From the plugin point of view, the recipients are additive:
 
 ### Performance
 
-All `access_routing_rules` have to be evaluated against each access request. Even if this only applies
+All `access_request_routing_rules` have to be evaluated against each access request. Even if this only applies
 on access request creation, this can be an intensive operation, especially against the database.
 The auth server should maintain a cache of all target rules to avoid having to request them for each request.
 
@@ -125,7 +125,7 @@ the access request.
 
 Misconfigured rules should not represent security issues unless the plugin does some kind of automatic approval.
 This is the case for the pagerduty plugin which auto-approves if the requestor is on-call for the notified service.
-In such situation, `access_routing_rules` should be considered as critical as `roles` themselves as they can lead
+In such situation, `access_request_routing_rules` should be considered as critical as `roles` themselves as they can lead
 to automatic access escalation. Such risk is already present in the current implementation.
 
 Such risk can be mitigated by not granting the access-request edition rights to the plugin (at the price of a feature loss).
@@ -137,41 +137,64 @@ If the two targets are identical it is the plugin's responsibility to deduplicat
 
 #### Complexity/Time to value
 
-In most cases, a simple role_name check is performed and the users wants to set the plugin and the recipient.
+In most cases, a simple role_name check is performed and the users wants to set the plugin and the recipients.
 This is provided by the simplified syntax:
 
 ```yaml
 targets:
-  - condition: 'equals(resource.spec.requested_role, "prod-rw")'
-    recipient: "Teleport Alice"
+  - condition: 'resource.spec.roles.contains("prod-rw")'
+    recipients: ["Teleport Alice"]
     plugin: "pagerduty"
+  - condition: '!resource.spec.roles.contains("prod-rw")'
+    recipients: ["alice@example.com"]
+    plugin: "msteams"
 ```
 
 This syntax is equivalent to the pure-predicate one:
 
 ```yaml
-taregts:
+targets:
   - expression: >
       ifelse(
-        equals(resource.spec.requested_role, "prod-rw"),
-        pair("pagerduty", "Teleport Alice"),
+        resource.spec.roles.contains("prod-rw"),
+        pair("pagerduty", set("Teleport Alice")),
+        pair()
+      )
+  - expression: >
+      ifelse(
+        !resource.spec.roles.contains("prod-rw"),
+        pair("msteams", set("alice@example.com")),
         pair()
       )
 ```
 
-If users want to do complex operations and leverage all the predicate language power they can use pass the predicate code
-in the `expression` field. The predicate evaluation is expected to return a pair containing the plugin name and the recipient.
+Note: with the pure-predicate syntax could be simplified in this case:
+
+```yaml
+targets:
+  - expression: >
+      ifelse(
+        resource.spec.roles.contains("prod-rw"),
+        pair("pagerduty", set("Teleport Alice")),
+        pair("msteams", set("alice@example.com"))
+      )
+```
+
+If users want to do complex operations and leverage all the predicate language power they can use the predicate code
+in the `expression` field. The predicate evaluation is expected to return a pair containing the plugin name and the recipients.
 If one or both fields are empty, the target should not be set.
 
-If `expression` is set, `condition`, `recipient` and `plugin` should not be used. Teleport must validate
+If `expression` is set, `condition`, `recipients` and `plugin` should not be used. Teleport must validate
 this on resource creation and fail immediately instead of silently ignoring fields.
+
+Predicate from `condition` and `expression` is evaluated against the `access_request` resource.
 
 #### Combining with suggested_reviewers
 
 Another UX consideration is how this new feature will mix with the existing `suggested_reviewers`.
 The safest way would be to not interact with it and let the plugin deal with it.
 
-Using `suggested_reviwer` implies the user knows which plugin will be used to send the access request. 
+Using `suggested_reviewer` implies the user knows which plugin will be used to send the access request.
 The string has to make sense and be allowed by the plugin. Today most plugins support email addresses
 and reject other recipients, but somes are just ignoring the field (pagerduty). We might want to clarify
 what can be entered in this field and how different plugins are reacting to it so user has insights on
@@ -195,14 +218,104 @@ A workaround would be to resolve the resources (either before evaluating the rul
 
 This is currently out of the scope of this RFD and could be implemented if the feature gets user traction.
 
+#### Pagerduty example scenario
+
+This proposal would allow to solve the [initial feature request]() in multiple
+ways.
+
+The naive way with a big `access_request_routing_rule` containing the list of all allowed roles:
+
+```yaml
+version: v1
+metadata:
+  name: notify-allowed-roles-on-pagerduty
+targets:
+  - expression: >
+      ifelse(
+        resource.spec.roles.contains("allowedRoleA") or
+        resource.spec.roles.contains("allowedRoleB") or
+        resource.spec.roles.contains("allowedRoleC") or
+        resource.spec.roles.contains("allowedRoleD") or
+        resource.spec.roles.contains("allowedRoleE"),
+        pair("pagerduty", resource.spec.system_annotations.get("pagerduty_destination")),
+        pair()
+      )
+```
+
+This solution is equivalent to the [PR #596](https://github.com/gravitational/teleport-plugins/pull/596).
+
+Another more versatile solution would be to use a single
+`access_request_routing_rule` to implement a simple allowlist logic
+based on role request annotations.
+
+```yaml
+version: v1
+metadata:
+  name: pagerduty-notifications
+targets:
+  - expression: >
+      ifelse(
+        resource.spec.system_annotations.get("pagerduty_allow_roles").intersects(resource.spec.roles).len() > 0,
+        pair("pagerduty", resource.spec.system_annotations.get("pagerduty_destination")),
+        pair()
+      )
+```
+
+With the following role, Bob will trigger a Pagerduty escalation by requesting
+the role `"prod-rw"` but not the role `"prod-ro"`.
+
+```
+kind: role
+metadata:
+ name: developper
+spec:
+ allow:
+  request:
+   roles: ["prod-ro","prod-rw"]
+   annotations:
+    pagerduty_destinations: ["Teleport Alice"]
+    pagerduty_allow_roles: "prod-rw"
+```
+
+Note: relying on the role request annotations allows to keep the number of
+`access_request_routing_rules` low, which mitigates possible performance
+impacts. We might want to guide users towards model in the documentation.
+
 ### Plugin considerations
 
 This change must be backward compatible:
 - old plugins should ignore `targets` and get the recipients from the `role_to_recipient` map (or annotation for pagerduty);
 - each plugin should expose an `honor_suggested_reviwers` configuration, true by default;
 - each plugin should have a default name and listen to it by default in the `targets`, this name should be the same used to store plugin data;
-- admins can configure the plugin name through its configuration, names should always be prefixed by the plugin type (e.g. `slack-teanA`,
+- admins can configure the plugin name through its configuration, names should always be prefixed by the plugin type (e.g. `slack-teamA`,
   `msteams-teamB`) to limit conflicts between two plugins with the same names;
-- in DEBUG mode, each plugin should log if it is ignoring a target (because plugin name does not match for example) to ease troubleshooting; and
+- in INFO mode, each plugin should log if it is ignoring a target (because plugin name does not match for example) to ease troubleshooting; and
 - each plugin should log its name on startup.
 
+### Predicate Helper Methods
+
+Implementing the following predicate methods would allow users to create more
+complex rules like allowlists and blocklists based on role request annotations.
+
+#### `set.intersection(other_set)`
+
+`set.intersection()` takes a set and returns a set containing elements contained in the two sets.
+If the intersection is empty, it returns an empty set.
+`set("a", "b", "c").intersection(set("a", "c", "d"))` returns the set `("a", "c")`.
+
+#### `set.len()`
+
+`set.len()` returns the number of elements in the set.
+`set("a","b","c").len()` returns `3`.
+
+#### dict.get(key)
+
+`dict.get(key)` takes a string key and returns the set stored in `dict[key]`.
+If `dict[key]` is empty or it does not exist, it will return an empty set.
+```
+dict(
+  pair("fruits", set("apple", "banana")),
+  pair("vegetables", set("asparagus", "brocolli")),
+).get("fruits")
+```
+returns the set `("apple","bananas")`.
