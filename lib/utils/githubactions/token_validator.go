@@ -2,9 +2,11 @@ package githubactions
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/coreos/go-oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"time"
 )
 
 type IDTokenValidatorConfig struct {
@@ -43,8 +45,6 @@ func NewIDTokenValidator(ctx context.Context, cfg IDTokenValidatorConfig) (*IDTo
 
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
 	verifier := id.oidc.Verifier(&oidc.Config{
-		// TODO: Ensure this matches the cluster name once we start injecting
-		// that into the token.
 		ClientID: "teleport.cluster.local",
 		Now:      id.Clock.Now,
 	})
@@ -54,11 +54,59 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: NBF check or implement directly into go-oidc fork
+	// `go-oidc` does not implement not before check, so we need to manually
+	// perform this
+	if err := checkNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	claims := IDTokenClaims{}
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &claims, nil
+}
+
+// checkNotBefore ensures the token was not issued in the future.
+// https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
+// 4.1.5.  "nbf" (Not Before) Claim
+func checkNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
+	claims := struct {
+		NotBefore *jsonTime `json:"nbf"`
+	}{}
+	if err := token.Claims(&claims); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if claims.NotBefore != nil {
+		adjustedNow := now.Add(leeway)
+		nbf := time.Time(*claims.NotBefore)
+		if adjustedNow.Before(nbf) {
+			return trace.AccessDenied("token not before in future")
+		}
+	}
+
+	return nil
+}
+
+type jsonTime time.Time
+
+func (j *jsonTime) UnmarshalJSON(b []byte) error {
+	var n json.Number
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	var unix int64
+
+	if t, err := n.Int64(); err == nil {
+		unix = t
+	} else {
+		f, err := n.Float64()
+		if err != nil {
+			return err
+		}
+		unix = int64(f)
+	}
+	*j = jsonTime(time.Unix(unix, 0))
+	return nil
 }
