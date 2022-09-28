@@ -33,7 +33,7 @@
   # token is read as a parameter from the AWS ssm script run and
   # passed as the first argument to the script
   sudo /usr/local/bin/teleport node configure \
-    --auth-server="{{ .PublicProxyAddr }}" \
+    --proxy="{{ .PublicProxyAddr }}" \
     --join-method=iam \
     --token="$1" \
     --output=file \

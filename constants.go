@@ -755,6 +755,12 @@ const (
 	ChanSession = "session"
 )
 
+const (
+	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
+	// uses to get the home directory of a remote user.
+	GetHomeDirSubsystem = "gethomedir"
+)
+
 // A principal name for use in SSH certificates.
 type Principal string
 
