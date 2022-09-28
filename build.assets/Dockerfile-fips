@@ -48,7 +48,7 @@ RUN apt-get update -y --fix-missing && \
 
 ARG UID
 ARG GID
-RUN (groupadd ci --gid=$GID -o && useradd ci -o --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install etcd.
