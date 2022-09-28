@@ -269,6 +269,9 @@ highAvailability:
     # Group of Issuer that cert-manager should look for.
     # This defaults to 'cert-manager.io' which is the default Issuer group.
     issuerGroup: cert-manager.io
+  # Injects delay when performing pod rollouts to mitigate the loss of all agent tunnels at the same time
+  # See https://github.com/gravitational/teleport/issues/13129
+  minReadySeconds: 15
 
 # Settings for mounting your own TLS keypair to secure Teleport's web UI.
 # These settings are mutually exclusive with the "highAvailability.certManager" and "acme" values above.

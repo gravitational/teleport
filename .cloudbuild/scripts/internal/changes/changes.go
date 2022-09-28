@@ -31,9 +31,13 @@ import (
 
 // Changes describes the kind of changes found in the analysed workspace.
 type Changes struct {
+	CI         bool
 	Docs       bool
 	Code       bool
 	Enterprise bool
+	Helm       bool
+	Operator   bool
+	Rust       bool
 }
 
 // Analyze examines the workspace for specific changes using its git history,
@@ -64,6 +68,18 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 		case isDocChange(path):
 			report.Docs = true
 
+		case isHelmChange(path):
+			report.Helm = true
+
+		case isRustChange(path):
+			report.Rust = true
+
+		case isCIChange(path):
+			report.CI = true
+
+		case isOperatorChange(path):
+			report.Operator = true
+
 		default:
 			report.Code = true
 		}
@@ -78,12 +94,34 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 	return report, nil
 }
 
+func isCIChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasPrefix(path, ".cloudbuild/scripts")
+}
+
+func isOperatorChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasPrefix(path, "operator/")
+}
+
 func isDocChange(path string) bool {
 	path = strings.ToLower(path)
 	return strings.HasPrefix(path, "docs/") ||
 		strings.HasSuffix(path, ".mdx") ||
 		strings.HasSuffix(path, ".md") ||
 		strings.HasPrefix(path, "rfd/")
+}
+
+func isRustChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasSuffix(path, ".rs") ||
+		strings.HasSuffix(path, "Cargo.toml") ||
+		strings.HasSuffix(path, "Cargo.lock")
+}
+
+func isHelmChange(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasPrefix(path, "examples/chart/")
 }
 
 // getChanges resolves the head of target branch and compares the trees at the

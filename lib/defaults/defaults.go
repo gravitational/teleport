@@ -383,6 +383,9 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// DiscoveryQueueSize is discovery service queue size.
+	DiscoveryQueueSize = 128
+
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -473,6 +476,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleDiscovery is a discovery service
+	RoleDiscovery = "discovery"
 )
 
 const (
@@ -845,3 +850,12 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time
 	}
 	return from, to, nil
 }
+
+const (
+	// AWSInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command.
+	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+	// IAMInviteTokenName is the name of the default Teleport IAM
+	// token to use when templating the script to be executed.
+	IAMInviteTokenName = "aws-discovery-iam-token"
+)

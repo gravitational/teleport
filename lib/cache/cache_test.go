@@ -2606,6 +2606,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindLock:                    &types.LockV2{},
 		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+		types.KindInstaller:               &types.InstallerV1{},
 	}
 
 	for name, cfg := range cases {

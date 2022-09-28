@@ -30,6 +30,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -122,6 +123,9 @@ func newMockServer(t *testing.T) *mockServer {
 		Authority:    testauthority.New(),
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))

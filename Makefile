@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.2.2
+VERSION=10.2.6
 
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
@@ -481,14 +481,6 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 .PHONY: test
 test: test-helm test-sh test-ci test-api test-go test-rust test-operator
 
-# Runs bot Go tests.
-#
-.PHONY: test-bot
-test-bot:
-test-bot: FLAGS ?= -race -shuffle on
-test-bot:
-	cd .github/workflows/robot && go test $(FLAGS) ./...
-
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
 
@@ -644,7 +636,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
-lint-tools: lint-build-tooling lint-bot lint-ci-scripts lint-backport
+lint-tools: lint-build-tooling lint-ci-scripts lint-backport
 
 #
 # Runs the clippy linter on our rust modules
@@ -676,11 +668,6 @@ lint-build-tooling:
 lint-backport: GO_LINT_FLAGS ?=
 lint-backport:
 	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
-
-.PHONY: lint-bot
-lint-bot: GO_LINT_FLAGS ?=
-lint-bot:
-	cd .github/workflows/robot && golangci-lint run -c ../../../.golangci.yml $(GO_LINT_FLAGS)
 
 .PHONY: lint-ci-scripts
 lint-ci-scripts: GO_LINT_FLAGS ?=

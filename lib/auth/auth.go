@@ -3172,6 +3172,22 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 			NextKey:   wResp.NextKey,
 		}, nil
 	}
+	if req.ResourceType == types.KindWindowsDesktopService {
+		wResp, err := a.ListWindowsDesktopServices(ctx, types.ListWindowsDesktopServicesRequest{
+			Limit:               int(req.Limit),
+			StartKey:            req.StartKey,
+			PredicateExpression: req.PredicateExpression,
+			Labels:              req.Labels,
+			SearchKeywords:      req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ListResourcesResponse{
+			Resources: types.WindowsDesktopServices(wResp.DesktopServices).AsResources(),
+			NextKey:   wResp.NextKey,
+		}, nil
+	}
 	return a.Cache.ListResources(ctx, req)
 }
 

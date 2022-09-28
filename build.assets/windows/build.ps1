@@ -200,3 +200,64 @@ function Convert-Base64 {
         Set-Content -Encoding Byte -Path $FilePath -Value $bytes
     }
 }
+
+function Get-Relcli {
+    <#
+    .SYNOPSIS
+        Downloads relcli
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Url,
+        [string] $Sha256,
+        [string] $Workspace
+    )
+    begin {
+        Invoke-WebRequest $url -UseBasicParsing -OutFile "$Workspace\relcli.exe"
+        $gotSha256 = (Get-FileHash "$Workspace\relcli.exe").hash
+        if ($gotSha256 -ne $Sha256) {
+            Write-Output "sha256 mismatch: $gotSha256 != $Sha256"
+        }
+    }
+}
+
+function Register-Artifacts {
+    <#
+    .SYNOPSIS
+        Invokes relcli to automatically upload built artifacts
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $Workspace,
+        [string] $OutputsDir
+    )
+    begin {
+        $certPath = "$Workspace/releases.crt"
+        $keyPath = "$Workspace/releases.key"
+        Convert-Base64 -Data $Env:RELEASES_CERT -FilePath $certPath
+        Convert-Base64 -Data $Env:RELEASES_KEY -FilePath $keyPath
+        & "$Workspace\relcli.exe" --cert $certPath --key $keyPath auto_upload -f -v 6 $OutputsDir
+    }
+}
+
+function Send-ErrorMessage {
+    <#
+    .SYNOPSIS
+    Formats and sends a build failure message to Slack
+    #>
+    [CmdletBinding()]
+    param ()
+
+    begin {
+        $BuildUrl = "$Env:DRONE_SYSTEM_PROTO`://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER"
+        $GoOS = $(go env GOOS)
+		$GoArch = $(go env GOARCH)
+        $Msg = @"
+Warning: ``$GoOS-$GoArch`` artifact build failed for [``$Env:DRONE_REPO_NAME``] - please investigate immediately!
+Branch: ``$Env:DRONE_BRANCH``
+Commit: ``$Env:DRONE_COMMIT_SHA``
+Link: $BuildUrl
+"@
+        Invoke-RestMethod -Method 'Post' -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body $(@{"text"=$Msg} | ConvertTo-Json)
+    }
+}
