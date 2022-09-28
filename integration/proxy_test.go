@@ -260,7 +260,7 @@ func TestMultiPortNoProxy(t *testing.T) {
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
-//SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
+// SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
 		localK8SNI = "kube.teleport.cluster.local"
@@ -540,12 +540,12 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		},
 	})
 
-	sess := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+	sess := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppName, pack.rootAppURI, pack.rootAppClusterName, false)
 	status, _, err := pack.makeRequest(sess, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
-	sess = pack.createAppSession(t, pack.leafAppPublicAddr, pack.leafAppClusterName)
+	sess = pack.createAppSession(t, pack.leafAppPublicAddr, pack.leafAppName, pack.leafAppURI, pack.leafAppClusterName, false)
 	status, _, err = pack.makeRequest(sess, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
