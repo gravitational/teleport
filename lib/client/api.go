@@ -1115,7 +1115,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.AuthConnector = cp.AuthConnector
 	c.AuthenticatorAttachment, err = parseMFAMode(cp.MfaMode)
 	if err != nil {
-		log.Warnf("Unable to parse mfa mode in user profile: %v.", err)
+		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
 	}
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)

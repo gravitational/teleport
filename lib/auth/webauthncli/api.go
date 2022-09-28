@@ -215,8 +215,14 @@ func Register(
 	return U2FRegister(ctx, origin, cc)
 }
 
+// HasPlatformSupport returns true if the platform supports client-side
+// WebAuthn-compatible logins.
+func HasPlatformSupport() bool {
+	return IsFIDO2Available() || touchid.IsAvailable()
+}
+
 // IsFIDO2Available returns true if FIDO2 is implemented either via native
-// lifdo2 library or windows webauthn API.
+// libfido2 library or Windows WebAuthn API.
 func IsFIDO2Available() bool {
 	return isLibfido2Enabled() || webauthnwin.IsAvailable()
 }
