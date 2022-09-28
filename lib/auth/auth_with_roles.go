@@ -812,20 +812,55 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 		return alerts, nil
 	}
 
-	// filter alerts by teleport.internal labels to determine whether the alert
+	// filter alerts by teleport.internal 'permit' labels to determine whether the alert
 	// was intended to be visible to the calling user.
 	filtered := alerts[:0]
+Outer:
 	for _, alert := range alerts {
 		if alert.Metadata.Labels[types.AlertPermitAll] == "yes" {
 			// alert may be shown to all authenticated users
 			filtered = append(filtered, alert)
-			continue
+			continue Outer
 		}
 
-		// TODO(fspmarshall): Support additional internal labels to help customize alert targets.
-		// maybe we could use labels to specify that an alert should only be shown to users with a
-		// specific permission (e.g. `"teleport.internal/alert-permit-permission": "node:read"`).
-		// requires further consideration.
+		// the verb-permit label permits users to view an alert if they hold
+		// one of the specified <resource>:<verb> pairs (e.g. `node:list|token:create`
+		// would be satisfied by either a user that can list nodes *or* create tokens).
+	Verbs:
+		for _, s := range strings.Split(alert.Metadata.Labels[types.AlertVerbPermit], "|") {
+			rv := strings.Split(s, ":")
+			if len(rv) != 2 {
+				continue Verbs
+			}
+
+			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, rv[0], rv[1]) == nil {
+				// user holds at least one of the resource:verb pairs specified by
+				// the verb-permit label.
+				filtered = append(filtered, alert)
+				continue Outer
+			}
+		}
+	}
+
+	// aggregate supersede directives from the filtered alerts
+	sups := make(map[string]types.AlertSeverity)
+
+	for _, alert := range filtered {
+		for _, id := range strings.Split(alert.Metadata.Labels[types.AlertSupersedes], ",") {
+			if sups[id] < alert.Spec.Severity {
+				sups[id] = alert.Spec.Severity
+			}
+		}
+	}
+
+	// perform a second round of filtering, removing superseded alerts
+	alerts = filtered
+	filtered = alerts[:0]
+	for _, alert := range alerts {
+		if sups[alert.Metadata.Name] > alert.Spec.Severity {
+			continue
+		}
+		filtered = append(filtered, alert)
 	}
 
 	return filtered, nil
