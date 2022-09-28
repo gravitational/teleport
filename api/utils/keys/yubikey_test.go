@@ -59,7 +59,7 @@ func resetYubikey(ctx context.Context, t *testing.T) {
 	t.Helper()
 	y, err := findYubiKey(ctx, 0)
 	require.NoError(t, err)
-	yk, err := y.open(ctx)
+	yk, err := y.open()
 	require.NoError(t, err)
 	require.NoError(t, yk.Reset())
 	require.NoError(t, yk.Close())
