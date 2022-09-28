@@ -147,3 +147,10 @@ func (s *StatusService) DeleteClusterAlert(ctx context.Context, alertID string) 
 }
 
 const clusterAlertPrefix = "cluster-alerts"
+
+// Status service manages alerts.
+type Status interface {
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+	DeleteClusterAlert(ctx context.Context, alertID string) error
+}

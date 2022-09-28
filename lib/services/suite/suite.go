@@ -29,20 +29,21 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // NewTestCA returns new test authority with a test key as a public and
@@ -119,7 +120,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	case types.KindJWT:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
 		// when needed.
-		publicKey, privateKey, err := jwt.GenerateKeyPair()
+		publicKey, privateKey, err := testauthority.New().GenerateJWT()
 		if err != nil {
 			panic(err)
 		}
@@ -650,29 +651,6 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 
 	_, err = s.ProvisioningS.GetToken(ctx, "token")
 	require.True(t, trace.IsNotFound(err))
-
-	// check tokens backwards compatibility and marshal/unmarshal
-	expiry := time.Now().UTC().Add(time.Hour)
-	v1 := &types.ProvisionTokenV1{
-		Token:   "old",
-		Roles:   types.SystemRoles{types.RoleNode, types.RoleProxy},
-		Expires: expiry,
-	}
-	v2, err := types.NewProvisionToken(v1.Token, v1.Roles, expiry)
-	require.NoError(t, err)
-
-	// Tokens in different version formats are backwards and forwards
-	// compatible
-	require.Empty(t, cmp.Diff(v1.V2(), v2))
-	require.Empty(t, cmp.Diff(v2.V1(), v1))
-
-	// Marshal V1, unmarshal V2
-	data, err := services.MarshalProvisionToken(v2, services.WithVersion(types.V1))
-	require.NoError(t, err)
-
-	out, err := services.UnmarshalProvisionToken(data)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, v2))
 
 	// Test delete all tokens
 	tok, err = types.NewProvisionToken("token1", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
@@ -1401,6 +1379,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindToken,
 			},
+			expectDeleteVersion: true,
 			crud: func(context.Context) types.Resource {
 				expires := time.Now().UTC().Add(time.Hour)
 				tok, err := types.NewProvisionToken("token",
@@ -1847,14 +1826,18 @@ skiploop:
 		}
 		// delete events don't have IDs yet
 		header.SetResourceID(0)
+		if tc.expectDeleteVersion {
+			header.Version = types.VDeleted
+		}
 		ExpectDeleteResource(t, w, 3*time.Second, header)
 	}
 }
 
 type eventTest struct {
-	name string
-	kind types.WatchKind
-	crud func(context.Context) types.Resource
+	name                string
+	kind                types.WatchKind
+	expectDeleteVersion bool
+	crud                func(context.Context) types.Resource
 }
 
 func eventsTestKinds(tests []eventTest) []types.WatchKind {

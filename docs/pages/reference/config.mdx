@@ -83,7 +83,7 @@ teleport:
     # PID file for Teleport process
     #pid_file: /var/run/teleport.pid
 
-    # The invitation token or an absolute path to a file containing the token used 
+    # The invitation token or an absolute path to a file containing the token used
     # to join a cluster. It is not used on subsequent starts.
     # If using a file, it only needs to exist when teleport is first ran.
     #
@@ -203,7 +203,7 @@ teleport:
         # set `journal` to `WAL` and `sync` to `NORMAL`, but only when using a filesystem
         # that supports locks (see https://www.sqlite.org/pragma.html#pragma_journal_mode).
         #journal: DELETE
-        
+
         # DynamoDB-specific section:
 
         # continuous_backups is used to enable continuous backups.
@@ -610,9 +610,8 @@ proxy_service:
     # "v1": defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
-    # The HTTPS listen address to serve the Web UI and also to authenticate the
-    # command line (CLI) users via password+HOTP
-    # Also handles the PostgreSQL proxy if database access is enabled.
+    # The HTTPS listen address to serve the Web UI and authenticate users.
+    # Handles the PostgreSQL proxy if Database Access is enabled.
     web_listen_addr: 0.0.0.0:3080
 
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.

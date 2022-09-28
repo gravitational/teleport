@@ -993,6 +993,103 @@ message ProvisionTokenSpecV2 {
   ];
 }
 
+// ProvisionTokenV3 specifies provisioning token
+message ProvisionTokenV3 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is resource metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is a provisioning token V3 spec
+  ProvisionTokenSpecV3 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// ProvisionTokenV3List is a list of provisioning tokens.
+message ProvisionTokenV3List {
+  // ProvisionTokens is a list of provisioning tokens.
+  repeated ProvisionTokenV3 ProvisionTokens = 1;
+}
+
+message ProvisionTokenSpecV3 {
+  // Roles is a list of roles associated with the token, that will be converted
+  // to metadata in the SSH and X509 certificates issued to the user of the
+  // token.
+  repeated string Roles = 1 [
+    (gogoproto.jsontag) = "roles",
+    (gogoproto.casttype) = "SystemRole"
+  ];
+  // JoinMethod is the joining method required in order to use this token.
+  // Supported joining methods include:
+  // - "token"
+  // - "ec2"
+  // - "iam"
+  string JoinMethod = 2 [
+    (gogoproto.jsontag) = "join_method",
+    (gogoproto.casttype) = "JoinMethod"
+  ];
+  // BotName is the name of the bot this token grants access to.
+  // This field must be set if the token includes the `Bot` role. It cannot be
+  // set if the token does not include this role.
+  string BotName = 3 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // SuggestedLabels is a set of labels that resources should set when using
+  // this token to enroll themselves in the cluster.
+  wrappers.LabelValues SuggestedLabels = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "suggested_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // IAM allows the configuration of options specific to the "iam" join method.
+  ProvisionTokenSpecV3AWSIAM IAM = 5 [(gogoproto.jsontag) = "aws_iam,omitempty"];
+  // EC2 allows the configuration of options specific to the "ec2" join method.
+  ProvisionTokenSpecV3AWSEC2 EC2 = 6 [(gogoproto.jsontag) = "aws_ec2,omitempty"];
+}
+
+message ProvisionTokenSpecV3AWSEC2 {
+  message Rule {
+    // Account is the AWS account ID.
+    string Account = 1 [(gogoproto.jsontag) = "account,omitempty"];
+    // Regions is a list of AWS regions a node is allowed to join from.
+    repeated string Regions = 2 [(gogoproto.jsontag) = "regions,omitempty"];
+    // Role is the the ARN of the AWS role that the auth server will assume
+    // in order to call the ec2 API.
+    string RoleARN = 3 [(gogoproto.jsontag) = "role_arn,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // IIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
+  // to join the cluster with this token.
+  int64 IIDTTL = 2 [
+    (gogoproto.jsontag) = "iid_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
+}
+
+message ProvisionTokenSpecV3AWSIAM {
+  message Rule {
+    // Account is the AWS account ID.
+    string Account = 1 [(gogoproto.jsontag) = "account,omitempty"];
+    // ARN is used for the IAM join method, the AWS identity of joining nodes
+    // must match this ARN. Supports wildcards "*" and "?".
+    string ARN = 2 [(gogoproto.jsontag) = "arn,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
 // StaticTokensV2 implements the StaticTokens interface.
 message StaticTokensV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -1002,7 +1099,7 @@ message StaticTokensV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the version of the resource kind
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1330,7 +1427,9 @@ message AuthPreferenceSpecV2 {
 
   // RequireSessionMFA causes all sessions in this cluster to require MFA
   // checks.
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  //
+  // DELETE IN 13.0.0 in favor of RequireMFAType
+  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "-"];
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -1367,6 +1466,9 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_passwordless,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // RequireMFAType is the type of MFA requirement enforced for this cluster.
+  RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -1961,7 +2063,9 @@ message RoleOptions {
 
   // RequireSessionMFA specifies whether a user is required to do an MFA
   // check for every session.
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  //
+  // DELETE IN 13.0.0 in favor of RequireMFAType
+  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "-"];
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -2019,6 +2123,9 @@ message RoleOptions {
     (gogoproto.jsontag) = "ssh_file_copy",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // RequireMFAType is the type of MFA requirement enforced for this user.
+  RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 message RecordSession {
@@ -2905,6 +3012,9 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "dynamic_labels,omitempty"
   ];
+  // Kubeconfig is the kubeconfig file payload that grants access to the cluster.
+  // If multiple contexts are specified, the first will be selected.
+  bytes Kubeconfig = 2 [(gogoproto.jsontag) = "kubeconfig,omitempty"];
 }
 
 // KubernetesClusterV3List represents a list of kubernetes clusters.
@@ -4234,4 +4344,21 @@ message GetClusterAlertsRequest {
   string AlertID = 2;
   // Labels is an optional label selector.
   map<string, string> Labels = 3;
+}
+
+// RequireMFAType is a type of MFA requirement enforced outside of login,
+// such as per-session MFA or per-request PIV touch.
+enum RequireMFAType {
+  // OFF means additional MFA enforcement is not enabled.
+  OFF = 0;
+  // SESSION means MFA is required to begin server sessions.
+  SESSION = 1;
+  // SESSION_AND_HARDWARE_KEY means MFA is required to begin server sessions,
+  // and login sessions must use a private key backed by a hardware key.
+  SESSION_AND_HARDWARE_KEY = 2;
+  // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
+  // requires touch to be used. This touch requirement applies to all API requests
+  // rather than only session requests. This touch is different from MFA, so to prevent
+  // requiring double touch on session requests, normal Session MFA is disabled.
+  HARDWARE_KEY_TOUCH = 3;
 }

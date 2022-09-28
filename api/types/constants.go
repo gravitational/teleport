@@ -288,6 +288,10 @@ const (
 	// V1 is the first version of resources. Note: The first version was
 	// not explicitly versioned.
 	V1 = "v1"
+
+	// VDeleted indicates that the version information for this resource
+	// cannot be determined as it is being included as part of a delete Event.
+	VDeleted = "deleted"
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
@@ -345,6 +349,15 @@ const (
 	// OriginKubernetes is an origin value indicating that the resource was
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
+
+	// AWSAccountIDLabel is used to identify nodes by AWS account ID
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	AWSAccountIDLabel = TeleportNamespace + "/account-id"
+	// AWSInstanceIDLabel is used to identify nodes by EC2 instance ID
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
 )
 
 // EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
@@ -446,6 +459,9 @@ const (
 
 	// AlertPermitAll is an internal label that indicates that an alert is suitable for display to all users.
 	AlertPermitAll = "teleport.internal/alert-permit-all"
+
+	// AlertLink is an internal label that indicates that an alert is a link.
+	AlertLink = "teleport.internal/link"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport MsTeams Plugin
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/teleport-ms-teams start --config=/etc/teleport-ms-teams.toml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/teleport-ms-teams.pid
+
+[Install]
+WantedBy=multi-user.target
