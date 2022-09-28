@@ -2039,7 +2039,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 }
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
-	s.Logger.Error(err)
+	s.Logger.WithError(err).Errorf("Failure handling request %q", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
 	// stderr so the output does not mix with the rest of the output if the remote
 	// side is not doing additional formatting for extended data.

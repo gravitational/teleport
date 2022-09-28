@@ -978,6 +978,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	// create a new "party" (connected client) and launch/join the session.
 	p := newParty(s, types.SessionPeerMode, ch, scx)
 	if err := s.addParty(p, types.SessionPeerMode); err != nil {
+		s.log.WithError(err).Errorf("Failed to add participant %v to session", p.id)
 		return trace.Wrap(err)
 	}
 
@@ -1749,12 +1750,17 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 		}
 	}
 
-	s.log.Debug("Creating session tracker")
-	var err error
+	t, err := types.NewSessionTracker(trackerSpec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.WithFields(log.Fields{"ID": t.GetSessionID(), "Created": t.GetCreated().UTC(), "Expires": t.GetExpires().UTC(), "Spec.Expires": t.GetMetadata().Expires.UTC()}).Info("----- Creating session tracker")
 	s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.log.WithFields(log.Fields{"ID": t.GetSessionID(), "Created": s.tracker.tracker.GetCreated().UTC(), "Expires": s.tracker.tracker.GetExpires().UTC(), "Spec.Expires": s.tracker.tracker.GetMetadata().Expires.UTC()}).Info("------- Session tracker created")
 
 	go func() {
 		if err := s.tracker.UpdateExpirationLoop(s.serverCtx, s.registry.clock); err != nil {
