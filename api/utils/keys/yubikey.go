@@ -93,9 +93,6 @@ type YubiKeyPrivateKey struct {
 	*yubiKey
 	pivSlot piv.Slot
 	pub     crypto.PublicKey
-	// ctx is used when opening a connection to the PIV module,
-	// which occurs with a retry loop.
-	ctx context.Context
 }
 
 // yubiKeyPrivateKeyData is marshalable data used to retrieve a specific yubiKey PIV private key.
@@ -109,7 +106,6 @@ func newYubiKeyPrivateKey(ctx context.Context, y *yubiKey, slot piv.Slot, pub cr
 		yubiKey: y,
 		pivSlot: slot,
 		pub:     pub,
-		ctx:     ctx,
 	}, nil
 }
 
@@ -148,8 +144,8 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 }
 
 // Sign implements crypto.Signer.
-func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	yk, err := y.open(y.ctx)
+func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -160,10 +156,15 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		return nil, trace.Wrap(err)
 	}
 
-	withDelayedTouchPrompt(y.ctx, signTouchPromptDelay, func() {
-		signature, err = privateKey.(crypto.Signer).Sign(rand, digest, opts)
-	})
+	if y.pivSlot == pivSlotWithTouch {
+		cancelTouchPrompt := delayedTouchPrompt(signTouchPromptDelay)
+		defer cancelTouchPrompt()
+	}
 
+	signature, err := privateKey.(crypto.Signer).Sign(rand, digest, opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return signature, trace.Wrap(err)
 }
 
@@ -185,7 +186,7 @@ func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
 
 // GetAttestationStatement returns an AttestationStatement for this YubiKeyPrivateKey.
 func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, error) {
-	yk, err := y.open(y.ctx)
+	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,7 +236,7 @@ type yubiKey struct {
 func newYubiKey(ctx context.Context, card string) (*yubiKey, error) {
 	y := &yubiKey{card: card}
 
-	yk, err := y.open(ctx)
+	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -251,7 +252,7 @@ func newYubiKey(ctx context.Context, card string) (*yubiKey, error) {
 
 // generatePrivateKey generates a new private key from the given PIV slot with the given PIV policies.
 func (y *yubiKey) generatePrivateKey(ctx context.Context, slot piv.Slot, touchPolicy piv.TouchPolicy) (*YubiKeyPrivateKey, error) {
-	yk, err := y.open(ctx)
+	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -263,10 +264,12 @@ func (y *yubiKey) generatePrivateKey(ctx context.Context, slot piv.Slot, touchPo
 		TouchPolicy: touchPolicy,
 	}
 
-	var pub crypto.PublicKey
-	withDelayedTouchPrompt(ctx, generateKeyTouchPromptDelay, func() {
-		pub, err = yk.GenerateKey(piv.DefaultManagementKey, slot, opts)
-	})
+	if slot == pivSlotWithTouch {
+		cancelTouchPrompt := delayedTouchPrompt(generateKeyTouchPromptDelay)
+		defer cancelTouchPrompt()
+	}
+
+	pub, err := yk.GenerateKey(piv.DefaultManagementKey, slot, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +296,7 @@ func (y *yubiKey) generatePrivateKey(ctx context.Context, slot piv.Slot, touchPo
 
 // getPrivateKey gets an existing private key from the given PIV slot.
 func (y *yubiKey) getPrivateKey(ctx context.Context, slot piv.Slot) (*YubiKeyPrivateKey, error) {
-	yk, err := y.open(ctx)
+	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,29 +316,24 @@ func (y *yubiKey) getPrivateKey(ctx context.Context, slot piv.Slot) (*YubiKeyPri
 // open a connection to YubiKey PIV module. The returned connection should be closed once
 // it's been used. The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
-func (y *yubiKey) open(ctx context.Context) (yk *piv.YubiKey, err error) {
+func (y *yubiKey) open() (yk *piv.YubiKey, err error) {
 	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		// If a PIV connection has just been closed, it take ~5-10 ms to become
+		// If a PIV connection has just been closed, it take ~5 ms to become
 		// available to new connections. For this reason, we initially wait a
-		// short 20ms before stepping up to a longer 100ms retry.
-		First: time.Millisecond * 20,
-		Step:  time.Millisecond * 100,
+		// short 10ms before stepping up to a longer 50ms retry.
+		First: time.Millisecond * 10,
+		Step:  time.Millisecond * 10,
 		// Since PIV modules only allow a single connection, it is a bottleneck
-		// resource. To maximise usage, we use a short 100ms retry to catch the
+		// resource. To maximise usage, we use a short 50ms retry to catch the
 		// connection opening up as soon as possible.
-		Max: time.Millisecond * 100,
+		Max: time.Millisecond * 50,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Backoff and retry for up to 10 seconds. On login, Teleport Connect tries to open several,
-	// maybe even hundreds, of connections to the PIV module all at once to load available resources,
-	// so a long retry period is necessary.
-	//
-	// TODO (joerger): Reduce this retry period to something more reasonable, like 1 second,
-	// and add a way for `tsh` and Teleport Connect to share a single connection to a PIV module.
-	retryCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	// Backoff and retry for up to 1 second.
+	retryCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	err = linearRetry.For(retryCtx, func() error {
@@ -345,7 +343,17 @@ func (y *yubiKey) open(ctx context.Context) (yk *piv.YubiKey, err error) {
 		}
 		return trace.Wrap(err)
 	})
-	if err != nil {
+	if trace.IsLimitExceeded(err) {
+		// Using PIV syncronously causes issues since only one connection is allowed at a time.
+		// This shouldn't be an issue for `tsh` which primarily runs consecutively, but Teleport
+		// Connect works through callbacks, etc. and may try to open multiple connections at a time.
+		// If this error is being emitted more than rarely, the 1 second timeout may need to be increased.
+		//
+		// It's also possible that the user is running another PIV program, which may hold the PIV
+		// connection indefinitely (yubikey-agent). In this case, user action is necessary, so we
+		// alert them with this issue.
+		return nil, trace.LimitExceeded("could not connect to YubiKey due to an outstanding connection. Please try again once the connection is terminated, or ensure you aren't using a PIV program that locks the YubiKey PIV, such as yubikey-agent")
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return yk, nil
@@ -449,51 +457,28 @@ func selfSignedTeleportClientCertificate(priv crypto.PrivateKey, pub crypto.Publ
 //
 // There are some X factors which determine how long a request may take, such as the
 // YubiKey model and firmware version, so the delays below may need to be adjusted to
-// suit more models. The durations mentioned below were retrieved from testing with my
-// YubiKey 5 nano (5.2.7) and my YubiKey NFC (5.4.3).
+// suit more models. The durations mentioned below were retrieved from testing with a
+// YubiKey 5 nano (5.2.7) and a YubiKey NFC (5.4.3).
 const (
-	// Sign consistently takes ~70 milliseconds. We don't want to delay signatures
+	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. We don't want to delay signatures
 	// much since they happen frequently, so we use a liberal delay of 100ms.
 	signTouchPromptDelay = time.Millisecond * 100
-	// GenerateKey can take between 80 and 320ms. We use a slightly more
+	// piv.YubiKey.GenerateKey can take between 80 and 320ms. We use a slightly more
 	// conservative delay of 500ms since this only occurs once on login.
-	generateKeyTouchPromptDelay = time.Millisecond * 200
+	generateKeyTouchPromptDelay = time.Millisecond * 500
 )
 
-// withDelayedTouchPrompt runs the given function, prompting for touch after the given delay.
-func withDelayedTouchPrompt(ctx context.Context, delay time.Duration, do func()) {
-	touchCtx, cancel := context.WithTimeout(ctx, delay)
-	defer cancel()
+// delayedTouchPrompt prompts the user for touch after the given delay.
+// The returned cancel function can be used to cancel the prompt if the
+// calling function succeeds without touch, meaning touch was cached.
+func delayedTouchPrompt(delay time.Duration) (cancel func()) {
+	touchCtx, cancel := context.WithTimeout(context.Background(), delay)
 	go func() {
 		<-touchCtx.Done()
-		if ctx.Err() == context.DeadlineExceeded {
+		if touchCtx.Err() == context.DeadlineExceeded {
 			fmt.Fprintln(os.Stderr, "Tap your YubiKey")
 		}
 	}()
 
-	do()
-}
-
-// withContext runs the given function, but returns early if the given ctx is closed.
-func withContext(ctx context.Context, do func()) error {
-	// piv-go does not provide us a way to cancel ongoing PIV requests
-	// with a ctx. Therefore, if the program is canceled during a PIV request,
-	// the connection won't be closed. This can leave the PIV module unusable
-	// for a few seconds before the connection is cleaned up automatically.
-	//
-	// This usually is not a problem as PIV requests are quick enough to beat the
-	// cancelation. However, this issue is much more likely to occur during a PIV
-	// touch prompt, which doesn't complete until the user completes the touch action.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		do()
-	}()
-
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
-	}
+	return cancel
 }
