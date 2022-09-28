@@ -33,8 +33,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 
 # Install libfido2.
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
+    [ "$(git rev-parse HEAD)" = "659a02679f99fd34a44e06e35dce90794f6ecc86" ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -229,11 +230,11 @@ COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.11.0 \
+    /usr/local/lib/libfido2.so.1.12.0 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
-    ln -s libfido2.so.1.11.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
