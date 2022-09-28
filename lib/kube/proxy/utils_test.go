@@ -65,8 +65,15 @@ type kubeClusterConfig struct {
 	apiEndpoint string
 }
 
+// testConfig defines the suite options.
+type testConfig struct {
+	clusters         []kubeClusterConfig
+	resourceMatchers []services.ResourceMatcher
+	onReconcile      func(types.KubeClusters)
+}
+
 // setupTestContext creates a kube service with clusters configured.
-func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeClusterConfig) *testContext {
+func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testContext {
 	testCtx := &testContext{
 		clusterName: "root.example.com",
 		hostID:      uuid.New().String(),
@@ -74,7 +81,7 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
-	kubeConfigLocation := newKubeConfigFile(ctx, t, clusters...)
+	kubeConfigLocation := newKubeConfigFile(ctx, t, cfg.clusters...)
 
 	// Create and start test auth server.
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
@@ -129,7 +136,7 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 	keyGen := native.New(testCtx.ctx)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
-	heartbeatsWaitChannel := make(chan struct{}, len(clusters))
+	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))
 
 	// Create kubernetes service server.
 	testCtx.kubeServer, err = NewTLSServer(TLSServerConfig{
@@ -171,14 +178,16 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 			default:
 			}
 		},
-		GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers: cfg.resourceMatchers,
+		OnReconcile:      cfg.onReconcile,
 	})
 	require.NoError(t, err)
 
 	testCtx.startKubeService(t)
 
 	// Waits for len(clusters) heartbeats to start
-	for i := 0; i < len(clusters); i++ {
+	for i := 0; i < len(cfg.clusters); i++ {
 		<-heartbeatsWaitChannel
 	}
 
