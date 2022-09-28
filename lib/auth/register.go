@@ -146,6 +146,7 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // as well as a method for the node to validate the auth server.
 func Register(params RegisterParams) (*proto.Certs, error) {
 	params.setDefaults()
+	ctx := context.TODO()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
 	token, err := utils.TryReadValueAsFile(params.Token)
@@ -167,13 +168,10 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 			return nil, trace.Wrap(err)
 		}
 	} else if params.JoinMethod == types.JoinMethodGitHub {
-		// TODO: Inject this in.
-		gh := githubactions.NewIDTokenSource()
-		token, err := gh.GetIDToken(context.TODO())
+		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		params.IDToken = token
 	}
 
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
