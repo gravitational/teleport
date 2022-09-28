@@ -17,7 +17,7 @@ type UsageReporter struct {
 	Config
 }
 
-const alertName = "upgrade-to-paid-plan"
+const buyTeleportAlertName = "upgrade-to-paid-plan"
 const trialProductName = "Teleport 14 Day Trial"
 
 // New instantiates a new pro/enterprise teleport process
@@ -139,33 +139,42 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 
 	userCreatedResource := len(apps) > 0 || len(nodes) > 0 || len(databases) > 0 || len(kubeServers) > 0
 	if userCreatedResource {
-		if err := r.tryCreateBuyTeleportAlert(ctx); err != nil {
-			r.Log.WithError(err).Error("Failed to create cluster alert for trial.")
+		err := r.checkClusterAlert(ctx)
+		if err != nil {
+			r.Log.WithError(err).Error("Failed to check cluster alert.")
 		}
 	}
 }
 
-func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
-	billing, err := r.CloudClient.GetBillingInformation(ctx, &cloudapi.EmptyRequest{})
+func (r *UsageReporter) checkClusterAlert(ctx context.Context) error {
+	b, err := r.CloudClient.GetBillingInformation(ctx, &cloudapi.EmptyRequest{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// if the user is not on a 14-day trial plan, do not create an alert
-	if billing.ProductName != trialProductName {
-		return nil
-	}
 
 	alerts, err := r.ResourceGetter.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-		AlertID: alertName,
+		AlertID: buyTeleportAlertName,
 	})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	// if the user already has an upgrade-to-paid-plan alert, do not create an alert
-	if len(alerts) != 0 {
-		return nil
+
+	if b.ProductName == trialProductName && len(alerts) == 0 {
+		if err := r.tryCreateBuyTeleportAlert(ctx); err != nil {
+			r.Log.WithError(err).Error("Failed to try/create cluster alert for trial.")
+		}
 	}
 
+	if b.ProductName != trialProductName && len(alerts) != 0 {
+		if err := r.tryRemoveBuyTeleportAlert(ctx); err != nil {
+			r.Log.WithError(err).Error("Failed to try/remove cluster alert for trial.")
+		}
+	}
+
+	return nil
+}
+
+func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
 	accessEventTypes := []string{
 		events.SessionStartEvent,
 		events.AppSessionStartEvent,
@@ -191,7 +200,7 @@ func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
 	}
 
 	alert, err := types.NewClusterAlert(
-		alertName,
+		buyTeleportAlertName,
 		"Upgrade to a paid plan.",
 		types.WithAlertSeverity(types.AlertSeverity_LOW),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
@@ -203,6 +212,15 @@ func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
 	}
 
 	return trace.Wrap(r.ResourceGetter.UpsertClusterAlert(ctx, alert))
+}
+
+func (r *UsageReporter) tryRemoveBuyTeleportAlert(ctx context.Context) error {
+	err := r.ResourceGetter.DeleteClusterAlert(ctx, buyTeleportAlertName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (r *UsageReporter) getAuthConnectorCount(ctx context.Context) (int, error) {

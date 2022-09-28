@@ -9,6 +9,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -159,7 +160,7 @@ func TestErrors(t *testing.T) {
 	require.Equal(t, needed, obtained)
 }
 
-func TestTryCreateBuyTeleportAlert(t *testing.T) {
+func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 	ch := make(chan types.ClusterAlert, 1)
 	trialBillingInfo := &cloudapi.GetBillingInformationResponse{ProductName: trialProductName}
 
@@ -169,7 +170,7 @@ func TestTryCreateBuyTeleportAlert(t *testing.T) {
 		setupMocks        func(*reporterMocks)
 	}{
 		{
-			name:              "creates alert session event",
+			name:              "creates alert if criteria is met",
 			shouldCreateAlert: true,
 			setupMocks: func(m *reporterMocks) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
@@ -199,6 +200,9 @@ func TestTryCreateBuyTeleportAlert(t *testing.T) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
 					return &cloudapi.GetBillingInformationResponse{ProductName: "Not-A-Trial"}, nil
 				}
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return nil, trace.NotFound("not-found")
+				}
 			},
 		},
 		{
@@ -214,7 +218,7 @@ func TestTryCreateBuyTeleportAlert(t *testing.T) {
 						{
 							ResourceHeader: types.ResourceHeader{
 								Metadata: types.Metadata{
-									Name: alertName,
+									Name: buyTeleportAlertName,
 								},
 							},
 						},
@@ -245,7 +249,7 @@ func TestTryCreateBuyTeleportAlert(t *testing.T) {
 			require.NoError(t, err)
 
 			test.setupMocks(&m)
-			err = m.reporter.tryCreateBuyTeleportAlert(context.Background())
+			err = m.reporter.checkClusterAlert(context.Background())
 			require.NoError(t, err)
 
 			var insertedAlert types.ClusterAlert
@@ -256,7 +260,99 @@ func TestTryCreateBuyTeleportAlert(t *testing.T) {
 			}
 			if test.shouldCreateAlert {
 				require.NotNil(t, insertedAlert)
-				require.Equal(t, alertName, insertedAlert.Metadata.Name)
+				require.Equal(t, buyTeleportAlertName, insertedAlert.Metadata.Name)
+			}
+		})
+	}
+}
+
+func TestCheckClusterAlertTryRemoveBuyTeleportAlert(t *testing.T) {
+	ch := make(chan string, 1)
+	trialBillingInfo := &cloudapi.GetBillingInformationResponse{ProductName: trialProductName}
+
+	for _, test := range []struct {
+		name              string
+		shouldRemoveAlert bool
+		setupMocks        func(*reporterMocks)
+	}{
+		{
+			name:              "removes alert if criteria is met",
+			shouldRemoveAlert: true,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return &cloudapi.GetBillingInformationResponse{ProductName: "Not-A-Trial"}, nil
+				}
+
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return []types.ClusterAlert{
+						{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: buyTeleportAlertName,
+								},
+							},
+						},
+					}, nil
+				}
+
+				m.apiGetters.MockedDeleteClusterAlert = func(ctx context.Context, alertID string) error {
+					ch <- alertID
+					return nil
+				}
+			},
+		},
+		{
+			name:              "does not remove if trial account",
+			shouldRemoveAlert: false,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return trialBillingInfo, nil
+				}
+
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return []types.ClusterAlert{
+						{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: buyTeleportAlertName,
+								},
+							},
+						},
+					}, nil
+				}
+			},
+		},
+		{
+			name:              "does not remove if does not exist",
+			shouldRemoveAlert: false,
+			setupMocks: func(m *reporterMocks) {
+				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
+					return &cloudapi.GetBillingInformationResponse{ProductName: "Not-A-Trial"}, nil
+				}
+
+				m.apiGetters.MockedGetClusterAlerts = func() ([]types.ClusterAlert, error) {
+					return nil, nil
+				}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			m, err := createReporterMocks()
+			require.NoError(t, err)
+
+			test.setupMocks(&m)
+			err = m.reporter.checkClusterAlert(context.Background())
+			require.NoError(t, err)
+
+			var removedAlert string
+			select {
+			case a := <-ch:
+				removedAlert = a
+			default:
+			}
+			if test.shouldRemoveAlert {
+				require.NotNil(t, removedAlert)
+				require.Equal(t, buyTeleportAlertName, removedAlert)
 			}
 		})
 	}

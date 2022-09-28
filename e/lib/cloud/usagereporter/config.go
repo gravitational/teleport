@@ -90,8 +90,10 @@ type ResourceAPIGetter interface {
 
 	// GetClusterAlerts loads matching cluster alerts.
 	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
-	// UpsertClusterAlert creates the specified alert, overwriting any preexising alert with the same ID.
+	// UpsertClusterAlert creates the specified alert, overwriting any preexisting alert with the same ID.
 	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+	// DeleteClusterAlert deletes the cluster alert with the specified ID.
+	DeleteClusterAlert(ctx context.Context, alertID string) error
 
 	// GetGithubConnectors retrieves GitHub connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)

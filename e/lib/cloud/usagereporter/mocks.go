@@ -52,6 +52,7 @@ type MockedResourceGetter struct {
 	MockedSearchEvents          func() ([]events.AuditEvent, string, error)
 	MockedGetClusterAlerts      func() ([]types.ClusterAlert, error)
 	MockedUpsertClusterAlert    func(ctx context.Context, alert types.ClusterAlert) error
+	MockedDeleteClusterAlert    func(ctx context.Context, alertID string) error
 	MockedGetGithubConnectors   func() ([]types.GithubConnector, error)
 	MockedGetSAMLConnectors     func() ([]types.SAMLConnector, error)
 	MockedGetOIDCConnectors     func() ([]types.OIDCConnector, error)
@@ -127,6 +128,14 @@ func (g *MockedResourceGetter) UpsertClusterAlert(ctx context.Context, alert typ
 	}
 
 	return trace.NotImplemented("UpsertClusterAlert is not implemented")
+}
+
+func (g *MockedResourceGetter) DeleteClusterAlert(ctx context.Context, alertID string) error {
+	if g.MockedDeleteClusterAlert != nil {
+		return g.MockedDeleteClusterAlert(ctx, alertID)
+	}
+
+	return trace.NotImplemented("DeleteClusterAlert is not implemented")
 }
 
 func (g *MockedResourceGetter) GetGithubConnectors(context.Context, bool) ([]types.GithubConnector, error) {
