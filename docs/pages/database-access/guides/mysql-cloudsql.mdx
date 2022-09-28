@@ -134,14 +134,14 @@ a single Cloud SQL MySQL database:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```yaml
+version: v3
 teleport:
   data_dir: /var/lib/teleport-db
   nodename: test
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the Database Service always connects to the cluster over a reverse
   # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
+  proxy_server: teleport.example.com:3080
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -178,12 +178,12 @@ proxy_service:
 <ScopedBlock scope={["cloud"]}>
 
 ```yaml
+version: v3
 teleport:
   data_dir: /var/lib/teleport-db
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address.
-  auth_servers:
-  - mytenant.teleport.sh
+  proxy_server: mytenant.teleport.sh
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this

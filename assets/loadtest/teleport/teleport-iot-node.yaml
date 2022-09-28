@@ -1,3 +1,4 @@
+version: v3
 teleport:
   data_dir: /var/lib/teleport
   log:
@@ -6,8 +7,8 @@ teleport:
       output: json
   storage:
     type: dir
-  auth_servers: ["${PROXY_HOST}:3080"]
   auth_token: "node-${NODE_TOKEN}"
+  proxy_server: ${PROXY_HOST}:3080
 auth_service:
   enabled: false
 proxy_service:

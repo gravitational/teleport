@@ -1614,6 +1614,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindNode:
 		keyPrefix = []string{nodesPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToServer(types.KindNode)
+	case types.KindWindowsDesktopService:
+		keyPrefix = []string{windowsDesktopServicesPrefix, req.Namespace}
+		unmarshalItemFunc = backendItemToServer(types.KindWindowsDesktopService)
 	case types.KindKubeService:
 		keyPrefix = []string{kubeServicesPrefix}
 		unmarshalItemFunc = backendItemToServer(types.KindKubeService)

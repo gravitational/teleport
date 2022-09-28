@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -72,21 +71,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 
 	teleportClusterName := conn.ServerIdentity.ClusterName
-
-	// Start uploader that will scan a path on disk and upload completed
-	// sessions to the Auth Server.
-	uploaderCfg := filesessions.UploaderConfig{
-		Streamer: accessPoint,
-		AuditLog: conn.Client,
-	}
-	completerCfg := events.UploadCompleterConfig{
-		SessionTracker: conn.Client,
-		ClusterName:    teleportClusterName,
-	}
-	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-		return trace.Wrap(err)
-	}
-
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	// This service can run in 2 modes:
@@ -102,7 +86,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
 	case conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
-		return trace.BadParameter("either set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out, but don't set both")
+		return trace.BadParameter("either set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out, but don't set both")
 	case !conn.UseTunnel() && cfg.Kube.ListenAddr.IsEmpty():
 		// TODO(awly): if this process runs auth, proxy and kubernetes
 		// services, the proxy should be able to route requests to this
@@ -112,7 +96,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		//
 		// For now, as a lazy shortcut, kuberentes_service.listen_addr is
 		// always required when running in the same process with a proxy.
-		return trace.BadParameter("set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out")
+		return trace.BadParameter("set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out")
 
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():

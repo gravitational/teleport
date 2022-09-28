@@ -83,7 +83,8 @@ func NewTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 		cancel:        cancel,
 	}
 
-	scx.ExecRequest = &localExec{Ctx: scx}
+	err = scx.SetExecRequest(&localExec{Ctx: scx})
+	require.NoError(t, err)
 
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
