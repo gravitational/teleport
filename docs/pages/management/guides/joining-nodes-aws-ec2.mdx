@@ -185,9 +185,9 @@ Run `tctl create token.yaml` to create the token.
 ## Step 3/4. Configure your Nodes
 
 The EC2 join method can be used for Teleport services running SSH, Proxy,
-Kubernetes, Application, or Database roles. The service should be run directly
-on an AWS EC2 instance and must have network access to the AWS EC2 IMDSv2
-(enabled by default for most EC2 instances).
+Kubernetes, Application, Database, or Windows desktop roles. The service should
+be run directly on an AWS EC2 instance and must have network access to the AWS
+EC2 IMDSv2 (enabled by default for most EC2 instances).
 
 Configure your Teleport Node with a custom `teleport.yaml` file. Use the
 `join_params` section with `token_name` matching your token created in Step 2
