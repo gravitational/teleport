@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -41,6 +42,21 @@ const (
 	// method.
 	JoinMethodGitHub JoinMethod = "github"
 )
+
+var JoinMethods = []JoinMethod{
+	JoinMethodToken,
+	JoinMethodEC2,
+	JoinMethodIAM,
+}
+
+func ValidateJoinMethod(method JoinMethod) error {
+	hasJoinMethod := apiutils.SliceContainsStr(JoinMethods, method)
+	if !hasJoinMethod {
+		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
+	}
+
+	return nil
+}
 
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {

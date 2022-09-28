@@ -23,7 +23,7 @@ IAM credentials with `ec2:DescribeInstances` permissions are required on
 your Teleport Auth Service. No IAM credentials are required on the Nodes or
 Proxy Service instances.
 
-<Details 
+<Details
 opened
 title="Other AWS Node joining methods"
 scope={["oss", "enterprise"]}
@@ -63,8 +63,8 @@ more in the following guide:
   See [Installation](../../installation.mdx) for details.
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
-  installed. The Node should not have an existing data dir (`/var/lib/teleport` by default). 
-  Remove the data directory if this instance has previously joined a Teleport cluster.  
+  installed. The Node should not have an existing data dir (`/var/lib/teleport` by default).
+  Remove the data directory if this instance has previously joined a Teleport cluster.
 
 </TabItem>
 <TabItem
@@ -126,7 +126,7 @@ policy and attach it to your EC2 instance running the Teleport Auth Server.
 
 If you are running your Teleport Auth Server outside of AWS you can attach
 the `teleport-DescribeInstances-policy` directly to an IAM user which
-Teleport will use to authenticate. 
+Teleport will use to authenticate.
 
 You can provide the IAM credentials to Teleport through a shared configuration
 file or environment variables. See
@@ -195,12 +195,12 @@ and `method: ec2` as shown in the following example config:
 
 ```
 # /etc/teleport.yaml
+version: v3
 teleport:
   join_params:
     token_name: ec2-token
     method: ec2
-  auth_servers:
-  - https://teleport.example.com:443
+  proxy_server: https://teleport.example.com:443
 ssh_service:
   enabled: yes
 auth_service:

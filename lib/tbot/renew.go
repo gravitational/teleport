@@ -464,7 +464,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		ID: auth.IdentityID{
 			Role: types.RoleBot,
 		},
-		Servers:            []utils.NetAddr{*addr},
+		AuthServers:        []utils.NetAddr{*addr},
 		PublicTLSKey:       tlsPublicKey,
 		PublicSSHKey:       sshPublicKey,
 		CAPins:             b.cfg.Onboarding.CAPins,

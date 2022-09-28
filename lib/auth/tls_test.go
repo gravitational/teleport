@@ -2777,8 +2777,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with valid CA pin, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2795,8 +2795,8 @@ func TestRegisterCAPin(t *testing.T) {
 	// Attempt to register with multiple CA pins where the auth server only
 	// matches one, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2812,8 +2812,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with invalid CA pin, should fail.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2829,8 +2829,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with multiple invalid CA pins, should fail.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2865,8 +2865,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with multiple CA pins, should work
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2908,8 +2908,8 @@ func TestRegisterCAPath(t *testing.T) {
 
 	// Attempt to register with nothing at the CA path, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2937,8 +2937,8 @@ func TestRegisterCAPath(t *testing.T) {
 
 	// Attempt to register with valid CA path, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
