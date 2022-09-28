@@ -1728,7 +1728,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 	err = tc.SSH(context.TODO(), cmd, false)
-	require.Regexp(t, "cluster wrong-site not found", err.Error())
+	require.Contains(t, err.Error(), `unknown cluster \"wrong-site\"`)
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -2164,7 +2164,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
@@ -2669,7 +2669,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
@@ -3484,73 +3484,75 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		controlDir, err := os.MkdirTemp("", "teleport-")
-		require.NoError(t, err)
-		defer os.RemoveAll(controlDir)
-		controlPath := filepath.Join(controlDir, "control-path")
-
-		// Create a Teleport instance with auth, proxy, and node.
-		makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
-			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-				Mode: tt.inRecordLocation,
-			})
+		t.Run(fmt.Sprintf("recording_mode=%s", tt.inRecordLocation), func(t *testing.T) {
+			controlDir, err := os.MkdirTemp("", "teleport-")
 			require.NoError(t, err)
+			defer os.RemoveAll(controlDir)
+			controlPath := filepath.Join(controlDir, "control-path")
 
-			tconf := suite.defaultServiceConfig()
-			tconf.Auth.Enabled = true
-			tconf.Auth.SessionRecordingConfig = recConfig
+			// Create a Teleport instance with auth, proxy, and node.
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+					Mode: tt.inRecordLocation,
+				})
+				require.NoError(t, err)
 
-			tconf.Proxy.Enabled = true
-			tconf.Proxy.DisableWebService = true
-			tconf.Proxy.DisableWebInterface = true
+				tconf := suite.defaultServiceConfig()
+				tconf.Auth.Enabled = true
+				tconf.Auth.SessionRecordingConfig = recConfig
 
-			tconf.SSH.Enabled = true
+				tconf.Proxy.Enabled = true
+				tconf.Proxy.DisableWebService = true
+				tconf.Proxy.DisableWebInterface = true
 
-			return t, nil, nil, tconf
-		}
-		teleport := suite.NewTeleportWithConfig(makeConfig())
-		defer teleport.StopAll()
+				tconf.SSH.Enabled = true
 
-		// Generate certificates for the user simulating login.
-		creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-			Process:  teleport.Process,
-			Username: suite.Me.Username,
-		})
-		require.NoError(t, err)
-
-		// Start (and defer close) a agent that runs during this integration test.
-		teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
-		require.NoError(t, err)
-		defer helpers.CloseAgent(teleAgent, socketDirPath)
-
-		// Create and run an exec command twice with the passed in ControlPath. This
-		// will cause re-use of the connection and creation of two sessions within
-		// the connection.
-		for i := 0; i < 2; i++ {
-			execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
-				ForcePTY:     true,
-				ForwardAgent: true,
-				ControlPath:  controlPath,
-				SocketPath:   socketPath,
-				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
-				NodePort:     helpers.PortStr(t, teleport.SSH),
-				Command:      "echo hello",
-			})
-			require.NoError(t, err)
-
-			// Execute SSH command and check the output is what we expect.
-			output, err := execCmd.Output()
-			if err != nil {
-				// If an *exec.ExitError is returned, parse it and return stderr. If this
-				// is not done then c.Assert will just print a byte array for the error.
-				er, ok := err.(*exec.ExitError)
-				if ok {
-					t.Fatalf("Unexpected error: %v", string(er.Stderr))
-				}
+				return t, nil, nil, tconf
 			}
+			teleport := suite.NewTeleportWithConfig(makeConfig())
+			defer teleport.StopAll()
+
+			// Generate certificates for the user simulating login.
+			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+				Process:  teleport.Process,
+				Username: suite.Me.Username,
+			})
 			require.NoError(t, err)
-			require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
-		}
+
+			// Start (and defer close) a agent that runs during this integration test.
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			require.NoError(t, err)
+			defer helpers.CloseAgent(teleAgent, socketDirPath)
+
+			// Create and run an exec command twice with the passed in ControlPath. This
+			// will cause re-use of the connection and creation of two sessions within
+			// the connection.
+			for i := 0; i < 2; i++ {
+				execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+					ForcePTY:     true,
+					ForwardAgent: true,
+					ControlPath:  controlPath,
+					SocketPath:   socketPath,
+					ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
+					NodePort:     helpers.PortStr(t, teleport.SSH),
+					Command:      "echo hello",
+				})
+				require.NoError(t, err)
+
+				// Execute SSH command and check the output is what we expect.
+				output, err := execCmd.Output()
+				if err != nil {
+					// If an *exec.ExitError is returned, parse it and return stderr. If this
+					// is not done then c.Assert will just print a byte array for the error.
+					er, ok := err.(*exec.ExitError)
+					if ok {
+						t.Fatalf("Unexpected error: %v", string(er.Stderr))
+					}
+				}
+				require.NoError(t, err)
+				require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
+			}
+		})
 	}
 }
 
@@ -4269,7 +4271,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = svc.GetAuthServer().UpsertToken(ctx,
-		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},

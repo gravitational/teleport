@@ -379,16 +379,7 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clusterNameResource, err := authClient.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterName := clusterNameResource.GetClusterName()
+	authClient := proxyClient.CurrentCluster()
 
 	req := proto.ListResourcesRequest{
 		ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
@@ -412,11 +403,11 @@ func onRequestSearch(cf *CLIConf) error {
 		resources = append(resources, leafResources...)
 	}
 
-	rows := [][]string{}
+	var rows [][]string
 	var resourceIDs []string
 	for _, resource := range resources {
 		resourceID := types.ResourceIDToString(types.ResourceID{
-			ClusterName: clusterName,
+			ClusterName: proxyClient.ClusterName(),
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		})
