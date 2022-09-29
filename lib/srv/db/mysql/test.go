@@ -97,28 +97,28 @@ func WithServerVersion(serverVersion string) TestServerOption {
 }
 
 // NewTestServer returns a new instance of a test MySQL server.
-func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
-	address := "localhost:0"
-	if config.Address != "" {
-		address = config.Address
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (svr *TestServer, err error) {
+	err = config.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	defer config.CloseOnError(&err)
+
+	port, err := config.Port()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var listener net.Listener
+
+	listener := config.Listener
 	if config.ListenTLS {
-		listener, err = tls.Listen("tcp", address, tlsConfig)
-	} else {
-		listener, err = net.Listen("tcp", address)
+		listener = tls.NewListener(listener, tlsConfig)
 	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, port, err := net.SplitHostPort(listener.Addr().String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: defaults.ProtocolMySQL,
 		"name":          config.Name,
@@ -130,9 +130,11 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		log:      log,
 		handler:  &testHandler{log: log},
 	}
+
 	if !config.ListenTLS {
 		server.tlsConfig = tlsConfig
 	}
+
 	for _, o := range opts {
 		o(server)
 	}

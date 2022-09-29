@@ -333,7 +333,6 @@ func (k *Key) clientCertPool(clusters ...string) (*x509.CertPool, error) {
 //
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
-//
 func (k *Key) ProxyClientSSHConfig(keyStore sshKnowHostGetter, host string) (*ssh.ClientConfig, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {

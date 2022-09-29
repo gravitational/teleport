@@ -15,15 +15,15 @@ limitations under the License.
 
 */
 
-package identityfile_test
+package identityfile
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 )
 
 // TestIdentityFileBasics verifies basic profile operations such as
@@ -31,33 +31,61 @@ import (
 func TestIdentityFileBasics(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "file")
-	writeIDFile := &identityfile.IdentityFile{
+	writeIDFile := &IdentityFile{
 		PrivateKey: []byte("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n"),
-		Certs: identityfile.Certs{
-			SSH: []byte("ssh ssh-cert"),
+		Certs: Certs{
+			SSH: []byte(ssh.CertAlgoRSAv01),
 			TLS: []byte("-----BEGIN CERTIFICATE-----\ntls-cert\n-----END CERTIFICATE-----\n"),
 		},
-		CACerts: identityfile.CACerts{
+		CACerts: CACerts{
 			SSH: [][]byte{[]byte("@cert-authority ssh-cacerts")},
 			TLS: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\ntls-cacerts\n-----END CERTIFICATE-----\n")},
 		},
 	}
 
 	// Write identity file
-	err := identityfile.Write(writeIDFile, path)
+	err := Write(writeIDFile, path)
 	require.NoError(t, err)
 
 	// Read identity file from file
-	readIDFile, err := identityfile.ReadFile(path)
+	readIDFile, err := ReadFile(path)
 	require.NoError(t, err)
 
 	// Read identity file from string
 	s, err := os.ReadFile(path)
 	require.NoError(t, err)
-	fromStringIDFile, err := identityfile.FromString(string(s))
+	fromStringIDFile, err := FromString(string(s))
 	require.NoError(t, err)
 
 	// Check that read and write values are equal
 	require.Equal(t, writeIDFile, readIDFile)
 	require.Equal(t, writeIDFile, fromStringIDFile)
+}
+
+func TestIsSSHCert(t *testing.T) {
+	for _, tc := range []struct {
+		certType   string
+		expectBool bool
+	}{
+		{
+			certType:   "opensesame@openssh.com",
+			expectBool: false,
+		}, {
+			certType:   ssh.CertAlgoRSAv01,
+			expectBool: true,
+		}, {
+			certType:   ssh.CertAlgoECDSA256v01,
+			expectBool: true,
+		}, {
+			certType:   ssh.CertAlgoED25519v01,
+			expectBool: true,
+		},
+	} {
+		t.Run(tc.certType, func(t *testing.T) {
+			certData := append([]byte(tc.certType), []byte(" AAAA...")...)
+			isSSHCert := isSSHCert(certData)
+			require.Equal(t, tc.expectBool, isSSHCert)
+		})
+	}
+
 }

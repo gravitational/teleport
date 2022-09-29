@@ -59,3 +59,9 @@ type ARMPostgres interface {
 }
 
 var _ ARMPostgres = (*armpostgresql.ServersClient)(nil)
+
+// CacheForRedisClient provides an interface for an Azure Redis For Cache client.
+type CacheForRedisClient interface {
+	// GetToken retrieves the auth token for provided resource ID.
+	GetToken(ctx context.Context, resourceID string) (string, error)
+}

@@ -53,6 +53,93 @@ var (
 	CertAuthorityTypeExpr = builder.Identifier(`system.catype()`)
 )
 
+// predicateAllEndWith is a custom function to test if a string ends with a
+// particular suffix. If given a `[]string` as the first argument, all values
+// must have the given suffix (2nd argument).
+func predicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
+	return func() bool {
+		// bval is the suffix and must always be a plain string.
+		bval, ok := b.(string)
+		if !ok {
+			return false
+		}
+
+		switch aval := a.(type) {
+		case string:
+			return strings.HasSuffix(aval, bval)
+		case []string:
+			for _, val := range aval {
+				if !strings.HasSuffix(val, bval) {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+// predicateAllEqual is a custom function to test if all entries in a []string
+// are equal to a certain value. This is primarily useful for comparing string
+// fields that are only expected to contain a single, specific value.
+func predicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
+	return func() bool {
+		// bval is the suffix and must always be a plain string.
+		bval, ok := b.(string)
+		if !ok {
+			return false
+		}
+
+		switch aval := a.(type) {
+		case string:
+			return aval == bval
+		case []string:
+			for _, val := range aval {
+				if val != bval {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+// predicateIsSubset determines if the first parameter is contained within the
+// variadic args. The first argument may either by `string` or `[]string`, and
+// the variadic args may only be `string`.
+func predicateIsSubset(a interface{}, b ...interface{}) predicate.BoolPredicate {
+	return func() bool {
+		// Populate the set.
+		set := map[string]bool{}
+		for _, bval := range b {
+			s, ok := bval.(string)
+			if !ok {
+				return false
+			}
+
+			set[s] = true
+		}
+
+		switch aval := a.(type) {
+		case string:
+			return set[aval]
+		case []string:
+			for _, v := range aval {
+				if !set[v] {
+					return false
+				}
+			}
+
+			return true
+		default:
+			return false
+		}
+	}
+}
+
 // NewWhereParser returns standard parser for `where` section in access rules.
 func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 	return predicate.NewParser(predicate.Def{
@@ -62,8 +149,11 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 			NOT: predicate.Not,
 		},
 		Functions: map[string]interface{}{
-			"equals":   predicate.Equals,
-			"contains": predicate.Contains,
+			"equals":       predicate.Equals,
+			"contains":     predicate.Contains,
+			"all_end_with": predicateAllEndWith,
+			"all_equal":    predicateAllEqual,
+			"is_subset":    predicateIsSubset,
 			// system.catype is a function that returns cert authority type,
 			// it returns empty values for unrecognized values to
 			// pass static rule checks.
@@ -181,6 +271,10 @@ type Context struct {
 	Session events.AuditEvent
 	// SSHSession is an optional (active) SSH session.
 	SSHSession *session.Session
+	// HostCert is an optional host certificate.
+	HostCert *HostCertContext
+	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
+	SessionTracker types.SessionTracker
 }
 
 // String returns user friendly representation of this context
@@ -205,6 +299,10 @@ const (
 	ImpersonateRoleIdentifier = "impersonate_role"
 	// ImpersonateUserIdentifier is a user to impersonate
 	ImpersonateUserIdentifier = "impersonate_user"
+	// HostCertIdentifier refers to a host certificate being created.
+	HostCertIdentifier = "host_cert"
+	// SessionTrackerIdentifier refers to a session tracker in the rules.
+	SessionTrackerIdentifier = "session_tracker"
 )
 
 // GetResource returns resource specified in the context,
@@ -246,8 +344,75 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		// Do not expose the original session.Session, instead transform it into a
 		// ctxSession so the exposed fields match our desired API.
 		return predicate.GetFieldByTag(toCtxSession(ctx.SSHSession), teleport.JSON, fields[1:])
+	case HostCertIdentifier:
+		var hostCert *HostCertContext
+		if ctx.HostCert == nil {
+			hostCert = emptyHostCert
+		} else {
+			hostCert = ctx.HostCert
+		}
+		return predicate.GetFieldByTag(hostCert, teleport.JSON, fields[1:])
+	case SessionTrackerIdentifier:
+		return predicate.GetFieldByTag(toCtxTracker(ctx.SessionTracker), teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+	}
+}
+
+// ctxSession represents the public contract of a session.Session, as exposed
+// to a Context rule.
+// See RFD 82: https://github.com/gravitational/teleport/blob/master/rfd/0082-session-tracker-resource-rbac.md
+type ctxTracker struct {
+	SessionID    string   `json:"session_id"`
+	Kind         string   `json:"kind"`
+	Participants []string `json:"participants"`
+	State        string   `json:"state"`
+	Hostname     string   `json:"hostname"`
+	Address      string   `json:"address"`
+	Login        string   `json:"login"`
+	Cluster      string   `json:"cluster"`
+	KubeCluster  string   `json:"kube_cluster"`
+	HostUser     string   `json:"host_user"`
+	HostRoles    []string `json:"host_roles"`
+}
+
+func toCtxTracker(t types.SessionTracker) ctxTracker {
+	if t == nil {
+		return ctxTracker{}
+	}
+
+	getParticipants := func(s types.SessionTracker) []string {
+		participants := s.GetParticipants()
+		names := make([]string, len(participants))
+		for i, participant := range participants {
+			names[i] = participant.User
+		}
+
+		return names
+	}
+
+	getHostRoles := func(s types.SessionTracker) []string {
+		policySets := s.GetHostPolicySets()
+		roles := make([]string, len(policySets))
+		for i, policySet := range policySets {
+			roles[i] = policySet.Name
+		}
+
+		return roles
+	}
+
+	return ctxTracker{
+		SessionID:    t.GetSessionID(),
+		Kind:         t.GetKind(),
+		Participants: getParticipants(t),
+		State:        string(t.GetState()),
+		Hostname:     t.GetHostname(),
+		Address:      t.GetAddress(),
+		Login:        t.GetLogin(),
+		Cluster:      t.GetClusterName(),
+		KubeCluster:  t.GetKubeCluster(),
+		HostUser:     t.GetHostUser(),
+		HostRoles:    getHostRoles(t),
 	}
 }
 
@@ -293,11 +458,35 @@ func toCtxSession(s *session.Session) ctxSession {
 	}
 }
 
+// HostCertContext is used to evaluate the `where` condition on a `host_cert`
+// pseudo-resource. These resources only exist for RBAC purposes and do not
+// exist in the database.
+type HostCertContext struct {
+	// HostID is the host ID in the cert request.
+	HostID string `json:"host_id"`
+	// NodeName is the node name in the cert request.
+	NodeName string `json:"node_name"`
+	// Principals is the list of requested certificate principals.
+	Principals []string `json:"principals"`
+	// ClusterName is the name of the cluster for which the certificate should
+	// be issued.
+	ClusterName string `json:"cluster_name"`
+	// Role is the name of the Teleport role for which the cert should be
+	// issued.
+	Role types.SystemRole `json:"role"`
+	// TTL is the requested certificate TTL.
+	TTL time.Duration `json:"ttl"`
+}
+
 // emptyResource is used when no resource is specified
 var emptyResource = &EmptyResource{}
 
 // emptyUser is used when no user is specified
 var emptyUser = &types.UserV2{}
+
+// emptyHostCert is an empty host certificate used when no host cert is
+// specified
+var emptyHostCert = &HostCertContext{}
 
 // EmptyResource is used to represent a use case when no resource
 // is specified in the rules matcher
@@ -527,9 +716,10 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 // NewResourceParser returns a parser made for boolean expressions based on a
 // json-serialiable resource. Customized to allow short identifiers common in all
 // resources:
-//  - `metadata.name` can be referenced with `name` ie: `name == "jenkins"``
-//  - `metadata.labels + spec.dynamic_labels` can be referenced with `labels`
+//   - `metadata.name` can be referenced with `name` ie: `name == "jenkins"“
+//   - `metadata.labels + spec.dynamic_labels` can be referenced with `labels`
 //     ie: `labels.env == "prod"`
+//
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
 func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, error) {

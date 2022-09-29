@@ -52,7 +52,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -63,6 +62,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -93,6 +93,11 @@ const (
 
 	// MaxFailedAttemptsErrMsg is a user friendly error message that tells a user that they are locked.
 	MaxFailedAttemptsErrMsg = "too many incorrect attempts, please try again later"
+)
+
+const (
+	// githubCacheTimeout is how long Github org entries are cached.
+	githubCacheTimeout = time.Hour
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -138,6 +143,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
+	}
+	if cfg.Kubernetes == nil {
+		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
 	}
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
@@ -205,6 +213,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ClusterConfiguration:  cfg.ClusterConfiguration,
 		Restrictions:          cfg.Restrictions,
 		Apps:                  cfg.Apps,
+		Kubernetes:            cfg.Kubernetes,
 		Databases:             cfg.Databases,
 		IAuditLog:             cfg.AuditLog,
 		Events:                cfg.Events,
@@ -236,6 +245,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence),
 		traceClient:     cfg.TraceClient,
+		fips:            cfg.FIPS,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -244,6 +254,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
+	}
+	as.githubOrgSSOCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: githubCacheTimeout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &as, nil
@@ -259,6 +275,7 @@ type Services struct {
 	services.ClusterConfiguration
 	services.Restrictions
 	services.Apps
+	services.Kubernetes
 	services.Databases
 	services.WindowsDesktops
 	services.SessionTrackerService
@@ -320,7 +337,7 @@ var (
 	heartbeatsMissedByAuth = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricHeartbeatsMissed,
-			Help: "Number of hearbeats missed by auth server",
+			Help: "Number of heartbeats missed by auth server",
 		},
 	)
 
@@ -328,8 +345,7 @@ var (
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricRegisteredServers,
-			Help: "The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. " +
-				"After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL.",
+			Help:      "The number of Teleport services that are connected to an auth server by version.",
 		},
 		[]string{teleport.TagVersion},
 	)
@@ -414,9 +430,16 @@ type Server struct {
 
 	inventory *inventory.Controller
 
+	// githubOrgSSOCache is used to cache whether Github organizations use
+	// external SSO or not.
+	githubOrgSSOCache *utils.FnCache
+
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
+
+	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	fips bool
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -456,9 +479,12 @@ func (a *Server) runPeriodicOperations() {
 	// Create a ticker with jitter
 	heartbeatCheckTicker := interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
-		Jitter:   utils.NewSeventhJitter(),
+		Jitter:   retryutils.NewSeventhJitter(),
 	})
-	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
+	promTicker := interval.New(interval.Config{
+		Duration: defaults.PrometheusScrapeInterval,
+		Jitter:   retryutils.NewSeventhJitter(),
+	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
@@ -478,7 +504,7 @@ func (a *Server) runPeriodicOperations() {
 	releaseCheck := interval.New(interval.Config{
 		Duration:      time.Hour * 24,
 		FirstDuration: firstReleaseCheck,
-		Jitter:        utils.NewFullJitter(),
+		Jitter:        retryutils.NewFullJitter(),
 	})
 	defer releaseCheck.Stop()
 	for {
@@ -506,7 +532,7 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.C:
+		case <-promTicker.Next():
 			a.updateVersionMetrics()
 		case <-releaseCheck.Next():
 			a.checkForReleases(ctx)
@@ -518,37 +544,52 @@ func (a *Server) runPeriodicOperations() {
 // an appropriate upgrade is available.
 func (a *Server) checkForReleases(ctx context.Context) {
 	const alertID = "upgrade-suggestion"
+	const secAlertID = "security-patch-available"
 	log.Debug("Checking for new teleport releases via github api.")
 
 	// NOTE: essentially everything in this function is going to be
 	// scrapped/replaced once the inventory and version-control systems
 	// are a bit further along.
 
-	var loadFailed bool
-	current := vc.Normalize(teleport.Version)
+	current := vc.NewTarget(vc.Normalize(teleport.Version))
 
-	latest, err := github.LatestStable()
-	if err != nil {
-		log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
-		loadFailed = true
-		latest = current
+	// this environment variable is "unstable" since it will be deprecated
+	// by an upcoming tctl command. currently exists for testing purposes only.
+	if t := vc.NewTarget(os.Getenv("TELEPORT_UNSTABLE_VC_VERSION")); t.Ok() {
+		current = t
 	}
 
-	// use visitor to find the oldest version among connected instances
+	visitor := vc.Visitor{
+		Current: current,
+	}
+
+	var loadFailed bool
+	// scrape the github releases API with our visitor
+	if err := github.Visit(&visitor); err != nil {
+		log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
+		loadFailed = true
+	}
+
+	// use visitor to find the oldest version among connected instances.
 	// TODO(fspmarshall): replace this check as soon as we have a backend inventory repr. using
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		instanceVisitor.Visit(vc.Normalize(handle.Hello().Version))
+		v := vc.Normalize(handle.Hello().Version)
+		instanceVisitor.Visit(vc.NewTarget(v))
 	})
 
-	msg := makeUpgradeSuggestionMsg(current, latest, instanceVisitor.Oldest())
+	// build the general alert msg meant for broader consumption
+	msg := makeUpgradeSuggestionMsg(visitor, current, instanceVisitor.Oldest())
 
 	if msg != "" {
 		alert, err := types.NewClusterAlert(
 			alertID,
 			msg,
+			// Defaulting to "low" severity level. We may want to make this dynamic
+			// in the future depending on the distance from up-to-date.
+			types.WithAlertSeverity(types.AlertSeverity_LOW),
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
 		)
@@ -567,129 +608,80 @@ func (a *Server) checkForReleases(ctx context.Context) {
 			log.Warnf("Failed to delete %s alert: %v", alertID, err)
 		}
 	}
+
+	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) {
+		// explicit security patch alerts have a more limited audience, so we generate
+		// them as their own separate alert.
+		log.Warnf("A newer security patch has been detected. current=%s, patch=%s", current.Version(), sp.Version())
+		secMsg := fmt.Sprintf("A security patch is available for Teleport. Please upgrade your Cluster to %s or newer.", sp.Version())
+
+		alert, err := types.NewClusterAlert(
+			secAlertID,
+			secMsg,
+			types.WithAlertLabel(types.AlertOnLogin, "yes"),
+			// TODO(fspmarshall): permit alert to be shown to those with inventory management
+			// permissions once we have RBAC around that. For now, token:write is a decent
+			// approximation and will ensure that alerts are shown to the editor role.
+			types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
+			// hide the normal upgrade alert for users who can see this alert in order to
+			// improve its visibility and reduce clutter.
+			types.WithAlertLabel(types.AlertSupersedes, alertID),
+			types.WithAlertSeverity(types.AlertSeverity_HIGH),
+		)
+		if err != nil {
+			log.Warnf("Failed to build %s alert: %v (this is a bug)", secAlertID, err)
+			return
+		}
+
+		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+			log.Warnf("Failed to set %s alert: %v", secAlertID, err)
+			return
+		}
+	} else if !loadFailed {
+		err := a.DeleteClusterAlert(ctx, secAlertID)
+		if err != nil && !trace.IsNotFound(err) {
+			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
+		}
+	}
 }
 
 // makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
 // needed (returns "" if everything looks up to date).
-func makeUpgradeSuggestionMsg(current, latest, oldestInstance string) string {
-	// check if this teleport instance wants upgrade
-	if semver.Compare(latest, current) == 1 {
-		// specialize the message a bit to distinguish between a major and minor upgrade.
-		var msg string
-		if semver.Major(latest) != semver.Major(current) {
-			log.Debugf("Generating alert msg for new major version. current=%s, latest=%s", current, latest)
-			msg = fmt.Sprintf("The latest major version of Teleport is %s. Please consider upgrading your Cluster.", semver.Major(latest))
-		} else {
-			log.Debugf("Generating alert msg for new minor or patch release. current=%s, latest=%s", current, latest)
-			msg = fmt.Sprintf("Teleport %s is now available, please consider upgrading your cluster.", latest)
-		}
-		return msg
+func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) string {
+	if next := visitor.NextMajor(); next.Ok() {
+		// at least one stable release exists for the next major version
+		log.Debugf("Generating alert msg for next major version. current=%s, next=%s", current.Version(), next.Version())
+		return fmt.Sprintf("The next major version of Teleport is %s. Please consider upgrading your Cluster.", next.Major())
 	}
 
-	if oldestInstance != "" && semver.Compare(latest, oldestInstance) == 1 {
-		log.Debugf("Generating alert msg for older peripheral instance(s). latest=%s, oldestInstance=%s", latest, oldestInstance)
-		// at least one connected instance is older than this auth server.
+	if nc := visitor.NewestCurrent(); nc.Ok() && nc.NewerThan(current) {
+		// newer release of the currently running major version is available
+		log.Debugf("Generating alert msg for new minor or patch release. current=%s, newest=%s", current.Version(), nc.Version())
+		return fmt.Sprintf("Teleport %s is now available, please consider upgrading your Cluster.", nc.Version())
+	}
+
+	if oldestInstance.Ok() && current.NewerThan(oldestInstance) {
+		// at least one connected instance is older than this auth server
 		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them."
 	}
 
 	return ""
 }
 
-// updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
-// cluster via prometheus metrics
+// updateVersionMetrics leverages the inventory control stream to report the versions of
+// all instances that are connected to a single auth server via prometheus metrics. To
+// get an accurate representation of versions in an entire cluster the metric must be aggregated
+// with all auth instances.
 func (a *Server) updateVersionMetrics() {
-	hostID := make(map[string]struct{})
 	versionCount := make(map[string]int)
 
-	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
-	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
-	// and then store hostID and version count information.
-	serverCheck := func(server interface{}) {
-		type serverKubeWindows interface {
-			Expiry() time.Time
-			GetName() string
-			GetTeleportVersion() string
-		}
-		type appDB interface {
-			serverKubeWindows
-			GetHostID() string
-		}
+	// record versions for all connected resources
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		versionCount[handle.Hello().Version]++
+	})
 
-		// appDB needs to be first as it also matches the serverKubeWindows interface
-		if a, ok := server.(appDB); ok {
-			if a.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[a.GetHostID()]; !present {
-				hostID[a.GetHostID()] = struct{}{}
-				versionCount[a.GetTeleportVersion()]++
-			}
-		} else if s, ok := server.(serverKubeWindows); ok {
-			if s.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[s.GetName()]; !present {
-				hostID[s.GetName()] = struct{}{}
-				versionCount[s.GetTeleportVersion()]++
-			}
-		}
-	}
-
-	proxyServers, err := a.GetProxies()
-	if err != nil {
-		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
-	}
-	for _, proxyServer := range proxyServers {
-		serverCheck(proxyServer)
-	}
-
-	authServers, err := a.GetAuthServers()
-	if err != nil {
-		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, authServer := range authServers {
-		serverCheck(authServer)
-	}
-
-	servers, err := a.GetNodes(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
-	}
-	for _, server := range servers {
-		serverCheck(server)
-	}
-
-	dbs, err := a.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, db := range dbs {
-		serverCheck(db)
-	}
-
-	apps, err := a.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, app := range apps {
-		serverCheck(app)
-	}
-
-	kubeServers, err := a.GetKubernetesServers(a.closeCtx)
-	if err != nil {
-		log.Debugf("Failed to get Kube servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, kubeService := range kubeServers {
-		serverCheck(kubeService)
-	}
-
-	windowsServices, err := a.GetWindowsDesktopServices(a.closeCtx)
-	if err != nil {
-		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
-	}
-	for _, windowsService := range windowsServices {
-		serverCheck(windowsService)
-	}
+	// record version for **THIS** auth server
+	versionCount[teleport.Version]++
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	registeredAgents.Reset()
@@ -3180,7 +3172,91 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 			NextKey:   wResp.NextKey,
 		}, nil
 	}
+	if req.ResourceType == types.KindWindowsDesktopService {
+		wResp, err := a.ListWindowsDesktopServices(ctx, types.ListWindowsDesktopServicesRequest{
+			Limit:               int(req.Limit),
+			StartKey:            req.StartKey,
+			PredicateExpression: req.PredicateExpression,
+			Labels:              req.Labels,
+			SearchKeywords:      req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ListResourcesResponse{
+			Resources: types.WindowsDesktopServices(wResp.DesktopServices).AsResources(),
+			NextKey:   wResp.NextKey,
+		}, nil
+	}
 	return a.Cache.ListResources(ctx, req)
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := a.Services.CreateKubernetesCluster(ctx, kubeCluster); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterCreate{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterCreateEvent,
+			Code: events.KubernetesClusterCreateCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    kubeCluster.GetName(),
+			Expires: kubeCluster.Expiry(),
+		},
+		KubeClusterMetadata: apievents.KubeClusterMetadata{
+			KubeLabels: kubeCluster.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit kube cluster create event.")
+	}
+	return nil
+}
+
+// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
+func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := a.Kubernetes.UpdateKubernetesCluster(ctx, kubeCluster); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterUpdateEvent,
+			Code: events.KubernetesClusterUpdateCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    kubeCluster.GetName(),
+			Expires: kubeCluster.Expiry(),
+		},
+		KubeClusterMetadata: apievents.KubeClusterMetadata{
+			KubeLabels: kubeCluster.GetStaticLabels(),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit kube cluster update event.")
+	}
+	return nil
+}
+
+// DeleteKubernetesCluster deletes a kubernetes cluster resource.
+func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	if err := a.Kubernetes.DeleteKubernetesCluster(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterDeleteEvent,
+			Code: events.KubernetesClusterDeleteCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit kube cluster delete event.")
+	}
+	return nil
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -3189,10 +3265,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		return nil, trace.Wrap(err)
 	}
 
-	if pref.GetRequireSessionMFA() {
-		// Cluster always requires MFA, regardless of roles.
+	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
+	case services.MFARequiredNever:
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
+
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:

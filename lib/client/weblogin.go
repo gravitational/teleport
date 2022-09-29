@@ -105,9 +105,6 @@ type CreateSSHCertReq struct {
 	User string `json:"user"`
 	// Password is user's pass
 	Password string `json:"password"`
-	// HOTPToken is second factor token
-	// Deprecated: HOTPToken is deprecated, use OTPToken.
-	HOTPToken string `json:"hotp_token"`
 	// OTPToken is second factor token
 	OTPToken string `json:"otp_token"`
 	// PubKey is a public key user wishes to sign

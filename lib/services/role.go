@@ -64,6 +64,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindApp, RO()),
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
+	types.NewRule(types.KindKubernetesCluster, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -151,6 +152,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindLock, RW()),
 				types.NewRule(types.KindToken, RW()),
 				types.NewRule(types.KindConnectionDiagnostic, RW()),
+				types.NewRule(types.KindKubernetesCluster, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -414,15 +416,16 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 // and traits from identity provider. For example:
 //
 // cluster_labels:
-//   env: ['{{external.groups}}']
+//
+//	env: ['{{external.groups}}']
 //
 // and groups: ['admins', 'devs']
 //
 // will be interpolated to:
 //
 // cluster_labels:
-//   env: ['admins', 'devs']
 //
+//	env: ['admins', 'devs']
 func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.Labels {
 	outLabels := make(types.Labels, len(inLabels))
 	// every key will be mapped to the first value
@@ -558,7 +561,6 @@ func MakeRuleSet(rules []types.Rule) RuleSet {
 // Specifying order solves the problem on having multiple rules, e.g. one wildcard
 // rule can override more specific rules with 'where' sections that can have
 // 'actions' lists with side effects that will not be triggered otherwise.
-//
 func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string) (bool, error) {
 	// empty set matches nothing
 	if len(set) == 0 {
@@ -1093,6 +1095,45 @@ func (set RoleSet) PinSourceIP() bool {
 		}
 	}
 	return false
+}
+
+// MFAParams returns MFA params for the given user given their roles, the cluster
+// auth preference, and whether mfa has been verified.
+func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params AccessMFAParams) {
+	// per-session MFA is overridden by hardware key PIV touch requirement.
+	// check if the auth pref or any roles have this option.
+	if authPrefRequirement == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+		return AccessMFAParams{Required: MFARequiredNever}
+	}
+	for _, role := range set {
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+			return AccessMFAParams{Required: MFARequiredNever}
+		}
+	}
+
+	// MFA is always required according to the cluster auth pref.
+	if authPrefRequirement.IsSessionMFARequired() {
+		return AccessMFAParams{Required: MFARequiredAlways}
+	}
+
+	// If MFA requirement is the same across all roles, we can skip the per-role check.
+	// Set mfaRequired to the first role's requirement, then check if all other roles match.
+	if len(set) > 0 {
+		rolesMFARequired := set[0].GetOptions().RequireMFAType.IsSessionMFARequired()
+		for _, role := range set[1:] {
+			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
+				// This role differs from the MFA requirement of the other roles, return per-role.
+				return AccessMFAParams{Required: MFARequiredPerRole}
+			}
+		}
+
+		if rolesMFARequired {
+			return AccessMFAParams{Required: MFARequiredAlways}
+		}
+	}
+
+	// No roles to check or no roles require MFA.
+	return AccessMFAParams{Required: MFARequiredNever}
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
@@ -1930,7 +1971,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
-	if mfa.AlwaysRequired && !mfa.Verified {
+	if mfa.Required == MFARequiredAlways && !mfa.Verified {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
 	}
@@ -1938,17 +1979,27 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
 	allLabels := r.GetAllLabels()
 
+	// Additional message depending on kind of resource
+	// so there's more context on why the user might not have access.
+	additionalDeniedMessage := ""
+
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
 	switch r.GetKind() {
 	case types.KindDatabase:
 		getRoleLabels = types.Role.GetDatabaseLabels
+		additionalDeniedMessage = "Confirm database user and name."
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
 		getRoleLabels = types.Role.GetNodeLabels
+		additionalDeniedMessage = "Confirm SSH login."
 	case types.KindKubernetesCluster:
 		getRoleLabels = types.Role.GetKubernetesLabels
+		additionalDeniedMessage = "Confirm Kubernetes user or group."
 	case types.KindWindowsDesktop:
+		getRoleLabels = types.Role.GetWindowsDesktopLabels
+		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindWindowsDesktopService:
 		getRoleLabels = types.Role.GetWindowsDesktopLabels
 	default:
 		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
@@ -1968,7 +2019,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchLabels {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to %v denied", r.GetKind())
+			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+				r.GetKind(), additionalDeniedMessage)
 		}
 
 		// Deny rules are greedy on purpose. They will always match if
@@ -1980,7 +2032,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchMatchers {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
-			return trace.AccessDenied("access to %v denied", r.GetKind())
+			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+				r.GetKind(), additionalDeniedMessage)
 		}
 	}
 
@@ -2024,12 +2077,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		}
 
 		// if we've reached this point, namespace, labels, and matchers all match.
-		// if MFA is verified, we're done.
-		if mfa.Verified {
+		// if MFA is verified or never required, we're done.
+		if mfa.Verified || mfa.Required == MFARequiredNever {
 			return nil
 		}
 		// if MFA is not verified and we require session MFA, deny access
-		if role.GetOptions().RequireSessionMFA {
+		if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
@@ -2048,7 +2101,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	return trace.AccessDenied("access to %v denied", r.GetKind())
+	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+		r.GetKind(), additionalDeniedMessage)
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -2501,12 +2555,29 @@ func (set RoleSet) GetSearchAsRoles() []string {
 
 // AccessMFAParams contains MFA-related parameters for methods that check access.
 type AccessMFAParams struct {
-	// AlwaysRequired is set when MFA is required for all sessions, regardless
-	// of per-role options.
-	AlwaysRequired bool
+	// Required determines whether a user's MFA requirement dynamically changes based on
+	// their active role (per-role), or is static across all roles (always/never).
+	Required MFARequired
 	// Verified is set when MFA has been verified by the caller.
 	Verified bool
 }
+
+// MFARequired determines when MFA is required for a user to access a resource.
+type MFARequired string
+
+const (
+	// MFARequiredNever means that MFA is never required for any sessions started by this user. This either
+	// means both the cluster auth preference and all roles have per-session MFA off, or at least one of
+	// those resources has "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
+	MFARequiredNever MFARequired = "never"
+	// MFARequiredAlways means that MFA is required for all sessions started by a user. This either
+	// means that the cluster auth preference requires per-session MFA, or all of the user's roles require
+	// per-session MFA
+	MFARequiredAlways MFARequired = "always"
+	// MFARequiredPerRole means that MFA requirement is based on which of the user's roles
+	// provides access to the session in question.
+	MFARequiredPerRole MFARequired = "per-role"
+)
 
 // SortedRoles sorts roles by name
 type SortedRoles []types.Role

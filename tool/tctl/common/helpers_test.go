@@ -71,7 +71,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
 	ccf.Insecure = options.Insecure
 
-	clientConfig, err := applyConfig(&ccf, cfg)
+	clientConfig, err := ApplyConfig(&ccf, cfg)
 	require.NoError(t, err)
 
 	if options.CertPool != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -36,7 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+
+	logrus "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 )
 
@@ -57,7 +59,11 @@ type TLSServerConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// Log is the logger.
-	Log log.FieldLogger
+	Log logrus.FieldLogger
+	// Selectors is a list of resource monitor selectors.
+	ResourceMatchers []services.ResourceMatcher
+	// OnReconcile is called after each kube_cluster resource reconciliation.
+	OnReconcile func(types.KubeClusters)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -82,7 +88,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
 	if c.Log == nil {
-		c.Log = log.New()
+		c.Log = logrus.New()
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
@@ -102,6 +108,16 @@ type TLSServer struct {
 	heartbeats   map[string]*srv.Heartbeat
 	closeContext context.Context
 	closeFunc    context.CancelFunc
+	// watcher monitors changes to kube cluster resources.
+	watcher *services.KubeClusterWatcher
+	// reconciler reconciles proxied kube clusters with kube_clusters resources.
+	reconciler *services.Reconciler
+	// monitoredKubeClusters contains all kube clusters the proxied kube_clusters are
+	// reconciled against.
+	monitoredKubeClusters monitoredKubeClusters
+	// reconcileCh triggers reconciliation of proxied kube_clusters.
+	reconcileCh chan struct{}
+	log         *logrus.Entry
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -109,16 +125,27 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log := cfg.Log.WithFields(logrus.Fields{
+		trace.Component: cfg.Component,
+	})
 	// limiter limits requests by frequency and amount of simultaneous
 	// connections per client
 	limiter, err := limiter.NewLimiter(cfg.LimiterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cfg.ForwarderConfig.log = log
 	fwd, err := NewForwarder(cfg.ForwarderConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	} else if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
+		len(cfg.ResourceMatchers) == 0 {
+		// if fwd has no clusters and the service type is KubeService but no resource watcher is configured
+		// then the kube_service does not need to start since it will not serve any static or dynamic cluster.
+		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
@@ -136,11 +163,16 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		fwd:             fwd,
 		TLSServerConfig: cfg,
 		Server: &http.Server{
-			Handler:           limiter,
+			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 			TLSConfig:         cfg.TLS,
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
+		monitoredKubeClusters: monitoredKubeClusters{
+			static: fwd.kubeClusters(),
+		},
+		reconcileCh: make(chan struct{}),
+		log:         log,
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
 	server.closeContext, server.closeFunc = context.WithCancel(cfg.Context)
@@ -179,17 +211,38 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		return trace.Wrap(err)
 	}
 
+	// Start reconciler that will be reconciling proxied clusters with
+	// kube_cluster resources.
+	if err := t.startReconciler(t.closeContext); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Initialize watcher that will be dynamically (un-)registering
+	// proxied clusters based on the kube_cluster resources.
+	if t.watcher, err = t.startResourceWatcher(t.closeContext); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return t.Server.Serve(tls.NewListener(mux.TLS(), t.TLS))
 }
 
 // Close closes the server and cleans up all resources.
 func (t *TLSServer) Close() error {
-	errs := []error{t.Server.Close()}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	for _, heartbeat := range t.heartbeats {
-		errs = append(errs, heartbeat.Close())
+	var (
+		errs []error
+	)
+	for _, kubeCluster := range t.fwd.kubeClusters() {
+		errs = append(errs, t.unregisterKubeCluster(t.closeContext, kubeCluster.GetName()))
 	}
+	errs = append(errs, t.fwd.Close(), t.Server.Close())
+
+	t.closeFunc()
+
+	// Stop the kube_cluster resource watcher.
+	if t.watcher != nil {
+		t.watcher.Close()
+	}
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -197,20 +250,20 @@ func (t *TLSServer) Close() error {
 // and server's GetConfigForClient reloads the list of trusted
 // local and remote certificate authorities
 func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	return auth.WithClusterCAs(t.TLS, t.AccessPoint, t.ClusterName, t.Log)(info)
+	return auth.WithClusterCAs(t.TLS, t.AccessPoint, t.ClusterName, t.log)(info)
 }
 
 // getServerInfoFunc returns function that the heartbeater uses to report the
 // provided cluster to the auth server.
-func (t *TLSServer) getServerInfoFunc(cluster types.KubeCluster) func() (types.Resource, error) {
+func (t *TLSServer) getServerInfoFunc(name string) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
-		return t.getServerInfo(cluster)
+		return t.getServerInfo(name)
 	}
 }
 
 // GetServerInfo returns a services.Server object for heartbeats (aka
 // presence).
-func (t *TLSServer) getServerInfo(cluster types.KubeCluster) (types.Resource, error) {
+func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	var addr string
@@ -220,12 +273,16 @@ func (t *TLSServer) getServerInfo(cluster types.KubeCluster) (types.Resource, er
 		addr = t.listener.Addr().String()
 	}
 
+	cluster, err := t.fwd.findKubeClusterByName(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Both proxy and kubernetes services can run in the same instance (same
 	// cluster names). Add a name suffix to make them distinct.
 	//
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
-	name := cluster.GetName()
 	if t.KubeServiceType != KubeService {
 		name += "-proxy_service"
 	}
@@ -252,13 +309,13 @@ func (t *TLSServer) getServerInfo(cluster types.KubeCluster) (types.Resource, er
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
-func (t *TLSServer) startHeartbeat(ctx context.Context, kubeCluster types.KubeCluster) error {
+func (t *TLSServer) startHeartbeat(ctx context.Context, name string) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Mode:            srv.HeartbeatModeKube,
-		Context:         t.TLSServerConfig.Context,
+		Context:         t.closeContext,
 		Component:       t.TLSServerConfig.Component,
 		Announcer:       t.TLSServerConfig.AuthClient,
-		GetServerInfo:   t.getServerInfoFunc(kubeCluster),
+		GetServerInfo:   t.getServerInfoFunc(name),
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
@@ -272,7 +329,7 @@ func (t *TLSServer) startHeartbeat(ctx context.Context, kubeCluster types.KubeCl
 	go heartbeat.Run()
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.heartbeats[kubeCluster.GetName()] = heartbeat
+	t.heartbeats[name] = heartbeat
 	return nil
 }
 
@@ -280,7 +337,7 @@ func (t *TLSServer) startHeartbeat(ctx context.Context, kubeCluster types.KubeCl
 func (t *TLSServer) getRotationState() types.Rotation {
 	rotation, err := t.TLSServerConfig.GetRotation(types.RoleKube)
 	if err != nil && !trace.IsNotFound(err) {
-		t.Log.WithError(err).Warn("Failed to get rotation state.")
+		t.log.WithError(err).Warn("Failed to get rotation state.")
 	}
 	if rotation != nil {
 		return *rotation
@@ -296,15 +353,27 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 	// proxy_service will pretend to also be kube_server.
 	if t.KubeServiceType == KubeService ||
 		t.KubeServiceType == LegacyProxyService {
-		log.Debugf("Starting kubernetes_service heartbeats for %q", t.Component)
+		t.log.Debugf("Starting kubernetes_service heartbeats for %q", t.Component)
 		for _, cluster := range t.fwd.kubeClusters() {
-			if err := t.startHeartbeat(t.closeContext, cluster); err != nil {
+			if err := t.startHeartbeat(t.closeContext, cluster.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	} else {
-		log.Debug("No local kube credentials on proxy, will not start kubernetes_service heartbeats")
+		t.log.Debug("No local kube credentials on proxy, will not start kubernetes_service heartbeats")
 	}
 
 	return nil
+}
+
+// stopHeartbeat stops the registration heartbeat to the auth server.
+func (t *TLSServer) stopHeartbeat(name string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	heartbeat, ok := t.heartbeats[name]
+	if !ok {
+		return nil
+	}
+	delete(t.heartbeats, name)
+	return trace.Wrap(heartbeat.Close())
 }
