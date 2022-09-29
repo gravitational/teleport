@@ -57,21 +57,21 @@ const hostID = "00000000-0000-0000-0000-000000000000"
 // outside this package by external packages that extend the web API (such as
 // SAML and OIDC auth connectors in the enterprise edition).
 type TestWebSuite struct {
-	ctx    context.Context
-	cancel context.CancelFunc
+	Ctx    context.Context
+	Cancel context.CancelFunc
 
-	node        *regular.Server
-	proxy       *regular.Server
-	proxyTunnel reversetunnel.Server
-	srvID       string
+	Node        *regular.Server
+	Proxy       *regular.Server
+	ProxyTunnel reversetunnel.Server
+	SrvID       string
 
-	user      string
-	webServer *httptest.Server
+	User      string
+	WebServer *httptest.Server
 
-	mockU2F     *mocku2f.Key
-	server      *auth.TestServer
-	proxyClient *auth.Client
-	clock       clockwork.FakeClock
+	MockU2F     *mocku2f.Key
+	Server      *auth.TestServer
+	ProxyClient *auth.Client
+	Clock       clockwork.FakeClock
 }
 
 func NewTestWebSuite(t *testing.T) *TestWebSuite {
@@ -84,11 +84,11 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &TestWebSuite{
-		mockU2F: mockU2F,
-		clock:   clockwork.NewFakeClock(),
-		user:    u.Username,
-		ctx:     ctx,
-		cancel:  cancel,
+		MockU2F: mockU2F,
+		Clock:   clockwork.NewFakeClock(),
+		User:    u.Username,
+		Ctx:     ctx,
+		Cancel:  cancel,
 	}
 
 	networkingConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
@@ -96,11 +96,11 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	})
 	require.NoError(t, err)
 
-	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+	s.Server, err = auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
 			ClusterName:             "localhost",
 			Dir:                     t.TempDir(),
-			Clock:                   s.clock,
+			Clock:                   s.Clock,
 			ClusterNetworkingConfig: networkingConfig,
 		},
 	})
@@ -108,7 +108,7 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = s.server.Auth().UpsertAuthServer(&types.ServerV2{
+	err = s.Server.Auth().UpsertAuthServer(&types.ServerV2{
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -116,7 +116,7 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 			Name:      "auth",
 		},
 		Spec: types.ServerSpecV2{
-			Addr:     s.server.TLS.Listener.Addr().String(),
+			Addr:     s.Server.TLS.Listener.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},
@@ -130,10 +130,10 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	require.NoError(t, err)
 
 	// start node
-	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
+	certs, err := s.Server.Auth().GenerateHostCerts(s.Ctx,
 		&authproto.HostCertsRequest{
 			HostID:       hostID,
-			NodeName:     s.server.ClusterName(),
+			NodeName:     s.Server.ClusterName(),
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
@@ -144,7 +144,7 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	require.NoError(t, err)
 
 	nodeID := "node"
-	nodeClient, err := s.server.NewClient(auth.TestIdentity{
+	nodeClient, err := s.Server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
@@ -152,7 +152,7 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	})
 	require.NoError(t, err)
 
-	nodeLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+	nodeLockWatcher, err := services.NewLockWatcher(s.Ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentNode,
 			Client:    nodeClient,
@@ -164,7 +164,7 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	nodeDataDir := t.TempDir()
 	node, err := regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		s.server.ClusterName(),
+		s.Server.ClusterName(),
 		[]ssh.Signer{signer},
 		nodeClient,
 		nodeDataDir,
@@ -178,18 +178,18 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
-		regular.SetClock(s.clock),
+		regular.SetClock(s.Clock),
 		regular.SetLockWatcher(nodeLockWatcher),
 	)
 	require.NoError(t, err)
-	s.node = node
-	s.srvID = node.ID()
-	require.NoError(t, s.node.Start())
+	s.Node = node
+	s.SrvID = node.ID()
+	require.NoError(t, s.Node.Start())
 	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
-	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
+	s.ProxyClient, err = s.Server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
@@ -197,29 +197,29 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	})
 	require.NoError(t, err)
 
-	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", s.server.ClusterName()))
+	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", s.Server.ClusterName()))
 	require.NoError(t, err)
 
-	proxyLockWatcher, err := services.NewLockWatcher(s.ctx, services.LockWatcherConfig{
+	proxyLockWatcher, err := services.NewLockWatcher(s.Ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			Client:    s.proxyClient,
+			Client:    s.ProxyClient,
 		},
 	})
 	require.NoError(t, err)
 
-	proxyNodeWatcher, err := services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
+	proxyNodeWatcher, err := services.NewNodeWatcher(s.Ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			Client:    s.proxyClient,
+			Client:    s.ProxyClient,
 		},
 	})
 	require.NoError(t, err)
 
-	caWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
+	caWatcher, err := services.NewCertAuthorityWatcher(s.Ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			Client:    s.proxyClient,
+			Client:    s.ProxyClient,
 		},
 		Types: []types.CertAuthType{types.HostCA, types.UserCA},
 	})
@@ -229,40 +229,40 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:                    node.ID(),
 		Listener:              revTunListener,
-		ClientTLS:             s.proxyClient.TLSConfig(),
-		ClusterName:           s.server.ClusterName(),
+		ClientTLS:             s.ProxyClient.TLSConfig(),
+		ClusterName:           s.Server.ClusterName(),
 		HostSigners:           []ssh.Signer{signer},
-		LocalAuthClient:       s.proxyClient,
-		LocalAccessPoint:      s.proxyClient,
-		Emitter:               s.proxyClient,
+		LocalAuthClient:       s.ProxyClient,
+		LocalAccessPoint:      s.ProxyClient,
+		Emitter:               s.ProxyClient,
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
+		LocalAuthAddresses:    []string{s.Server.TLS.Listener.Addr().String()},
 	})
 	require.NoError(t, err)
-	s.proxyTunnel = revTunServer
+	s.ProxyTunnel = revTunServer
 
 	// proxy server:
-	s.proxy, err = regular.New(
+	s.Proxy, err = regular.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		s.server.ClusterName(),
+		s.Server.ClusterName(),
 		[]ssh.Signer{signer},
-		s.proxyClient,
+		s.ProxyClient,
 		t.TempDir(),
 		"",
 		utils.NetAddr{},
-		s.proxyClient,
+		s.ProxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
-		regular.SetEmitter(s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.ProxyClient),
+		regular.SetEmitter(s.ProxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
-		regular.SetClock(s.clock),
+		regular.SetClock(s.Clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
 	)
@@ -274,28 +274,28 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:                           revTunServer,
-		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
-		DomainName:                      s.server.ClusterName(),
-		ProxyClient:                     s.proxyClient,
+		AuthServers:                     utils.FromAddr(s.Server.TLS.Addr()),
+		DomainName:                      s.Server.ClusterName(),
+		ProxyClient:                     s.ProxyClient,
 		CipherSuites:                    utils.DefaultCipherSuites(),
-		AccessPoint:                     s.proxyClient,
-		Context:                         s.ctx,
+		AccessPoint:                     s.ProxyClient,
+		Context:                         s.Ctx,
 		HostUUID:                        proxyID,
-		Emitter:                         s.proxyClient,
+		Emitter:                         s.ProxyClient,
 		StaticFS:                        fs,
-		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
+		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
-	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
+	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.Clock))
 	require.NoError(t, err)
 
-	s.webServer = httptest.NewUnstartedServer(handler)
-	s.webServer.StartTLS()
-	err = s.proxy.Start()
+	s.WebServer = httptest.NewUnstartedServer(handler)
+	s.WebServer.StartTLS()
+	err = s.Proxy.Start()
 	require.NoError(t, err)
 
 	// Wait for proxy to fully register before starting the test.
 	for start := time.Now(); ; {
-		proxies, err := s.proxyClient.GetProxies()
+		proxies, err := s.ProxyClient.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) != 0 {
 			break
@@ -305,9 +305,9 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 		}
 	}
 
-	proxyAddr := utils.MustParseAddr(s.proxy.Addr())
+	proxyAddr := utils.MustParseAddr(s.Proxy.Addr())
 
-	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
+	addr := utils.MustParseAddr(s.WebServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
 	handler.handler.cfg.ProxySSHAddr = *proxyAddr
 	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
@@ -316,22 +316,22 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 
 	t.Cleanup(func() {
 		// In particular close the lock watchers by canceling the context.
-		s.cancel()
+		s.Cancel()
 
-		s.webServer.Close()
+		s.WebServer.Close()
 
 		var errors []error
-		if err := s.proxyTunnel.Close(); err != nil {
+		if err := s.ProxyTunnel.Close(); err != nil {
 			errors = append(errors, err)
 		}
-		if err := s.node.Close(); err != nil {
+		if err := s.Node.Close(); err != nil {
 			errors = append(errors, err)
 		}
-		s.webServer.Close()
-		if err := s.proxy.Close(); err != nil {
+		s.WebServer.Close()
+		if err := s.Proxy.Close(); err != nil {
 			errors = append(errors, err)
 		}
-		if err := s.server.Shutdown(context.Background()); err != nil {
+		if err := s.Server.Shutdown(context.Background()); err != nil {
 			errors = append(errors, err)
 		}
 		require.Empty(t, errors)
@@ -368,7 +368,7 @@ type authPack struct {
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
 func (s *TestWebSuite) authPack(t *testing.T, user string) *authPack {
-	login := s.user
+	login := s.User
 	pass := "abc123"
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
@@ -378,13 +378,13 @@ func (s *TestWebSuite) authPack(t *testing.T, user string) *authPack {
 		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
-	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
+	err = s.Server.Auth().SetAuthPreference(s.Ctx, ap)
 	require.NoError(t, err)
 
 	s.createUser(t, user, login, pass, otpSecret)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
+	validToken, err := totp.GenerateCode(otpSecret, s.Clock.Now())
 	require.NoError(t, err)
 
 	clt := s.client()
@@ -428,30 +428,30 @@ func (s *TestWebSuite) createUser(t *testing.T, user string, login string, pass 
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
-	err = s.server.Auth().UpsertRole(s.ctx, role)
+	err = s.Server.Auth().UpsertRole(s.Ctx, role)
 	require.NoError(t, err)
 	teleUser.AddRole(role.GetName())
 
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
-	err = s.server.Auth().CreateUser(s.ctx, teleUser)
+	err = s.Server.Auth().CreateUser(s.Ctx, teleUser)
 	require.NoError(t, err)
 
-	err = s.server.Auth().UpsertPassword(user, []byte(pass))
+	err = s.Server.Auth().UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
 
 	if otpSecret != "" {
-		dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+		dev, err := services.NewTOTPDevice("otp", otpSecret, s.Clock.Now())
 		require.NoError(t, err)
-		err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
+		err = s.Server.Auth().UpsertMFADevice(context.Background(), user, dev)
 		require.NoError(t, err)
 	}
 }
 
 func (s *TestWebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, error) {
 	req := TerminalRequest{
-		Server: s.srvID,
+		Server: s.SrvID,
 		Login:  pack.login,
 		Term: session.TerminalParams{
 			W: 100,
@@ -499,7 +499,7 @@ func (s *TestWebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...termin
 }
 
 func (s *TestWebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) error {
-	timeoutContext, timeoutCancel := context.WithTimeout(s.ctx, timeout)
+	timeoutContext, timeoutCancel := context.WithTimeout(s.Ctx, timeout)
 	defer timeoutCancel()
 
 	done := make(chan error, 1)
@@ -542,7 +542,7 @@ func (s *TestWebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration
 }
 
 func (s *TestWebSuite) waitForResizeEvent(ws *websocket.Conn, timeout time.Duration) error {
-	timeoutContext, timeoutCancel := context.WithTimeout(s.ctx, timeout)
+	timeoutContext, timeoutCancel := context.WithTimeout(s.Ctx, timeout)
 	defer timeoutCancel()
 
 	done := make(chan error, 1)
@@ -639,7 +639,7 @@ func (s *TestWebSuite) listenForResizeEvent(ws *websocket.Conn) chan struct{} {
 	return ch
 }
 
-func (s *TestWebSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebClient {
+func (s *TestWebSuite) ClientNoRedirects(opts ...roundtrip.ClientParam) *client.WebClient {
 	hclient := client.NewInsecureWebClient()
 	hclient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -671,7 +671,7 @@ func (s *TestWebSuite) login(clt *client.WebClient, cookieToken string, reqToken
 		if err != nil {
 			return nil, err
 		}
-		addCSRFCookieToReq(req, cookieToken)
+		AddCSRFCookieToReq(req, cookieToken)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set(csrf.HeaderName, reqToken)
 		return clt.HTTPClient().Do(req)
@@ -679,7 +679,7 @@ func (s *TestWebSuite) login(clt *client.WebClient, cookieToken string, reqToken
 }
 
 func (s *TestWebSuite) url() *url.URL {
-	u, err := url.Parse("https://" + s.webServer.Listener.Addr().String())
+	u, err := url.Parse("https://" + s.WebServer.Listener.Addr().String())
 	if err != nil {
 		panic(err)
 	}
@@ -706,7 +706,7 @@ func withKeepaliveInterval(d time.Duration) terminalOpt {
 	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
 }
 
-func addCSRFCookieToReq(req *http.Request, token string) {
+func AddCSRFCookieToReq(req *http.Request, token string) {
 	cookie := &http.Cookie{
 		Name:  csrf.CookieName,
 		Value: token,

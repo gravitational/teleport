@@ -227,14 +227,14 @@ func TestSAML(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			role.SetLogins(types.Allow, []string{s.user})
-			err = s.server.Auth().UpsertRole(s.ctx, role)
+			role.SetLogins(types.Allow, []string{s.User})
+			err = s.Server.Auth().UpsertRole(s.Ctx, role)
 			require.NoError(t, err)
 
-			err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
+			err = s.Server.Auth().UpsertSAMLConnector(ctx, connector)
 			require.NoError(t, err)
-			s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
-			clt := s.clientNoRedirects()
+			s.Server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
+			clt := s.ClientNoRedirects()
 
 			csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
@@ -242,7 +242,7 @@ func TestSAML(t *testing.T) {
 			require.NoError(t, err)
 			req, err := http.NewRequest("GET", baseURL.String(), nil)
 			require.NoError(t, err)
-			addCSRFCookieToReq(req, csrfToken)
+			AddCSRFCookieToReq(req, csrfToken)
 			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 				return clt.Client.HTTPClient().Do(req)
 			})
@@ -264,13 +264,13 @@ func TestSAML(t *testing.T) {
 			id := doc.Root().SelectAttr("ID")
 			require.NotNil(t, id)
 
-			authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
+			authRequest, err := s.Server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
 			require.NoError(t, err)
 
 			// now swap the request id to the hardcoded one in fixtures
 			authRequest.ID = fixtures.SAMLOktaAuthRequestID
 			authRequest.CSRFToken = csrfToken
-			err = s.server.Auth().Services.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
+			err = s.Server.Auth().Services.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
 			require.NoError(t, err)
 
 			// now respond with pre-recorded request to the POST url
@@ -290,7 +290,7 @@ func TestSAML(t *testing.T) {
 			form.Add("SAMLResponse", encodedResponse)
 			req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
 			req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-			addCSRFCookieToReq(req, csrfToken)
+			AddCSRFCookieToReq(req, csrfToken)
 			require.NoError(t, err)
 			authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 				return clt.Client.HTTPClient().Do(req)
@@ -384,8 +384,8 @@ func TestPasswordChange(t *testing.T) {
 	pack := s.authPack(t, "foo")
 
 	// invalidate the token
-	s.clock.Advance(1 * time.Minute)
-	validToken, err := totp.GenerateCode(pack.otpSecret, s.clock.Now())
+	s.Clock.Advance(1 * time.Minute)
+	validToken, err := totp.GenerateCode(pack.otpSecret, s.Clock.Now())
 	require.NoError(t, err)
 
 	req := changePasswordReq{
@@ -428,12 +428,12 @@ func TestWebSessionsBadInput(t *testing.T) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	err := s.server.Auth().UpsertPassword(user, []byte(pass))
+	err := s.Server.Auth().UpsertPassword(user, []byte(pass))
 	require.NoError(t, err)
 
-	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.Clock.Now())
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertMFADevice(context.Background(), user, dev)
+	err = s.Server.Auth().UpsertMFADevice(context.Background(), user, dev)
 	require.NoError(t, err)
 
 	// create valid token
@@ -475,7 +475,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	}
 	for i, req := range reqs {
 		t.Run(fmt.Sprintf("tc %v", i), func(t *testing.T) {
-			_, err := clt.PostJSON(s.ctx, clt.Endpoint("webapi", "sessions"), req)
+			_, err := clt.PostJSON(s.Ctx, clt.Endpoint("webapi", "sessions"), req)
 			require.Error(t, err)
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -1169,7 +1169,7 @@ func TestActiveSessions(t *testing.T) {
 	var sessResp *siteSessionsGetResponse
 	require.Eventually(t, func() bool {
 		// Get site nodes and make sure the node has our active party.
-		re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
+		re, err := pack.clt.Get(s.Ctx, pack.clt.Endpoint("webapi", "sites", s.Server.ClusterName(), "sessions"), url.Values{})
 		require.NoError(t, err)
 		require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
 		return len(sessResp.Sessions) == 1
@@ -1177,17 +1177,17 @@ func TestActiveSessions(t *testing.T) {
 
 	sess := sessResp.Sessions[0]
 	require.Equal(t, sid, sess.ID)
-	require.Equal(t, s.node.GetNamespace(), sess.Namespace)
+	require.Equal(t, s.Node.GetNamespace(), sess.Namespace)
 	require.NotNil(t, sess.Parties)
 	require.Greater(t, sess.TerminalParams.H, 0)
 	require.Greater(t, sess.TerminalParams.W, 0)
 	require.Equal(t, pack.login, sess.Login)
 	require.False(t, sess.Created.IsZero())
 	require.False(t, sess.LastActive.IsZero())
-	require.Equal(t, s.srvID, sess.ServerID)
-	require.Equal(t, s.node.GetInfo().GetHostname(), sess.ServerHostname)
-	require.Equal(t, s.srvID, sess.ServerAddr)
-	require.Equal(t, s.server.ClusterName(), sess.ClusterName)
+	require.Equal(t, s.SrvID, sess.ServerID)
+	require.Equal(t, s.Node.GetInfo().GetHostname(), sess.ServerHostname)
+	require.Equal(t, s.SrvID, sess.ServerAddr)
+	require.Equal(t, s.Server.ClusterName(), sess.ClusterName)
 }
 
 func TestCloseConnectionsOnLogout(t *testing.T) {
@@ -1212,7 +1212,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	_, err = stream.Read(out)
 	require.NoError(t, err)
 
-	_, err = pack.clt.Delete(s.ctx, pack.clt.Endpoint("webapi", "sessions"))
+	_, err = pack.clt.Delete(s.Ctx, pack.clt.Endpoint("webapi", "sessions"))
 	require.NoError(t, err)
 
 	// wait until we timeout or detect that connection has been closed
@@ -1297,7 +1297,7 @@ func TestLogin(t *testing.T) {
 		SecondFactor: constants.SecondFactorOff,
 	})
 	require.NoError(t, err)
-	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
+	err = s.Server.Auth().SetAuthPreference(s.Ctx, ap)
 	require.NoError(t, err)
 
 	// create user
@@ -1316,7 +1316,7 @@ func TestLogin(t *testing.T) {
 	req.Header.Set("User-Agent", ua)
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	addCSRFCookieToReq(req, csrfToken)
+	AddCSRFCookieToReq(req, csrfToken)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(csrf.HeaderName, csrfToken)
 
@@ -1325,9 +1325,9 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
-		s.clock.Now().Add(-time.Hour),
-		s.clock.Now().Add(time.Hour),
+	events, _, err := s.Server.AuthServer.AuditLog.SearchEvents(
+		s.Clock.Now().Add(-time.Hour),
+		s.Clock.Now().Add(time.Hour),
 		apidefaults.Namespace,
 		[]string{events.UserLoginEvent},
 		1,
@@ -1354,7 +1354,7 @@ func TestLogin(t *testing.T) {
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
-	re, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
+	re, err = clt.Get(s.Ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
 
 	var clusters []ui.Cluster
@@ -1364,13 +1364,13 @@ func TestLogin(t *testing.T) {
 
 	// no session cookie:
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
-	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = clt.Get(s.Ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// no bearer token:
 	clt = s.client(roundtrip.CookieJar(jar))
-	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
+	_, err = clt.Get(s.Ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -1386,7 +1386,7 @@ func TestEmptyMotD(t *testing.T) {
 	// Day...
 
 	// When I issue a ping request...
-	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(s.Ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
 
 	// Expect that the MotD flag in the ping response is *not* set
@@ -1395,7 +1395,7 @@ func TestEmptyMotD(t *testing.T) {
 	require.False(t, pingResponse.Auth.HasMessageOfTheDay)
 
 	// When I fetch the MotD...
-	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "motd"), url.Values{})
+	re, err = wc.Get(s.Ctx, wc.Endpoint("webapi", "motd"), url.Values{})
 	require.NoError(t, err)
 
 	// Expect that an empty response returned
@@ -1416,10 +1416,10 @@ func TestMotD(t *testing.T) {
 	// Given an auth server configured to expose a Message Of The Day...
 	prefs := types.DefaultAuthPreference()
 	prefs.SetMessageOfTheDay(motd)
-	require.NoError(t, s.server.AuthServer.AuthServer.SetAuthPreference(s.ctx, prefs))
+	require.NoError(t, s.Server.AuthServer.AuthServer.SetAuthPreference(s.Ctx, prefs))
 
 	// When I issue a ping request...
-	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(s.Ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
 
 	// Expect that the MotD flag in the ping response is set to indicate
@@ -1429,7 +1429,7 @@ func TestMotD(t *testing.T) {
 	require.True(t, pingResponse.Auth.HasMessageOfTheDay)
 
 	// When I fetch the MotD...
-	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "motd"), url.Values{})
+	re, err = wc.Get(s.Ctx, wc.Endpoint("webapi", "motd"), url.Values{})
 	require.NoError(t, err)
 
 	// Expect that the text returned is the configured value
@@ -1461,11 +1461,11 @@ func TestMultipleConnectors(t *testing.T) {
 	}
 	o, err := types.NewOIDCConnector("foo", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o)
+	err = s.Server.Auth().UpsertOIDCConnector(s.Ctx, o)
 	require.NoError(t, err)
 	o2, err := types.NewOIDCConnector("bar", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
+	err = s.Server.Auth().UpsertOIDCConnector(s.Ctx, o2)
 	require.NoError(t, err)
 
 	// set the auth preferences to oidc with no connector name
@@ -1473,18 +1473,18 @@ func TestMultipleConnectors(t *testing.T) {
 		Type: "oidc",
 	})
 	require.NoError(t, err)
-	err = s.server.Auth().SetAuthPreference(s.ctx, authPreference)
+	err = s.Server.Auth().SetAuthPreference(s.Ctx, authPreference)
 	require.NoError(t, err)
 
 	// hit the ping endpoint to get the auth type and connector name
-	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err := wc.Get(s.Ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
 	var out *webclient.PingResponse
 	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
 
 	// make sure the connector name we got back was the first connector
 	// in the backend, in this case it's "bar"
-	oidcConnectors, err := s.server.Auth().GetOIDCConnectors(s.ctx, false)
+	oidcConnectors, err := s.Server.Auth().GetOIDCConnectors(s.Ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, oidcConnectors[0].GetName(), out.Auth.OIDC.Name)
 
@@ -1494,11 +1494,11 @@ func TestMultipleConnectors(t *testing.T) {
 		ConnectorName: "foo",
 	})
 	require.NoError(t, err)
-	err = s.server.Auth().SetAuthPreference(s.ctx, authPreference)
+	err = s.Server.Auth().SetAuthPreference(s.Ctx, authPreference)
 	require.NoError(t, err)
 
 	// hit the ping endpoing to get the auth type and connector name
-	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	re, err = wc.Get(s.Ctx, wc.Endpoint("webapi", "ping"), url.Values{})
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
 
@@ -1609,15 +1609,15 @@ func TestSearchClusterEvents(t *testing.T) {
 	t.Parallel()
 
 	s := NewTestWebSuite(t)
-	clock := s.clock
+	clock := s.Clock
 	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
 		Clock:       clock,
-		ServerID:    s.proxy.ID(),
+		ServerID:    s.Proxy.ID(),
 	})
 
 	for _, e := range sessionEvents {
-		require.NoError(t, s.proxyClient.EmitAuditEvent(s.ctx, e))
+		require.NoError(t, s.ProxyClient.EmitAuditEvent(s.Ctx, e))
 	}
 
 	sort.Sort(sort.Reverse(byTimeAndIndex(sessionEvents)))
@@ -1707,7 +1707,7 @@ func TestSearchClusterEvents(t *testing.T) {
 		tc := tc
 		t.Run(tc.Comment, func(t *testing.T) {
 			t.Parallel()
-			response, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "events", "search"), tc.Query)
+			response, err := pack.clt.Get(s.Ctx, pack.clt.Endpoint("webapi", "sites", s.Server.ClusterName(), "events", "search"), tc.Query)
 			require.NoError(t, err)
 			var result eventsListGetResponse
 			require.NoError(t, json.Unmarshal(response.Bytes(), &result))
@@ -1741,20 +1741,20 @@ func TestSearchClusterEvents(t *testing.T) {
 func TestGetClusterDetails(t *testing.T) {
 	t.Parallel()
 	s := NewTestWebSuite(t)
-	site, err := s.proxyTunnel.GetSite(s.server.ClusterName())
+	site, err := s.ProxyTunnel.GetSite(s.Server.ClusterName())
 	require.NoError(t, err)
 	require.NotNil(t, site)
 
-	cluster, err := ui.GetClusterDetails(s.ctx, site)
+	cluster, err := ui.GetClusterDetails(s.Ctx, site)
 	require.NoError(t, err)
-	require.Equal(t, s.server.ClusterName(), cluster.Name)
+	require.Equal(t, s.Server.ClusterName(), cluster.Name)
 	require.Equal(t, teleport.Version, cluster.ProxyVersion)
-	require.Equal(t, fmt.Sprintf("%v:%v", s.server.ClusterName(), defaults.HTTPListenPort), cluster.PublicURL)
+	require.Equal(t, fmt.Sprintf("%v:%v", s.Server.ClusterName(), defaults.HTTPListenPort), cluster.PublicURL)
 	require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.Status)
 	require.NotNil(t, cluster.LastConnected)
 	require.Equal(t, teleport.Version, cluster.AuthVersion)
 
-	nodes, err := s.proxyClient.GetNodes(s.ctx, apidefaults.Namespace)
+	nodes, err := s.ProxyClient.GetNodes(s.Ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, nodes, cluster.NodeCount)
 }
@@ -2967,7 +2967,7 @@ func TestCreateAppSession(t *testing.T) {
 	require.NoError(t, err)
 	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
-	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+	_, err = s.Server.Auth().UpsertApplicationServer(s.Ctx, server)
 	require.NoError(t, err)
 
 	// Extract the session ID and bearer token for the current session.
@@ -3073,7 +3073,7 @@ func TestCreateAppSession(t *testing.T) {
 			t.Parallel()
 			// Make a request to create an application session for "panel".
 			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
-			resp, err := pack.clt.PostJSON(s.ctx, endpoint, tt.inCreateRequest)
+			resp, err := pack.clt.PostJSON(s.Ctx, endpoint, tt.inCreateRequest)
 			tt.outError(t, err)
 			if err != nil {
 				return
@@ -3085,7 +3085,7 @@ func TestCreateAppSession(t *testing.T) {
 			require.Equal(t, tt.outFQDN, response.FQDN)
 
 			// Verify that the application session was created.
-			sess, err := s.server.Auth().GetAppSession(s.ctx, types.GetAppSessionRequest{
+			sess, err := s.Server.Auth().GetAppSession(s.Ctx, types.GetAppSessionRequest{
 				SessionID: response.CookieValue,
 			})
 			require.NoError(t, err)
@@ -3316,33 +3316,33 @@ func TestParseSSORequestParams(t *testing.T) {
 	tests := []struct {
 		name, url string
 		wantErr   bool
-		expected  *ssoRequestParams
+		expected  *SSORequestParams
 	}{
 		{
 			name: "preserve redirect's query params (escaped)",
 			url:  "https://localhost/login?connector_id=oidc&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fnodes%3Fsearch=tunnel&sort=hostname:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-				connectorID:       "oidc",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				ConnectorID:       "oidc",
+				CSRFToken:         token,
 			},
 		},
 		{
 			name: "preserve redirect's query params (unescaped)",
 			url:  "https://localhost/login?connector_id=github&redirect_url=https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-				connectorID:       "github",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				ConnectorID:       "github",
+				CSRFToken:         token,
 			},
 		},
 		{
 			name: "preserve various encoded chars",
 			url:  "https://localhost/login?connector_id=saml&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fapps%3Fquery=search(%2522watermelon%2522%252C%2520%2522this%2522)%2520%2526%2526%2520labels%255B%2522unique-id%2522%255D%2520%253D%253D%2520%2522hi%2522&sort=name:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
-				connectorID:       "saml",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
+				ConnectorID:       "saml",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -3361,9 +3361,9 @@ func TestParseSSORequestParams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
-			addCSRFCookieToReq(req, token)
+			AddCSRFCookieToReq(req, token)
 
-			params, err := parseSSORequestParams(req)
+			params, err := ParseSSORequestParams(req)
 
 			switch {
 			case tc.wantErr:
@@ -4649,7 +4649,7 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 		if err != nil {
 			return nil, err
 		}
-		addCSRFCookieToReq(req, cookieToken)
+		AddCSRFCookieToReq(req, cookieToken)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set(csrf.HeaderName, reqToken)
 		return clt.HTTPClient().Do(req)
