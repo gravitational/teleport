@@ -1659,6 +1659,55 @@ func TestFIDO2Register_errors(t *testing.T) {
 	}
 }
 
+func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	u2fDev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	u2fDev.u2fOnly = true
+
+	// otherDev is FIDO2 in this test, but it could be any non-registered device.
+	otherDev := mustNewFIDO2Device("/fido2", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+
+	f2 := newFakeFIDO2(u2fDev, otherDev).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const origin = "https://example.com"
+	cc := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: make([]byte, 32),
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: "example.com",
+			},
+			Parameters: []protocol.CredentialParameter{
+				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+
+	ctx := context.Background()
+
+	// Setup: register the U2F device.
+	resp, err := wancli.FIDO2Register(ctx, origin, cc, u2fDev)
+	require.NoError(t, err, "FIDO2Register errored")
+
+	// Setup: mark the registered credential as excluded.
+	cc.Response.CredentialExcludeList = append(cc.Response.CredentialExcludeList, protocol.CredentialDescriptor{
+		Type:         protocol.PublicKeyCredentialType,
+		CredentialID: resp.GetWebauthn().GetRawId(),
+	})
+
+	// Register a new device, making sure a failed excluded credential assertion
+	// won't break the ceremony.
+	_, err = wancli.FIDO2Register(ctx, origin, cc, otherDev)
+	require.NoError(t, err, "FIDO2Register errored, expected a successful registration")
+}
+
 func resetFIDO2AfterTests(t *testing.T) {
 	pollInterval := wancli.FIDO2PollInterval
 	devLocations := wancli.FIDODeviceLocations
