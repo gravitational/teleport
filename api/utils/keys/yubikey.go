@@ -161,11 +161,16 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		defer cancelTouchPrompt()
 	}
 
-	signature, err := privateKey.(crypto.Signer).Sign(rand, digest, opts)
+	signer, ok := privateKey.(crypto.Signer)
+	if !ok {
+		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer")
+	}
+
+	signature, err := signer.Sign(rand, digest, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return signature, trace.Wrap(err)
+	return signature, nil
 }
 
 func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
@@ -352,7 +357,7 @@ func (y *yubiKey) open() (yk *piv.YubiKey, err error) {
 		// It's also possible that the user is running another PIV program, which may hold the PIV
 		// connection indefinitely (yubikey-agent). In this case, user action is necessary, so we
 		// alert them with this issue.
-		return nil, trace.LimitExceeded("could not connect to YubiKey due to an outstanding connection. Please try again once the connection is terminated, or ensure you aren't using a PIV program that locks the YubiKey PIV, such as yubikey-agent")
+		return nil, trace.LimitExceeded("could not connect to YubiKey as another application is using it. Please try again once the program that uses the YubiKey, such as yubikey-agent is closed")
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
