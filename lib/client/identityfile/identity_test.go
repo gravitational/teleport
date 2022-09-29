@@ -161,11 +161,11 @@ func TestWrite(t *testing.T) {
 
 func TestWriteAllFormats(t *testing.T) {
 	for _, format := range KnownFileFormats {
-		t.Run(string(format), func(tt *testing.T) {
-			key := newClientKey(tt)
+		t.Run(string(format), func(t *testing.T) {
+			key := newClientKey(t)
 
 			cfg := WriteConfig{
-				OutputPath: path.Join(tt.TempDir(), "identity"),
+				OutputPath: path.Join(t.TempDir(), "identity"),
 				Key:        key,
 				Format:     format,
 			}
@@ -178,15 +178,15 @@ func TestWriteAllFormats(t *testing.T) {
 
 			// for cockroach, output path should be a directory
 			if format == FormatCockroach {
-				cfg.OutputPath = tt.TempDir()
+				cfg.OutputPath = t.TempDir()
 			}
 
 			files, err := Write(cfg)
-			require.NoError(tt, err)
+			require.NoError(t, err)
 			for _, file := range files {
-				require.True(tt, strings.HasPrefix(file, cfg.OutputPath))
+				require.True(t, strings.HasPrefix(file, cfg.OutputPath))
 			}
-			require.True(tt, len(files) > 0)
+			require.True(t, len(files) > 0)
 		})
 	}
 }
