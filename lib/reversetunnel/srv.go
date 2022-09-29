@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1120,11 +1121,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.certificateCache = certificateCache
 
-	caRetry, err := utils.NewLinear(utils.LinearConfig{
+	caRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  srv.Clock,
 	})
 	if err != nil {
@@ -1148,11 +1149,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		remoteSite.updateCertAuthorities(caRetry, remoteWatcher, remoteVersion)
 	}()
 
-	lockRetry, err := utils.NewLinear(utils.LinearConfig{
+	lockRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
 		Step:   srv.Config.PollingPeriod / 5,
 		Max:    srv.Config.PollingPeriod,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  srv.Clock,
 	})
 	if err != nil {

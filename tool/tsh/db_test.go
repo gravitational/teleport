@@ -370,7 +370,7 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cfg.AuthServers = []utils.NetAddr{*proxyAddr}
+	cfg.SetAuthServerAddress(*proxyAddr)
 
 	token, err := proxy.Config.Token()
 	require.NoError(t, err)
@@ -451,4 +451,62 @@ func decodePEM(pemPath string) (certs []pem.Block, privs []pem.Block, err error)
 		}
 	}
 	return certs, privs, nil
+}
+
+func TestFormatDatabaseConnectArgs(t *testing.T) {
+	tests := []struct {
+		name      string
+		cluster   string
+		route     tlsca.RouteToDatabase
+		wantFlags []string
+	}{
+		{
+			name:      "match user and db name, cluster set",
+			cluster:   "foo",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			wantFlags: []string{"--cluster=foo", "--db-user=<user>", "--db-name=<name>", "svc"},
+		},
+		{
+			name:      "match user and db name",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "--db-name=<name>", "svc"},
+		},
+		{
+			name:      "match user and db name, username given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"--db-name=<name>", "svc"},
+		},
+		{
+			name:      "match user and db name, db name given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
+		},
+		{
+			name:      "match user and db name, both given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"svc"},
+		},
+		{
+			name:      "match user name",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
+		},
+		{
+			name:      "match user name, given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"svc"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := formatDatabaseConnectArgs(tt.cluster, tt.route)
+			require.Equal(t, tt.wantFlags, out)
+		})
+	}
 }

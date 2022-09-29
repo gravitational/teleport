@@ -341,7 +341,8 @@ type standaloneBundle struct {
 }
 
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
-//  function and reusing in other places.
+//
+//	function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
@@ -369,7 +370,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{randomAddr} // must be present
+	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -452,7 +453,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.WebAddr = randomAddr

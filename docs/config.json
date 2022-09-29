@@ -294,6 +294,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Microsoft Teams",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-msteams/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "PagerDuty",
               "slug": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
               "forScopes": ["enterprise", "cloud"]
@@ -986,9 +991,13 @@
               "title": "teleport-plugin-pagerduty",
               "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
             },
-	    {
+            {
               "title": "teleport-plugin-mattermost",
               "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-slack",
+              "slug": "/reference/helm-reference/teleport-plugin-slack/"
             }
           ]
         }
@@ -1111,7 +1120,7 @@
       "version": "9.0.4",
       "golang": "1.17",
       "plugin": {
-        "version": "9.0.4"
+        "version": "10.2.6"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:9.1.2",

@@ -860,7 +860,7 @@ func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) 
 	return trace.Wrap(err)
 }
 
-// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
+// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
@@ -1216,6 +1216,11 @@ func (c *Client) DeleteAllRoles() error {
 
 // ListWindowsDesktops not implemented: can only be called locally.
 func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListWindowsDesktopServices not implemented: can only be called locally.
+func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
