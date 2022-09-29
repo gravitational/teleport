@@ -83,7 +83,7 @@ require (
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.7
 	github.com/mdlayher/netlink v1.6.2
-	github.com/mitchellh/mapstructure v1.4.1
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
 	github.com/pkg/sftp v1.13.5
 	github.com/pquerna/otp v1.3.0
