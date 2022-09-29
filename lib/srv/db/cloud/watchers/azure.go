@@ -19,6 +19,7 @@ package watchers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -96,7 +97,7 @@ func (f *azureFetcher[DBType, ListClient]) regionMatches(region string) bool {
 		// wildcard matches all regions
 		return true
 	}
-	_, ok := f.cfg.regionSet[region]
+	_, ok := f.cfg.regionSet[normalizeAzureLocation(region)]
 	return ok
 }
 
@@ -242,6 +243,10 @@ func simplifyMatchers(matchers []services.AzureMatcher) []services.AzureMatcher 
 		}
 		if len(regions) == 0 || apiutils.SliceContainsStr(regions, types.Wildcard) {
 			regions = []string{types.Wildcard}
+		} else {
+			for i, region := range regions {
+				regions[i] = normalizeAzureLocation(region)
+			}
 		}
 		result = append(result, services.AzureMatcher{
 			Subscriptions:  subs,
@@ -252,4 +257,36 @@ func simplifyMatchers(matchers []services.AzureMatcher) []services.AzureMatcher 
 		})
 	}
 	return result
+}
+
+// normalizeAzureLocation converts Azure location in differents formats to the
+// same simple format.
+//
+// This function assumes the input location is in one of the following formats:
+// - Name (the "simple" format): "northcentralusstage"
+// - Display name: "North Central US (Stage)"
+// - Regional display name: "(US) North Central US (Stage)"
+//
+// More details see:
+// https://azuretracks.com/2021/04/current-azure-region-names-reference/
+func normalizeAzureLocation(location string) string {
+	if location == "" {
+		return location
+	}
+
+	// If location starts with '(', it should be the Regional display name.
+	// Then removes the first bracket and its content.
+	if location[0] == '(' {
+		if index := strings.IndexRune(location, ')'); index >= 0 {
+			location = location[index:]
+		}
+		location = strings.TrimSpace(location)
+	}
+
+	// Remove brackets and spaces.
+	replacer := strings.NewReplacer("(", "", ")", "", " ", "")
+	location = replacer.Replace(location)
+
+	// To lower case.
+	return strings.ToLower(location)
 }

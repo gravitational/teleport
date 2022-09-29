@@ -124,17 +124,17 @@ db_service:
     # Azure subscription IDs to match.
     subscriptions:
     {{- range .DatabaseAzureSubscriptions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
     {{- range .DatabaseAzureResourceGroups }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzureMySQLDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
@@ -147,17 +147,17 @@ db_service:
     # Azure subscription IDs to match.
     subscriptions:
     {{- range .DatabaseAzureSubscriptions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
     {{- range .DatabaseAzureResourceGroups }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzurePostgresDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
@@ -170,17 +170,17 @@ db_service:
     # Azure subscription IDs to match.
     subscriptions:
     {{- range .DatabaseAzureSubscriptions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
     {{- range .DatabaseAzureResourceGroups }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzureRedisDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
