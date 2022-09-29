@@ -189,10 +189,8 @@ func NewDatabaseFromAzureRedis(server *armredis.ResourceInfo) (types.Database, e
 	}
 	return types.NewDatabaseV3(
 		setAzureDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure %v server in %v",
-				defaults.ReadableDatabaseProtocol(defaults.ProtocolRedis),
-				azure.StringVal(server.Location)),
-			Labels: labels,
+			Description: fmt.Sprintf("Azure Redis server in %v", azure.StringVal(server.Location)),
+			Labels:      labels,
 		}, azure.StringVal(server.Name)),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
@@ -204,7 +202,8 @@ func NewDatabaseFromAzureRedis(server *armredis.ResourceInfo) (types.Database, e
 		})
 }
 
-// NewDatabaseFromAzureRedisEnterprise creates a database resource from an Azure Redis Enterprise server.
+// NewDatabaseFromAzureRedisEnterprise creates a database resource from an
+// Azure Redis Enterprise database and its parent cluster.
 func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (types.Database, error) {
 	if cluster.Properties == nil || database.Properties == nil {
 		return nil, trace.BadParameter("missing properties")
@@ -217,23 +216,22 @@ func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, da
 		return nil, trace.Wrap(err)
 	}
 
-	var nameSuffixes []string
+	// If the database name is "default", use only the cluster name as the name.
+	// If the database name is not "default", use "<cluster>-<database" as the name.
+	var nameSuffix string
 	if azure.StringVal(database.Name) != azure.RedisEnterpriseClusterDefaultDatabase {
-		nameSuffixes = append(nameSuffixes, azure.StringVal(database.Name))
+		nameSuffix = azure.StringVal(database.Name)
 	}
 
 	return types.NewDatabaseV3(
 		setAzureDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure %v Enterprise server in %v",
-				defaults.ReadableDatabaseProtocol(defaults.ProtocolRedis),
-				azure.StringVal(cluster.Location)),
-			Labels: labels,
-		}, azure.StringVal(cluster.Name), nameSuffixes...),
+			Description: fmt.Sprintf("Azure Redis Enterprise server in %v", azure.StringVal(cluster.Location)),
+			Labels:      labels,
+		}, azure.StringVal(cluster.Name), nameSuffix),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
 			URI:      fmt.Sprintf("%v:%v", azure.StringVal(cluster.Properties.HostName), *database.Properties.Port),
 			Azure: types.Azure{
-				Name:       strings.Join(append([]string{azure.StringVal(cluster.Name)}, nameSuffixes...), "-"),
 				ResourceID: azure.StringVal(database.ID),
 				Redis: types.AzureRedis{
 					ClusteringPolicy: azure.StringVal(database.Properties.ClusteringPolicy),
@@ -643,7 +641,7 @@ func withLabelsFromAzureResourceID(labels map[string]string, resourceID string) 
 
 // labelsFromAzureRedis creates database labels from the provided Azure Redis instance.
 func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, error) {
-	labels := azureTagsToLabels(azure.ToMapOfString(server.Tags))
+	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.RedisVersion)
@@ -652,7 +650,7 @@ func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, err
 
 // labelsFromAzureRedisEnterprise creates database labels from the provided Azure Redis Enterprise server.
 func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (map[string]string, error) {
-	labels := azureTagsToLabels(azure.ToMapOfString(cluster.Tags))
+	labels := azureTagsToLabels(azure.ConvertTags(cluster.Tags))
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(cluster.Location)
 	labels[labelEngineVersion] = azure.StringVal(cluster.Properties.RedisVersion)
@@ -995,7 +993,8 @@ const (
 	// labelTeleportDBName is the label key containing the database name override.
 	labelTeleportDBName = types.TeleportNamespace + "/database_name"
 	// labelTeleportDBNameAzure is the label key containing the database name
-	// override for Azure. Azure tags connot contain these characters: "<>%&\?/".
+	// override for Azure databases. Azure tags connot contain these
+	// characters: "<>%&\?/".
 	labelTeleportDBNameAzure = "TeleportDatabaseName"
 )
 

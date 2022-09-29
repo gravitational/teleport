@@ -64,7 +64,7 @@ func ServerFromMySQLServer(server *armmysql.Server) *DBServer {
 		Name:     StringVal(server.Name),
 		Port:     MySQLPort,
 		Protocol: defaults.ProtocolMySQL,
-		Tags:     ToMapOfString(server.Tags),
+		Tags:     ConvertTags(server.Tags),
 	}
 	if server.Properties != nil {
 		result.Properties = ServerProperties{
@@ -84,7 +84,7 @@ func ServerFromPostgresServer(server *armpostgresql.Server) *DBServer {
 		Name:     StringVal(server.Name),
 		Port:     PostgresPort,
 		Protocol: defaults.ProtocolPostgres,
-		Tags:     ToMapOfString(server.Tags),
+		Tags:     ConvertTags(server.Tags),
 	}
 	if server.Properties != nil {
 		result.Properties = ServerProperties{
@@ -124,4 +124,21 @@ func (s *DBServer) IsAvailable() bool {
 		)
 		return true
 	}
+}
+
+// StringVal converts a pointer of a string or a string alias to a string value.
+func StringVal[T ~string](s *T) string {
+	if s != nil {
+		return string(*s)
+	}
+	return ""
+}
+
+// ConvertTags converts map of string pointers to map of strings.
+func ConvertTags(tags map[string]*string) map[string]string {
+	result := make(map[string]string, len(tags))
+	for k, v := range tags {
+		result[k] = StringVal(v)
+	}
+	return result
 }

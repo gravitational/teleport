@@ -44,7 +44,7 @@ func (p *azureRedisPlugin) GetServerLocation(server *armredis.ResourceInfo) stri
 	return azure.StringVal(server.Location)
 }
 
-func (p *azureRedisPlugin) NewDatabasesFromServer(server *armredis.ResourceInfo, log logrus.FieldLogger) types.Databases {
+func (p *azureRedisPlugin) NewDatabaseFromServer(server *armredis.ResourceInfo, log logrus.FieldLogger) types.Database {
 	if server.Properties.SSLPort == nil { // should never happen, but checking just in case.
 		log.Debugf("Azure Redis server %v is missing SSL port. Skipping.", azure.StringVal(server.Name))
 		return nil
@@ -62,7 +62,7 @@ func (p *azureRedisPlugin) NewDatabasesFromServer(server *armredis.ResourceInfo,
 		log.Warnf("Could not convert Azure Redis server %q to database resource: %v.", azure.StringVal(server.Name), err)
 		return nil
 	}
-	return types.Databases{database}
+	return database
 }
 
 // isAvailable checks the status of the server and returns true if the server

@@ -27,33 +27,6 @@ import (
 )
 
 func TestRedisEnterpriseClient(t *testing.T) {
-	mockClusterAPI := &ARMRedisEnterpriseClusterMock{
-		Clusters: []*armredisenterprise.Cluster{
-			makeRedisEnterpriceCluster("redis-prod-1", "group-prod"),
-			makeRedisEnterpriceCluster("redis-prod-2", "group-prod"),
-			makeRedisEnterpriceCluster("redis-dev", "group-dev"),
-		},
-	}
-	mockDatabaseAPI := &ARMRedisEnterpriseDatabaseMock{
-		TokensByDatabaseName: map[string]string{
-			"default":       "default-token",
-			"some-database": "some-database-token",
-		},
-		Databases: []*armredisenterprise.Database{
-			makeRedisEnterpriceDatabase("default", "redis-prod-1", "group-prod"),
-			makeRedisEnterpriceDatabase("db-x", "redis-prod-2", "group-prod"),
-			makeRedisEnterpriceDatabase("db-y", "redis-prod-2", "group-prod"),
-			makeRedisEnterpriceDatabase("default", "redis-dev", "group-dev"),
-		},
-	}
-
-	mockClusterAPINoAuth := &ARMRedisEnterpriseClusterMock{
-		NoAuth: true,
-	}
-	mockDatabaseAPINoAuth := &ARMRedisEnterpriseDatabaseMock{
-		NoAuth: true,
-	}
-
 	t.Run("GetToken", func(t *testing.T) {
 		tests := []struct {
 			name            string
@@ -63,22 +36,32 @@ func TestRedisEnterpriseClient(t *testing.T) {
 			expectToken     string
 		}{
 			{
-				name:            "access denied",
-				resourceID:      "cluster-name",
-				mockDatabaseAPI: mockDatabaseAPINoAuth,
-				expectError:     true,
+				name:       "access denied",
+				resourceID: "cluster-name",
+				mockDatabaseAPI: &ARMRedisEnterpriseDatabaseMock{
+					NoAuth: true,
+				},
+				expectError: true,
 			},
 			{
-				name:            "succeed (default database name)",
-				resourceID:      "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport",
-				mockDatabaseAPI: mockDatabaseAPI,
-				expectToken:     "default-token",
+				name:       "succeed (default database name)",
+				resourceID: "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport",
+				mockDatabaseAPI: &ARMRedisEnterpriseDatabaseMock{
+					TokensByDatabaseName: map[string]string{
+						"default": "some-token",
+					},
+				},
+				expectToken: "some-token",
 			},
 			{
-				name:            "succeed (specific database name)",
-				resourceID:      "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport/databases/some-database",
-				mockDatabaseAPI: mockDatabaseAPI,
-				expectToken:     "some-database-token",
+				name:       "succeed (specific database name)",
+				resourceID: "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/redisEnterprise/example-teleport/databases/some-database",
+				mockDatabaseAPI: &ARMRedisEnterpriseDatabaseMock{
+					TokensByDatabaseName: map[string]string{
+						"some-database": "some-token",
+					},
+				},
+				expectToken: "some-token",
 			},
 		}
 
@@ -87,7 +70,7 @@ func TestRedisEnterpriseClient(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
-				c := NewRedisEnterpriseClientByAPI(mockClusterAPI, test.mockDatabaseAPI)
+				c := NewRedisEnterpriseClientByAPI(nil, test.mockDatabaseAPI)
 				token, err := c.GetToken(context.TODO(), test.resourceID)
 
 				if test.expectError {
@@ -100,92 +83,51 @@ func TestRedisEnterpriseClient(t *testing.T) {
 		}
 	})
 
-	t.Run("ListALL", func(t *testing.T) {
-		tests := []struct {
-			name                   string
-			mockDatabaseAPI        armRedisEnterpriseDatabaseClient
-			mockClusterAPI         armRedisEnterpriseClusterClient
-			expectError            bool
-			expectClusterDatabases map[string][]string
-		}{
-			{
-				name:            "access denied",
-				mockDatabaseAPI: mockDatabaseAPINoAuth,
-				mockClusterAPI:  mockClusterAPINoAuth,
-				expectError:     true,
-			},
-			{
-				name:            "succeed",
-				mockDatabaseAPI: mockDatabaseAPI,
-				mockClusterAPI:  mockClusterAPI,
-				expectClusterDatabases: map[string][]string{
-					"redis-prod-1": []string{"default"},
-					"redis-prod-2": []string{"db-x", "db-y"},
-					"redis-dev":    []string{"default"},
-				},
+	t.Run("List", func(t *testing.T) {
+		mockClusterAPI := &ARMRedisEnterpriseClusterMock{
+			Clusters: []*armredisenterprise.Cluster{
+				makeRedisEnterpriceCluster("redis-prod-1", "group-prod"),
+				makeRedisEnterpriceCluster("redis-prod-2", "group-prod"),
+				makeRedisEnterpriceCluster("redis-dev", "group-dev"),
 			},
 		}
 
-		for _, test := range tests {
-			test := test
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-
-				c := NewRedisEnterpriseClientByAPI(test.mockClusterAPI, test.mockDatabaseAPI)
-				clusters, err := c.ListAll(context.TODO())
-				if test.expectError {
-					require.Error(t, err)
-				} else {
-					require.NoError(t, err)
-					requireClusterDatabases(t, test.expectClusterDatabases, clusters)
-				}
-			})
-		}
-	})
-
-	t.Run("ListWithinGroup", func(t *testing.T) {
-		tests := []struct {
-			name                   string
-			mockDatabaseAPI        armRedisEnterpriseDatabaseClient
-			mockClusterAPI         armRedisEnterpriseClusterClient
-			inputGroup             string
-			expectError            bool
-			expectClusterDatabases map[string][]string
-		}{
-			{
-				name:            "access denied",
-				mockDatabaseAPI: mockDatabaseAPINoAuth,
-				mockClusterAPI:  mockClusterAPINoAuth,
-				inputGroup:      "group-prod",
-				expectError:     true,
-			},
-			{
-				name:            "succeed",
-				mockDatabaseAPI: mockDatabaseAPI,
-				mockClusterAPI:  mockClusterAPI,
-				inputGroup:      "group-prod",
-				expectClusterDatabases: map[string][]string{
-					"redis-prod-1": []string{"default"},
-					"redis-prod-2": []string{"db-x", "db-y"},
-				},
+		mockDatabaseAPI := &ARMRedisEnterpriseDatabaseMock{
+			Databases: []*armredisenterprise.Database{
+				makeRedisEnterpriceDatabase("default", "redis-prod-1", "group-prod"),
+				makeRedisEnterpriceDatabase("db-x", "redis-prod-2", "group-prod"),
+				makeRedisEnterpriceDatabase("db-y", "redis-prod-2", "group-prod"),
+				makeRedisEnterpriceDatabase("default", "redis-dev", "group-dev"),
 			},
 		}
 
-		for _, test := range tests {
-			test := test
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
+		t.Run("ListALL", func(t *testing.T) {
+			t.Parallel()
 
-				c := NewRedisEnterpriseClientByAPI(test.mockClusterAPI, test.mockDatabaseAPI)
-				clusters, err := c.ListWithinGroup(context.TODO(), test.inputGroup)
-				if test.expectError {
-					require.Error(t, err)
-				} else {
-					require.NoError(t, err)
-					requireClusterDatabases(t, test.expectClusterDatabases, clusters)
-				}
-			})
-		}
+			expectClusterDatabases := map[string][]string{
+				"redis-prod-1": []string{"default"},
+				"redis-prod-2": []string{"db-x", "db-y"},
+				"redis-dev":    []string{"default"},
+			}
+
+			c := NewRedisEnterpriseClientByAPI(mockClusterAPI, mockDatabaseAPI)
+			clusters, err := c.ListAll(context.TODO())
+			require.NoError(t, err)
+			requireClusterDatabases(t, expectClusterDatabases, clusters)
+		})
+		t.Run("ListWithinGroup", func(t *testing.T) {
+			t.Parallel()
+
+			expectClusterDatabases := map[string][]string{
+				"redis-prod-1": []string{"default"},
+				"redis-prod-2": []string{"db-x", "db-y"},
+			}
+
+			c := NewRedisEnterpriseClientByAPI(mockClusterAPI, mockDatabaseAPI)
+			clusters, err := c.ListWithinGroup(context.TODO(), "group-prod")
+			require.NoError(t, err)
+			requireClusterDatabases(t, expectClusterDatabases, clusters)
+		})
 	})
 }
 

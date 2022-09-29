@@ -18,7 +18,6 @@ package azure
 
 import (
 	"context"
-	"reflect"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -234,9 +233,18 @@ func (m *ARMRedisMock) NewListBySubscriptionPager(options *armredis.ClientListBy
 }
 func (m *ARMRedisMock) NewListByResourceGroupPager(resourceGroupName string, options *armredis.ClientListByResourceGroupOptions) *runtime.Pager[armredis.ClientListByResourceGroupResponse] {
 	return newPagerHelper(m.NoAuth, func() (armredis.ClientListByResourceGroupResponse, error) {
-		servers, err := filterByResourceGroup(m.Servers, resourceGroupName)
-		if err != nil {
-			return armredis.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+		var servers []*armredis.ResourceInfo
+		for _, server := range m.Servers {
+			id, err := arm.ParseResourceID(StringVal(server.ID))
+			if err != nil {
+				return armredis.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+			}
+			if resourceGroupName == id.ResourceGroupName {
+				servers = append(servers, server)
+			}
+		}
+		if len(servers) == 0 {
+			return armredis.ClientListByResourceGroupResponse{}, trace.NotFound("no resources found")
 		}
 		return armredis.ClientListByResourceGroupResponse{
 			ListResult: armredis.ListResult{
@@ -275,11 +283,18 @@ func (m *ARMRedisEnterpriseDatabaseMock) ListKeys(ctx context.Context, resourceG
 }
 func (m *ARMRedisEnterpriseDatabaseMock) NewListByClusterPager(resourceGroupName string, clusterName string, options *armredisenterprise.DatabasesClientListByClusterOptions) *runtime.Pager[armredisenterprise.DatabasesClientListByClusterResponse] {
 	return newPagerHelper(m.NoAuth, func() (armredisenterprise.DatabasesClientListByClusterResponse, error) {
-		databases, err := filterByCheckingResourceID(m.Databases, func(id *arm.ResourceID) bool {
-			return id.ResourceGroupName == resourceGroupName && id.Parent != nil && id.Parent.Name == clusterName
-		})
-		if err != nil {
-			return armredisenterprise.DatabasesClientListByClusterResponse{}, trace.Wrap(err)
+		var databases []*armredisenterprise.Database
+		for _, database := range m.Databases {
+			id, err := arm.ParseResourceID(StringVal(database.ID))
+			if err != nil {
+				return armredisenterprise.DatabasesClientListByClusterResponse{}, trace.Wrap(err)
+			}
+			if resourceGroupName == id.ResourceGroupName && id.Parent != nil && id.Parent.Name == clusterName {
+				databases = append(databases, database)
+			}
+		}
+		if len(databases) == 0 {
+			return armredisenterprise.DatabasesClientListByClusterResponse{}, trace.NotFound("no resources found")
 		}
 		return armredisenterprise.DatabasesClientListByClusterResponse{
 			DatabaseList: armredisenterprise.DatabaseList{
@@ -306,9 +321,18 @@ func (m *ARMRedisEnterpriseClusterMock) NewListPager(options *armredisenterprise
 }
 func (m *ARMRedisEnterpriseClusterMock) NewListByResourceGroupPager(resourceGroupName string, options *armredisenterprise.ClientListByResourceGroupOptions) *runtime.Pager[armredisenterprise.ClientListByResourceGroupResponse] {
 	return newPagerHelper(m.NoAuth, func() (armredisenterprise.ClientListByResourceGroupResponse, error) {
-		clusters, err := filterByResourceGroup(m.Clusters, resourceGroupName)
-		if err != nil {
-			return armredisenterprise.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+		var clusters []*armredisenterprise.Cluster
+		for _, cluster := range m.Clusters {
+			id, err := arm.ParseResourceID(StringVal(cluster.ID))
+			if err != nil {
+				return armredisenterprise.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+			}
+			if resourceGroupName == id.ResourceGroupName {
+				clusters = append(clusters, cluster)
+			}
+		}
+		if len(clusters) == 0 {
+			return armredisenterprise.ClientListByResourceGroupResponse{}, trace.NotFound("no resources found")
 		}
 		return armredisenterprise.ClientListByResourceGroupResponse{
 			ClusterList: armredisenterprise.ClusterList{
@@ -332,56 +356,4 @@ func newPagerHelper[T any](noAuth bool, newT func() (T, error)) *runtime.Pager[T
 			return newT()
 		},
 	})
-}
-
-// filterByResourceGroup filters input slice of resources by matching resource group.
-func filterByResourceGroup[T any](s []T, group string) ([]T, error) {
-	return filterByCheckingResourceID(s, func(id *arm.ResourceID) bool {
-		return id.ResourceGroupName == group
-	})
-}
-
-// filterByCheckingResourceID filters input slice of resources by using the
-// passed in custom check function on the resource ID of each resource in the
-// slice.
-func filterByCheckingResourceID[T any](s []T, check func(*arm.ResourceID) bool) ([]T, error) {
-	var servers []T
-	for _, e := range s {
-		idString, err := getStringAttrFromStruct(e, "ID")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		id, err := arm.ParseResourceID(idString)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if check(id) {
-			servers = append(servers, e)
-		}
-	}
-	if len(servers) == 0 {
-		return nil, trace.NotFound("no resources found")
-	}
-	return servers, nil
-}
-
-// getStringAttrFromStruct uses reflect magic to get the string value of an
-// attribute of the input i.
-func getStringAttrFromStruct(i interface{}, attrName string) (string, error) {
-	structValue := reflect.ValueOf(i)
-	if structValue.Kind() == reflect.Pointer {
-		structValue = structValue.Elem()
-	}
-
-	attrValue := structValue.FieldByName(attrName)
-	if !attrValue.IsValid() {
-		return "", trace.NotFound("%v field not found", attrName)
-	}
-	if attrValue.Kind() == reflect.Pointer {
-		attrValue = attrValue.Elem()
-	}
-	if attrValue.Kind() != reflect.String {
-		return "", trace.BadParameter("%v field is not a string", attrName)
-	}
-	return attrValue.String(), nil
 }

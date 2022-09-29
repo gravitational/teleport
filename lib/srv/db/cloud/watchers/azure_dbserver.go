@@ -39,7 +39,7 @@ func newAzurePostgresFetcher(config azureFetcherConfig) (Fetcher, error) {
 type azureDBServerPlugin struct {
 }
 
-func (p *azureDBServerPlugin) NewDatabasesFromServer(server *azure.DBServer, log logrus.FieldLogger) types.Databases {
+func (p *azureDBServerPlugin) NewDatabaseFromServer(server *azure.DBServer, log logrus.FieldLogger) types.Database {
 	if !server.IsSupported() {
 		log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
 			server.Name,
@@ -61,7 +61,7 @@ func (p *azureDBServerPlugin) NewDatabasesFromServer(server *azure.DBServer, log
 			err)
 		return nil
 	}
-	return types.Databases{database}
+	return database
 }
 
 func (p *azureDBServerPlugin) GetServerLocation(server *azure.DBServer) string {

@@ -33,16 +33,21 @@ import (
 // azureListClient defines an interface for a client that can list Azure
 // resources.
 type azureListClient[DBType comparable] interface {
+	// ListAll returns all Azure DB servers within an Azure subscription.
 	ListAll(ctx context.Context) ([]DBType, error)
+	// ListWithinGroup returns all Azure DB servers within an Azure resource group.
 	ListWithinGroup(ctx context.Context, group string) ([]DBType, error)
 }
 
 // azureFetcherPlugin defines an interface that provides DBType specific
 // functions that can be used by the common Azure fetcher.
 type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] interface {
-	NewDatabasesFromServer(server DBType, log logrus.FieldLogger) types.Databases
+	// GetListClient returns the azureListClient for the provided subscription.
 	GetListClient(cfg *azureFetcherConfig, subID string) (ListClient, error)
+	// GetServerLocation returns the server location.
 	GetServerLocation(server DBType) string
+	// NewDatabaseFromServer creates a types.Database from provided server.
+	NewDatabaseFromServer(server DBType, log logrus.FieldLogger) types.Database
 }
 
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
@@ -195,8 +200,8 @@ func (f *azureFetcher[DBType, ListClient]) getDatabases(ctx context.Context) (ty
 		return nil, trace.Wrap(err)
 	}
 
-	var databases types.Databases
 	var nilServer DBType
+	databases := make(types.Databases, 0, len(servers))
 	for _, server := range servers {
 		if server == nilServer {
 			continue
@@ -206,7 +211,9 @@ func (f *azureFetcher[DBType, ListClient]) getDatabases(ctx context.Context) (ty
 			continue
 		}
 
-		databases = append(databases, f.NewDatabasesFromServer(server, f.log)...)
+		if database := f.NewDatabaseFromServer(server, f.log); database != nil {
+			databases = append(databases, database)
+		}
 	}
 	return databases, nil
 }

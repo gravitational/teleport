@@ -42,7 +42,7 @@ func (p *azureRedisEnterprisePlugin) GetServerLocation(server *azure.RedisEnterp
 	return azure.StringVal(server.Cluster.Location)
 }
 
-func (p *azureRedisEnterprisePlugin) NewDatabasesFromServer(server *azure.RedisEnterpriseDatabase, log logrus.FieldLogger) types.Databases {
+func (p *azureRedisEnterprisePlugin) NewDatabaseFromServer(server *azure.RedisEnterpriseDatabase, log logrus.FieldLogger) types.Database {
 	if server.Properties == nil || server.Cluster.Properties == nil {
 		return nil
 	}
@@ -72,7 +72,7 @@ func (p *azureRedisEnterprisePlugin) NewDatabasesFromServer(server *azure.RedisE
 		return nil
 	}
 
-	return types.Databases{database}
+	return database
 }
 
 // isAvailable checks the status of the database and returns true if the
