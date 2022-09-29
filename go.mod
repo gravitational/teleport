@@ -15,7 +15,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.4.1
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
-	github.com/HdrHistogram/hdrhistogram-go v1.0.1
+	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.4.16
 	github.com/ThalesIgnite/crypto11 v1.2.4
 	github.com/alicebob/miniredis/v2 v2.17.0
