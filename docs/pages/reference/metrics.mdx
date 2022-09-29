@@ -41,12 +41,12 @@ heartbeat completes successfully.
 The first successful heartbeat will transition Teleport into a recovering state.
 
 A second consecutive successful heartbeat will cause Teleport to transition to
-the OK state, so long as at least 10 seconds have elapsed since the
-first successful heartbeat.
+the OK state.
 
-Teleport heartbeats run every 5 seconds. This means that depending on the timing
-of heartbeats, it can take 10-20 seconds after connectivity is restored for
-`/readyz` to start reporting healthy again.
+Teleport heartbeats run approximately every 60 seconds when healthy, and failed
+heartbeats are retried approximately every 5 seconds. This means that depending
+on the timing of heartbeats, it can take 60-70 seconds after connectivity is
+restored for `/readyz` to start reporting healthy again.
 
 ### Status codes
 
@@ -132,7 +132,7 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `s3_requests_seconds` | histogram | Amazon S3 | Request latency for the S3 API. |
 | `teleport_audit_emit_events` | counter | Teleport Audit Log | Number of audit events emitted. |
 | `teleport_connected_resources` | gauge | Teleport Auth | Number and type of resources connected via keepalives. |
-| `teleport_registered_servers` | gauge | Teleport Auth | The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL. |
+| `teleport_registered_servers` | gauge | Teleport Auth | The number of Teleport services that are connected to an Auth Service instance grouped by version. |
 | `user_login_total` | counter | Teleport Auth | Number of user logins. |
 | `watcher_event_sizes` | histogram | cache | Overall size of events emitted. |
 | `watcher_events` | histogram | cache | Per resource size of events emitted. |

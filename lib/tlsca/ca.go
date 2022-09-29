@@ -297,7 +297,6 @@ func (id *Identity) CheckAndSetDefaults() error {
 // https://serverfault.com/questions/551477/is-there-reserved-oid-space-for-internal-enterprise-cas
 //
 // http://oid-info.com/get/1.3.9999
-//
 var (
 	// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
 	// license payload into certificates
@@ -783,14 +782,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				id.AllowedResourceIDs = allowedResourceIDs
 			}
 		}
-	}
-
-	// DELETE IN 11.0.0: This logic is using Province field
-	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored,
-	// and after 10.0.0 Province field is never populated
-	if len(id.KubernetesGroups) == 0 {
-		id.KubernetesGroups = subject.Province
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {

@@ -201,6 +201,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Databases")
 			}
 			collections[resourceKind] = &database{watch: watch, Cache: c}
+		case types.KindKubernetesCluster:
+			if c.Kubernetes == nil {
+				return nil, trace.BadParameter("missing parameter Kubernetes")
+			}
+			collections[resourceKind] = &kubeCluster{watch: watch, Cache: c}
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -2553,4 +2558,75 @@ func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) e
 
 func (c *windowsDesktops) watchKind() types.WatchKind {
 	return c.watch
+}
+
+type kubeCluster struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *kubeCluster) erase(ctx context.Context) error {
+	err := s.kubernetesCache.DeleteAllKubernetesClusters(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *kubeCluster) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := s.Kubernetes.GetKubernetesClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			if err := s.kubernetesCache.CreateKubernetesCluster(ctx, resource); err != nil {
+				if !trace.IsAlreadyExists(err) {
+					return trace.Wrap(err)
+				}
+				if err := s.kubernetesCache.UpdateKubernetesCluster(ctx, resource); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *kubeCluster) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.kubernetesCache.DeleteKubernetesCluster(ctx, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.KubeCluster)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := s.kubernetesCache.CreateKubernetesCluster(ctx, resource); err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+			if err := s.kubernetesCache.UpdateKubernetesCluster(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	default:
+		s.Warnf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (s *kubeCluster) watchKind() types.WatchKind {
+	return s.watch
 }

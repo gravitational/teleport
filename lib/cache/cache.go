@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -105,6 +106,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -143,6 +145,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -175,6 +178,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -235,6 +239,7 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
 	}
+
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
@@ -254,6 +259,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -323,6 +329,19 @@ func ForWindowsDesktop(cfg Config) Config {
 	return cfg
 }
 
+// ForDiscovery sets up watch configuration for discovery servers.
+func ForDiscovery(cfg Config) Config {
+	cfg.target = "discovery"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindNode},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
+	return cfg
+}
+
 // SetupConfigFn is a function that sets up configuration
 // for cache
 type SetupConfigFn func(c Config) Config
@@ -387,6 +406,7 @@ type Cache struct {
 	presenceCache         services.Presence
 	restrictionsCache     services.Restrictions
 	appsCache             services.Apps
+	kubernetesCache       services.Kubernetes
 	databasesCache        services.Databases
 	appSessionCache       services.AppSession
 	snowflakeSessionCache services.SnowflakeSession
@@ -447,6 +467,7 @@ func (c *Cache) read() (readGuard, error) {
 			presence:         c.presenceCache,
 			restrictions:     c.restrictionsCache,
 			apps:             c.appsCache,
+			kubernetes:       c.kubernetesCache,
 			databases:        c.databasesCache,
 			appSession:       c.appSessionCache,
 			snowflakeSession: c.snowflakeSessionCache,
@@ -467,6 +488,7 @@ func (c *Cache) read() (readGuard, error) {
 		presence:         c.Config.Presence,
 		restrictions:     c.Config.Restrictions,
 		apps:             c.Config.Apps,
+		kubernetes:       c.Config.Kubernetes,
 		databases:        c.Config.Databases,
 		appSession:       c.Config.AppSession,
 		snowflakeSession: c.Config.SnowflakeSession,
@@ -493,6 +515,7 @@ type readGuard struct {
 	snowflakeSession services.SnowflakeSession
 	restrictions     services.Restrictions
 	apps             services.Apps
+	kubernetes       services.Kubernetes
 	databases        services.Databases
 	webSession       types.WebSessionInterface
 	webToken         types.WebTokenInterface
@@ -546,6 +569,8 @@ type Config struct {
 	Restrictions services.Restrictions
 	// Apps is an apps service.
 	Apps services.Apps
+	// Kubernetes is an kubernetes service.
+	Kubernetes services.Kubernetes
 	// Databases is a databases service.
 	Databases services.Databases
 	// SnowflakeSession holds Snowflake sessions.
@@ -701,6 +726,7 @@ func New(config Config) (*Cache, error) {
 		presenceCache:         local.NewPresenceService(config.Backend),
 		restrictionsCache:     local.NewRestrictionsService(config.Backend),
 		appsCache:             local.NewAppService(config.Backend),
+		kubernetesCache:       local.NewKubernetesService(config.Backend),
 		databasesCache:        local.NewDatabasesService(config.Backend),
 		appSessionCache:       local.NewIdentityService(config.Backend),
 		snowflakeSessionCache: local.NewIdentityService(config.Backend),
@@ -734,11 +760,11 @@ func New(config Config) (*Cache, error) {
 
 // Starts the cache. Should only be called once.
 func (c *Cache) Start() error {
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
 		Step:   c.MaxRetryPeriod / 5,
 		Max:    c.MaxRetryPeriod,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
 	if err != nil {
@@ -784,7 +810,7 @@ Outer:
 	return c.eventsFanout.NewWatcher(ctx, watch)
 }
 
-func (c *Cache) update(ctx context.Context, retry utils.Retry) {
+func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 	defer func() {
 		c.Debugf("Cache is closing, returning from update loop.")
 		// ensure that close operations have been run
@@ -851,24 +877,24 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 // and consistently ordered thanks to Raft. Unfortunately, DynamoDB
 // does not provide such a mechanism for its event system, so
 // some tradeoffs have to be made:
-//   a. We assume that events are ordered in regards to the
-//   individual key operations which is the guarantees both Etcd and DynamoDB
-//   provide.
-//   b. Thanks to the init event sent by the server on a successful connect,
-//   and guarantees 1 and 2a, client assumes that once it connects and receives an event,
-//   it will not miss any events, however it can receive stale events.
-//   Event could be stale, if it relates to a change that happened before
-//   the version read by client from the database, for example,
-//   given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
-//   Client could have subscribed before event 1 happened,
-//   read the value a=2 and then received events 1 and 2 and 3.
-//   The cache will replay all events 1, 2 and 3 and end up in the correct
-//   state 3. If we had a consistent revision number, we could
-//   have skipped 1 and 2, but in the absence of such mechanism in Dynamo
-//   we assume that this cache will eventually end up in a correct state
-//   potentially lagging behind the state of the database.
 //
-func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
+//	a. We assume that events are ordered in regards to the
+//	individual key operations which is the guarantees both Etcd and DynamoDB
+//	provide.
+//	b. Thanks to the init event sent by the server on a successful connect,
+//	and guarantees 1 and 2a, client assumes that once it connects and receives an event,
+//	it will not miss any events, however it can receive stale events.
+//	Event could be stale, if it relates to a change that happened before
+//	the version read by client from the database, for example,
+//	given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
+//	Client could have subscribed before event 1 happened,
+//	read the value a=2 and then received events 1 and 2 and 3.
+//	The cache will replay all events 1, 2 and 3 and end up in the correct
+//	state 3. If we had a consistent revision number, we could
+//	have skipped 1 and 2, but in the absence of such mechanism in Dynamo
+//	we assume that this cache will eventually end up in a correct state
+//	potentially lagging behind the state of the database.
+func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		QueueSize:       c.QueueSize,
 		Name:            c.Component,
@@ -953,7 +979,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			relativeExpiryInterval = interval.New(interval.Config{
 				Duration:      c.Config.RelativeExpiryCheckInterval,
 				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-				Jitter:        utils.NewSeventhJitter(),
+				Jitter:        retryutils.NewSeventhJitter(),
 			})
 			break
 		}
@@ -1298,17 +1324,13 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	defer rg.Release()
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
-		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func(ctx context.Context) (interface{}, error) {
+		cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
 			ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
-			ta(ca)
 			return ca, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCA := ci.(types.CertAuthority)
-		ta(cachedCA)
 		return cachedCA.Clone(), nil
 	}
 
@@ -1343,17 +1365,13 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
-		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) (interface{}, error) {
+		cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
 			cas, err := rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
-			ta(cas)
 			return cas, trace.Wrap(err)
 		})
-		if err != nil || ci == nil {
+		if err != nil || cachedCAs == nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCAs := ci.([]types.CertAuthority)
-		ta(cachedCAs)
 		cas := make([]types.CertAuthority, 0, len(cachedCAs))
 		for _, ca := range cachedCAs {
 			cas = append(cas, ca.Clone())
@@ -1430,17 +1448,13 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.ClusterAuditConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (interface{}, error) {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
 			cfg, err := rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
-			ta(cfg)
 			return cfg, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCfg := ci.(types.ClusterAuditConfig)
-		ta(cachedCfg)
 		return cachedCfg.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterAuditConfig(ctx, opts...)
@@ -1457,17 +1471,13 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.ClusterNetworkingConfig) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (interface{}, error) {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 			cfg, err := rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
-			ta(cfg)
 			return cfg, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCfg := ci.(types.ClusterNetworkingConfig)
-		ta(cachedCfg)
 		return cachedCfg.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterNetworkingConfig(ctx, opts...)
@@ -1484,18 +1494,14 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.ClusterName) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"name"}, func(ctx context.Context) (interface{}, error) {
+		cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
 			cfg, err := rg.clusterConfig.GetClusterName(opts...)
-			ta(cfg)
 			return cfg, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedCfg := ci.(types.ClusterName)
-		ta(cachedCfg)
-		return cachedCfg.Clone(), nil
+		return cachedName.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterName(opts...)
 }
@@ -1640,21 +1646,12 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
 // must be cloned to avoid concurrent modification.
 func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	ta := func(_ []types.Server) {} // compile-time type assertion
-	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
+	cachedNodes, err := utils.FnCacheGet(ctx, c.fnCache, getNodesCacheKey{namespace}, func(ctx context.Context) ([]types.Server, error) {
 		nodes, err := rg.presence.GetNodes(ctx, namespace)
-		ta(nodes)
 		return nodes, err
 	})
-	if err != nil || ni == nil {
-		return nil, trace.Wrap(err)
-	}
-	cachedNodes, ok := ni.([]types.Server)
-	if !ok {
-		return nil, trace.Errorf("TTL-cache returned unexpected type %T (this is a bug!).", ni)
-	}
-	ta(cachedNodes)
-	return cachedNodes, nil
+
+	return cachedNodes, trace.Wrap(err)
 }
 
 // GetAuthServers returns a list of registered servers
@@ -1713,17 +1710,14 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(ctx, remoteClustersCacheKey{}, func(ctx context.Context) (interface{}, error) {
+		cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
 			remotes, err := rg.presence.GetRemoteClusters(opts...)
-			ta(remotes)
 			return remotes, err
 		})
-		if err != nil || ri == nil {
+		if err != nil || cachedRemotes == nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedRemotes := ri.([]types.RemoteCluster)
-		ta(cachedRemotes)
+
 		remotes := make([]types.RemoteCluster, 0, len(cachedRemotes))
 		for _, remote := range cachedRemotes {
 			remotes = append(remotes, remote.Clone())
@@ -1744,17 +1738,14 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(ctx, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (interface{}, error) {
+		cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
 			remote, err := rg.presence.GetRemoteCluster(clusterName)
-			ta(remote)
 			return remote, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedRemote := ri.(types.RemoteCluster)
-		ta(cachedRemote)
+
 		return cachedRemote.Clone(), nil
 	}
 	rc, err := rg.presence.GetRemoteCluster(clusterName)
@@ -1878,6 +1869,32 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 	}
 	defer rg.Release()
 	return rg.presence.GetApplicationServers(ctx, namespace)
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.kubernetes.GetKubernetesClusters(ctx)
+}
+
+// GetKubernetesCluster returns the specified kubernetes cluster resource.
+func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.kubernetes.GetKubernetesCluster(ctx, name)
 }
 
 // GetApps returns all application resources.
@@ -2140,6 +2157,19 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.ListWindowsDesktops(ctx, req)
+}
+
+// ListWindowsDesktopServices returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
 }
 
 // ListResources is a part of auth.Cache implementation

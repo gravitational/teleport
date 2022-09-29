@@ -65,9 +65,10 @@ import (
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/net/http2"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -154,6 +155,8 @@ type ForwarderConfig struct {
 	CheckImpersonationPermissions ImpersonationPermissionsChecker
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
+	// log is the logger function
+	log logrus.FieldLogger
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -197,6 +200,11 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.Component == "" {
 		f.Component = "kube_forwarder"
 	}
+
+	if f.CheckImpersonationPermissions == nil {
+		f.CheckImpersonationPermissions = checkImpersonationPermissions
+	}
+
 	switch f.KubeServiceType {
 	case KubeService:
 	case ProxyService:
@@ -210,6 +218,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 		// attempt loading the in-cluster credentials.
 		f.KubeClusterName = f.ClusterName
 	}
+	if f.log == nil {
+		f.log = logrus.New()
+	}
 	return nil
 }
 
@@ -219,30 +230,16 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := log.WithFields(log.Fields{
-		trace.Component: cfg.Component,
-	})
-
-	// Pick the permissions check function to use, applying an override
-	// if specified.
-	checkImpersonation := checkImpersonationPermissions
-	if cfg.CheckImpersonationPermissions != nil {
-		checkImpersonation = cfg.CheckImpersonationPermissions
-	}
-
-	creds, err := getKubeCreds(cfg.Context, log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, checkImpersonation)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	closeCtx, close := context.WithCancel(cfg.Context)
+
 	fwd := &Forwarder{
-		creds:             creds,
-		log:               log,
+		log:               cfg.log,
 		router:            *httprouter.New(),
 		cfg:               cfg,
 		clientCredentials: clientCredentials,
@@ -254,6 +251,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
+		clusterDetails: make(map[string]*kubeDetails),
 	}
 
 	fwd.router.UseRawPath = true
@@ -274,6 +272,13 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if cfg.ClusterOverride != "" {
 		fwd.log.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
 	}
+	if len(cfg.KubeClusterName) > 0 || len(cfg.KubeconfigPath) > 0 || cfg.KubeServiceType != KubeService {
+		fwd.clusterDetails, err = getKubeDetails(cfg.Context, fwd.log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, cfg.CheckImpersonationPermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return fwd, nil
 }
 
@@ -282,7 +287,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // however some requests like exec sessions it intercepts and records.
 type Forwarder struct {
 	mu     sync.Mutex
-	log    log.FieldLogger
+	log    logrus.FieldLogger
 	router httprouter.Router
 	cfg    ForwarderConfig
 	// clientCredentials is an expiring cache of ephemeral client credentials.
@@ -297,9 +302,10 @@ type Forwarder struct {
 	close context.CancelFunc
 	// ctx is a global context signaling exit
 	ctx context.Context
-	// creds contain kubernetes credentials for multiple clusters.
+	// clusterDetails contain kubernetes credentials for multiple clusters.
 	// map key is cluster name.
-	creds map[string]*kubeCreds
+	clusterDetails map[string]*kubeDetails
+	rwMutexDetails sync.RWMutex
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
 	// upgrades connections to websockets
@@ -766,10 +772,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       actx.Identity.GetIdentity().MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
+
+	mfaParams := actx.MFAParams(ap.GetRequireMFAType())
+
 	// Check authz against the first match.
 	//
 	// We assume that users won't register two identically-named clusters with
@@ -1400,7 +1405,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers http.Header) error {
+func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers http.Header) error {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -1630,7 +1635,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
-		Context: s.parent.cfg.Context,
+		Context: s.parent.ctx,
 		Cancel:  cancel,
 	})
 	if err != nil {
@@ -1759,11 +1764,11 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 }
 
 func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, error) {
-	if len(f.creds) == 0 {
+	if len(f.clusterDetails) == 0 {
 		return nil, trace.NotFound("this Teleport process is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster or 'tsh kube login' into a different kubernetes cluster")
 	}
 
-	creds, ok := f.creds[ctx.kubeCluster]
+	details, ok := f.clusterDetails[ctx.kubeCluster]
 	if !ok {
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeCluster)
 	}
@@ -1772,9 +1777,9 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	return &clusterSession{
 		parent:               f,
 		authContext:          ctx,
-		creds:                creds,
-		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: creds.targetAddr}},
-		tlsConfig:            creds.tlsConfig.Clone(),
+		creds:                details.kubeCreds,
+		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: details.targetAddr}},
+		tlsConfig:            details.tlsConfig.Clone(),
 	}, nil
 }
 
@@ -2009,18 +2014,19 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 		RootCAs:      pool,
 		Certificates: []tls.Certificate{cert},
 	}
+	//nolint:staticcheck // Keep BuildNameToCertificate to avoid changes in legacy behavior.
 	tlsConfig.BuildNameToCertificate()
 
 	return tlsConfig, nil
 }
 
-// getStaticLabels gets the labels that the forwarder should present as static,
+// getServiceStaticLabels gets the labels that the forwarder should present as static,
 // which includes EC2 labels if available.
-func (f *Forwarder) getStaticLabels() map[string]string {
+func (f *Forwarder) getServiceStaticLabels() map[string]string {
 	if f.cfg.CloudLabels == nil {
 		return f.cfg.StaticLabels
 	}
-	labels := f.cfg.CloudLabels.Get()
+	labels := maps.Clone(f.cfg.CloudLabels.Get())
 	// Let static labels override ec2 labels.
 	for k, v := range f.cfg.StaticLabels {
 		labels[k] = v
@@ -2028,23 +2034,13 @@ func (f *Forwarder) getStaticLabels() map[string]string {
 	return labels
 }
 
-func (f *Forwarder) kubeClusters() []*types.KubernetesClusterV3 {
-	var dynLabels map[string]types.CommandLabelV2
-	if f.cfg.DynamicLabels != nil {
-		dynLabels = types.LabelsToV2(f.cfg.DynamicLabels.Get())
-	}
-
-	res := make([]*types.KubernetesClusterV3, 0, len(f.creds))
-	for n := range f.creds {
-		cluster, err := types.NewKubernetesClusterV3(
-			types.Metadata{
-				Name:   n,
-				Labels: f.getStaticLabels(),
-			},
-			types.KubernetesClusterSpecV3{
-				DynamicLabels: dynLabels,
-			},
-		)
+// kubeClusters returns the list of available clusters
+func (f *Forwarder) kubeClusters() types.KubeClusters {
+	f.rwMutexDetails.RLock()
+	defer f.rwMutexDetails.RUnlock()
+	res := make(types.KubeClusters, 0, len(f.clusterDetails))
+	for n, cred := range f.clusterDetails {
+		cluster, err := f.newKubernetesClusterV3FromDetails(cred)
 		if err != nil {
 			f.log.WithError(err).Warnf("Error while creating *types.KubernetesClusterV3 for cluster %q", n)
 			continue
@@ -2054,6 +2050,86 @@ func (f *Forwarder) kubeClusters() []*types.KubernetesClusterV3 {
 		)
 	}
 	return res
+}
+
+// findKubeClusterByName searches for the cluster otherwise returns a trace.NotFound error.
+func (f *Forwarder) findKubeClusterByName(name string) (types.KubeCluster, error) {
+	f.rwMutexDetails.RLock()
+	defer f.rwMutexDetails.RUnlock()
+
+	if creds, ok := f.clusterDetails[name]; ok {
+		return f.newKubernetesClusterV3FromDetails(creds)
+	}
+
+	return nil, trace.NotFound("cluster %s not found", name)
+}
+
+// newKubernetesClusterV3FromDetails copies the details.kubeCluster and populates it with the
+// kube_service's static and dynamic labels values.
+func (f *Forwarder) newKubernetesClusterV3FromDetails(details *kubeDetails) (*types.KubernetesClusterV3, error) {
+	clonedCluster := details.kubeCluster.Copy()
+	clonedCluster.Metadata.Labels = f.getClusterStaticLabels(clonedCluster)
+	clonedCluster.Spec.DynamicLabels = f.getClusterDynamicLabels(details)
+	return clonedCluster, nil
+}
+
+// upsertKubeDetails updates the details in f.ClusterDetails for key if they exist,
+// otherwise inserts them.
+func (f *Forwarder) upsertKubeDetails(key string, clusterDetails *kubeDetails) {
+	f.rwMutexDetails.Lock()
+	defer f.rwMutexDetails.Unlock()
+
+	if oldDetails, ok := f.clusterDetails[key]; ok {
+		oldDetails.Close()
+	}
+	// replace existing details in map
+	f.clusterDetails[key] = clusterDetails
+}
+
+// removeKubeDetails removes the kubeDetails from map.
+func (f *Forwarder) removeKubeDetails(name string) {
+	f.rwMutexDetails.Lock()
+	defer f.rwMutexDetails.Unlock()
+
+	if oldDetails, ok := f.clusterDetails[name]; ok {
+		oldDetails.Close()
+	}
+	delete(f.clusterDetails, name)
+}
+
+// getClusterDynamicLabels returns the cluster dynamic labels and service labels merged together.
+// if cluster and service define the same dynamic label key, service labels have precedence.
+func (f *Forwarder) getClusterDynamicLabels(details *kubeDetails) (dstDynLabels map[string]types.CommandLabelV2) {
+	if details.dynamicLabels != nil {
+		dstDynLabels = types.LabelsToV2(details.dynamicLabels.Get())
+	}
+
+	if f.cfg.DynamicLabels != nil {
+		if dstDynLabels == nil {
+			dstDynLabels = map[string]types.CommandLabelV2{}
+		}
+		// get service level dynamic labels.
+		serviceDynLabels := types.LabelsToV2(f.cfg.DynamicLabels.Get())
+		// if cluster and service define the same dynamic label key, service labels have precedence.
+		maps.Copy(dstDynLabels, serviceDynLabels)
+	}
+	return
+}
+
+// getClusterStaticLabels returns the cluster static labels and service labels merged together.
+func (f *Forwarder) getClusterStaticLabels(cluster types.KubeCluster) (dstLabels map[string]string) {
+	if cluster.GetStaticLabels() != nil {
+		dstLabels = maps.Clone(cluster.GetStaticLabels())
+	}
+
+	if len(f.getServiceStaticLabels()) > 0 {
+		if dstLabels == nil {
+			dstLabels = make(map[string]string)
+		}
+		// if cluster and service define the same static label key, service labels have precedence.
+		maps.Copy(dstLabels, f.getServiceStaticLabels())
+	}
+	return
 }
 
 type responseStatusRecorder struct {
