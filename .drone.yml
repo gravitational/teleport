@@ -865,7 +865,6 @@ steps:
     path: /tmpfs
   - name: dockersock
     path: /var/run
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1946,7 +1945,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2107,7 +2105,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2281,7 +2278,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2440,7 +2436,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2627,7 +2622,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -2816,7 +2810,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3005,7 +2998,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3180,7 +3172,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3339,7 +3330,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3526,7 +3516,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3709,7 +3698,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -3902,7 +3890,6 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
-  failure: ignore
 - name: Clean up toolchains (post)
   commands:
   - set -u
@@ -4105,7 +4092,6 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-  failure: ignore
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -4289,7 +4275,6 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-  failure: ignore
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -4445,7 +4430,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -4604,7 +4588,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -4782,7 +4765,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -4960,7 +4942,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -5147,7 +5128,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -5339,7 +5319,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -5506,7 +5485,6 @@ steps:
       from_secret: RELEASES_CERT
     RELEASES_KEY:
       from_secret: RELEASES_KEY
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -6960,7 +6938,6 @@ steps:
     path: /tmpfs
   - name: dockersock
     path: /var/run
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -7182,7 +7159,6 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-  failure: ignore
 - name: Clean up toolchains (post)
   commands:
   - set -u
@@ -7202,6 +7178,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 29d5d41a22c6a8831490bca46e1dc2b7ab064d95bb7d95597e4e0c041d63ed6e
+hmac: bb5cdac08c721ab3113d6171b377b6435845206caacbc5f999648849eb637891
 
 ...

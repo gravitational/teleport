@@ -101,7 +101,6 @@ func darwinConnectDmgPipeline() pipeline {
 			// Connect's artifact description is automatically generated based on the filename so we pass
 			// no packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
@@ -215,7 +214,6 @@ func darwinTagPipeline() pipeline {
 			// Binaries built by this pipeline don't require extra description, so we don't pass
 			// packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},

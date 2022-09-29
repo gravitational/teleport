@@ -91,7 +91,6 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string, extraQualific
 		{
 			Name:     "Register artifacts",
 			Commands: tagCreateReleaseAssetCommands(b, ".pkg installer", extraQualifications),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},

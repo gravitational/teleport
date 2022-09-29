@@ -85,6 +85,5 @@ func executeRelcliStep(name string, command string) step {
   -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
   $RELCLI_IMAGE ` + command,
 		},
-		Failure: "ignore",
 	}
 }
