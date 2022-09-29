@@ -181,8 +181,8 @@ $ helm install teleport-kube-agent . \
   --set roles=db \
   --set proxyAddr=${PROXY_ENDPOINT?} \
   --set authToken=${JOIN_TOKEN?} \
-  --set "awsDatabases[0].types=${DB_TYPES?}" \
-  --set "awsDatabases[0].regions=${DB_REGIONS?}" \
+  --set "awsDatabases[0].types={${DB_TYPES?}}" \
+  --set "awsDatabases[0].regions={${DB_REGIONS?}}" \
   --set "awsDatabases[0].tags.${DB_TAG_KEY?}={${DB_TAG_VALUES?}}"
 ```
 
@@ -210,11 +210,11 @@ $ helm install teleport-kube-agent . \
   --set roles=db \
   --set proxyAddr=${PROXY_ENDPOINT?} \
   --set authToken=${JOIN_TOKEN?} \
-  --set "azureDatabases[0].types=${DB_TYPES?}" \
+  --set "azureDatabases[0].types={${DB_TYPES?}}" \
   --set "azureDatabases[0].tags.${DB_TAG_KEY?}={${DB_TAG_VALUES?}}" \
-  --set "azureDatabases[0].subscriptions=${DB_SUBSCRIPTIONS?}" \
-  --set "azureDatabases[0].regions=${DB_REGIONS?}" \
-  --set "azureDatabases[0].resourceGroups=${DB_RESOURCE_GROUPS?}"
+  --set "azureDatabases[0].subscriptions={${DB_SUBSCRIPTIONS?}}" \
+  --set "azureDatabases[0].regions={${DB_REGIONS?}}" \
+  --set "azureDatabases[0].resource_groups={${DB_RESOURCE_GROUPS?}}"
 ```
 
 ### Manual configuration mode
