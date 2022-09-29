@@ -74,9 +74,10 @@ import (
 	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/azsessions"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
@@ -87,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/labels/ec2"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -390,13 +390,13 @@ type keyPairKey struct {
 
 // newTeleportConfig provides extra options to NewTeleport().
 type newTeleportConfig struct {
-	imdsClient aws.InstanceMetadata
+	imdsClient cloud.InstanceMetadata
 }
 
 type NewTeleportOption func(*newTeleportConfig)
 
 // WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
-func WithIMDSClient(client aws.InstanceMetadata) NewTeleportOption {
+func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
 	return func(c *newTeleportConfig) {
 		c.imdsClient = client
 	}
@@ -894,39 +894,38 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	var cloudLabels labels.Importer
 
-	// Check if we're on an EC2 instance, and if we should override the node's hostname.
+	// Check if we're on a cloud instance, and if we should override the node's hostname.
 	imClient := newTeleportConf.imdsClient
 	if imClient == nil {
-		imClient, err = utils.NewInstanceMetadataClient(supervisor.ExitContext())
-		if err != nil {
+		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if imClient.IsAvailable(supervisor.ExitContext()) {
-		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
+	if imClient != nil {
+		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
-			ec2Hostname = strings.ReplaceAll(ec2Hostname, " ", "_")
-			if utils.IsValidHostname(ec2Hostname) {
-				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
-				cfg.Hostname = ec2Hostname
+			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")
+			if utils.IsValidHostname(cloudHostname) {
+				cfg.Log.Infof("Found %q tag in cloud instance. Using %q as hostname.", types.CloudHostnameTag, cloudHostname)
+				cfg.Hostname = cloudHostname
 
-				// ec2Hostname exists but is not a valid hostname.
-			} else if ec2Hostname != "" {
-				cfg.Log.Infof("Found %q tag in EC2 instance, but %q is not a valid hostname.", types.EC2HostnameTag, ec2Hostname)
+				// cloudHostname exists but is not a valid hostname.
+			} else if cloudHostname != "" {
+				cfg.Log.Infof("Found %q tag in cloud instance, but %q is not a valid hostname.", types.CloudHostnameTag, cloudHostname)
 			}
 		} else if !trace.IsNotFound(err) {
-			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
+			return nil, trace.Wrap(err)
 		}
 
-		ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.Config{
+		cloudLabels, err = labels.NewCloudImporter(supervisor.ExitContext(), &labels.CloudConfig{
 			Client: imClient,
 			Clock:  cfg.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cloudLabels = ec2Labels
 	}
 
 	if cloudLabels != nil {
@@ -968,15 +967,15 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
-	if process.Config.Auth.Enabled && len(process.Config.AuthServers) == 0 {
-		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.ListenAddr}
+	if process.Config.Auth.Enabled && len(process.Config.AuthServerAddresses()) == 0 {
+		process.Config.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	}
 
-	if len(process.Config.AuthServers) != 0 && process.Config.AuthServers[0].Port(0) == 0 {
+	if len(process.Config.AuthServerAddresses()) != 0 && process.Config.AuthServerAddresses()[0].Port(0) == 0 {
 		// port appears undefined, attempt early listener creation so that we can get the real port
 		listener, err := process.importOrCreateListener(ListenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
-			process.Config.AuthServers = []utils.NetAddr{utils.FromAddr(listener.Addr())}
+			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
 		}
 	}
 
@@ -1320,6 +1319,16 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 			return nil, trace.Wrap(err)
 		}
 		return handler, nil
+	case teleport.SchemeAZBlob, teleport.SchemeAZBlobHTTP:
+		var config azsessions.Config
+		if err := config.SetFromURL(uri); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		handler, err := azsessions.NewHandler(ctx, config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler, nil
 	case teleport.SchemeFile:
 		if err := os.MkdirAll(uri.Path, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
@@ -1640,10 +1649,6 @@ func (process *TeleportProcess) initAuthService() error {
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
 			ClusterName:    clusterName,
-			// DELETE IN 11.0.0
-			// Provide a grace period so that Auth does not prematurely upload
-			// sessions which don't have a session tracker (v9.2 and earlier)
-			GracePeriod: defaults.UploadGracePeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2546,10 +2551,6 @@ func (process *TeleportProcess) initUploaderService() error {
 		AuditLog:       conn.Client,
 		SessionTracker: conn.Client,
 		ClusterName:    conn.ServerIdentity.ClusterName,
-		// DELETE IN 11.0.0
-		// Provide a grace period so that Auth does not prematurely upload
-		// sessions which don't have a session tracker (v9.2 and earlier)
-		GracePeriod: defaults.UploadGracePeriod,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3445,7 +3446,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NodeWatcher:                   nodeWatcher,
 				CertAuthorityWatcher:          caWatcher,
 				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
+				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3496,7 +3497,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webConfig := web.Config{
 			Proxy:            tsrv,
-			AuthServers:      cfg.AuthServers[0],
+			AuthServers:      cfg.AuthServerAddresses()[0],
 			DomainName:       cfg.Hostname,
 			ProxyClient:      conn.Client,
 			ProxySSHAddr:     proxySSHAddr,
@@ -3665,7 +3666,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 		Log:                 rcWatchLog,
-		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServers),
+		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3862,7 +3863,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServerAddresses()))
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
@@ -4316,7 +4317,7 @@ func (process *TeleportProcess) initApps() {
 			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 			// run the resolver. this will check configuration for errors.
-			_, err := tunnelAddrResolver(process.ExitContext())
+			_, _, err := tunnelAddrResolver(process.ExitContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -4638,47 +4639,6 @@ func (process *TeleportProcess) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled && !cfg.Discovery.Enabled {
-		return trace.BadParameter(
-			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service")
-	}
-
-	if cfg.DataDir == "" {
-		return trace.BadParameter("config: please supply data directory")
-	}
-
-	if cfg.Console == nil {
-		cfg.Console = io.Discard
-	}
-
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger()
-	}
-
-	if len(cfg.AuthServers) == 0 {
-		return trace.BadParameter("auth_servers is empty")
-	}
-	for i := range cfg.Auth.Authorities {
-		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	for _, tun := range cfg.ReverseTunnels {
-		if err := services.ValidateReverseTunnel(tun); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if cfg.PollingPeriod == 0 {
-		cfg.PollingPeriod = defaults.LowResPollingPeriod
-	}
-
-	cfg.SSH.Namespace = types.ProcessNamespace(cfg.SSH.Namespace)
-
-	return nil
-}
-
 // initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
 // to the proxy server.
 func initSelfSignedHTTPSCert(cfg *Config) (err error) {
@@ -4733,12 +4693,12 @@ func (process *TeleportProcess) initDebugApp() {
 // singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
-	return func(context.Context) (*utils.NetAddr, error) {
+	return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
-			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
+			return nil, mode, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
 		}
-		return addr, nil
+		return addr, mode, nil
 	}
 }
 
