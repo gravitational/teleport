@@ -32,7 +32,7 @@ Host *.test-cluster localhost
     IdentityFile "/tmp/alice"
     CertificateFile "/tmp/localhost-cert.pub"
     PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com
 
 # Flags for all test-cluster hosts except the proxy
 Host *.test-cluster !localhost
