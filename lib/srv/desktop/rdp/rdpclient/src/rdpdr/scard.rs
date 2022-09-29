@@ -13,13 +13,13 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::piv;
 use crate::Payload;
+use crate::{piv, Message};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use iso7816::command::Command as CardCommand;
 use num_traits::{FromPrimitive, ToPrimitive};
-use rdp::model::data::Message;
+use rdp::model::data::Message as MessageTrait;
 use rdp::model::error::*;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::collections::HashMap;
@@ -55,11 +55,7 @@ impl Client {
     }
 
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
-    pub fn ioctl(&mut self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
-        let code = IoctlCode::from_u32(code).ok_or_else(|| {
-            invalid_data_error(&format!("invalid I/O control code value {:#010x}", code))
-        })?;
-
+    pub fn ioctl(&mut self, code: IoctlCode, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
         debug!("got IoctlCode {:?}", &code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
@@ -327,9 +323,9 @@ impl Client {
 // TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data, in bytes.
 const TRANSMIT_DATA_LIMIT: usize = 1024;
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, Copy, Clone)]
 #[allow(non_camel_case_types)]
-enum IoctlCode {
+pub enum IoctlCode {
     SCARD_IOCTL_ESTABLISHCONTEXT = 0x00090014,
     SCARD_IOCTL_RELEASECONTEXT = 0x00090018,
     SCARD_IOCTL_ISVALIDCONTEXT = 0x0009001C,
@@ -441,7 +437,7 @@ impl RPCEStreamHeader {
             filler: 0xcccccccc,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u8(self.version)?;
         w.write_u8(self.endianness.to_u8().unwrap())?;
@@ -612,7 +608,7 @@ impl Long_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         Ok(w)
@@ -638,7 +634,7 @@ impl EstablishContext_Call {
     }
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, Copy, Clone)]
 #[allow(non_camel_case_types)]
 enum Scope {
     SCARD_SCOPE_USER = 0x00000000,
@@ -660,7 +656,7 @@ impl EstablishContext_Return {
             context,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
@@ -686,7 +682,7 @@ impl Context {
         }
     }
     fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
-        encode_ptr(self.length, index, w)
+        encode_ptr(Some(self.length), index, w)
     }
     fn encode_value(&self, w: &mut dyn Write) -> RdpResult<()> {
         w.write_u32::<LittleEndian>(self.length)?;
@@ -713,8 +709,10 @@ impl Context {
 
 // encode_ptr/decode_ptr and various encode_value/decode_value functions implement the strange NDR
 // protocol. See the big comment above with encoding notes.
-fn encode_ptr(length: u32, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
-    w.write_u32::<LittleEndian>(length)?;
+fn encode_ptr(length: Option<u32>, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+    if let Some(length) = length {
+        w.write_u32::<LittleEndian>(length)?;
+    }
     w.write_u32::<LittleEndian>(0x00020000 + *index * 4)?;
     *index += 1;
     Ok(())
@@ -742,7 +740,9 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 #[allow(dead_code, non_camel_case_types)]
 struct ListReaders_Call {
     context: Context,
+    groups_ptr_length: u32,
     groups_length: u32,
+    groups_ptr: u32,
     groups: Vec<String>,
     readers_is_null: bool,
     readers_size: u32,
@@ -765,6 +765,8 @@ impl ListReaders_Call {
         if groups_ptr == 0 {
             return Ok(Self {
                 context,
+                groups_ptr_length,
+                groups_ptr,
                 groups_length: 0,
                 groups: Vec::new(),
                 readers_is_null,
@@ -779,6 +781,8 @@ impl ListReaders_Call {
         } else {
             Ok(Self {
                 context,
+                groups_ptr_length,
+                groups_ptr,
                 groups_length,
                 groups,
                 readers_is_null,
@@ -802,12 +806,12 @@ impl ListReaders_Return {
             readers,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let readers = encode_multistring_unicode(&self.readers)?;
         let mut index = 0;
-        encode_ptr(readers.length() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(readers.length() as u32), &mut index, &mut w)?;
 
         w.write_u32::<LittleEndian>(readers.length() as u32)?;
         w.extend_from_slice(&readers);
@@ -915,6 +919,9 @@ impl Context_Call {
 struct GetStatusChange_Call {
     context: Context,
     timeout: u32,
+    states_ptr_length: u32,
+    states_ptr: u32,
+    states_length: u32,
     states: Vec<ReaderState>,
 }
 
@@ -927,8 +934,8 @@ impl GetStatusChange_Call {
         let mut context = Context::decode_ptr(payload, &mut index)?;
 
         let timeout = payload.read_u32::<LittleEndian>()?;
-        let _states_length = payload.read_u32::<LittleEndian>()?;
-        let _states_ptr = decode_ptr(payload, &mut index)?;
+        let states_ptr_length = payload.read_u32::<LittleEndian>()?;
+        let states_ptr = decode_ptr(payload, &mut index)?;
 
         context.decode_value(payload)?;
 
@@ -944,6 +951,9 @@ impl GetStatusChange_Call {
         Ok(Self {
             context,
             timeout,
+            states_ptr_length,
+            states_ptr,
+            states_length,
             states,
         })
     }
@@ -1093,11 +1103,11 @@ impl GetStatusChange_Return {
             reader_states,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
-        encode_ptr(self.reader_states.len() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(self.reader_states.len() as u32), &mut index, &mut w)?;
 
         w.write_u32::<LittleEndian>(self.reader_states.len() as u32)?;
         for state in &self.reader_states {
@@ -1194,7 +1204,7 @@ impl Connect_Return {
             active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
@@ -1224,7 +1234,7 @@ impl Handle {
     }
     fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
         self.context.encode_ptr(index, w)?;
-        encode_ptr(self.length, index, w)?;
+        encode_ptr(Some(self.length), index, w)?;
         Ok(())
     }
     fn encode_value(&self, w: &mut dyn Write) -> RdpResult<()> {
@@ -1357,7 +1367,7 @@ impl Status_Return {
             encoding,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
@@ -1366,7 +1376,7 @@ impl Status_Return {
             StringEncoding::Ascii => encode_multistring_ascii(&self.reader_names)?,
         };
         let mut index = 0;
-        encode_ptr(reader_names.length() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(reader_names.length() as u32), &mut index, &mut w)?;
 
         w.write_u32::<LittleEndian>(self.state.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.protocol.bits())?;
@@ -1476,7 +1486,7 @@ impl Transmit_Return {
             recv_buffer,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
@@ -1485,7 +1495,7 @@ impl Transmit_Return {
         w.write_u32::<LittleEndian>(0)?;
 
         let mut index = 0;
-        encode_ptr(self.recv_buffer.len() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(self.recv_buffer.len() as u32), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.recv_buffer.len() as u32)?;
         w.extend_from_slice(&self.recv_buffer);
 
@@ -1497,6 +1507,7 @@ impl Transmit_Return {
 #[allow(dead_code, non_camel_case_types)]
 struct GetDeviceTypeId_Call {
     context: Context,
+    reader_ptr: u32,
     reader_name: String,
 }
 
@@ -1508,12 +1519,13 @@ impl GetDeviceTypeId_Call {
         let mut index = 0;
         let mut context = Context::decode_ptr(payload, &mut index)?;
 
-        let _reader_ptr = decode_ptr(payload, &mut index)?;
+        let reader_ptr = decode_ptr(payload, &mut index)?;
 
         context.decode_value(payload)?;
         let reader_name = decode_string_unicode(payload)?;
         Ok(Self {
             context,
+            reader_ptr,
             reader_name,
         })
     }
@@ -1539,7 +1551,7 @@ impl GetDeviceTypeId_Return {
             device_type_id: SCARD_READER_TYPE_VENDOR,
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_type_id)?;
@@ -1628,12 +1640,12 @@ impl ReadCache_Return {
             },
         }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
         let mut index = 0;
-        encode_ptr(self.data.length() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(self.data.length() as u32), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.data.length() as u32)?;
         w.extend_from_slice(&self.data);
         Ok(w)
@@ -1739,14 +1751,14 @@ impl GetReaderIcon_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
         // Encode empty data field, reader icon not implemented.
         // TODO: send Teleport/Pam logo.
         let mut index = 0;
-        encode_ptr(0, &mut index, &mut w)?;
+        encode_ptr(Some(0), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(0)?;
         Ok(w)
     }
@@ -1784,7 +1796,7 @@ impl Contexts {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
