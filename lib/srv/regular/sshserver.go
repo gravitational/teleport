@@ -2072,6 +2072,8 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySubsys(r.Name, s, ctx)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	case r.Name == teleport.GetHomeDirSubsystem:
+		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:
 		if err := ctx.CheckFileCopyingAllowed(); err != nil {
 			// Add an extra newline here to separate this error message

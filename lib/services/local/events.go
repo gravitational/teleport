@@ -336,7 +336,7 @@ type provisionTokenParser struct {
 func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindToken, types.V2, 0)
+		return resourceHeader(event, types.KindToken, types.VDeleted, 0)
 	case types.OpPut:
 		token, err := services.UnmarshalProvisionToken(event.Item.Value,
 			services.WithResourceID(event.Item.ID),

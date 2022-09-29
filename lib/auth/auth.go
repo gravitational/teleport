@@ -52,7 +52,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -545,32 +544,44 @@ func (a *Server) runPeriodicOperations() {
 // an appropriate upgrade is available.
 func (a *Server) checkForReleases(ctx context.Context) {
 	const alertID = "upgrade-suggestion"
+	const secAlertID = "security-patch-available"
 	log.Debug("Checking for new teleport releases via github api.")
 
 	// NOTE: essentially everything in this function is going to be
 	// scrapped/replaced once the inventory and version-control systems
 	// are a bit further along.
 
-	var loadFailed bool
-	current := vc.Normalize(teleport.Version)
+	current := vc.NewTarget(vc.Normalize(teleport.Version))
 
-	latest, err := github.LatestStable()
-	if err != nil {
-		log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
-		loadFailed = true
-		latest = current
+	// this environment variable is "unstable" since it will be deprecated
+	// by an upcoming tctl command. currently exists for testing purposes only.
+	if t := vc.NewTarget(os.Getenv("TELEPORT_UNSTABLE_VC_VERSION")); t.Ok() {
+		current = t
 	}
 
-	// use visitor to find the oldest version among connected instances
+	visitor := vc.Visitor{
+		Current: current,
+	}
+
+	var loadFailed bool
+	// scrape the github releases API with our visitor
+	if err := github.Visit(&visitor); err != nil {
+		log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
+		loadFailed = true
+	}
+
+	// use visitor to find the oldest version among connected instances.
 	// TODO(fspmarshall): replace this check as soon as we have a backend inventory repr. using
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		instanceVisitor.Visit(vc.Normalize(handle.Hello().Version))
+		v := vc.Normalize(handle.Hello().Version)
+		instanceVisitor.Visit(vc.NewTarget(v))
 	})
 
-	msg := makeUpgradeSuggestionMsg(current, latest, instanceVisitor.Oldest())
+	// build the general alert msg meant for broader consumption
+	msg := makeUpgradeSuggestionMsg(visitor, current, instanceVisitor.Oldest())
 
 	if msg != "" {
 		alert, err := types.NewClusterAlert(
@@ -597,28 +608,60 @@ func (a *Server) checkForReleases(ctx context.Context) {
 			log.Warnf("Failed to delete %s alert: %v", alertID, err)
 		}
 	}
+
+	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) {
+		// explicit security patch alerts have a more limited audience, so we generate
+		// them as their own separate alert.
+		log.Warnf("A newer security patch has been detected. current=%s, patch=%s", current.Version(), sp.Version())
+		secMsg := fmt.Sprintf("A security patch is available for Teleport. Please upgrade your Cluster to %s or newer.", sp.Version())
+
+		alert, err := types.NewClusterAlert(
+			secAlertID,
+			secMsg,
+			types.WithAlertLabel(types.AlertOnLogin, "yes"),
+			// TODO(fspmarshall): permit alert to be shown to those with inventory management
+			// permissions once we have RBAC around that. For now, token:write is a decent
+			// approximation and will ensure that alerts are shown to the editor role.
+			types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
+			// hide the normal upgrade alert for users who can see this alert in order to
+			// improve its visibility and reduce clutter.
+			types.WithAlertLabel(types.AlertSupersedes, alertID),
+			types.WithAlertSeverity(types.AlertSeverity_HIGH),
+		)
+		if err != nil {
+			log.Warnf("Failed to build %s alert: %v (this is a bug)", secAlertID, err)
+			return
+		}
+
+		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+			log.Warnf("Failed to set %s alert: %v", secAlertID, err)
+			return
+		}
+	} else if !loadFailed {
+		err := a.DeleteClusterAlert(ctx, secAlertID)
+		if err != nil && !trace.IsNotFound(err) {
+			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
+		}
+	}
 }
 
 // makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
 // needed (returns "" if everything looks up to date).
-func makeUpgradeSuggestionMsg(current, latest, oldestInstance string) string {
-	// check if this teleport instance wants upgrade
-	if semver.Compare(latest, current) == 1 {
-		// specialize the message a bit to distinguish between a major and minor upgrade.
-		var msg string
-		if semver.Major(latest) != semver.Major(current) {
-			log.Debugf("Generating alert msg for new major version. current=%s, latest=%s", current, latest)
-			msg = fmt.Sprintf("The latest major version of Teleport is %s. Please consider upgrading your Cluster.", semver.Major(latest))
-		} else {
-			log.Debugf("Generating alert msg for new minor or patch release. current=%s, latest=%s", current, latest)
-			msg = fmt.Sprintf("Teleport %s is now available, please consider upgrading your cluster.", latest)
-		}
-		return msg
+func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) string {
+	if next := visitor.NextMajor(); next.Ok() {
+		// at least one stable release exists for the next major version
+		log.Debugf("Generating alert msg for next major version. current=%s, next=%s", current.Version(), next.Version())
+		return fmt.Sprintf("The next major version of Teleport is %s. Please consider upgrading your Cluster.", next.Major())
 	}
 
-	if oldestInstance != "" && semver.Compare(latest, oldestInstance) == 1 {
-		log.Debugf("Generating alert msg for older peripheral instance(s). latest=%s, oldestInstance=%s", latest, oldestInstance)
-		// at least one connected instance is older than this auth server.
+	if nc := visitor.NewestCurrent(); nc.Ok() && nc.NewerThan(current) {
+		// newer release of the currently running major version is available
+		log.Debugf("Generating alert msg for new minor or patch release. current=%s, newest=%s", current.Version(), nc.Version())
+		return fmt.Sprintf("Teleport %s is now available, please consider upgrading your Cluster.", nc.Version())
+	}
+
+	if oldestInstance.Ok() && current.NewerThan(oldestInstance) {
+		// at least one connected instance is older than this auth server
 		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them."
 	}
 
