@@ -1,5 +1,17 @@
 # Changelog
 
+## 9.3.21
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with connecting to SQL Server in leaf cluster through the local proxy. [#16615](https://github.com/gravitational/teleport/pull/16615)
+* Fixed issue with some IDEs (e.g. PyCharm) failing to connect to remote nodes. [#16722](https://github.com/gravitational/teleport/pull/16722)
+* Fixed issue with etcd backend not loading all certificates from the configured CA bundle. [#16599](https://github.com/gravitational/teleport/pull/16599)
+* Fixed issue with incorrect timestamp in `session.end` events. [#16672](https://github.com/gravitational/teleport/pull/16672)
+* Added `allow_unverified_email` setting to OIDC connectors allowing to opt-out of email verification. [#16143](https://github.com/gravitational/teleport/pull/16143)
+* Updated `tsh db connect` hint to not mention `--db-user` and `--db-name` flags unless needed. [#16709](https://github.com/gravitational/teleport/pull/16709)
+* Improved memory usage in large clusters. [#16375](https://github.com/gravitational/teleport/pull/16375)
+
 ## 9.3.20
 
 This release of Teleport contains multiple improvements and bug fixes.
