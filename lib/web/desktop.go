@@ -319,7 +319,6 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	errs := make(chan error, 2)
 
 	go func() {
-		enc := tdp.PNGEncoder()
 		defer closeOnce.Do(close)
 
 		// we avoid using io.Copy here, as we want to make sure
@@ -328,10 +327,12 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// (io.Copy's internal buffer could split one message
 		// into multiple ws.WriteMessage calls)
 		tc := tdp.NewConn(wds)
+
+		// we don't care about the content of the message, we just
+		// need to split the stream into individual messages and
+		// write them to the websocket
+		tc.ParseOnly = true
 		for {
-			// TODO(zmb3): avoid the decode/encode loop here,
-			// and instead just build a tokenizer that reads
-			// the correct amount of bytes
 			msg, err := tc.InputMessage()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
@@ -340,11 +341,6 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 			if err != nil {
 				errs <- err
 				return
-			}
-
-			// reuse the same encoder when re-encoding PNGs
-			if png, ok := msg.(tdp.PNGFrame); ok {
-				msg = tdp.NewPNG(png.Img, enc)
 			}
 
 			encoded, err := msg.Encode()

@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"os"
@@ -59,14 +60,15 @@ func TestEncodeDecode(t *testing.T) {
 		MouseWheel{Axis: HorizontalWheelAxis, Delta: -123},
 		Error{Message: "An error occurred"},
 	} {
+		t.Run(fmt.Sprintf("%T", m), func(t *testing.T) {
+			buf, err := m.Encode()
+			require.NoError(t, err)
 
-		buf, err := m.Encode()
-		require.NoError(t, err)
+			out, err := Decode(buf)
+			require.NoError(t, err)
 
-		out, err := Decode(buf)
-		require.NoError(t, err)
-
-		require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
+			require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
+		})
 	}
 }
 
@@ -163,7 +165,12 @@ func TestMFA(t *testing.T) {
 	}
 	err := c.OutputMessage(mfaWant)
 	require.NoError(t, err)
-	mfaGot, err := DecodeMFAChallenge(bufio.NewReader(&buff))
+
+	mt, err := buff.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, TypeMFA, MessageType(mt))
+
+	mfaGot, err := DecodeMFAChallenge(&buff)
 	require.NoError(t, err)
 	require.Equal(t, mfaWant, mfaGot)
 

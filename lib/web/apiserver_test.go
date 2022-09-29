@@ -1488,7 +1488,12 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 }
 
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
+	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+	mt, err := br.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
+
+	mfaChallange, err := tdp.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),

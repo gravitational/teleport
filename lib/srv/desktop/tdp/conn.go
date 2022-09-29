@@ -34,6 +34,10 @@ type Conn struct {
 	bufr      *bufio.Reader
 	closeOnce sync.Once
 
+	// ParseOnly can be used to configure the conn to read messages from
+	// a stream without fully decoding them.
+	ParseOnly bool
+
 	// OnSend is an optional callback that is invoked when a TDP message
 	// is sent on the wire. It is passed both the raw bytes and the encoded
 	// message.
@@ -79,7 +83,7 @@ func (c *Conn) Close() error {
 
 // InputMessage reads the next incoming message from the connection.
 func (c *Conn) InputMessage() (Message, error) {
-	m, err := decode(c.bufr)
+	m, err := decode(c.bufr, c.ParseOnly)
 	if c.OnRecv != nil {
 		c.OnRecv(m)
 	}
