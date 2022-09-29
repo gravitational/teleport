@@ -45,10 +45,12 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -271,6 +273,80 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	t.Cleanup(func() { f.ssh.assertCltClose(t, client.Close()) })
 	require.NoError(t, agent.ForwardToAgent(client.Client, keyring))
 	return f
+}
+
+// TestMultipleExecCommands asserts that multiple SSH exec commands can not be
+// sent over a single SSH channel, which is disallowed by the SSH standard
+// https://www.ietf.org/rfc/rfc4254.txt
+//
+// Conformant clients (tsh, openssh) will never try to do this, but we must
+// correctly handle the case where an attacker would try to send multiple
+// commands over the same channel to try to cover their tracks in the audit log
+// or do other nefarious things.
+//
+// We make sure that:
+//   - the first command is correctly added to the audit log
+//   - the second command does not appear in the audit log (as a proxy for testing
+//     that it was blocked/not executed)
+//   - there are no panics or unexpected errors
+//   - and we give the race detector a chance to detect any possible race
+//     conditions on this code path.
+func TestMultipleExecCommands(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = emitter
+
+	// Manually open an ssh channel
+	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)
+	require.NoError(t, err)
+
+	sendExec := func(cmd string) error {
+		type execRequest struct {
+			Command string
+		}
+		// Intentionally don't request a reply so that SendRequest won't wait,
+		// we want to maximize the chance of triggering any potential race
+		// condition.
+		_, err := channel.SendRequest(ctx, "exec", false /*wantReply*/, ssh.Marshal(&execRequest{Command: cmd}))
+		return err
+	}
+
+	t.Log("sending first exec request over channel")
+	err = sendExec("echo 1")
+	require.NoError(t, err)
+
+	t.Log("sending second exec request over channel")
+	// Since we don't wait for a reply, this may or may not return an error, and
+	// we don't really care either way
+	_ = sendExec("echo 2")
+
+	// Wait for session.end event
+	timeout := time.After(10 * time.Second)
+	var execEvent *apievents.Exec
+loop:
+	for {
+		select {
+		case event := <-emitter.C():
+			switch e := event.(type) {
+			case *apievents.Exec:
+				require.Nil(t, execEvent, "found more than 1 exec event in audit log")
+				execEvent = e
+			case *apievents.SessionEnd:
+				break loop
+			}
+		case <-timeout:
+			require.Fail(t, "hit timeout while waiting for session.end event")
+		}
+	}
+
+	// The first command, which was actually executed, should be recorded
+	// correctly in the audit log
+	require.NotNil(t, execEvent)
+	require.Equal(t, "echo 1", execEvent.CommandMetadata.Command)
 }
 
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {

@@ -140,9 +140,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		panic("unknown CA type")
 	}
 
-	if err := services.SyncCertAuthorityKeys(ca); err != nil {
-		panic(err)
-	}
 	return ca
 }
 
@@ -309,9 +306,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
-	ca2.Spec.SigningKeys = nil
 	ca2.Spec.ActiveKeys.TLS[0].Key = nil
-	ca2.Spec.TLSKeyPairs[0].Key = nil
 	require.Equal(t, cas[0], ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
