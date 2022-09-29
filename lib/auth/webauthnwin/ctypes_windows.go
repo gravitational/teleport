@@ -160,7 +160,7 @@ type webauthnCredentialAttestation struct {
 	// Authenticator data that was created for this credential.
 	pbAuthenticatorData *byte
 	// Size of CBOR encoded attestation information
-	//0 => encoded as CBOR null value.
+	// 0 => encoded as CBOR null value.
 	cbAttestation uint32
 	//Encoded CBOR attestation information
 	pbAttestation           *byte
