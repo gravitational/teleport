@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -150,7 +150,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -253,7 +253,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -360,7 +360,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -525,7 +525,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.6
+    RUNTIME: go1.19.1
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -576,7 +576,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
   - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
     print-version)
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
@@ -793,6 +793,99 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
+# Generated at dronegen/relcli.go (main.relcliPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: clean-up-previous-build
+environment:
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+clone:
+  disable: true
+steps:
+- name: Check if commit is tagged
+  image: alpine
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Pull relcli
+  image: docker:cli
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull $RELCLI_IMAGE
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_DEFAULT_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Clean up previously built artifacts
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/creds
+  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+  - trap "rm -rf /tmpfs/creds" EXIT
+  - |-
+    docker run -i -v /tmpfs/creds:/tmpfs/creds \
+      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      $RELCLI_IMAGE relcli auto_destroy -f -v 6
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_CERT: /tmpfs/creds/releases.crt
+    RELCLI_KEY: /tmpfs/creds/releases.key
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: tmpfs
+  temp:
+    medium: memory
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
 # Generated at dronegen/windows.go (main.newWindowsPipeline)
 ################################################
 
@@ -816,6 +909,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 concurrency:
   limit: 1
 steps:
@@ -936,6 +1031,25 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Register artifacts
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $ProgressPreference = 'SilentlyContinue'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $OutputsDir = "$Workspace/outputs"
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-beta.3-windows.exe'
+  - $relcliSha256 = '1cd0e4e2912ded6c6b61a82018ac3d76eac091f9719b5a80795d79ff194788a7'
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
+  - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -960,7 +1074,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -1063,7 +1177,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
   UID: "1000"
 trigger:
   event:
@@ -1694,7 +1808,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -1709,6 +1823,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1854,7 +1970,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -1869,6 +1985,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2013,7 +2131,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -2028,6 +2146,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2185,7 +2305,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -2200,6 +2320,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2356,6 +2478,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-centos7
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2547,6 +2670,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-centos7-fips
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2735,6 +2859,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2918,6 +3043,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-fips
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3078,7 +3204,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -3093,6 +3219,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3249,6 +3377,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-386
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3440,6 +3569,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-386
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3618,6 +3748,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 concurrency:
   limit: 1
 steps:
@@ -3661,7 +3793,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.6
+    RUNTIME: go1.19.1
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3691,7 +3823,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
   environment:
     ARCH: amd64
     BUILDBOX_PASSWORD:
@@ -4178,7 +4310,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -4193,6 +4325,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4335,7 +4469,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -4350,6 +4484,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4506,6 +4642,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4683,6 +4820,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4860,6 +4998,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -5051,6 +5190,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -5228,7 +5368,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.6
+  RUNTIME: go1.19.1
 trigger:
   event:
     include:
@@ -5243,6 +5383,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -6743,92 +6885,98 @@ volumes:
     claim:
       name: drone-s3-debrepo-pvc
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/relcli.go (main.relcliPipeline)
+################################################
+
 kind: pipeline
 type: kubernetes
 name: publish-rlz
-
 environment:
-  RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.65
-
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3
 trigger:
   event:
+    include:
     - promote
   target:
+    include:
     - production
   repo:
     include:
-      - gravitational/*
-
-workspace:
-  path: /go
-
+    - gravitational/*
 clone:
   disable: true
-
 steps:
-  - name: Check if commit is tagged
-    image: alpine
-    commands:
-      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
-
-  - name: Pull relcli
-    image: docker:git
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
-      AWS_DEFAULT_REGION: us-west-2
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache aws-cli
-      - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - docker pull $RELCLI_IMAGE
-
-  - name: Publish in Release API
-    image: docker:git
-    environment:
-      RELEASES_CERT:
-        from_secret: RELEASES_CERT_STAGING
-      RELEASES_KEY:
-        from_secret: RELEASES_KEY_STAGING
-      RELCLI_CERT: /tmpfs/creds/releases.crt
-      RELCLI_KEY: /tmpfs/creds/releases.key
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-    - mkdir -p /tmpfs/creds
-    - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
-    - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
-    - trap "rm -rf /tmpfs/creds" EXIT
-    - |
-      docker run -i -v /tmpfs/creds:/tmpfs/creds \
-        -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-        $RELCLI_IMAGE relcli auto_publish -f -v 6
-    failure: ignore
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    privileged: true
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-
-volumes:
+- name: Check if commit is tagged
+  image: alpine
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Pull relcli
+  image: docker:cli
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull $RELCLI_IMAGE
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_DEFAULT_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Publish in Release API
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/creds
+  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+  - trap "rm -rf /tmpfs/creds" EXIT
+  - |-
+    docker run -i -v /tmpfs/creds:/tmpfs/creds \
+      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      $RELCLI_IMAGE relcli auto_publish -f -v 6
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_CERT: /tmpfs/creds/releases.crt
+    RELCLI_KEY: /tmpfs/creds/releases.key
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+  volumes:
   - name: tmpfs
-    temp:
-      medium: memory
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: tmpfs
+  temp:
+    medium: memory
+- name: dockersock
+  temp: {}
+
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
@@ -7054,6 +7202,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 122d13c57fd07c1ea1baf781df66fe8f867338f089eb2a4636a7aef23a3dee30
+hmac: 707c836fc9c2d0b3ee8074d258b3723651a6e53dcada5b5fcf0417b10f455b45
 
 ...

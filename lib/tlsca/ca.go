@@ -297,7 +297,6 @@ func (id *Identity) CheckAndSetDefaults() error {
 // https://serverfault.com/questions/551477/is-there-reserved-oid-space-for-internal-enterprise-cas
 //
 // http://oid-info.com/get/1.3.9999
-//
 var (
 	// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
 	// license payload into certificates

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,7 +95,7 @@ func TestMonitor(t *testing.T) {
 	var err error
 	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
@@ -276,6 +277,9 @@ func TestServiceInitExternalLog(t *testing.T) {
 	}
 
 	for _, tt := range tts {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
 			if tt.isErr {
@@ -286,7 +290,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New())
+			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -455,7 +459,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -576,7 +580,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clock
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -637,7 +641,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Create Node process.
 	nodeCfg := MakeDefaultConfig()
-	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
+	nodeCfg.SetAuthServerAddress(listenAddr)
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
@@ -665,7 +669,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	authCfg := MakeDefaultConfig()
-	authCfg.AuthServers = []utils.NetAddr{listenAddr}
+	authCfg.SetAuthServerAddress(listenAddr)
 	authCfg.DataDir = t.TempDir()
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.StaticTokens = staticTokens

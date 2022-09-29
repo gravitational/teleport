@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -74,7 +75,6 @@ func TestSSH(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			tc.fn(t, s)
 		})
 	}
@@ -106,9 +106,11 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.Eventually(t, func() bool {
 		err := Run(context.Background(), []string{
 			"ssh",
+			"--proxy", s.root.Config.Proxy.WebAddr.String(),
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		}, setHomePath(tshHome))
+		t.Logf("ssh to leaf failed %v", err)
 		return err == nil
 	}, 5*time.Second, time.Second)
 
@@ -549,7 +551,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 }
 
 func mustRunOpenSSHCommand(t *testing.T, configFile string, sshConnString string, port int, args ...string) {
-	err := utils.RetryStaticFor(time.Second*10, time.Millisecond*500, func() error {
+	err := retryutils.RetryStaticFor(time.Second*10, time.Millisecond*500, func() error {
 		err := runOpenSSHCommand(t, configFile, sshConnString, port, args...)
 		return trace.Wrap(err)
 	})

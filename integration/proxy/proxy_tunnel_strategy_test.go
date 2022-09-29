@@ -125,6 +125,7 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			p := newProxyTunnelStrategy(t, "proxy-tunnel-agent-mesh",
@@ -268,9 +269,7 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	// TODO(tcsc): fix ports before merging
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, "0"))
-	//lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, helpers.NewPortStr()))
 	lb, err := utils.NewLoadBalancer(ctx, *lbAddr)
 	require.NoError(t, err)
 
@@ -330,7 +329,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, *authAddr)
+	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
@@ -373,7 +372,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
+	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
@@ -415,7 +414,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
+	conf.SetAuthServerAddress(utils.FromAddr(p.lb.Addr()))
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 

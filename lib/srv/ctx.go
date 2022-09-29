@@ -284,8 +284,9 @@ type ServerContext struct {
 	// IsTestStub is set to true by tests.
 	IsTestStub bool
 
-	// ExecRequest is the command to be executed within this session context.
-	ExecRequest Exec
+	// execRequest is the command to be executed within this session context. Do
+	// not get or set this field directly, use (Get|Set)ExecRequest.
+	execRequest Exec
 
 	// ClusterName is the name of the cluster current user is authenticated with.
 	ClusterName string
@@ -327,8 +328,9 @@ type ServerContext struct {
 	// ttyName is the name of the TTY used for a session, ex: /dev/pts/0
 	ttyName string
 
-	// request is the request that was issued by the client
-	request *ssh.Request
+	// sshRequest is the SSH request that was issued by the client. Do not get or
+	// set this field directly, use (Get|Set)SSHRequest instead.
+	sshRequest *ssh.Request
 
 	// cmd{r,w} are used to send the command from the parent process to the
 	// child process.
@@ -1031,15 +1033,15 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	// (exec or shell) is being requested, port forwarding has no command to
 	// execute.
 	var command string
-	if c.ExecRequest != nil {
-		command = c.ExecRequest.GetCommand()
+	if execRequest, err := c.GetExecRequest(); err == nil {
+		command = execRequest.GetCommand()
 	}
 
 	// Extract the request type. This only exists for command execution (exec
 	// or shell), port forwarding requests have no request type.
 	var requestType string
-	if c.request != nil {
-		requestType = c.request.Type
+	if sshRequest, err := c.GetSSHRequest(); err == nil {
+		requestType = sshRequest.Type
 	}
 
 	uaccMetadata, err := newUaccMetadata(c)
@@ -1191,4 +1193,54 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
 	)
 	return lockTargets, nil
+}
+
+// SetRequest sets the ssh request that was issued by the client.
+// Will return an error if called more than once for a single server context.
+func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.sshRequest != nil {
+		return trace.AlreadyExists("sshRequest has already been set")
+	}
+	c.sshRequest = e
+	return nil
+}
+
+// GetRequest returns the ssh request that was issued by the client and saved on
+// this ServerContext by SetExecRequest, or an error if it has not been set.
+func (c *ServerContext) GetSSHRequest() (*ssh.Request, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.sshRequest == nil {
+		return nil, trace.NotFound("sshRequest has not been set")
+	}
+	return c.sshRequest, nil
+}
+
+// SetExecRequest sets the command to be executed within this session context.
+// Will return an error if called more than once for a single server context.
+func (c *ServerContext) SetExecRequest(e Exec) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.execRequest != nil {
+		return trace.AlreadyExists("execRequest has already been set")
+	}
+	c.execRequest = e
+	return nil
+}
+
+// GetExecRequest returns the exec request that is to be executed within this
+// session context, or an error if it has not been set.
+func (c *ServerContext) GetExecRequest() (Exec, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.execRequest == nil {
+		return nil, trace.NotFound("execRequest has not been set")
+	}
+	return c.execRequest, nil
 }

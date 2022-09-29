@@ -465,6 +465,11 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		if c.options.caPath != "" {
 			args = append(args, []string{"--cacert", c.options.caPath}...)
 		}
+
+		// Set SNI when sending to remote web proxy.
+		if c.options.localProxyHost == "" {
+			args = append(args, []string{"--sni", c.tc.WebProxyHost()}...)
+		}
 	}
 
 	// append database number if provided
@@ -527,6 +532,12 @@ func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
 
 	if c.options.caPath != "" {
 		args = append(args, []string{"--cacert", c.options.caPath}...)
+	}
+
+	// Force HTTP 1.1 when connecting to remote web proxy. Otherwise HTTP2 can
+	// be negotiated which breaks the engine.
+	if c.options.localProxyHost == "" {
+		args = append(args, "--http1.1")
 	}
 
 	return c.options.exe.Command(curlBin, args...)

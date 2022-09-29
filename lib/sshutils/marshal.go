@@ -28,7 +28,7 @@ import (
 // base64-encoded key, comment.
 // For example:
 //
-//    cert-authority AAA... type=user&clustername=cluster-a
+//	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
 func MarshalAuthorizedKeysFormat(clusterName string, keyBytes []byte) (string, error) {
@@ -45,7 +45,7 @@ func MarshalAuthorizedKeysFormat(clusterName string, keyBytes []byte) (string, e
 // authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//    @cert-authority *.cluster-a,cluster-a ssh-rsa AAA... type=host
+//	@cert-authority *.cluster-a,cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func MarshalAuthorizedHostsFormat(clusterName string, keyBytes []byte, logins []string) (string, error) {

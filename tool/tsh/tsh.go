@@ -38,6 +38,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -62,21 +70,12 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/kingpin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -418,14 +417,6 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 	return trace.Wrap(cmd.Run())
 }
 
-type exitCodeError struct {
-	code int
-}
-
-func (e *exitCodeError) Error() string {
-	return fmt.Sprintf("exit code %d", e.code)
-}
-
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -447,9 +438,9 @@ func main() {
 	err := Run(ctx, cmdLine)
 	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
 	if err != nil {
-		var exitError *exitCodeError
+		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
-			os.Exit(exitError.code)
+			os.Exit(exitError.Code)
 		}
 		utils.FatalError(err)
 	}
@@ -712,7 +703,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Secure file copy")
+	scp := app.Command("scp", "Transfer files to a remote Node")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -895,7 +886,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// handle: help command, --help flag, version command, ...
 	if shouldTerminate != nil {
-		os.Exit(*shouldTerminate)
+		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
 	cf.command = command
@@ -1467,6 +1458,7 @@ func onLogin(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
+
 	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more
@@ -1475,7 +1467,6 @@ func onLogin(cf *CLIConf) error {
 
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
-
 	if makeIdentityFile {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
 			return trace.Wrap(err)
@@ -1755,7 +1746,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2691,7 +2682,7 @@ func onSSH(cf *CLIConf) error {
 				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 				fmt.Fprintf(os.Stderr, "\n")
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2699,7 +2690,7 @@ func onSSH(cf *CLIConf) error {
 	})
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
-		var exitErr *exitCodeError
+		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
@@ -2708,7 +2699,7 @@ func onSSH(cf *CLIConf) error {
 			// Print the error here so we don't lose it when returning the exitCodeError.
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		}
-		err = &exitCodeError{code: tc.ExitStatus}
+		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
@@ -2728,7 +2719,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: 255})
+		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -2789,21 +2780,25 @@ func onSCP(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	flags := scp.Flags{
+
+	// allow the file transfer to be gracefully stopped if the user wishes
+	ctx, cancel := signal.NotifyContext(cf.Context, os.Interrupt)
+	cf.Context = ctx
+	defer cancel()
+
+	opts := sftp.Options{
 		Recursive:     cf.RecursiveCopy,
 		PreserveAttrs: cf.PreserveAttrs,
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SCP(cf.Context, cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
+		return tc.SFTP(cf.Context, cf.CopySpec, int(cf.NodePort), opts, cf.Quiet)
 	})
-	if err == nil {
+	// don't print context canceled errors to the user
+	if err == nil || (err != nil && errors.Is(err, context.Canceled)) {
 		return nil
 	}
-	// exit with the same exit status as the failed command:
-	if tc.ExitStatus != 0 {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
-	}
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+
 	return trace.Wrap(err)
 }
 
@@ -2922,6 +2917,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		clusters := []string{rootCluster}
 		if cf.SiteName != "" {
 			clusters = append(clusters, cf.SiteName)
+		} else {
+			cf.SiteName = rootCluster
 		}
 		hostAuthFunc, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, apiutils.Deduplicate(clusters))
 		if err != nil {
@@ -3278,7 +3275,7 @@ func onShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.GetBaseSigner(), key.MarshalSSHPublicKey())
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.Signer, key.MarshalSSHPublicKey())
 	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(key.SSHPublicKey()))
 	return nil
 }
