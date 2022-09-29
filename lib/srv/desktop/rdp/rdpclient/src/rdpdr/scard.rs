@@ -55,7 +55,11 @@ impl Client {
     }
 
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
-    pub fn ioctl(&mut self, code: IoctlCode, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
+    pub(super) fn ioctl(
+        &mut self,
+        code: IoctlCode,
+        input: &mut Payload,
+    ) -> RdpResult<(u32, Box<dyn Encode>)> {
         debug!("got IoctlCode {:?}", &code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
@@ -88,73 +92,77 @@ impl Client {
             IoctlCode::SCARD_IOCTL_READCACHEW => self.handle_read_cache(input),
             IoctlCode::SCARD_IOCTL_WRITECACHEW => self.handle_write_cache(input),
             IoctlCode::SCARD_IOCTL_GETREADERICON => self.handle_get_reader_icon(input),
-            _ => {
-                warn!("unimplemented IOCTL: {:?}", code);
-                let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
-                debug!("sending {:?}", resp);
-                Ok(Some(resp.encode()?))
-            }
+            _ => self.handle_unimplemented_ioctl(code),
         }?;
 
         if let Some(resp) = resp {
             Ok((NTSTATUS_OK, resp))
         } else {
-            Ok((SPECIAL_NO_RESPONSE, vec![]))
+            Ok((SPECIAL_NO_RESPONSE, Box::new(Empty_Return::new())))
         }
     }
 
-    fn handle_access_started_event(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_access_started_event(
+        &self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_establish_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_establish_context(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
         let ctx = self.contexts.establish();
         let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_release_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_release_context(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         self.contexts.release(req.context.value);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_cancel(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_cancel(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_is_valid_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_is_valid_context(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_list_readers(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_list_readers(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = ListReaders_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp =
             ListReaders_Return::new(ReturnCode::SCARD_S_SUCCESS, vec!["Teleport".to_string()]);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = GetStatusChange_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
@@ -163,11 +171,11 @@ impl Client {
             Ok(None)
         } else {
             debug!("sending {:?}", resp);
-            Ok(Some(resp.encode()?))
+            Ok(Some(Box::new(resp)))
         }
     }
 
-    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -185,10 +193,10 @@ impl Client {
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -199,30 +207,30 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_begin_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_begin_transaction(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_end_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_end_transaction(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
     fn handle_status(
         &self,
         input: &mut Payload,
         enc: StringEncoding,
-    ) -> RdpResult<Option<Vec<u8>>> {
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Status_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Status_Return::new(
@@ -231,10 +239,10 @@ impl Client {
             enc,
         );
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -259,10 +267,13 @@ impl Client {
 
         let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_get_device_type_id(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_device_type_id(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -273,10 +284,10 @@ impl Client {
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_read_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_read_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = ReadCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -288,10 +299,10 @@ impl Client {
 
         let resp = ReadCache_Return::new(val);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_write_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_write_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = WriteCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -302,10 +313,13 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
     }
 
-    fn handle_get_reader_icon(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_reader_icon(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -316,7 +330,15 @@ impl Client {
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
-        Ok(Some(resp.encode()?))
+        Ok(Some(Box::new(resp)))
+    }
+
+    fn handle_unimplemented_ioctl(&self, code: IoctlCode) -> RdpResult<Option<Box<dyn Encode>>> {
+        warn!("unimplemented IOCTL: {:?}", code);
+        let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
+        debug!("sending {:?}", resp);
+        // Ok(Some(resp.encode()?));
+        Ok(Some(Box::new(resp)))
     }
 }
 
@@ -616,6 +638,9 @@ impl Long_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
+}
+
+impl Encode for Long_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -674,6 +699,9 @@ impl EstablishContext_Return {
             context,
         }
     }
+}
+
+impl Encode for EstablishContext_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -847,6 +875,9 @@ impl ListReaders_Return {
             readers,
         }
     }
+}
+
+impl Encode for ListReaders_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1220,6 +1251,18 @@ impl GetStatusChange_Return {
             reader_states,
         }
     }
+
+    fn no_change(&self) -> bool {
+        for state in &self.reader_states {
+            if state.current_state != state.event_state {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl Encode for GetStatusChange_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1232,15 +1275,6 @@ impl GetStatusChange_Return {
         }
 
         pad_and_add_headers(w)
-    }
-
-    fn no_change(&self) -> bool {
-        for state in &self.reader_states {
-            if state.current_state != state.event_state {
-                return false;
-            }
-        }
-        true
     }
 }
 
@@ -1350,6 +1384,9 @@ impl Connect_Return {
             active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
         }
     }
+}
+
+impl Encode for Connect_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1548,6 +1585,9 @@ impl Status_Return {
             encoding,
         }
     }
+}
+
+impl Encode for Status_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1714,6 +1754,9 @@ impl Transmit_Return {
             recv_buffer,
         }
     }
+}
+
+impl Encode for Transmit_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1799,6 +1842,9 @@ impl GetDeviceTypeId_Return {
             device_type_id: SCARD_READER_TYPE_VENDOR,
         }
     }
+}
+
+impl Encode for GetDeviceTypeId_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -1924,6 +1970,9 @@ impl ReadCache_Return {
             },
         }
     }
+}
+
+impl Encode for ReadCache_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -2090,6 +2139,9 @@ impl GetReaderIcon_Return {
     fn new(return_code: ReturnCode) -> Self {
         Self { return_code }
     }
+}
+
+impl Encode for GetReaderIcon_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
@@ -2181,6 +2233,22 @@ impl ContextInternal {
 
     fn cache_write(&mut self, key: String, val: Vec<u8>) {
         self.cache.insert(key, val);
+    }
+}
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub(crate) struct Empty_Return {}
+
+impl Empty_Return {
+    pub(crate) fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Encode for Empty_Return {
+    fn encode(&self) -> RdpResult<Message> {
+        Ok(vec![])
     }
 }
 
@@ -2359,7 +2427,7 @@ mod tests {
 
         let (code, res) = c.ioctl(ctl_code, &mut to_payload(payload)).unwrap();
         assert_eq!(0, code);
-        assert_eq!(expected, res);
+        assert_eq!(expected, res.encode().unwrap());
     }
 
     /// Connects a piv::Card to the client's internal context cache
