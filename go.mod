@@ -29,10 +29,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.16.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.10.0
 	github.com/beevik/etree v1.1.0
-	github.com/coreos/go-oidc v2.1.0+incompatible
+	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.0
 	github.com/creack/pty v1.1.18
-	github.com/denisenkom/go-mssqldb v0.11.0
+	github.com/denisenkom/go-mssqldb v0.11.0 // replaced
 	github.com/duo-labs/webauthn v0.0.0-20220815211337-00c9fb5711f5
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-elasticsearch/v8 v8.4.0
@@ -44,11 +44,11 @@ require (
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-logr/logr v1.2.3
-	github.com/go-mysql-org/go-mysql v1.5.0
-	github.com/go-redis/redis/v8 v8.11.4
+	github.com/go-mysql-org/go-mysql v1.5.0 // replaced
+	github.com/go-redis/redis/v8 v8.11.4 // replaced
 	github.com/gobuffalo/flect v0.3.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gogo/protobuf v1.3.2
+	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang/protobuf v1.5.2
 	github.com/google/btree v1.1.2
 	github.com/google/go-cmp v0.5.9
@@ -76,8 +76,8 @@ require (
 	github.com/jonboulle/clockwork v0.3.0
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	github.com/json-iterator/go v1.1.12
-	github.com/julienschmidt/httprouter v1.3.0
-	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27
+	github.com/julienschmidt/httprouter v1.3.0 // replaced
+	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
@@ -85,20 +85,20 @@ require (
 	github.com/mdlayher/netlink v1.6.2
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae
-	github.com/pkg/sftp v1.13.5
+	github.com/pkg/sftp v1.13.5 // replaced
 	github.com/pquerna/otp v1.3.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.37.0
-	github.com/russellhaering/gosaml2 v0.8.1
+	github.com/russellhaering/gosaml2 v0.8.1 // replaced
 	github.com/russellhaering/goxmldsig v1.2.0
 	github.com/schollz/progressbar/v3 v3.11.0
 	github.com/sethvargo/go-diceware v0.3.0
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.0 // replaced
 	github.com/snowflakedb/gosnowflake v1.6.9
 	github.com/stretchr/testify v1.8.0
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
-	github.com/vulcand/predicate v1.2.0
+	github.com/vulcand/predicate v1.2.0 // replaced
 	go.etcd.io/etcd/api/v3 v3.5.5
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.mongodb.org/mongo-driver v1.10.0
@@ -350,8 +350,7 @@ require (
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20220509084309-3d41480ef74f
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
-	github.com/go-mysql-org/go-mysql v1.5.0 => github.com/gravitational/go-mysql v1.5.0-teleport.1
+	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
 	github.com/go-redis/redis/v8 => github.com/gravitational/redis/v8 v8.11.5-0.20220211010318-7af711b76a91
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
