@@ -1283,6 +1283,11 @@
       "source": "/kubernetes-access/helm/guides/migration/",
       "destination": "/setup/helm-deployments/migration/",
       "permanent": true
+    },
+    {
+      "source": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+      "destination": "/enterprise/workflow/ssh-approval-pagerduty/",
+      "permanent": true
     }
   ]
 }

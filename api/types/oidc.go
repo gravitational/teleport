@@ -87,6 +87,8 @@ type OIDCConnector interface {
 	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
 	// "Note: Although you can use service accounts in applications that run from a Google Workspace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of end users to share documents outside of the domain would not apply to service accounts."
 	GetGoogleAdminEmail() string
+	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
+	GetAllowUnverifiedEmail() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -420,4 +422,9 @@ func (o *OIDCConnectorV3) CheckSetRedirectURL() {
 	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
 		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
 	}
+}
+
+// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
+func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
+	return o.Spec.AllowUnverifiedEmail
 }
