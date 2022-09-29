@@ -24,7 +24,8 @@
     exit 1
   fi
 
-  INSTANCE_INFO="$(curl http://169.254.169.254/latest/dynamic/instance-identity/document)"
+  IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+  INSTANCE_INFO=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/dynamic/instance-identity/document)
 
   ACCOUNT_ID="$(echo "$INSTANCE_INFO" | jq -r .accountId)"
   INSTANCE_ID="$(echo "$INSTANCE_INFO" | jq -r .instanceId)"
