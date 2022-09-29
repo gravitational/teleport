@@ -1,5 +1,27 @@
 # Changelog
 
+## 8.3.19
+
+This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
+
+### Audit log escape for non-interactive commands
+
+Fixed issue with allowing more than one `exec` or `shell` command per SSH channel
+which could result in some commands escaping the audit log in some cases.
+
+[#16821](https://github.com/gravitational/teleport/pull/16821)
+
+### Other improvements and fixes
+
+* Fixed potential memory leak that could occur if SSH channel is rejected. [#11875](https://github.com/gravitational/teleport/pull/11875)
+* Fixed panic when calling `tctl` commands with `--auth-server` flag. [#16263](https://github.com/gravitational/teleport/pull/16263)
+* Fixed issue with a dot being appended to token generated with `tctl tokens add`. [#16420](https://github.com/gravitational/teleport/pull/16240)
+* Fixed issue with RDS auto-discovery skipping secondary cluster of a global Aurora database. [#16713](https://github.com/gravitational/teleport/pull/16713)
+* Fixed issue with dialing nodes by labels not working in some scenarios. [#16345](https://github.com/gravitational/teleport/pull/16345)
+* Updated `tsh db connect` hint to now show `--db-user` and `--db-name` flags unless needed. [#16749](https://github.com/gravitational/teleport/pull/16749)
+* Updated IAM joining to use FIPS STS endpoints in FIPS mode. [#16378](https://github.com/gravitational/teleport/pull/16378)
+* Improved memory usage in large clusters. [#16376](https://github.com/gravitational/teleport/pull/16376)
+
 ## 8.3.18
 
 This release of Teleport contains multiple improvements and bug fixes.
