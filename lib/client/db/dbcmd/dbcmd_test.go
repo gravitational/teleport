@@ -651,8 +651,8 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			require.NoError(t, err)
 
 			commands := map[string][]string{}
-			for key, cmd := range commandOptions {
-				commands[key] = cmd.Args
+			for _, copt := range commandOptions {
+				commands[copt.Description] = copt.Command.Args
 			}
 
 			require.Equal(t, tt.cmd, commands)
