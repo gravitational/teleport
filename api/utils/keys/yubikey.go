@@ -186,7 +186,7 @@ func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
 }
 
 // GetAttestationStatement returns an AttestationStatement for this YubiKeyPrivateKey.
-func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, error) {
+func (y *YubiKeyPrivateKey) GetAttestationStatement() (*attestation.AttestationStatement, error) {
 	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -203,7 +203,7 @@ func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, er
 		return nil, trace.Wrap(err)
 	}
 
-	return &AttestationStatement{
+	return &attestation.AttestationStatement{
 		AttestationStatement: &attestation.AttestationStatement_YubikeyAttestationStatement{
 			YubikeyAttestationStatement: &attestation.YubiKeyAttestationStatement{
 				SlotCert:        slotCert.Raw,

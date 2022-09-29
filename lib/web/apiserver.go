@@ -795,6 +795,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -808,6 +809,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -821,6 +823,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -1261,7 +1264,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		Compatibility:        req.Compatibility,
 		RouteToCluster:       req.RouteToCluster,
 		KubernetesCluster:    req.KubernetesCluster,
-		AttestationStatement: req.AttestationStatement.ToProto(),
+		AttestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
@@ -1367,7 +1370,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		RouteToCluster:       req.RouteToCluster,
 		KubernetesCluster:    req.KubernetesCluster,
 		ProxyAddress:         r.Host,
-		AttestationStatement: req.AttestationStatement.ToProto(),
+		AttestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")

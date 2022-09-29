@@ -32,21 +32,19 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 const (
@@ -70,7 +68,7 @@ type SSOLoginConsoleReq struct {
 	// credentials to.
 	KubernetesCluster string
 	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *attestation.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -125,7 +123,7 @@ type CreateSSHCertReq struct {
 	// credentials to.
 	KubernetesCluster string
 	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *attestation.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // AuthenticateSSHUserRequest are passed by web client to authenticate against
@@ -154,7 +152,7 @@ type AuthenticateSSHUserRequest struct {
 	// credentials to.
 	KubernetesCluster string
 	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *attestation.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 type AuthenticateWebUserRequest struct {
@@ -185,7 +183,7 @@ type SSHLogin struct {
 	// credentials to.
 	KubernetesCluster string
 	// AttestationStatement is an attestation statement.
-	AttestationStatement *keys.AttestationStatement
+	AttestationStatement *attestation.AttestationStatement
 }
 
 // SSHLoginSSO contains SSH login parameters for SSO login.
