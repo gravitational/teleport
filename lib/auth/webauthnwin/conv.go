@@ -63,7 +63,7 @@ func rpToCType(in protocol.RelyingPartyEntity) (*webauthnRPEntityInformation, er
 	}
 	return &webauthnRPEntityInformation{
 		dwVersion: 1,
-		pwszId:    id,
+		pwszID:    id,
 		pwszName:  name,
 		pwszIcon:  icon,
 	}, nil
@@ -97,8 +97,8 @@ func userToCType(in protocol.UserEntity) (*webauthnUserEntityInformation, error)
 	}
 	return &webauthnUserEntityInformation{
 		dwVersion:       1,
-		cbId:            uint32(len(in.ID)),
-		pbId:            &in.ID[0],
+		cbID:            uint32(len(in.ID)),
+		pbID:            &in.ID[0],
 		pwszName:        name,
 		pwszDisplayName: displayName,
 		pwszIcon:        icon,
@@ -134,16 +134,16 @@ func clientDataToCType(challenge, origin, cdType string) (*webauthnClientData, [
 	if origin == "" {
 		return nil, nil, errors.New("missing ClientData.Origin")
 	}
-	algId, err := utf16PtrFromString("SHA-256")
+	algID, err := utf16PtrFromString("SHA-256")
 	if err != nil {
 		return nil, nil, err
 	}
-	type clientDataJson struct {
+	type clientDataJSON struct {
 		Type      string `json:"type"`
 		Challenge string `json:"challenge"`
 		Origin    string `json:"origin"`
 	}
-	cd := clientDataJson{
+	cd := clientDataJSON{
 		Type:      cdType,
 		Challenge: challenge,
 		Origin:    origin,
@@ -156,7 +156,7 @@ func clientDataToCType(challenge, origin, cdType string) (*webauthnClientData, [
 		dwVersion:        1,
 		cbClientDataJSON: uint32(len(jsonCD)),
 		pbClientDataJSON: &jsonCD[0],
-		pwszHashAlgId:    algId,
+		pwszHashAlgID:    algID,
 	}, jsonCD, nil
 
 }
@@ -176,8 +176,8 @@ func credentialsExToCType(in []protocol.CredentialDescriptor) (*webauthnCredenti
 		}
 		exCredList = append(exCredList, &webauthnCredentialEX{
 			dwVersion:          1,
-			cbId:               uint32(len(e.CredentialID)),
-			pbId:               &e.CredentialID[0],
+			cbID:               uint32(len(e.CredentialID)),
+			pbID:               &e.CredentialID[0],
 			pwszCredentialType: pwszCredentialType,
 			dwTransports:       transportsToCType(e.Transport),
 		})

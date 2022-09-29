@@ -127,8 +127,8 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*wanl
 
 	authData := bytesFromCBytes(out.cbAuthenticatorData, out.pbAuthenticatorData)
 	signature := bytesFromCBytes(out.cbSignature, out.pbSignature)
-	userID := bytesFromCBytes(out.cbUserId, out.pbUserId)
-	credential := bytesFromCBytes(out.Credential.cbId, out.Credential.pbId)
+	userID := bytesFromCBytes(out.cbUserID, out.pbUserID)
+	credential := bytesFromCBytes(out.Credential.cbID, out.Credential.pbID)
 	credType := windows.UTF16PtrToString(out.Credential.pwszCredentialType)
 
 	return &wanlib.CredentialAssertionResponse{
@@ -184,7 +184,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 	// We don't care about free error so ignore it explicitly.
 	defer func() { _ = freeCredentialAttestation(out) }()
 
-	credential := bytesFromCBytes(out.cbCredentialId, out.pbCredentialId)
+	credential := bytesFromCBytes(out.cbCredentialID, out.pbCredentialID)
 
 	return &wanlib.CredentialCreationResponse{
 		PublicKeyCredential: wanlib.PublicKeyCredential{
