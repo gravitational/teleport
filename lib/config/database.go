@@ -165,7 +165,7 @@ db_service:
   {{- end }}
   {{- if or .AzureRedisDiscoveryRegions }}
   # Azure Cache For Redis databases auto-discovery.
-  # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-redis/
+  # For more information about Azure Cache for Redis auto-discovery: https://goteleport.com/docs/database-access/guides/azure-redis/
   - types: ["redis"]
     # Azure subscription IDs to match.
     subscriptions:
