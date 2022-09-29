@@ -2100,6 +2100,19 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	return rg.windowsDesktops.ListWindowsDesktops(ctx, req)
 }
 
+// ListWindowsDesktopServices returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
+}
+
 // ListResources is a part of auth.Cache implementation
 func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")

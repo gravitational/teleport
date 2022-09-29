@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -607,6 +608,9 @@ func setupConfig(t *testing.T) InitConfig {
 		StaticTokens:            types.DefaultStaticTokens(),
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 }
 

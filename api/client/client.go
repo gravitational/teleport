@@ -2653,6 +2653,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeService()
 		case types.KindWindowsDesktop:
 			resources[i] = respResource.GetWindowsDesktop()
+		case types.KindWindowsDesktopService:
+			resources[i] = respResource.GetWindowsDesktopService()
 		case types.KindKubernetesCluster:
 			resources[i] = respResource.GetKubeCluster()
 		default:

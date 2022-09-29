@@ -22,20 +22,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
 )
 
 type githubContext struct {
@@ -69,6 +69,9 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		Backend:                tt.b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)
