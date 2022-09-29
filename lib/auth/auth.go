@@ -903,6 +903,10 @@ type certRequest struct {
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
 	attestationStatement *keys.AttestationStatement
+	// skipAttestation signs the certs with the required private key policy without
+	// attesting the given public key. This is used by the Auth server to sign itself
+	// valid certificates, when creating web sessions for instance.
+	skipAttestation bool
 }
 
 // check verifies the cert request is valid.
@@ -1158,9 +1162,17 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	// verify that the required private key policy for the requesting identity
 	// is met by the provided attestation statement.
 	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	privateKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var attestedKeyPolicy keys.PrivateKeyPolicy
+	if req.skipAttestation {
+		// If auth signals to skip attestation, this means we should sign the certifcates
+		// with the rquired private key policy without actually attesting. This is used
+		// when auth signs itself certificates, such as for creating new web sessions.
+		attestedKeyPolicy = requiredKeyPolicy
+	} else {
+		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := a.GetDomainName()
@@ -1229,7 +1241,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AllowedResourceIDs:     requestedResourcesStr,
 		SourceIP:               req.sourceIP,
 		ConnectionDiagnosticID: req.connectionDiagnosticID,
-		PrivateKeyPolicy:       privateKeyPolicy,
+		PrivateKeyPolicy:       attestedKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1311,7 +1323,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:          req.renewable,
 		Generation:         req.generation,
 		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
-		PrivateKeyPolicy:   privateKeyPolicy,
+		PrivateKeyPolicy:   attestedKeyPolicy,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -2600,12 +2612,13 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:           user,
-		ttl:            sessionTTL,
-		publicKey:      pub,
-		checker:        checker,
-		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		user:            user,
+		ttl:             sessionTTL,
+		publicKey:       pub,
+		checker:         checker,
+		traits:          req.Traits,
+		activeRequests:  services.RequestIDs{AccessRequests: req.AccessRequests},
+		skipAttestation: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

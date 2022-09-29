@@ -455,7 +455,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
 	case err != nil:
-		trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	default:
 		diagCtx.requestID = requestID
 		request, err = a.Identity.GetSAMLAuthRequest(ctx, requestID)
