@@ -310,7 +310,9 @@ func (e *wsStreamExecutor) RoundTrip(request *http.Request) (retResp *http.Respo
 // parseError parses the error received from Kube API and checks if the returned error is *metav1.Status
 func parseError(errorBytes []byte) (bool, error) {
 	if obj, _, err := statusCodecs.UniversalDecoder().Decode(errorBytes, nil, &metav1.Status{}); err == nil {
-		if status, ok := obj.(*metav1.Status); ok {
+		if status, ok := obj.(*metav1.Status); ok && status.Status == metav1.StatusSuccess {
+			return true, nil
+		} else if ok {
 			return true, &apierrors.StatusError{ErrStatus: *status}
 		}
 		return false, fmt.Errorf("unexpected error type: %T", obj)

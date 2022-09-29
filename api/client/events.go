@@ -45,9 +45,9 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_StaticTokens{
 			StaticTokens: r,
 		}
-	case *types.ProvisionTokenV2:
-		out.Resource = &proto.Event_ProvisionToken{
-			ProvisionToken: r,
+	case *types.ProvisionTokenV3:
+		out.Resource = &proto.Event_ProvisionTokenV3{
+			ProvisionTokenV3: r,
 		}
 	case *types.ClusterNameV2:
 		out.Resource = &proto.Event_ClusterName{
@@ -207,7 +207,7 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetStaticTokens(); r != nil {
 		out.Resource = r
 		return &out, nil
-	} else if r := in.GetProvisionToken(); r != nil {
+	} else if r := in.GetProvisionTokenV3(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetClusterName(); r != nil {
