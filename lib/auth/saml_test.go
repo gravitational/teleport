@@ -292,6 +292,9 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 
+	_, err = CreateRole(ctx, a, "baz", types.RoleSpecV5{})
+	require.NoError(t, err)
+
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
