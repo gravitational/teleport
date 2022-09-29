@@ -5,10 +5,10 @@ azureDatabases:
 - types: ["mysql", "postgres"]
   tags:
     "*": "*"
+    "env": ["dev", "staging"]
 - types: ["mysql"]
   tags:
-    "env": "development"
-    "origin": ["alice", "bob"]
+    "env": "dev"
   regions: ["eastus", "centralus"]
   subscriptions: ["subID1", "subID2"]
   resource_groups: ["group1", "group2"]
