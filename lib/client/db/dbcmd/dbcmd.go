@@ -185,10 +185,17 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
-// GetConnectCommandOptions returns optional connection commands for protocols that offer multiple options.
+// CommandAlternative represents alternative command along with description.
+type CommandAlternative struct {
+	Description string
+	Command     *exec.Cmd
+}
+
+// GetConnectCommandAlternatives returns optional connection commands for protocols that offer multiple options.
 // Otherwise, it falls back to GetConnectCommand.
 // The keys in the returned map are command descriptions suitable for display to the end user.
-func (c *CLICommandBuilder) GetConnectCommandOptions() (map[string]*exec.Cmd, error) {
+func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternative, error) {
+
 	switch c.db.Protocol {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchAlternativeCommands(), nil
@@ -198,7 +205,8 @@ func (c *CLICommandBuilder) GetConnectCommandOptions() (map[string]*exec.Cmd, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return map[string]*exec.Cmd{"default command": cmd}, nil
+
+	return []CommandAlternative{{Description: "default command", Command: cmd}}, nil
 }
 
 // GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
@@ -547,11 +555,11 @@ func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
 }
 
-func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() map[string]*exec.Cmd {
-	commands := map[string]*exec.Cmd{}
+func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
+	var commands []CommandAlternative
 	if c.isElasticsearchSQLBinAvailable() {
 		if cmd, err := c.getElasticsearchCommand(); err == nil {
-			commands["interactive SQL connection"] = cmd
+			commands = append(commands, CommandAlternative{Description: "interactive SQL connection", Command: cmd})
 		}
 	}
 
@@ -573,7 +581,7 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() map[string]*ex
 			args = append(args, []string{"--cacert", c.options.caPath}...)
 		}
 
-		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise HTTP2 can
+		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise, HTTP2 can
 		// be negotiated which breaks the engine.
 		if c.options.localProxyHost == "" {
 			args = append(args, "--http1.1")
@@ -581,7 +589,7 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() map[string]*ex
 
 		curlCommand = c.options.exe.Command(curlBin, args...)
 	}
-	commands["run single request with cURL"] = curlCommand
+	commands = append(commands, CommandAlternative{Description: "run single request with curl", Command: curlCommand})
 
 	return commands
 }

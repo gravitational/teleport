@@ -545,7 +545,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	}
 }
 
-func TestCLICommandBuilderGetConnectCommandOptions(t *testing.T) {
+func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
@@ -587,7 +587,7 @@ func TestCLICommandBuilderGetConnectCommandOptions(t *testing.T) {
 			opts:         []ConnectCommandFunc{},
 			execer:       &fakeExec{},
 			databaseName: "warehouse1",
-			cmd:          map[string][]string{"run single request with cURL": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
+			cmd:          map[string][]string{"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
 			wantErr:      false,
 		},
 		{
@@ -601,7 +601,7 @@ func TestCLICommandBuilderGetConnectCommandOptions(t *testing.T) {
 			},
 			databaseName: "warehouse1",
 			cmd: map[string][]string{
-				"run single request with cURL": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
+				"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
 			wantErr: false,
 		},
 		{
@@ -617,7 +617,7 @@ func TestCLICommandBuilderGetConnectCommandOptions(t *testing.T) {
 			databaseName: "warehouse1",
 			cmd: map[string][]string{
 				"interactive SQL connection":   {"elasticsearch-sql-cli", "http://localhost:12345/"},
-				"run single request with cURL": {"curl", "http://localhost:12345/"},
+				"run single request with curl": {"curl", "http://localhost:12345/"},
 			},
 			wantErr: false,
 		},
@@ -643,7 +643,7 @@ func TestCLICommandBuilderGetConnectCommandOptions(t *testing.T) {
 			c := NewCmdBuilder(tc, profile, database, "root", opts...)
 			c.uid = utils.NewFakeUID()
 
-			commandOptions, err := c.GetConnectCommandOptions()
+			commandOptions, err := c.GetConnectCommandAlternatives()
 			if tt.wantErr {
 				require.Error(t, err)
 				return

@@ -412,12 +412,12 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmdMap, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
-		).GetConnectCommandOptions()
+		).GetConnectCommandAlternatives()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -430,29 +430,12 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"address":  listener.Addr().String(),
 		}
 
-		// format the command line
-		fmtMap := map[string]string{}
-		for key, cmd := range cmdMap {
-			fmtMap[key] = formatCommand(cmd)
-		}
-
-		// there is only one command, use plain template.
-		if len(fmtMap) == 1 {
-			var cmd string
-			for _, c := range fmtMap {
-				cmd = c
-			}
-			templateArgs["command"] = cmd
-			err = dbProxyAuthTpl.Execute(os.Stdout, templateArgs)
-			return trace.Wrap(err)
-		}
-
-		// multiple command options, use a different template.
-		templateArgs["commands"] = fmtMap
-		err = dbProxyAuthMultiTpl.Execute(os.Stdout, templateArgs)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands)
+		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]string{
 			"database": routeToDatabase.ServiceName,
@@ -471,6 +454,29 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+type templateCommandItem struct {
+	Description string
+	Command     string
+}
+
+func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative) *template.Template {
+	// there is only one command, use plain template.
+	if len(commands) == 1 {
+		templateArgs["command"] = formatCommand(commands[0].Command)
+		return dbProxyAuthTpl
+	}
+
+	// multiple command options, use a different template.
+
+	var commandsArg []templateCommandItem
+	for _, cmd := range commands {
+		commandsArg = append(commandsArg, templateCommandItem{cmd.Description, formatCommand(cmd.Command)})
+	}
+
+	templateArgs["commands"] = commandsArg
+	return dbProxyAuthMultiTpl
 }
 
 type localProxyOpts struct {
@@ -734,10 +740,10 @@ var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 
 Use one of the following commands to connect to the database:
-{{range $key, $value := .commands}}
-  * {{$key}}: 
+{{range $item := .commands}}
+  * {{$item.Description}}: 
 
-  $ {{$value}}
+  $ {{$item.Command}}
 {{end}}
 `))
 
