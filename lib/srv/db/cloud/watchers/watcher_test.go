@@ -25,6 +25,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+
+	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
@@ -34,11 +40,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // TestWatcher tests cloud databases watcher.
@@ -53,11 +55,12 @@ func TestWatcher(t *testing.T) {
 	rdsInstanceUnknownStatus, rdsDatabaseUnknownStatus := makeRDSInstance(t, "instance-5", "us-west-6", nil, withRDSInstanceStatus("status-does-not-exist"))
 
 	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
+	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"}, true)
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", nil, withRDSClusterEngineMode("serverless"))
 	auroraClusterUnavailable, _ := makeRDSCluster(t, "cluster-4", "us-east-1", nil, withRDSClusterStatus("creating"))
 	auroraClusterUnknownStatus, auroraDatabaseUnknownStatus := makeRDSCluster(t, "cluster-5", "us-east-1", nil, withRDSClusterStatus("status-does-not-exist"))
+	auroraClusterNoWriter, auroraDatabasesNoWriter := makeRDSClusterWithExtraEndpoints(t, "cluster-6", "us-east-1", map[string]string{"env": "dev"}, false)
 
 	redshiftUse1Prod, redshiftDatabaseUse1Prod := makeRedshiftCluster(t, "us-east-1", "prod")
 	redshiftUse1Dev, _ := makeRedshiftCluster(t, "us-east-1", "dev")
@@ -132,7 +135,7 @@ func TestWatcher(t *testing.T) {
 		name              string
 		awsMatchers       []services.AWSMatcher
 		azureMatchers     []services.AzureMatcher
-		clients           common.CloudClients
+		clients           clients.Clients
 		expectedDatabases types.Databases
 	}{
 		{
@@ -149,7 +152,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"dev"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
 						DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
@@ -170,7 +173,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
 						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
@@ -186,7 +189,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
 					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
@@ -195,13 +198,27 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{rdsDatabase1, rdsDatabaseUnknownStatus, auroraDatabase1, auroraDatabaseUnknownStatus},
 		},
 		{
+			name: "RDS Aurora cluster no writer",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &clients.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBClusters: []*rds.DBCluster{auroraClusterNoWriter},
+				},
+			},
+			expectedDatabases: auroraDatabasesNoWriter,
+		},
+		{
 			name: "skip access denied errors",
 			awsMatchers: []services.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRDS},
 				Regions: []string{"ca-central-1", "us-west-1", "us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"ca-central-1": &cloud.RDSMockUnauth{},
 					"us-west-1": &cloud.RDSMockByDBType{
@@ -225,7 +242,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
@@ -241,7 +258,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable, redshiftUse1UnknownStatus},
 				},
@@ -257,7 +274,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod", "qa"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				ElastiCache: &cloud.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{
 						elasticacheProd, // labels match
@@ -280,7 +297,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				MemoryDB: &cloud.MemoryDBMock{
 					Clusters: []*memorydb.Cluster{
 						memorydbProd, // labels match
@@ -307,7 +324,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBClusters: []*rds.DBCluster{auroraCluster1},
 				},
@@ -341,7 +358,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3, azMySQLServer5},
@@ -373,7 +390,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -407,7 +424,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -435,7 +452,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -464,7 +481,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -497,7 +514,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -537,7 +554,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags: types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBClusters: []*rds.DBCluster{auroraCluster1},
 				},
@@ -603,7 +620,7 @@ func TestWatcher(t *testing.T) {
 		}
 		watcher, err := NewWatcher(ctx,
 			WatcherConfig{
-				Clients: &common.TestCloudClients{
+				Clients: &clients.TestCloudClients{
 					AzureMySQLPerSub: map[string]azure.DBServersClient{
 						subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 							DBServers: []*armmysql.Server{azMySQLServer1},
@@ -800,6 +817,9 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 		Endpoint:            aws.String("localhost"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
+		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(true), // Only one writer.
+		}},
 	}
 	for _, opt := range opts {
 		opt(cluster)
@@ -833,7 +853,7 @@ func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshif
 	return cluster, database
 }
 
-func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string) (*rds.DBCluster, types.Databases) {
+func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string, hasWriter bool) (*rds.DBCluster, types.Databases) {
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
@@ -845,23 +865,36 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 		ReaderEndpoint:      aws.String("reader.host"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
-		DBClusterMembers:    []*rds.DBClusterMember{&rds.DBClusterMember{}, &rds.DBClusterMember{}},
+		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(false), // Add reader by default. Writer is added below based on hasWriter.
+		}},
 		CustomEndpoints: []*string{
 			aws.String("custom1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 			aws.String("custom2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 		},
 	}
 
-	primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
-	require.NoError(t, err)
+	var databases types.Databases
+
+	if hasWriter {
+		cluster.DBClusterMembers = append(cluster.DBClusterMembers, &rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(true), // Add writer.
+		})
+
+		primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
+		require.NoError(t, err)
+		databases = append(databases, primaryDatabase)
+	}
 
 	readerDatabase, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 	require.NoError(t, err)
+	databases = append(databases, readerDatabase)
 
 	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 	require.NoError(t, err)
+	databases = append(databases, customDatabases...)
 
-	return cluster, append(types.Databases{primaryDatabase, readerDatabase}, customDatabases...)
+	return cluster, databases
 }
 
 func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {

@@ -455,8 +455,10 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	diagCtx.info.OIDCClaims = types.OIDCClaims(claims)
 
 	log.Debugf("OIDC claims: %v.", claims)
-	if err := checkEmailVerifiedClaim(claims); err != nil {
-		return nil, trace.Wrap(err, "OIDC provider did not verify email.")
+	if !connector.GetAllowUnverifiedEmail() {
+		if err := checkEmailVerifiedClaim(claims); err != nil {
+			return nil, trace.Wrap(err, "OIDC provider did not verify email.")
+		}
 	}
 
 	// if we are sending acr values, make sure we also validate them

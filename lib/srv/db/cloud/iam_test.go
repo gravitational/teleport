@@ -24,10 +24,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	clients "github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -128,7 +128,7 @@ func TestAWSIAM(t *testing.T) {
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			RDS:      rdsClient,
 			Redshift: redshiftClient,
 			STS:      stsClient,
@@ -218,7 +218,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		Clients:     &common.TestCloudClients{}, // placeholder,
+		Clients:     &clients.TestCloudClients{}, // placeholder,
 		HostID:      "host-id",
 	})
 	require.NoError(t, err)
@@ -226,12 +226,12 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	tests := []struct {
 		name    string
 		meta    types.AWS
-		clients common.CloudClients
+		clients clients.Clients
 	}{
 		{
 			name: "RDS database",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &RDSMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
@@ -242,7 +242,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		{
 			name: "Aurora cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &RDSMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
@@ -253,7 +253,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		{
 			name: "Redshift cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &RedshiftMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
@@ -264,7 +264,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		{
 			name: "IAM UnmodifiableEntityException",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &RedshiftMockUnauth{},
 				IAM: &IAMErrorMock{
 					Error: awserr.New(iam.ErrCodeUnmodifiableEntityException, "unauthorized", fmt.Errorf("unauthorized")),
@@ -329,7 +329,7 @@ func TestAWSIAMDeleteOldPolicy(t *testing.T) {
 	configurator, err := NewIAM(ctx, IAMConfig{
 		Clock:       fakeClock,
 		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			STS: stsClient,
 			IAM: iamClient,
 		},

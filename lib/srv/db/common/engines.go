@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -72,7 +73,7 @@ type EngineConfig struct {
 	// AuthClient is the cluster auth server client.
 	AuthClient *auth.Client
 	// CloudClients provides access to cloud API clients.
-	CloudClients CloudClients
+	CloudClients cloud.Clients
 	// Context is the database server close context.
 	Context context.Context
 	// Clock is the clock interface.

@@ -30,6 +30,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -206,6 +208,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		ConnLimiter:  connLimiter,
 		LockWatcher:  lockWatcher,
 		AuthClient:   conn.Client,
+		Labels:       cfg.WindowsDesktop.Labels,
 		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    cfg.HostUUID,
@@ -228,6 +231,20 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			warnOnErr(srv.Close(), log)
 		}
 	}()
+
+	if err := process.initUploaderService(
+		filesessions.UploaderConfig{
+			Streamer: accessPoint,
+			AuditLog: conn.Client,
+		},
+		events.UploadCompleterConfig{
+			SessionTracker: conn.Client,
+			GracePeriod:    defaults.UploadGracePeriod,
+			ClusterName:    conn.ServerIdentity.ClusterName,
+		}); err != nil {
+		return trace.Wrap(err)
+	}
+
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
 		if useTunnel {
 			log.Info("Starting Windows desktop service via proxy reverse tunnel.")

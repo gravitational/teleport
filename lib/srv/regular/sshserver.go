@@ -340,6 +340,7 @@ func (s *Server) close() {
 	if s.users != nil {
 		s.users.Shutdown()
 	}
+
 }
 
 // Close closes listening socket and stops accepting connections
