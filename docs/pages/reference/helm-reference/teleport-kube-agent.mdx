@@ -232,8 +232,8 @@ You can specify multiple selectors by including additional list elements.
 
 ## `awsDatabases`
 
-<Admonition type="tip" title="Database auto-discovery">
-  This section configures database auto-discovery, which is only currently supported on AWS. You can configure databases for other platforms using the [`databases`](#databases) section below this.
+<Admonition type="tip" title="AWS database auto-discovery">
+  This section configures AWS database auto-discovery. You can configure databases for other platforms using the [`azureDatabases`](#azureDatabases) or [`databases`](#databases) sections.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
@@ -288,13 +288,93 @@ You can specify multiple database filters by adding additional list elements.
   --set "awsDatabases[0].types[0]=rds" \
   --set "awsDatabases[0].regions[0]=us-east-1" \
   --set "awsDatabases[0].regions[1]=us-west-2" \
-  --set "awsDatabases[0].tags[0].environment=production" \
+  --set "awsDatabases[0].tags.environment=production" \
   --set "awsDatabases[1].types[0]=rds" \
   --set "awsDatabases[1].regions[0]=us-east-1" \
-  --set "awsDatabases[1].tags[0].environment=dev" \
+  --set "awsDatabases[1].tags.environment=dev" \
   --set "awsDatabases[2].types[0]=rds" \
   --set "awsDatabases[2].regions[0]=eu-west-1" \
-  --set "awsDatabases[2].tags[0].*=*"
+  --set "awsDatabases[2].tags.*=*"
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
+## `azureDatabases`
+
+<Admonition type="tip" title="Azure database auto-discovery">
+  This section configures Azure database auto-discovery. You can configure databases for other platforms using the [`awsDatabases`](#awsDatabases) or [`databases`](#databases) sections.
+</Admonition>
+
+<Admonition type="note" title="Azure IAM">
+  For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../database-access/guides/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+
+  After configuring a service principal with appropriate IAM permissions, you can use
+  `extraEnv` to provide credentials as environment variables to your pods:
+
+  ```
+  extraEnv:
+  - name: AZURE_TENANT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  - name: AZURE_CLIENT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  - name: AZURE_CLIENT_SECRET
+    value: "123456789abcdefghijklmnopqrstuvwxyzABCDE"
+  ```
+</Admonition>
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `dbResources` is required. |
+
+`azureDatabases` is a YAML list object detailing the filters for the Azure databases that should be discovered and proxied by Teleport Database access.
+
+You can specify multiple database filters by adding additional list elements.
+
+Required fields for each filter:
+- `types` is a list containing the types of Azure databases that should be discovered.
+- `tags` can be used to set Azure resource tags that must be matched for databases to be discovered.
+
+Optional fields for each filter:
+- `regions` is a list of Azure regions which should be scanned for databases.
+- `subscriptions` can be used to discover databases within matching Azure subscriptions.
+- `resource_groups` can be used to discover databses within matching Azure resource groups.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  azureDatabases:
+  - types: ["mysql", "postgres"]
+    tags:
+      "*": "*"
+  - types: ["mysql"]
+    tags:
+      "env": ["dev", "staging"]
+      "origin": "alice"
+    regions: ["eastus", "centralus"]
+    subscriptions: ["subID1", "subID2"]
+    resource_groups: ["group1", "group2"]
+  ```
+
+  <Admonition type="note" title="YAML formatting">
+    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
+    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
+  </Admonition>
+  </TabItem>
+  <TabItem label="--set">
+  ```sh
+  --set "azureDatabases[0].types={mysql,postgres}" \
+  --set "azureDatabases[0].tags.*=*" \
+  --set "azureDatabases[1].types[0]=mysql" \
+  --set "azureDatabases[1].tags.env={dev,staging}" \
+  --set "azureDatabases[1].tags.origin=alice" \
+  --set "azureDatabases[1].regions={eastus,centralus}" \
+  --set "azureDatabases[1].subscriptions={subID1,subID2}" \
+  --set "azureDatabases[1].resource_groups={group1,group2}"
   ```
 
   <Admonition type="note">
