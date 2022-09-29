@@ -144,30 +144,7 @@ If you are exposing your Teleport host to the internet, we recommend using Let's
 Encrypt to receive your key and certificate automatically. For private networks
 or custom deployments, use your own private key and certificate.
 
-<Tabs>
-  <TabItem label="Public internet deployment with Let's Encrypt">
-  (!docs/pages/includes/acme.mdx!)
-
-  </TabItem>
-
-  <TabItem label="Private network deployment">
-  On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
-  and `/var/lib/teleport/fullchain.pem` respectively.
-
-  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
-
-  Configure Teleport, changing the values of the `--cluster-name` and `--public-addr` flags to match the domain name of your Teleport host.
-
-  ```code
-  $ sudo teleport configure -o file \
-      --cluster-name=tele.example.com \
-      --public-addr=tele.example.com:443 \
-      --cert-file=/var/lib/teleport/fullchain.pem \
-      --key-file=/var/lib/teleport/privkey.pem
-  ```
-  </TabItem>
-
-</Tabs>
+(!docs/pages/includes/tls-certificate-setup.mdx!)
 
 Next, configure Teleport to provide secure access to your web service. Edit your
 Teleport configuration file (`/etc/teleport.yaml`) to include the following,
