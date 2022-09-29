@@ -39,6 +39,23 @@ func newAzurePostgresFetcher(config azureFetcherConfig) (Fetcher, error) {
 type azureDBServerPlugin struct {
 }
 
+func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
+	switch cfg.Type {
+	case services.AzureMatcherMySQL:
+		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)
+		return client, trace.Wrap(err)
+	case services.AzureMatcherPostgres:
+		client, err := cfg.AzureClients.GetAzurePostgresClient(subID)
+		return client, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("unknown matcher type %q", cfg.Type)
+	}
+}
+
+func (p *azureDBServerPlugin) GetServerLocation(server *azure.DBServer) string {
+	return server.Location
+}
+
 func (p *azureDBServerPlugin) NewDatabaseFromServer(server *azure.DBServer, log logrus.FieldLogger) types.Database {
 	if !server.IsSupported() {
 		log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
@@ -62,21 +79,4 @@ func (p *azureDBServerPlugin) NewDatabaseFromServer(server *azure.DBServer, log 
 		return nil
 	}
 	return database
-}
-
-func (p *azureDBServerPlugin) GetServerLocation(server *azure.DBServer) string {
-	return server.Location
-}
-
-func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
-	switch cfg.Type {
-	case services.AzureMatcherMySQL:
-		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)
-		return client, trace.Wrap(err)
-	case services.AzureMatcherPostgres:
-		client, err := cfg.AzureClients.GetAzurePostgresClient(subID)
-		return client, trace.Wrap(err)
-	default:
-		return nil, trace.BadParameter("unknown matcher type %q", cfg.Type)
-	}
 }

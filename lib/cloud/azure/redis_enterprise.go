@@ -205,7 +205,7 @@ func (c *redisEnterpriseClient) listDatabasesByCluster(ctx context.Context, clus
 }
 
 // RedisEnterpriseCluster is a wrapper of a armredisenterprise.Database and
-// it's parent cluster.
+// its parent cluster.
 type RedisEnterpriseDatabase struct {
 	*armredisenterprise.Database
 

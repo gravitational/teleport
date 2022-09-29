@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// azureListClient defines an interface for a client that can list Azure
-// resources.
+// azureListClient defines an interface for a common Azure client that can list
+// Azure database resources.
 type azureListClient[DBType comparable] interface {
 	// ListAll returns all Azure DB servers within an Azure subscription.
 	ListAll(ctx context.Context) ([]DBType, error)

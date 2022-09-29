@@ -56,7 +56,7 @@ func (p *azureRedisEnterprisePlugin) NewDatabaseFromServer(server *azure.RedisEn
 	}
 
 	if !p.isAvailable(server) {
-		log.Debugf("The current status of Azure Enterprise Redis is %q. Skipping.",
+		log.Debugf("The current status of Azure Redis Enterprise %v is %q. Skipping.",
 			server,
 			azure.StringVal(server.Properties.ProvisioningState),
 		)
@@ -65,7 +65,7 @@ func (p *azureRedisEnterprisePlugin) NewDatabaseFromServer(server *azure.RedisEn
 
 	database, err := services.NewDatabaseFromAzureRedisEnterprise(server.Cluster, server.Database)
 	if err != nil {
-		log.Warnf("Could not convert Azure Redis Enterprise Redis %v to database resource: %v.",
+		log.Warnf("Could not convert Azure Redis Enterprise %v to database resource: %v.",
 			server,
 			err,
 		)

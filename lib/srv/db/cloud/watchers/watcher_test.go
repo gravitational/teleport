@@ -787,7 +787,6 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	resourceInfo := &armredis.ResourceInfo{
 		Name:     to.Ptr(name),
 		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)),
-		Type:     to.Ptr("Microsoft.Cache/Redis"),
 		Location: to.Ptr(region),
 		Tags:     labelsToAzureTags(labels),
 		Properties: &armredis.Properties{
@@ -806,7 +805,6 @@ func makeAzureRedisEnterpriseCluster(t *testing.T, cluster, subscription, group,
 	armCluster := &armredisenterprise.Cluster{
 		Name:     to.Ptr(cluster),
 		ID:       to.Ptr(fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v", subscription, group, cluster)),
-		Type:     to.Ptr("Microsoft.Cache/Redis"),
 		Location: to.Ptr(region),
 		Tags:     labelsToAzureTags(labels),
 		Properties: &armredisenterprise.ClusterProperties{

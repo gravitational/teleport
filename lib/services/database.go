@@ -217,17 +217,17 @@ func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, da
 	}
 
 	// If the database name is "default", use only the cluster name as the name.
-	// If the database name is not "default", use "<cluster>-<database" as the name.
-	var nameSuffix string
+	// If the database name is not "default", use "<cluster>-<database>" as the name.
+	var nameSuffix []string
 	if azure.StringVal(database.Name) != azure.RedisEnterpriseClusterDefaultDatabase {
-		nameSuffix = azure.StringVal(database.Name)
+		nameSuffix = append(nameSuffix, azure.StringVal(database.Name))
 	}
 
 	return types.NewDatabaseV3(
 		setAzureDBName(types.Metadata{
 			Description: fmt.Sprintf("Azure Redis Enterprise server in %v", azure.StringVal(cluster.Location)),
 			Labels:      labels,
-		}, azure.StringVal(cluster.Name), nameSuffix),
+		}, azure.StringVal(cluster.Name), nameSuffix...),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
 			URI:      fmt.Sprintf("%v:%v", azure.StringVal(cluster.Properties.HostName), *database.Properties.Port),
@@ -655,7 +655,7 @@ func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, databas
 	labels[labelRegion] = azure.StringVal(cluster.Location)
 	labels[labelEngineVersion] = azure.StringVal(cluster.Properties.RedisVersion)
 	labels[labelEndpointType] = azure.StringVal(database.Properties.ClusteringPolicy)
-	return withLabelsFromAzureResourceID(labels, azure.StringVal(database.ID))
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(cluster.ID))
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
