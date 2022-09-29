@@ -784,14 +784,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	// DELETE IN 11.0.0: This logic is using Province field
-	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored,
-	// and after 10.0.0 Province field is never populated
-	if len(id.KubernetesGroups) == 0 {
-		id.KubernetesGroups = subject.Province
-	}
-
 	if err := id.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

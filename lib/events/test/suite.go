@@ -29,10 +29,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -107,7 +107,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	var err error
 	var checkpoint string
 
-	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 100, types.EventOrderAscending, checkpoint)
 		return err
 	})
@@ -225,7 +225,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	var history []apievents.AuditEvent
 
-	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
 		return err
 	})
