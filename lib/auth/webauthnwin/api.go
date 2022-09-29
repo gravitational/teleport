@@ -208,15 +208,15 @@ func CheckSupport() CheckSupportResult {
 	return native.CheckSupport()
 }
 
-type RunDiagnosticsResult struct {
+type DiagResult struct {
 	Available                           bool
 	RegisterSuccessful, LoginSuccessful bool
 }
 
-// RunDiagnostics runs a few diagnostic commands and returns the result.
+// Diag runs a few diagnostic commands and returns the result.
 // User interaction is required.
-func RunDiagnostics(ctx context.Context, promptOut io.Writer) (*RunDiagnosticsResult, error) {
-	res := &RunDiagnosticsResult{}
+func Diag(ctx context.Context, promptOut io.Writer) (*DiagResult, error) {
+	res := &DiagResult{}
 	if !IsAvailable() {
 		return res, nil
 	}

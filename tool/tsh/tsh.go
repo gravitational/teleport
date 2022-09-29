@@ -1072,10 +1072,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onFIDO2Diag(&cf)
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
-	case webauthnwin.diagnostics.FullCommand():
-		err = webauthnwin.diagnostics.run(&cf)
-	case webauthnwin.support.FullCommand():
-		err = webauthnwin.support.run(&cf)
+	case webauthnwin.diag.FullCommand():
+		err = webauthnwin.diag.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
