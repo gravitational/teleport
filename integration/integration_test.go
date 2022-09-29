@@ -3216,10 +3216,11 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		{
 			inRecordLocation: types.RecordAtNode,
 		},
-		// Run tests when Teleport is recording sessions at the proxy.
-		{
-			inRecordLocation: types.RecordAtProxy,
-		},
+		// Run tests when Teleport is recording sessions at the proxy
+		// (temporarily disabled, see https://github.com/gravitational/teleport/issues/16224)
+		// {
+		// 	inRecordLocation: types.RecordAtProxy,
+		// },
 	}
 
 	for _, tt := range tests {
