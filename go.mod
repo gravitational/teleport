@@ -119,7 +119,7 @@ require (
 	golang.org/x/net v0.0.0-20220921155015-db77216a4ee9
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1
 	golang.org/x/sync v0.0.0-20220907140024-f12130a52804
-	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8
+	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec
 	golang.org/x/term v0.0.0-20220919170432-7a66f970e087
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.12
