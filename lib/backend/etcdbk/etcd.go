@@ -135,15 +135,17 @@ var (
 type EtcdBackend struct {
 	nodes []string
 	*log.Entry
-	cfg       *Config
-	client    *clientv3.Client
-	cancelC   chan bool
-	stopC     chan bool
-	clock     clockwork.Clock
-	buf       *backend.CircularBuffer
-	ctx       context.Context
-	cancel    context.CancelFunc
-	watchDone chan struct{}
+	cfg         *Config
+	client      *clientv3.Client
+	cancelC     chan bool
+	stopC       chan bool
+	clock       clockwork.Clock
+	buf         *backend.CircularBuffer
+	leaseBucket time.Duration
+	leaseCache  *utils.FnCache
+	ctx         context.Context
+	cancel      context.CancelFunc
+	watchDone   chan struct{}
 }
 
 // Config represents JSON config for etcd backend
@@ -186,8 +188,42 @@ func GetName() string {
 // keep this here to test interface conformance
 var _ backend.Backend = &EtcdBackend{}
 
+// Option is an etcd backend functional option (used in tests).
+type Option func(*options)
+
+type options struct {
+	leaseBucket time.Duration
+	clock       clockwork.Clock
+}
+
+// LeaseBucket overrides the default lease bucketing size
+func LeaseBucket(d time.Duration) Option {
+	return func(opts *options) {
+		opts.leaseBucket = d
+	}
+}
+
+// Clock overrides the default clockwork.Clock
+func Clock(clock clockwork.Clock) Option {
+	return func(opts *options) {
+		opts.clock = clock
+	}
+}
+
 // New returns new instance of Etcd-powered backend
-func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
+func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBackend, error) {
+	var options options
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	if options.leaseBucket == 0 {
+		options.leaseBucket = time.Second * 10
+	}
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
+	}
+
 	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -210,17 +246,31 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		backend.BufferCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
+
+	leaseCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:             utils.SeventhJitter(time.Minute * 2),
+		Context:         closeCtx,
+		Clock:           options.clock,
+		ReloadOnErr:     true,
+		CleanupInterval: utils.SeventhJitter(time.Minute * 2),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	b := &EtcdBackend{
-		Entry:     log.WithFields(log.Fields{trace.Component: GetName()}),
-		cfg:       cfg,
-		nodes:     cfg.Nodes,
-		cancelC:   make(chan bool, 1),
-		stopC:     make(chan bool, 1),
-		clock:     clockwork.NewRealClock(),
-		cancel:    cancel,
-		ctx:       closeCtx,
-		watchDone: make(chan struct{}),
-		buf:       buf,
+		Entry:       log.WithFields(log.Fields{trace.Component: GetName()}),
+		cfg:         cfg,
+		nodes:       cfg.Nodes,
+		cancelC:     make(chan bool, 1),
+		stopC:       make(chan bool, 1),
+		clock:       options.clock,
+		cancel:      cancel,
+		ctx:         closeCtx,
+		watchDone:   make(chan struct{}),
+		buf:         buf,
+		leaseBucket: utils.SeventhJitter(options.leaseBucket),
+		leaseCache:  leaseCache,
 	}
 
 	// Check that the etcd nodes are at least the minimum version supported
@@ -744,15 +794,35 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 }
 
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
-	ttl := b.ttl(item.Expires)
-	elease, err := b.client.Grant(ctx, seconds(ttl))
+	// in order to reduce excess redundant lease generation, we bucket expiry times
+	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
+	// leases can cause problems for etcd at scale.
+	// TODO(fspmarshall): make bucket size configurable.
+	bucket := roundUp(item.Expires, b.leaseBucket)
+	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, bucket, func(ctx context.Context) (clientv3.LeaseID, error) {
+		ttl := b.ttl(bucket)
+		elease, err := b.client.Grant(ctx, seconds(ttl))
+		if err != nil {
+			return 0, convertErr(err)
+		}
+		return elease.ID, nil
+	})
 	if err != nil {
-		return convertErr(err)
+		return trace.Wrap(err)
 	}
-	*opts = []clientv3.OpOption{clientv3.WithLease(elease.ID)}
-	lease.ID = int64(elease.ID)
+	*opts = []clientv3.OpOption{clientv3.WithLease(leaseID)}
+	lease.ID = int64(leaseID)
 	lease.Key = item.Key
 	return nil
+}
+
+// roundUp rounds up time t to the nearest multiple of duration d.
+func roundUp(t time.Time, d time.Duration) time.Time {
+	r := t.Round(d)
+	if t.After(r) {
+		r = r.Add(d)
+	}
+	return r
 }
 
 func (b *EtcdBackend) ttl(expires time.Time) time.Duration {

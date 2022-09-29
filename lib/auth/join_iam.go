@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/utils"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/utils/aws"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
@@ -526,7 +526,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 // getEC2LocalRegion returns the AWS region this EC2 instance is running in, or
 // a NotFound error if the EC2 IMDS is unavailable.
 func getEC2LocalRegion(ctx context.Context) (string, error) {
-	imdsClient, err := utils.NewInstanceMetadataClient(ctx)
+	imdsClient, err := cloudaws.NewInstanceMetadataClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -626,108 +624,6 @@ func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
 	return ap
 }
 
-func TestMigrateCertAuthorities(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	as := newTestAuthServer(ctx, t)
-	clock := clockwork.NewFakeClock()
-	as.SetClock(clock)
-
-	for _, spec := range []types.CertAuthoritySpecV2{
-		{
-			Type:         types.HostCA,
-			ClusterName:  "localhost",
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     nil, // Rotation was never performed.
-		},
-		{
-			Type:         types.UserCA,
-			ClusterName:  "localhost",
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     &types.Rotation{State: types.RotationStateStandby},
-		},
-		{
-			Type:        types.JWTSigner,
-			ClusterName: "localhost",
-			JWTKeyPairs: []types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
-			Rotation:    &types.Rotation{State: types.RotationStateStandby},
-		},
-	} {
-		t.Run(fmt.Sprintf("create %v CA", spec.Type), func(t *testing.T) {
-			ca, err := types.NewCertAuthority(spec)
-			require.NoError(t, err)
-			// Do NOT use services.MarshalCertAuthority to keep all fields as-is.
-			enc, err := utils.FastMarshal(ca)
-			require.NoError(t, err)
-
-			_, err = as.bk.Put(ctx, backend.Item{
-				Key:   backend.Key("authorities", string(ca.GetType()), ca.GetName()),
-				Value: enc,
-			})
-			require.NoError(t, err)
-		})
-	}
-
-	err := migrateCertAuthorities(ctx, as)
-	require.NoError(t, err)
-
-	var caSpecs []types.CertAuthoritySpecV2
-	for _, typ := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		t.Run(fmt.Sprintf("verify %v CA", typ), func(t *testing.T) {
-			cas, err := as.GetCertAuthorities(ctx, typ, true)
-			require.NoError(t, err)
-			require.Len(t, cas, 1)
-			caSpecs = append(caSpecs, cas[0].(*types.CertAuthorityV2).Spec)
-		})
-	}
-	require.Empty(t, cmp.Diff(caSpecs, []types.CertAuthoritySpecV2{
-		{
-			Type:        types.HostCA,
-			ClusterName: "localhost",
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
-					PublicKey:  []byte(fixtures.SSHCAPublicKey),
-				}},
-				TLS: []*types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			},
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     nil,
-		},
-		{
-			Type:        types.UserCA,
-			ClusterName: "localhost",
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
-					PublicKey:  []byte(fixtures.SSHCAPublicKey),
-				}},
-				TLS: []*types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			},
-			CheckingKeys: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-			SigningKeys:  [][]byte{[]byte(fixtures.SSHCAPrivateKey)},
-			TLSKeyPairs:  []types.TLSKeyPair{{Cert: []byte(fixtures.TLSCACertPEM), Key: []byte(fixtures.TLSCAKeyPEM)}},
-			Rotation:     &types.Rotation{State: types.RotationStateStandby},
-		},
-		{
-			Type:        types.JWTSigner,
-			ClusterName: "localhost",
-			ActiveKeys: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
-			},
-			JWTKeyPairs: []types.JWTKeyPair{{PublicKey: []byte(fixtures.JWTSignerPublicKey), PrivateKey: []byte(fixtures.JWTSignerPrivateKey)}},
-			Rotation:    &types.Rotation{State: types.RotationStateStandby},
-		},
-	}))
-}
-
 // Example resources generated using `tctl get all --with-secrets`.
 const (
 	hostCAYAML = `kind: cert_authority
@@ -828,7 +724,6 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidUserCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 	invalidJWTCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
-	invalidJWTCA.(*types.CertAuthorityV2).Spec.JWTKeyPairs = nil
 	invalidDBCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
 	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 
