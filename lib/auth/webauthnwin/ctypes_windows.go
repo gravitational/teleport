@@ -162,7 +162,7 @@ type webauthnCredentialAttestation struct {
 	// Size of CBOR encoded attestation information
 	// 0 => encoded as CBOR null value.
 	cbAttestation uint32
-	//Encoded CBOR attestation information
+	// Encoded CBOR attestation information
 	pbAttestation           *byte
 	dwAttestationDecodeType uint32
 	// Following depends on the dwAttestationDecodeType
