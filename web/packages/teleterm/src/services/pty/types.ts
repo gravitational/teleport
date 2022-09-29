@@ -39,6 +39,7 @@ export type TshLoginCommand = PtyCommandBase & {
 export type TshKubeLoginCommand = PtyCommandBase & {
   kind: 'pty.tsh-kube-login';
   kubeId: string;
+  kubeConfigRelativePath: string;
   rootClusterId: string;
   leafClusterId?: string;
 };

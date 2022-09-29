@@ -22,5 +22,8 @@ export default function createMainProcessClient(): MainProcessClient {
     openTabContextMenu,
     configService: createConfigServiceClient(),
     fileStorage: createFileStorageClient(),
+    removeKubeConfig(options) {
+      return ipcRenderer.invoke('main-process-remove-kube-config', options);
+    },
   };
 }

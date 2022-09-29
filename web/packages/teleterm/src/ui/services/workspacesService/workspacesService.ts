@@ -237,7 +237,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   private reopenPreviousDocuments(clusterUri: string): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
-      workspace.documents = workspace.previous.documents;
+      workspace.documents = workspace.previous.documents.map(d => {
+        //TODO: create a function that will prepare a new document, it will be used in:
+        // DocumentsService
+        // TrackedConnectionOperationsFactory
+        // here
+        if (
+          d.kind === 'doc.terminal_tsh_kube' ||
+          d.kind === 'doc.terminal_tsh_node'
+        ) {
+          return {
+            ...d,
+            status: 'connecting',
+          };
+        }
+        return d;
+      });
       workspace.location = workspace.previous.location;
       workspace.previous = undefined;
     });

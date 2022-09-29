@@ -18,6 +18,8 @@ import { useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { once } from 'lodash';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
 import * as types from 'teleterm/ui/services/workspacesService';
@@ -35,11 +37,16 @@ export default function useDocumentTerminal(doc: Doc) {
   );
 
   useEffect(() => {
-    init();
+    if (state.status === '') {
+      init();
+    }
+
     return () => {
-      state.data?.ptyProcess.dispose();
+      if (state.status === 'success') {
+        state.data.ptyProcess.dispose();
+      }
     };
-  }, []);
+  }, [state]);
 
   useEffect(() => {
     if (state.status === 'error') {
@@ -114,10 +121,16 @@ async function initState(
   };
 
   ptyProcess.onOpen(() => {
-    docsService.update(doc.uri, { status: 'connected' });
     refreshTitle();
     removeInitCommand();
   });
+
+  const markDocumentAsConnectedOnce = once(() => {
+    docsService.update(doc.uri, { status: 'connected' });
+  });
+
+  // mark document as connected when first data arrives
+  ptyProcess.onData(() => markDocumentAsConnectedOnce());
 
   ptyProcess.onExit(event => {
     // Not closing the tab on non-zero exit code lets us show the error to the user if, for example,

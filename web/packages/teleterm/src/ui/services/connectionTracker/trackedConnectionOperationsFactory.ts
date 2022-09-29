@@ -4,11 +4,13 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 
 import {
   getGatewayDocumentByConnection,
+  getKubeDocumentByConnection,
   getServerDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
   TrackedConnection,
   TrackedGatewayConnection,
+  TrackedKubeConnection,
   TrackedServerConnection,
 } from './types';
 
@@ -24,6 +26,8 @@ export class TrackedConnectionOperationsFactory {
         return this.getConnectionServerOperations(connection);
       case 'connection.gateway':
         return this.getConnectionGatewayOperations(connection);
+      case 'connection.kube':
+        return this.getConnectionKubeOperations(connection);
     }
   }
 
@@ -67,6 +71,7 @@ export class TrackedConnectionOperationsFactory {
             documentsService.close(document.uri);
           });
       },
+      remove: async () => {},
     };
   }
 
@@ -119,6 +124,55 @@ export class TrackedConnectionOperationsFactory {
               });
           });
       },
+      remove: async () => {},
+    };
+  }
+
+  private getConnectionKubeOperations(
+    connection: TrackedKubeConnection
+  ): TrackedConnectionOperations {
+    const { rootClusterId, leafClusterId } = routing.parseKubeUri(
+      connection.kubeUri
+    ).params;
+    const { rootClusterUri, leafClusterUri } = this.getClusterUris({
+      rootClusterId,
+      leafClusterId,
+    });
+
+    const documentsService =
+      this._workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+    return {
+      rootClusterUri,
+      leafClusterUri,
+      activate: () => {
+        let kubeConn = documentsService
+          .getDocuments()
+          .find(getKubeDocumentByConnection(connection));
+
+        if (!kubeConn) {
+          kubeConn = documentsService.createTshKubeDocument({
+            kubeUri: connection.kubeUri,
+            kubeConfigRelativePath: connection.kubeConfigRelativePath,
+          });
+
+          documentsService.add(kubeConn);
+        }
+        documentsService.open(kubeConn.uri);
+      },
+      disconnect: async () => {
+        documentsService
+          .getDocuments()
+          .filter(getKubeDocumentByConnection(connection))
+          .forEach(document => {
+            documentsService.close(document.uri);
+          });
+      },
+      remove: () => {
+        return this._clustersService.removeKubeConfig(
+          connection.kubeConfigRelativePath
+        );
+      },
     };
   }
 
@@ -152,4 +206,6 @@ interface TrackedConnectionOperations {
   activate(): void;
 
   disconnect(): Promise<void>;
+
+  remove(): Promise<void>;
 }

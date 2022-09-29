@@ -7,6 +7,7 @@ import { Label } from 'teleport/types';
 import { routing } from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { Cluster } from 'teleterm/services/tshd/types';
+import { MainProcessClient } from 'teleterm/mainProcess/types';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -41,6 +42,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   constructor(
     public client: tsh.TshClient,
+    private mainProcessClient: MainProcessClient,
     private notificationsService: NotificationsService
   ) {
     super();
@@ -59,9 +61,12 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 
   async logout(clusterUri: string) {
+    // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
     await this.syncClusterInfo(clusterUri);
     this.removeResources(clusterUri);
+    await this.removeCluster(clusterUri);
+    await this.removeClusterKubeConfigs(clusterUri);
   }
 
   async loginLocal(params: LoginLocalParams, abortSignal: tsh.TshAbortSignal) {
@@ -154,7 +159,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       //
       // Arguably, it is a bit of a race condition, as we assume that syncClusterInfo will return
       // before syncLeafClusters, but for now this is a condition we can live with.
-      this.syncKubes(clusterUri);
       this.syncApps(clusterUri);
       this.syncDbs(clusterUri);
       this.syncServers(clusterUri);
@@ -176,7 +180,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   private async syncLeafClusterResourcesAndCatchErrors(clusterUri: string) {
     // Functions below handle their own errors, so we don't need to await them.
-    this.syncKubes(clusterUri);
     this.syncApps(clusterUri);
     this.syncDbs(clusterUri);
     this.syncServers(clusterUri);
@@ -589,6 +592,22 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   async getDbUsers(dbUri: string): Promise<string[]> {
     return await this.client.listDatabaseUsers(dbUri);
+  }
+
+  async removeClusterKubeConfigs(clusterUri: string): Promise<void> {
+    const {
+      params: { rootClusterId },
+    } = routing.parseClusterUri(clusterUri);
+    return this.mainProcessClient.removeKubeConfig({
+      relativePath: rootClusterId,
+      isDirectory: true,
+    });
+  }
+
+  async removeKubeConfig(kubeConfigRelativePath: string): Promise<void> {
+    return this.mainProcessClient.removeKubeConfig({
+      relativePath: kubeConfigRelativePath,
+    });
   }
 
   useState() {

@@ -6,9 +6,7 @@ import { useAppContext } from '../appContextProvider';
 export function useClusterLogout({ clusterUri, onClose, clusterTitle }: Props) {
   const ctx = useAppContext();
   const [{ status, statusText }, removeCluster] = useAsync(async () => {
-    // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await ctx.clustersService.logout(clusterUri);
-    await ctx.clustersService.removeCluster(clusterUri);
 
     if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
       const [firstConnectedWorkspace] =
