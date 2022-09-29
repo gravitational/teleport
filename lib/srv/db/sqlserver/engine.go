@@ -198,11 +198,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		return trace.Wrap(err)
 	}
 
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
-
+	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
 		&services.DatabaseUserMatcher{
 			User: sessionCtx.DatabaseUser,

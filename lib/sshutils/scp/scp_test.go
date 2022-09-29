@@ -606,13 +606,13 @@ func fromOS(t *testing.T, dir string, fs *testFS) {
 		}
 		if fi.IsDir() {
 			require.NoError(t, fs.MkDir(relpath, int(fi.Mode())))
-			require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+			require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 			return nil
 		}
 		wc, err := fs.CreateFile(relpath, uint64(fi.Size()))
 		require.NoError(t, err)
 		defer wc.Close()
-		require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+		require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 		f, err := os.Open(path)
 		require.NoError(t, err)
 		defer f.Close()

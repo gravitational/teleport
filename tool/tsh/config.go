@@ -36,6 +36,7 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
     IdentityFile "{{ .IdentityFilePath }}"
     CertificateFile "{{ .CertificateFilePath }}"
     PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
 
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}

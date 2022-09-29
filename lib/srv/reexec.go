@@ -666,7 +666,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	exists, err := checkHomeDir(localUser)
+	exists, err := CheckHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if exists {
@@ -804,8 +804,8 @@ func copyCommand(ctx *ServerContext, cmdbytes []byte) {
 	}
 }
 
-// checkHomeDir checks if the user's home dir exists
-func checkHomeDir(localUser *user.User) (bool, error) {
+// CheckHomeDir checks if the user's home dir exists
+func CheckHomeDir(localUser *user.User) (bool, error) {
 	if fi, err := os.Stat(localUser.HomeDir); err == nil {
 		return fi.IsDir(), nil
 	}

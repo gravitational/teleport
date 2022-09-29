@@ -313,15 +313,15 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	cs, ok := e.(*events.DesktopClipboardSend)
 	require.True(t, ok)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
-	require.Equal(t, "session-0", cs.SessionID)
-	require.Equal(t, "windows.example.com", cs.DesktopAddr)
+	require.Equal(t, su.sessionID, cs.SessionID)
+	require.Equal(t, su.desktopAddr, cs.DesktopAddr)
 	require.Equal(t, s.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
 
 func TestEmitsClipboardReceiveEvents(t *testing.T) {
-	setup := setup()
-	s, emitter, handler := setup.s, setup.emitter, setup.sendHandler
+	su := setup()
+	s, emitter, handler := su.s, su.emitter, su.sendHandler
 
 	fakeClipboardData := make([]byte, 512)
 	rand.Read(fakeClipboardData)
@@ -337,8 +337,8 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	cs, ok := e.(*events.DesktopClipboardReceive)
 	require.True(t, ok)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
-	require.Equal(t, "session-0", cs.SessionID)
-	require.Equal(t, "windows.example.com", cs.DesktopAddr)
+	require.Equal(t, su.sessionID, cs.SessionID)
+	require.Equal(t, su.desktopAddr, cs.DesktopAddr)
 	require.Equal(t, s.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }

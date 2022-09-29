@@ -25,11 +25,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
@@ -187,10 +189,6 @@ const (
 	// tokens. When a user generates a token without an explicit TTL, this
 	// value is used.
 	ProvisioningTokenTTL = 30 * time.Minute
-
-	// HOTPFirstTokensRange is amount of lookahead tokens we remember
-	// for sync purposes
-	HOTPFirstTokensRange = 4
 
 	// MinPasswordLength is minimum password length
 	MinPasswordLength = 6
@@ -383,6 +381,9 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// DiscoveryQueueSize is discovery service queue size.
+	DiscoveryQueueSize = 128
+
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -461,6 +462,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleDiscovery is a discovery service
+	RoleDiscovery = "discovery"
 )
 
 const (
@@ -514,6 +517,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Redis"
 	case ProtocolSnowflake:
 		return "Snowflake"
+	case ProtocolElasticsearch:
+		return "Elasticsearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
 	default:
@@ -812,7 +817,26 @@ const (
 	TeleportConfigVersionV1 string = "v1"
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
+	// TeleportConfigVersionV3 is the teleport proxy configuration v3 version.
+	TeleportConfigVersionV3 string = "v3"
 )
+
+// TeleportConfigVersions is an exported slice of the allowed versions in the config file,
+// for convenience (looping through, etc)
+var TeleportConfigVersions = []string{
+	TeleportConfigVersionV1,
+	TeleportConfigVersionV2,
+	TeleportConfigVersionV3,
+}
+
+func ValidateConfigVersion(version string) error {
+	hasVersion := apiutils.SliceContainsStr(TeleportConfigVersions, version)
+	if !hasVersion {
+		return trace.BadParameter("version must be one of %s", strings.Join(TeleportConfigVersions, ", "))
+	}
+
+	return nil
+}
 
 // Default values for tsh and tctl commands.
 const (

@@ -481,6 +481,10 @@ const (
 	// RPC request command.
 	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
 
+	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
+	// a generic request.
+	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
@@ -555,6 +559,10 @@ const (
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
+
+	// SSMRunEvent is emitted when a run of an install script
+	// completes on a discovered EC2 node
+	SSMRunEvent = "ssm.run"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
