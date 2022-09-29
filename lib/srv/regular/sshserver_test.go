@@ -419,6 +419,7 @@ func TestInactivityTimeout(t *testing.T) {
 
 		endCh := make(chan error)
 		go func() { endCh <- f.ssh.clt.Wait() }()
+		t.Cleanup(func() { f.ssh.clt.Close() })
 
 		// When I let the session idle (with the clock running at approx 10x speed)...
 		sessionHasFinished := func() bool {
@@ -448,7 +449,7 @@ func TestInactivityTimeout(t *testing.T) {
 		f.ssh.assertCltClose = require.Error
 		se, err := f.ssh.clt.NewSession(context.Background())
 		require.NoError(t, err)
-		defer se.Close()
+		t.Cleanup(func() { require.NoError(t, err) })
 		waitForTimeout(t, f, se)
 	})
 
@@ -460,7 +461,7 @@ func TestInactivityTimeout(t *testing.T) {
 		f.ssh.assertCltClose = require.Error
 		se, err := f.ssh.clt.NewSession(context.Background())
 		require.NoError(t, err)
-		defer se.Close()
+		t.Cleanup(func() { require.NoError(t, err) })
 
 		stdin, err := se.StdinPipe()
 		require.NoError(t, err)
@@ -468,6 +469,7 @@ func TestInactivityTimeout(t *testing.T) {
 
 		endCh := make(chan error)
 		go func() { endCh <- f.ssh.clt.Wait() }()
+		t.Cleanup(func() { f.ssh.clt.Close() })
 
 		f.clock.Advance(3 * time.Second)
 		// Input should reset idle timeout.
@@ -503,6 +505,7 @@ func TestLockInForce(t *testing.T) {
 
 	endCh := make(chan error)
 	go func() { endCh <- f.ssh.clt.Wait() }()
+	t.Cleanup(func() { f.ssh.clt.Close() })
 
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{Login: f.user},
