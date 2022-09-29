@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::errors::invalid_data_error;
 use crate::{piv, Message};
 use crate::{Encode, Payload};
 use bitflags::bitflags;
@@ -59,7 +59,7 @@ impl Client {
         &mut self,
         code: IoctlCode,
         input: &mut Payload,
-    ) -> RdpResult<(u32, Box<dyn Encode>)> {
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         debug!("got IoctlCode {:?}", &code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
@@ -68,7 +68,7 @@ impl Client {
         // fail, but most modern Windows hosts shouldn't call those. If you're reading this because
         // some SCARD_IOCTL_*A call is failing, I was wrong and you'll have to implement the Ascii
         // calls.
-        let resp = match code {
+        match code {
             IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT => self.handle_access_started_event(input),
             IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT => self.handle_establish_context(input),
             IoctlCode::SCARD_IOCTL_RELEASECONTEXT => self.handle_release_context(input),
@@ -93,12 +93,6 @@ impl Client {
             IoctlCode::SCARD_IOCTL_WRITECACHEW => self.handle_write_cache(input),
             IoctlCode::SCARD_IOCTL_GETREADERICON => self.handle_get_reader_icon(input),
             _ => self.handle_unimplemented_ioctl(code),
-        }?;
-
-        if let Some(resp) = resp {
-            Ok((NTSTATUS_OK, resp))
-        } else {
-            Ok((SPECIAL_NO_RESPONSE, Box::new(Empty_Return::new())))
         }
     }
 
@@ -2236,22 +2230,6 @@ impl ContextInternal {
     }
 }
 
-#[derive(Debug)]
-#[allow(non_camel_case_types)]
-pub(crate) struct Empty_Return {}
-
-impl Empty_Return {
-    pub(crate) fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Encode for Empty_Return {
-    fn encode(&self) -> RdpResult<Message> {
-        Ok(vec![])
-    }
-}
-
 #[allow(dead_code)]
 // A little helper function for debugging unparsed payloads.
 fn debug_print_payload(payload: &mut Payload) {
@@ -2425,8 +2403,10 @@ mod tests {
             connect_scard(&mut c, connect_scard_to_ctx);
         }
 
-        let (code, res) = c.ioctl(ctl_code, &mut to_payload(payload)).unwrap();
-        assert_eq!(0, code);
+        let res = c
+            .ioctl(ctl_code, &mut to_payload(payload))
+            .unwrap()
+            .unwrap();
         assert_eq!(expected.encode().unwrap(), res.encode().unwrap());
     }
 
