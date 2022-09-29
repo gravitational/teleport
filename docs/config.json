@@ -294,6 +294,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Microsoft Teams",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-msteams/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "PagerDuty",
               "slug": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
               "forScopes": ["enterprise", "cloud"]
