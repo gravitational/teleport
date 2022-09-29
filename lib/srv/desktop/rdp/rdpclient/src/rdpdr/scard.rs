@@ -97,7 +97,7 @@ impl Client {
         }?;
 
         if let Some(resp) = resp {
-            Ok((NTSTATUS_OK, pad_and_add_headers(resp)?))
+            Ok((NTSTATUS_OK, resp))
         } else {
             Ok((SPECIAL_NO_RESPONSE, vec![]))
         }
@@ -619,7 +619,7 @@ impl Long_Return {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -680,7 +680,7 @@ impl EstablishContext_Return {
         let mut index = 0;
         self.context.encode_ptr(&mut index, &mut w)?;
         self.context.encode_value(&mut w)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -857,7 +857,7 @@ impl ListReaders_Return {
         w.write_u32::<LittleEndian>(readers.length() as u32)?;
         w.extend_from_slice(&readers);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1231,7 +1231,7 @@ impl GetStatusChange_Return {
             state.encode(&mut w)?;
         }
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 
     fn no_change(&self) -> bool {
@@ -1357,7 +1357,7 @@ impl Connect_Return {
         self.handle.encode_ptr(&mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.active_protocol.bits())?;
         self.handle.encode_value(&mut w)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1567,7 +1567,7 @@ impl Status_Return {
         w.write_u32::<LittleEndian>(reader_names.length() as u32)?;
         w.extend_from_slice(&reader_names);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1727,7 +1727,7 @@ impl Transmit_Return {
         w.write_u32::<LittleEndian>(self.recv_buffer.len() as u32)?;
         w.extend_from_slice(&self.recv_buffer);
 
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1803,7 +1803,7 @@ impl GetDeviceTypeId_Return {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_type_id)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -1932,7 +1932,7 @@ impl ReadCache_Return {
         encode_ptr(Some(self.data.length() as u32), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.data.length() as u32)?;
         w.extend_from_slice(&self.data);
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
@@ -2099,7 +2099,7 @@ impl GetReaderIcon_Return {
         let mut index = 0;
         encode_ptr(Some(0), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(0)?;
-        Ok(w)
+        pad_and_add_headers(w)
     }
 }
 
