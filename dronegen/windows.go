@@ -246,8 +246,8 @@ func windowsRegisterArtifactsStep(workspace string) step {
 		Name: "Register artifacts",
 		Environment: map[string]value{
 			"WORKSPACE_DIR":   {raw: workspace},
-			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT_STAGING"},
-			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY_STAGING"},
+			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT"},
+			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY"},
 			"RELCLI_BASE_URL": {raw: releasesHost},
 		},
 		Commands: []string{
