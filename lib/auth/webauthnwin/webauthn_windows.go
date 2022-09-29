@@ -99,7 +99,7 @@ func (n *nativeImpl) CheckSupport() CheckSupportResult {
 // either security key or Windows Hello).
 // It does not accept username - during passwordless login webauthn.dll provides
 // its own dialog with credentials selection.
-func (n *nativeImpl) GetAssertion(origin string, in *GetAssertionRequest) (*wanlib.CredentialAssertionResponse, error) {
+func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*wanlib.CredentialAssertionResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,9 +108,9 @@ func (n *nativeImpl) GetAssertion(origin string, in *GetAssertionRequest) (*wanl
 	var out *webauthnAssertion
 	ret, _, lastErr := procWebAuthNAuthenticatorGetAssertion.Call(
 		uintptr(hwnd),
-		uintptr(unsafe.Pointer(in.RpID)),
-		uintptr(unsafe.Pointer(in.Cd)),
-		uintptr(unsafe.Pointer(in.Opts)),
+		uintptr(unsafe.Pointer(in.rpID)),
+		uintptr(unsafe.Pointer(in.cd)),
+		uintptr(unsafe.Pointer(in.opts)),
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if ret != 0 {
@@ -144,7 +144,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *GetAssertionRequest) (*wanl
 			Signature:         signature,
 			UserHandle:        userID,
 			AuthenticatorResponse: wanlib.AuthenticatorResponse{
-				ClientDataJSON: in.JsonEncodedCD,
+				ClientDataJSON: in.jsonEncodedCD,
 			},
 		},
 	}, nil
@@ -156,7 +156,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *GetAssertionRequest) (*wanl
 // (using auto starts with Windows Hello but there is
 // option to select other devices).
 // Windows Hello keys are always resident.
-func (n *nativeImpl) MakeCredential(origin string, in *MakeCredentialRequest) (*wanlib.CredentialCreationResponse, error) {
+func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*wanlib.CredentialCreationResponse, error) {
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,11 +165,11 @@ func (n *nativeImpl) MakeCredential(origin string, in *MakeCredentialRequest) (*
 	var out *webauthnCredentialAttestation
 	ret, _, lastErr := procWebAuthNAuthenticatorMakeCredential.Call(
 		uintptr(hwnd),
-		uintptr(unsafe.Pointer(in.RP)),
-		uintptr(unsafe.Pointer(in.User)),
-		uintptr(unsafe.Pointer(in.Creds)),
-		uintptr(unsafe.Pointer(in.CD)),
-		uintptr(unsafe.Pointer(in.Opts)),
+		uintptr(unsafe.Pointer(in.rp)),
+		uintptr(unsafe.Pointer(in.user)),
+		uintptr(unsafe.Pointer(in.creds)),
+		uintptr(unsafe.Pointer(in.cd)),
+		uintptr(unsafe.Pointer(in.opts)),
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if ret != 0 {
@@ -196,7 +196,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *MakeCredentialRequest) (*
 		},
 		AttestationResponse: wanlib.AuthenticatorAttestationResponse{
 			AuthenticatorResponse: wanlib.AuthenticatorResponse{
-				ClientDataJSON: in.JsonEncodedCD,
+				ClientDataJSON: in.jsonEncodedCD,
 			},
 			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),
 		},

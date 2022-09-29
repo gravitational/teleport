@@ -32,8 +32,8 @@ func assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOp
 		// We can set newest version and it still works on older APIs.
 		dwVersion:                     6,
 		dwTimeoutMilliseconds:         uint32(in.Timeout),
-		DwAuthenticatorAttachment:     dwAuthenticatorAttachment,
-		DwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
+		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
+		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
 		// TODO(tobiaszheller): support U2fAppId.
 		pAllowCredentialList: allowCredList,
 	}, nil
@@ -279,10 +279,10 @@ func makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*we
 		// We can set newest version and it still works on older APIs.
 		dwVersion:                         5,
 		dwTimeoutMilliseconds:             uint32(in.Timeout),
-		DwAuthenticatorAttachment:         attachmentToCType(in.AuthenticatorSelection.AuthenticatorAttachment),
+		dwAuthenticatorAttachment:         attachmentToCType(in.AuthenticatorSelection.AuthenticatorAttachment),
 		dwAttestationConveyancePreference: conveyancePreferenceToCType(in.Attestation),
 		bRequireResidentKey:               requireResidentKeyToCType(in.AuthenticatorSelection.RequireResidentKey),
-		DwUserVerificationRequirement:     userVerificationToCType(in.AuthenticatorSelection.UserVerification),
+		dwUserVerificationRequirement:     userVerificationToCType(in.AuthenticatorSelection.UserVerification),
 		pExcludeCredentialList:            exCredList,
 		bPreferResidentKey:                bPreferResidentKey,
 	}, nil

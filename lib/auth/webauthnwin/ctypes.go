@@ -59,15 +59,15 @@ type webauthnAuthenticatorMakeCredentialOptions struct {
 	dwVersion             uint32
 	dwTimeoutMilliseconds uint32
 	// Credentials used for exclusion.
-	CredentialList webauthnCredentials
+	credentialList webauthnCredentials
 	// Optional extensions to parse when performing the operation.
-	Extensions webauthnExtenstions
+	extensions webauthnExtenstions
 	// Optional. Platform vs Cross-Platform Authenticators.
-	DwAuthenticatorAttachment uint32
+	dwAuthenticatorAttachment uint32
 	// Optional. Require key to be resident or not. Defaulting to FALSE.
 	bRequireResidentKey uint32
 	// User Verification Requirement.
-	DwUserVerificationRequirement uint32
+	dwUserVerificationRequirement uint32
 	// Attestation Conveyance Preference.
 	dwAttestationConveyancePreference uint32
 	// Reserved for future Use
@@ -216,13 +216,13 @@ type webauthnAuthenticatorGetAssertionOptions struct {
 	// This is used as guidance, and can be overridden by the platform.
 	dwTimeoutMilliseconds uint32
 	// Allowed Credentials List.
-	CredentialList webauthnCredentials
+	credentialList webauthnCredentials
 	// Optional extensions to parse when performing the operation.
-	Extensions webauthnExtenstions
+	extensions webauthnExtenstions
 	// Optional. Platform vs Cross-Platform Authenticators.
-	DwAuthenticatorAttachment uint32
+	dwAuthenticatorAttachment uint32
 	// User Verification Requirement.
-	DwUserVerificationRequirement uint32
+	dwUserVerificationRequirement uint32
 	// Flags
 	dwFlags uint32
 

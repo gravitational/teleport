@@ -49,24 +49,24 @@ const (
 // Implementors must provide a global variable called `native`.
 type nativeWebauthn interface {
 	CheckSupport() CheckSupportResult
-	GetAssertion(origin string, in *GetAssertionRequest) (*wanlib.CredentialAssertionResponse, error)
-	MakeCredential(origin string, in *MakeCredentialRequest) (*wanlib.CredentialCreationResponse, error)
+	GetAssertion(origin string, in *getAssertionRequest) (*wanlib.CredentialAssertionResponse, error)
+	MakeCredential(origin string, in *makeCredentialRequest) (*wanlib.CredentialCreationResponse, error)
 }
 
-type GetAssertionRequest struct {
-	RpID          *uint16
-	Cd            *webauthnClientData
-	JsonEncodedCD []byte
-	Opts          *webauthnAuthenticatorGetAssertionOptions
+type getAssertionRequest struct {
+	rpID          *uint16
+	cd            *webauthnClientData
+	jsonEncodedCD []byte
+	opts          *webauthnAuthenticatorGetAssertionOptions
 }
 
-type MakeCredentialRequest struct {
-	RP            *webauthnRPEntityInformation
-	User          *webauthnUserEntityInformation
-	Creds         *webauthnCoseCredentialParameters
-	CD            *webauthnClientData
-	JsonEncodedCD []byte
-	Opts          *webauthnAuthenticatorMakeCredentialOptions
+type makeCredentialRequest struct {
+	rp            *webauthnRPEntityInformation
+	user          *webauthnUserEntityInformation
+	creds         *webauthnCoseCredentialParameters
+	cd            *webauthnClientData
+	jsonEncodedCD []byte
+	opts          *webauthnAuthenticatorMakeCredentialOptions
 }
 
 // Login implements Login for Windows Webauthn API.
@@ -96,11 +96,11 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 		return nil, "", trace.Wrap(err)
 	}
 
-	resp, err := native.GetAssertion(origin, &GetAssertionRequest{
-		RpID:          rpid,
-		Cd:            cd,
-		JsonEncodedCD: jsonEncodedCD,
-		Opts:          assertOpts,
+	resp, err := native.GetAssertion(origin, &getAssertionRequest{
+		rpID:          rpid,
+		cd:            cd,
+		jsonEncodedCD: jsonEncodedCD,
+		opts:          assertOpts,
 	})
 	if err != nil {
 		// TODO(tobiaszheller): right now error directly from webauthn.dll is
@@ -169,13 +169,13 @@ func Register(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := native.MakeCredential(origin, &MakeCredentialRequest{
-		RP:            rp,
-		User:          u,
-		Creds:         credParam,
-		CD:            cd,
-		JsonEncodedCD: jsonEncodedCD,
-		Opts:          opts,
+	resp, err := native.MakeCredential(origin, &makeCredentialRequest{
+		rp:            rp,
+		user:          u,
+		creds:         credParam,
+		cd:            cd,
+		jsonEncodedCD: jsonEncodedCD,
+		opts:          opts,
 	})
 	if err != nil {
 		// TODO(tobiaszheller): right now error directly from webauthn.dll is
