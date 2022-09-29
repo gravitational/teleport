@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -78,6 +79,9 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 		Backend:                s.b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)

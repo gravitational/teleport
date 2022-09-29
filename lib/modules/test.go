@@ -38,19 +38,18 @@ type TestModules struct {
 // and reverts the change in the test cleanup function.
 // It must not be used in parallel tests.
 //
-//    func TestWithFakeModules(t *testing.T) {
-//       modules.SetTestModules(t, &modules.TestModules{
-//         TestBuildType: modules.BuildEnterprise,
-//         TestFeatures: modules.Features{
-//            Cloud: true,
-//         },
-//       })
+//	func TestWithFakeModules(t *testing.T) {
+//	   modules.SetTestModules(t, &modules.TestModules{
+//	     TestBuildType: modules.BuildEnterprise,
+//	     TestFeatures: modules.Features{
+//	        Cloud: true,
+//	     },
+//	   })
 //
-//       // test implementation
+//	   // test implementation
 //
-//       // cleanup will revert module changes after test completes
-//    }
-//
+//	   // cleanup will revert module changes after test completes
+//	}
 func SetTestModules(t *testing.T, testModules *TestModules) {
 	defaultModules := GetModules()
 	t.Cleanup(func() { SetModules(defaultModules) })

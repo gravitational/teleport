@@ -29,12 +29,12 @@ type Event struct {
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
 //
-//  * Teleport event codes start with "T" and belong in this const block.
+//   - Teleport event codes start with "T" and belong in this const block.
 //
-//  * Related events are grouped starting with the same number.
-//		eg: All user related events are grouped under 1xxx.
+//   - Related events are grouped starting with the same number.
+//     eg: All user related events are grouped under 1xxx.
 //
-//  * Suffix code with one of these letters: I (info), W (warn), E (error).
+//   - Suffix code with one of these letters: I (info), W (warn), E (error).
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -171,6 +171,9 @@ const (
 
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
 	SQLServerRPCRequestCode = "TMS00I"
+
+	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
+	ElasticsearchRequestCode = "TES00I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -337,6 +340,11 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+
+	// SSMRunSuccessCode is the discovery script success code.
+	SSMRunSuccessCode = "TDS00I"
+	// SSMRunFailCode is the discovery script success code.
+	SSMRunFailCode = "TDS00W"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -455,7 +456,7 @@ func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 	return trace.CompareFailed("remote certificate authority rotation has been updated")
 }
 
-func (s *remoteSite) updateCertAuthorities(retry utils.Retry, remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) {
+func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry, remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) {
 	defer remoteWatcher.Close()
 
 	for {
@@ -652,7 +653,7 @@ func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.Ce
 	}, nil
 }
 
-func (s *remoteSite) updateLocks(retry utils.Retry) {
+func (s *remoteSite) updateLocks(retry retryutils.Retry) {
 	s.Debugf("Watching for remote lock changes.")
 
 	for {

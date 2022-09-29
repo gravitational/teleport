@@ -172,6 +172,19 @@ func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
 	return desktops, nil
 }
 
+// AsWindowsDesktopServices converts each resource into type WindowsDesktop.
+func (r ResourcesWithLabels) AsWindowsDesktopServices() ([]WindowsDesktopService, error) {
+	desktopServices := make([]WindowsDesktopService, 0, len(r))
+	for _, resource := range r {
+		desktopService, ok := resource.(WindowsDesktopService)
+		if !ok {
+			return nil, trace.BadParameter("expected types.WindowsDesktopService, got: %T", resource)
+		}
+		desktopServices = append(desktopServices, desktopService)
+	}
+	return desktopServices, nil
+}
+
 // AsKubeClusters converts each resource into type KubeCluster.
 func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
 	clusters := make([]KubeCluster, 0, len(r))
