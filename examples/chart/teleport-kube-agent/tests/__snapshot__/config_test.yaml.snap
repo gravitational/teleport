@@ -298,6 +298,63 @@ matches snapshot for aws-databases.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for azure-databases.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        version: v3
+        teleport:
+          auth_token: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: false
+
+        app_service:
+          enabled: false
+
+        db_service:
+          enabled: true
+          azure:
+          - tags:
+              '*': '*'
+            types:
+            - mysql
+            - postgres
+          - regions:
+            - eastus
+            - centralus
+            resource_groups:
+            - group1
+            - group2
+            subscriptions:
+            - subID1
+            - subID2
+            tags:
+              env: development
+              origin:
+              - alice
+              - bob
+            types:
+            - mysql
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for backwards-compatibility.yaml:
   1: |
     apiVersion: v1
