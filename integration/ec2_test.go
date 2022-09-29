@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -41,10 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/labels/ec2"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func newSilentLogger() utils.Logger {
@@ -306,19 +306,20 @@ func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
-func (m *mockIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
-	keys := make([]string, 0, len(m.tags))
-	for k := range m.tags {
-		keys = append(keys, k)
-	}
-	return keys, nil
+func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
+	return m.tags, nil
 }
 
-func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
-	if value, ok := m.tags[key]; ok {
-		return value, nil
+func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
+	value, ok := m.tags[types.CloudHostnameTag]
+	if !ok {
+		return "", trace.NotFound("cloud hostname key not found")
 	}
-	return "", trace.NotFound("Tag %q not found", key)
+	return value, nil
+}
+
+func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeEC2
 }
 
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
@@ -398,7 +399,7 @@ func TestEC2Labels(t *testing.T) {
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
 
-	tagName := fmt.Sprintf("%s/Name", ec2.AWSNamespace)
+	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
 
 	// Check that EC2 labels were applied.
 	require.Eventually(t, func() bool {
@@ -454,7 +455,7 @@ func TestEC2Hostname(t *testing.T) {
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{
-			types.EC2HostnameTag: teleportHostname,
+			types.CloudHostnameTag: teleportHostname,
 		},
 	}
 

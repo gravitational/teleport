@@ -360,8 +360,17 @@ const (
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
 )
 
-// EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
-const EC2HostnameTag = "TeleportHostname"
+// CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
+const CloudHostnameTag = "TeleportHostname"
+
+// InstanceMetadataType is the type of cloud instance metadata client.
+type InstanceMetadataType string
+
+const (
+	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
+	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
+	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
+)
 
 // OriginValues lists all possible origin values.
 var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
