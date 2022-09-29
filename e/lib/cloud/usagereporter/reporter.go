@@ -201,11 +201,11 @@ func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
 
 	alert, err := types.NewClusterAlert(
 		buyTeleportAlertName,
-		"Upgrade to a paid plan.",
+		"Upgrade to a paid plan",
 		types.WithAlertSeverity(types.AlertSeverity_LOW),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertLabel(types.AlertLink, "https://goteleport.com/signup/enterprise"),
+		types.WithAlertLabel(types.AlertLink, "https://goteleport.com/signup/cloud"),
 	)
 	if err != nil {
 		return trace.Wrap(err)
