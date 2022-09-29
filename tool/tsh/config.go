@@ -22,6 +22,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
@@ -34,9 +35,10 @@ const sshConfigTemplate = `
 Host *.{{ .ClusterName }} {{ .ProxyHost }}
     UserKnownHostsFile "{{ .KnownHostsPath }}"
     IdentityFile "{{ .IdentityFilePath }}"
-    CertificateFile "{{ .CertificateFilePath }}"
+    CertificateFile "{{ .CertificateFilePath }}"{{ if .LegacyOpenSSH }}
     PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{else}}
+    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com{{end}}
 
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
@@ -51,6 +53,7 @@ type hostConfigParameters struct {
 	CertificateFilePath string
 	ProxyHost           string
 	TSHPath             string
+	LegacyOpenSSH       bool
 }
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
@@ -111,6 +114,17 @@ func onConfig(cf *CLIConf) error {
 	fmt.Fprintln(&sb)
 	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
 
+	// Default to including the RSA deprecation workaround.
+	var sshConfigOptions *config.SSHConfigOptions
+	version, err := config.GetSystemSSHVersion()
+	if err != nil {
+		log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
+		sshConfigOptions = config.GetDefaultSSHConfigOptions()
+	} else {
+		log.Debugf("Found OpenSSH version %s", version)
+		sshConfigOptions = config.GetSSHConfigOptions(version)
+	}
+
 	err = writeSSHConfig(&sb, hostConfigParameters{
 		ClusterName:         rootClusterName,
 		KnownHostsPath:      knownHostsPath,
@@ -118,6 +132,7 @@ func onConfig(cf *CLIConf) error {
 		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
 		ProxyHost:           proxyHost,
 		TSHPath:             cf.executablePath,
+		LegacyOpenSSH:       sshConfigOptions.PubkeyAcceptedKeyTypesWorkaroundNeeded,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -352,6 +352,7 @@ require (
 
 // Update also `ignore` in .github/dependabot.yml.
 replace (
+	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20220925030905-69ba99298ac8
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20220509084309-3d41480ef74f
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1

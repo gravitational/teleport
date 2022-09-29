@@ -17,14 +17,10 @@ limitations under the License.
 package config
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -32,6 +28,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,13 +44,6 @@ type TemplateSSHClient struct {
 	getExecutablePath func() (string, error)
 }
 
-// openSSHVersionRegex is a regex used to parse OpenSSH version strings.
-var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor>\d+)(?:p(?P<patch>\d+))?`)
-
-// openSSHMinVersionForRSAWorkaround is the OpenSSH version after which the
-// RSA deprecation workaround should be added to generated ssh_config.
-var openSSHMinVersionForRSAWorkaround = semver.New("8.5.0")
-
 const (
 	// sshConfigName is the name of the ssh_config file on disk
 	sshConfigName = "ssh_config"
@@ -62,66 +52,12 @@ const (
 	knownHostsName = "known_hosts"
 )
 
-// parseSSHVersion attempts to parse the local SSH version, used to determine
-// certain config template parameters for client version compatibility.
-func parseSSHVersion(versionString string) (*semver.Version, error) {
-	versionTokens := strings.Split(versionString, " ")
-	if len(versionTokens) == 0 {
-		return nil, trace.BadParameter("invalid version string: %s", versionString)
-	}
-
-	versionID := versionTokens[0]
-	matches := openSSHVersionRegex.FindStringSubmatch(versionID)
-	if matches == nil {
-		return nil, trace.BadParameter("cannot parse version string: %q", versionID)
-	}
-
-	major, err := strconv.Atoi(matches[1])
-	if err != nil {
-		return nil, trace.Wrap(err, "invalid major version number: %s", matches[1])
-	}
-
-	minor, err := strconv.Atoi(matches[2])
-	if err != nil {
-		return nil, trace.Wrap(err, "invalid minor version number: %s", matches[2])
-	}
-
-	patch := 0
-	if matches[3] != "" {
-		patch, err = strconv.Atoi(matches[3])
-		if err != nil {
-			return nil, trace.Wrap(err, "invalid patch version number: %s", matches[3])
-		}
-	}
-
-	return &semver.Version{
-		Major: int64(major),
-		Minor: int64(minor),
-		Patch: int64(patch),
-	}, nil
-}
-
-// getSystemSSHVersion attempts to query the system SSH for its current version.
-func getSystemSSHVersion() (*semver.Version, error) {
-	var out bytes.Buffer
-
-	cmd := exec.Command("ssh", "-V")
-	cmd.Stderr = &out
-
-	err := cmd.Run()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return parseSSHVersion(out.String())
-}
-
 func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 	if c.ProxyPort != 0 {
 		log.Warn("ssh_client's proxy_port parameter is deprecated and will be removed in a future release.")
 	}
 	if c.getSSHVersion == nil {
-		c.getSSHVersion = getSystemSSHVersion
+		c.getSSHVersion = config.GetSystemSSHVersion
 	}
 	if c.getExecutablePath == nil {
 		c.getExecutablePath = os.Executable
@@ -216,16 +152,17 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity
 	}
 
 	// Default to including the RSA deprecation workaround.
-	rsaWorkaround := true
+	var sshConfigOptions *config.SSHConfigOptions
 	version, err := c.getSSHVersion()
 	if err != nil {
-		log.WithError(err).Debugf("Could not determine SSH version, will include RSA workaround.")
-	} else if version.LessThan(*openSSHMinVersionForRSAWorkaround) {
-		log.Debugf("OpenSSH version %s does not require workaround for RSA deprecation", version)
-		rsaWorkaround = false
+		log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
+		sshConfigOptions = config.GetDefaultSSHConfigOptions()
 	} else {
-		log.Debugf("OpenSSH version %s will use workaround for RSA deprecation", version)
+		log.Debugf("Found OpenSSH version %s", version)
+		sshConfigOptions = config.GetSSHConfigOptions(version)
 	}
+
+	log.Debugf("Using SSH options: %s", sshConfigOptions)
 
 	executablePath, err := c.getExecutablePath()
 	if err != nil {
@@ -242,7 +179,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity
 		KnownHostsPath:       knownHostsPath,
 		IdentityFilePath:     identityFilePath,
 		CertificateFilePath:  certificateFilePath,
-		IncludeRSAWorkaround: rsaWorkaround,
+		IncludeRSAWorkaround: sshConfigOptions.PubkeyAcceptedKeyTypesWorkaroundNeeded,
 		TBotPath:             executablePath,
 		DestinationDir:       destDir,
 	}); err != nil {
