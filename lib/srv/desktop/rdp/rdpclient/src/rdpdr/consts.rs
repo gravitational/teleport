@@ -33,14 +33,14 @@ pub const DRIVE_CAPABILITY_VERSION_02: u32 = 0x00000002;
 pub const GENERAL_CAPABILITY_VERSION_01: u32 = 0x00000001;
 pub const GENERAL_CAPABILITY_VERSION_02: u32 = 0x00000002;
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 pub enum Component {
     RDPDR_CTYP_CORE = 0x4472,
     RDPDR_CTYP_PRN = 0x5052,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 pub enum PacketId {
     PAKID_CORE_SERVER_ANNOUNCE = 0x496E,
@@ -79,7 +79,7 @@ pub enum DeviceType {
 }
 
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
-#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq, Clone)]
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub enum MajorFunction {
     IRP_MJ_CREATE = 0x00000000,
@@ -95,7 +95,7 @@ pub enum MajorFunction {
     IRP_MJ_LOCK_CONTROL = 0x00000011,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive, Clone)]
+#[derive(Debug, FromPrimitive, ToPrimitive, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub enum MinorFunction {
     IRP_MN_NONE = 0x00000000,
