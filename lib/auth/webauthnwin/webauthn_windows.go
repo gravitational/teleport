@@ -106,18 +106,15 @@ func (n *nativeImpl) GetAssertion(origin string, in *GetAssertionRequest) (*wanl
 	}
 
 	var out *webauthnAssertion
-	ret, _, err := procWebAuthNAuthenticatorGetAssertion.Call(
+	ret, _, lastErr := procWebAuthNAuthenticatorGetAssertion.Call(
 		uintptr(hwnd),
 		uintptr(unsafe.Pointer(in.RpID)),
 		uintptr(unsafe.Pointer(in.Cd)),
 		uintptr(unsafe.Pointer(in.Opts)),
 		uintptr(unsafe.Pointer(&out)),
 	)
-	if err != syscall.Errno(0) {
-		return nil, trace.Wrap(err)
-	}
 	if ret != 0 {
-		return nil, trace.Wrap(getErrorName(ret))
+		return nil, trace.Wrap(getErrorNameOrLastErr(ret, lastErr))
 	}
 	if out == nil {
 		return nil, errors.New("unexpected nil response from GetAssertion")
@@ -166,7 +163,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *MakeCredentialRequest) (*
 	}
 
 	var out *webauthnCredentialAttestation
-	ret, _, err := procWebAuthNAuthenticatorMakeCredential.Call(
+	ret, _, lastErr := procWebAuthNAuthenticatorMakeCredential.Call(
 		uintptr(hwnd),
 		uintptr(unsafe.Pointer(in.RP)),
 		uintptr(unsafe.Pointer(in.User)),
@@ -175,11 +172,8 @@ func (n *nativeImpl) MakeCredential(origin string, in *MakeCredentialRequest) (*
 		uintptr(unsafe.Pointer(in.Opts)),
 		uintptr(unsafe.Pointer(&out)),
 	)
-	if err != syscall.Errno(0) {
-		return nil, trace.Wrap(err)
-	}
 	if ret != 0 {
-		return nil, trace.Wrap(getErrorName(ret))
+		return nil, trace.Wrap(getErrorNameOrLastErr(ret, lastErr))
 	}
 	if out == nil {
 		return nil, errors.New("unexpected nil response from MakeCredential")
@@ -240,17 +234,20 @@ func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
 		return 0, err
 	}
 	ret, _, err := procWebAuthNGetApiVersionNumber.Call()
-	if err != syscall.Errno(0) {
+	if ret == 0 && err != syscall.Errno(0) {
 		return 0, err
 	}
 	return int(ret), nil
 }
 
-func getErrorName(in uintptr) error {
-	ret, _, err := procWebAuthNGetErrorName.Call(
+func getErrorNameOrLastErr(in uintptr, lastError error) error {
+	ret, _, _ := procWebAuthNGetErrorName.Call(
 		uintptr(int32(in)),
 	)
-	if err != syscall.Errno(0) {
+	if ret == 0 {
+		if lastError != syscall.Errno(0) {
+			return fmt.Errorf("webauthn error code %v and syscall err: %v", in, lastError)
+		}
 		return fmt.Errorf("webauthn error code %v", in)
 	}
 	errString := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(ret)))
@@ -259,14 +256,11 @@ func getErrorName(in uintptr) error {
 
 func isUVPlatformAuthenticatorAvailable() (bool, error) {
 	var out uint32
-	ret, _, err := procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Call(
+	ret, _, lastErr := procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Call(
 		uintptr(unsafe.Pointer(&out)),
 	)
-	if err != syscall.Errno(0) {
-		return false, err
-	}
 	if ret != 0 {
-		return false, getErrorName(ret)
+		return false, getErrorNameOrLastErr(ret, lastErr)
 	}
 	return out == 1, nil
 }
