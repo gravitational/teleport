@@ -24,8 +24,8 @@ This Terraform example will configure the following AWS resources:
 
 ### Build Requirements
 
-- terraform v0.14+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
-- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+- terraform v1.0+ [install docs](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
 ### Usage
 
@@ -68,17 +68,17 @@ Update the included Makefile to define your configuration.
 # Region to run in - we currently have AMIs in the following regions:
 # ap-south-1, ap-northeast-2, ap-southeast-1, ap-southeast-2, ap-northeast-1, ca-central-1, eu-central-1, eu-west-1, eu-west-2
 # sa-east-1, us-east-1, us-east-2, us-west-1, us-west-2
-TF_VAR_region ?="us-east-1"
+TF_VAR_region ?= "us-east-1"
 
 # Cluster name is a unique cluster name to use, should be unique and not contain spaces or other special characters
-TF_VAR_cluster_name ?="TeleportCluster1"
+TF_VAR_cluster_name ?= "TeleportCluster1"
 
 # AWS SSH key pair name to provision in installed instances, must be a key pair available in the above defined region (AWS Console > EC2 > Key Pairs)
-TF_VAR_key_name ?="example"
+TF_VAR_key_name ?= "example"
 
 # Full absolute path to the license file, on the machine executing Terraform, for Teleport Enterprise.
 # This license will be copied into AWS SSM and then pulled down on the auth nodes to enable Enterprise functionality
-TF_VAR_license_path ?="/path/to/license"
+TF_VAR_license_path ?= "/path/to/license"
 
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
 # These AMIs are published by Teleport and shared as public whenever a new version of Teleport is released
@@ -86,41 +86,41 @@ TF_VAR_license_path ?="/path/to/license"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?="gravitational-teleport-ami-ent-10.2.6"
+TF_VAR_ami_name ?= "gravitational-teleport-ami-ent-10.2.6"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
-TF_VAR_route53_zone ?="example.com"
+TF_VAR_route53_zone ?= "example.com"
 
 # Subdomain to set up in the zone above, e.g. cluster.example.com
 # This will be used for users connecting to Teleport proxy
-TF_VAR_route53_domain ?="cluster.example.com"
+TF_VAR_route53_domain ?= "cluster.example.com"
 
 # Set to true to add a wildcard subdomain entry to point to the proxy, e.g. *.cluster.example.com
 # This is used to enable Teleport Application Access
 export TF_VAR_add_wildcard_route53_record="true"
 
-# Enable adding MongoDB listeners in Teleport proxy, load balancer ports and security groups
+# Enable adding MongoDB listeners in Teleport proxy, load balancer ports, and security groups
 export TF_VAR_enable_mongodb_listener="true"
 
-# Enable adding MySQL listeners in Teleport proxy, load balancer ports and security groups
+# Enable adding MySQL listeners in Teleport proxy, load balancer ports, and security groups
 export TF_VAR_enable_mysql_listener="true"
 
-# Enable adding Postgres listeners in Teleport proxy, load balancer ports and security groups
+# Enable adding Postgres listeners in Teleport proxy, load balancer ports, and security groups
 export TF_VAR_enable_postgres_listener="true"
 
-# Bucket name to store encrypted LetsEncrypt certificates.
-TF_VAR_s3_bucket_name ?="teleport.example.com"
+# Bucket name to store encrypted Let's Encrypt certificates.
+TF_VAR_s3_bucket_name ?= "teleport.example.com"
 
-# Email to be used for LetsEncrypt certificate registration process.
-TF_VAR_email ?="support@example.com"
+# Email to be used for Let's Encrypt certificate registration process.
+TF_VAR_email ?= "support@example.com"
 
-# Set to true to use LetsEncrypt to provision certificates
-TF_VAR_use_letsencrypt ?=true
+# Set to true to use Let's Encrypt to provision certificates
+TF_VAR_use_letsencrypt ?= true
 
 # Set to true to use ACM (Amazon Certificate Manager) to provision certificates
 # If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
 # terraform import aws_acm_certificate.cert <certificate_arn>
-TF_VAR_use_acm ?=false
+TF_VAR_use_acm ?= false
 
 # plan
 make plan

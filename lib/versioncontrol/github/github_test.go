@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	apiutils "github.com/gravitational/teleport/api/utils"
+	vc "github.com/gravitational/teleport/lib/versioncontrol"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ func TestGithubAPI(t *testing.T) {
 	}
 	t.Parallel()
 
-	var rr []Release
+	var rr []vc.Target
 	var iter Iterator
 	iter.halt = "v4"
 	for iter.Next() {
@@ -46,7 +47,7 @@ func TestGithubAPI(t *testing.T) {
 
 	seen := make(map[string]struct{})
 	for _, r := range rr {
-		seen[r.Version] = struct{}{}
+		seen[r.Version()] = struct{}{}
 	}
 
 	// some arbitrary versions we expect to exist (this may need to be updated
@@ -111,6 +112,7 @@ func TestCachedReleases(t *testing.T) {
 	tts := []struct {
 		pages         []string
 		pageCount     int
+		secCount      int
 		desc          string
 		hitsEmptyPage bool
 		haltingPoint  string
@@ -123,6 +125,7 @@ func TestCachedReleases(t *testing.T) {
 				page3, // page 3 is a partial page, which triggers iteration to halt
 			},
 			pageCount: 3,
+			secCount:  1,
 			desc:      "full iteration, ending on partial page",
 		},
 		{
@@ -140,6 +143,7 @@ func TestCachedReleases(t *testing.T) {
 				page2,
 			},
 			pageCount:     2,
+			secCount:      1,
 			hitsEmptyPage: true,
 			desc:          "end on full page",
 		},
@@ -150,6 +154,7 @@ func TestCachedReleases(t *testing.T) {
 				page3,
 			},
 			pageCount:    1,
+			secCount:     1,
 			haltingPoint: "v10",
 			desc:         "halt on fist v10.0.X release",
 		},
@@ -160,6 +165,7 @@ func TestCachedReleases(t *testing.T) {
 				page3,
 			},
 			pageCount:    2,
+			secCount:     1,
 			haltingPoint: "v7.3",
 			desc:         "halt on fist v7.3.X release",
 		},
@@ -193,9 +199,15 @@ func TestCachedReleases(t *testing.T) {
 		}
 
 		var ct int
+		var sec int
 		for iter.Next() {
 			ct++
 			require.NotZero(t, len(iter.Page()), tt.desc)
+			for _, target := range iter.Page() {
+				if target.SecurityPatch() {
+					sec++
+				}
+			}
 		}
 
 		if tt.err == nil {
@@ -206,12 +218,14 @@ func TestCachedReleases(t *testing.T) {
 
 		require.Equal(t, tt.pageCount, ct, tt.desc)
 
+		require.Equal(t, tt.secCount, sec, tt.desc)
+
 		require.Equal(t, tt.hitsEmptyPage, lastPageWasEmpty)
 
 	}
 }
 
-func TestLatestStable(t *testing.T) {
+func TestVisit(t *testing.T) {
 	tts := []struct {
 		pages  []string
 		expect string
@@ -268,9 +282,75 @@ func TestLatestStable(t *testing.T) {
 			return parsePage([]byte(page))
 		}
 
-		latest, err := latestStable(iter, "v1.2.3")
-		require.NoError(t, err)
+		visitor := vc.Visitor{
+			Current: vc.NewTarget("v1.2.3"),
+		}
 
-		require.Equal(t, tt.expect, latest)
+		require.NoError(t, visit(iter, &visitor), tt.desc)
+
+		require.Equal(t, tt.expect, visitor.Newest().Version(), tt.desc)
+	}
+}
+
+func TestLabelParse(t *testing.T) {
+	tts := []struct {
+		notes  string
+		expect map[string]string
+		desc   string
+	}{
+		{
+			notes: "Labels: Spam=Eggs, Foo=Bar",
+			expect: map[string]string{
+				"spam": "eggs",
+				"foo":  "bar",
+			},
+			desc: "normalize caps and spaces",
+		},
+		{
+			notes: "labels: hello=world, greeting='Hey there! how are you?', , count=7",
+			expect: map[string]string{
+				"hello": "world",
+				"count": "7",
+			},
+			desc: "ignore invalid and empty pairs",
+		},
+		{
+			notes: `
+## Heading
+- list1
+- list2
+
+not real: "labels: some-label=some-val,other-label=other-val"
+
+---
+Labels: security-patch=yes
+other notes`,
+			expect: map[string]string{
+				"security-patch": "yes",
+			},
+			desc: "ignore non-label lines",
+		},
+		{
+			notes: "labels: invalid_key=valid-val, valid-key=@invalid-val, a=b",
+			expect: map[string]string{
+				"a": "b",
+			},
+			desc: "skip labels with invalid characters",
+		},
+		{
+			notes: "labels foo=bar",
+			desc:  "no valid labels line",
+		},
+		{
+			desc: "empty release notes",
+		},
+	}
+
+	for _, tt := range tts {
+		// require.Equal doesn't think nil map is the same as empty map
+		if tt.expect == nil {
+			tt.expect = map[string]string{}
+		}
+		require.Equal(t, tt.expect, parseReleaseNoteLabels(tt.notes), tt.desc)
 	}
 }
