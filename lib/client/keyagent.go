@@ -72,8 +72,12 @@ type LocalKeyAgent struct {
 	// insecure allows to accept public host keys.
 	insecure bool
 
-	// sites specifies sites to execute operation.
-	sites []string
+	// site specifies the site to execute operation.
+	site string
+
+	// loadAllCAs allows the agent to load all host CAs when checking a host
+	// signature.
+	loadAllCAs bool
 }
 
 // sshKnowHostGetter allows to fetch key for particular host - trusted cluster.
@@ -140,7 +144,8 @@ type LocalAgentConfig struct {
 	Username   string
 	KeysOption string
 	Insecure   bool
-	Sites      []string
+	Site       string
+	LoadAllCAs bool
 }
 
 // NewLocalAgent reads all available credentials from the provided LocalKeyStore
@@ -153,13 +158,14 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentKeyAgent,
 		}),
-		Agent:     conf.Agent,
-		keyStore:  conf.Keystore,
-		noHosts:   make(map[string]bool),
-		username:  conf.Username,
-		proxyHost: conf.ProxyHost,
-		insecure:  conf.Insecure,
-		sites:     conf.Sites,
+		Agent:      conf.Agent,
+		keyStore:   conf.Keystore,
+		noHosts:    make(map[string]bool),
+		username:   conf.Username,
+		proxyHost:  conf.ProxyHost,
+		insecure:   conf.Insecure,
+		site:       conf.Site,
+		loadAllCAs: conf.LoadAllCAs,
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
@@ -186,9 +192,15 @@ func (a *LocalKeyAgent) UpdateUsername(username string) {
 	a.username = username
 }
 
-// UpdateClusters changes the clusters that the local agent operates on.
-func (a *LocalKeyAgent) UpdateClusters(clusters ...string) {
-	a.sites = clusters
+// UpdateCluster changes the cluster that the local agent operates on.
+func (a *LocalKeyAgent) UpdateCluster(cluster string) {
+	a.site = cluster
+}
+
+// UpdateLoadAllCAs changes whether or not the local agent should load all
+// host CAs.
+func (a *LocalKeyAgent) UpdateLoadAllCAs(loadAllCAs bool) {
+	a.loadAllCAs = loadAllCAs
 }
 
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
@@ -383,11 +395,14 @@ func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, hostKey
 	}
 
 	clusters := []string{rootCluster}
-	for _, cluster := range a.sites {
-		if rootCluster != cluster {
-			// In case of establishing connection to leaf cluster the client validate ssh cert against root
-			// cluster proxy cert and leaf cluster cert.
-			clusters = append(clusters, cluster)
+	if a.site != "" && a.site != rootCluster {
+		// In case of establishing connection to leaf cluster the client validate ssh cert against root
+		// cluster proxy cert and leaf cluster cert.
+		clusters = append(clusters, a.site)
+	} else if a.loadAllCAs {
+		clusters, err = a.GetClusterNames()
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

@@ -174,9 +174,6 @@ type CLIConf struct {
 	LocalExec bool
 	// SiteName specifies remote site go login to
 	SiteName string
-	// ExplicitSiteName is true if SiteName was initially set by the end-user
-	// (for example, using command-line flags).
-	ExplicitSiteName bool
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
 	// DaemonAddr is the daemon listening address.
@@ -892,9 +889,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
-	// Did we initially get the Username and SiteName from flags/env?
+	// Did we initially get the Username from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
-	cf.ExplicitSiteName = cf.SiteName != ""
 
 	cf.command = command
 
@@ -1492,6 +1488,7 @@ func onLogin(cf *CLIConf) error {
 			Format:               cf.IdentityFormat,
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
+			KubeStoreAllHostCAs:  tc.LoadAllHostCAs,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2988,7 +2985,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.Username = cf.Username
 	}
 	c.ExplicitUsername = cf.ExplicitUsername
-	c.ExplicitSiteName = cf.ExplicitSiteName
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if err := setClientWebProxyAddr(cf, c); err != nil {
@@ -3164,6 +3160,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			}
 		}
 	}
+
+	tc.LocalAgent().UpdateLoadAllCAs(tc.LoadAllHostCAs)
 
 	tc.Config.Stderr = cf.Stderr()
 	tc.Config.Stdout = cf.Stdout()

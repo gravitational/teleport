@@ -73,7 +73,7 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 
-	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes)
+	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes, "localhost")
 	require.NoError(t, err)
 
 	s.key, err = s.makeKey(s.username, []string{s.username}, 1*time.Minute)
@@ -250,7 +250,7 @@ func TestHostCertVerification(t *testing.T) {
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
 
-	generateCA := func(hostname string) ssh.Signer {
+	generateCA := func(hostname string) (ssh.Signer, auth.TrustedCerts) {
 		caPriv, caPub, err := keygen.GenerateKeyPair()
 		require.NoError(t, err)
 		caSigner, err := ssh.ParsePrivateKey(caPriv)
@@ -259,15 +259,19 @@ func TestHostCertVerification(t *testing.T) {
 		require.NoError(t, err)
 		err = lka.keyStore.AddKnownHostKeys(hostname, s.hostname, []ssh.PublicKey{caPublicKey})
 		require.NoError(t, err)
-		return caSigner
+
+		_, trustedCerts, err := newSelfSignedCA(caPriv, hostname)
+		require.NoError(t, err)
+		trustedCerts.ClusterName = hostname
+		return caSigner, trustedCerts
 	}
 
-	rootCASigner := generateCA("example.com")
-	leafCASigner := generateCA("leaf.example.com")
+	rootCASigner, rootTrustedCerts := generateCA("example.com")
+	leafCASigner, leafTrustedCerts := generateCA("leaf.example.com")
 
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
-	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, []auth.TrustedCerts{rootTrustedCerts, leafTrustedCerts})
 	require.NoError(t, err)
 
 	// Generate a host certificate for node with role "node".
@@ -308,7 +312,7 @@ func TestHostCertVerification(t *testing.T) {
 		name          string
 		inAddr        string
 		hostPublicKey ssh.PublicKey
-		sites         []string
+		loadAllCAs    bool
 		assert        require.ErrorAssertionFunc
 	}{
 		{
@@ -351,17 +355,19 @@ func TestHostCertVerification(t *testing.T) {
 			name:          "Alt cluster accepted",
 			inAddr:        "server02.leaf.example.com:3022",
 			hostPublicKey: leafHostPublicKey,
-			sites:         []string{"example.com", "leaf.example.com"},
+			loadAllCAs:    true,
 			assert:        require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.sites != nil {
-				lka.sites = tt.sites
+			if tt.loadAllCAs {
+				lka.site = ""
+				lka.loadAllCAs = true
 			} else {
-				lka.sites = []string{"example.com"}
+				lka.site = "example.com"
+				lka.loadAllCAs = false
 			}
 			err = lka.CheckHostSignature(tt.inAddr, nil, tt.hostPublicKey)
 			tt.assert(t, err)

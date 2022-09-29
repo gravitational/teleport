@@ -281,10 +281,6 @@ type Config struct {
 	// if omitted, first available site will be selected
 	SiteName string
 
-	// ExplicitSiteNameis is true if SiteName was initially set by the end-user
-	// (for example, using command-line flags).
-	ExplicitSiteName bool
-
 	// KubernetesCluster specifies the kubernetes cluster for any relevant
 	// operations. If empty, the auth server will choose one using stable (same
 	// cluster every time) but unspecified logic.
@@ -1480,18 +1476,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// could lead to the connection hanging.
 	tc.eventsCh = make(chan events.EventFields, 1024)
 
-	var sites []string
-	if tc.SiteName != "" {
-		sites = []string{tc.SiteName}
-	}
-
 	localAgentCfg := LocalAgentConfig{
 		Agent:      c.Agent,
 		ProxyHost:  tc.WebProxyHost(),
 		Username:   c.Username,
 		KeysOption: c.AddKeysToAgent,
 		Insecure:   c.InsecureSkipVerify,
-		Sites:      sites,
+		Site:       tc.SiteName,
 	}
 
 	// sometimes we need to use external auth without using local auth
@@ -1899,14 +1890,6 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-
-	if tc.LoadAllHostCAs {
-		clusters, err := tc.LocalAgent().GetClusterNames()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		tc.LocalAgent().UpdateClusters(clusters...)
-	}
 
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
