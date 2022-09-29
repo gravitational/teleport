@@ -166,7 +166,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return signature, trace.Wrap(err)
+	return signature, nil
 }
 
 func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
