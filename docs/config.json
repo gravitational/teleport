@@ -449,7 +449,13 @@
             },
             {
               "title": "Fluentd",
-              "slug": "/management/guides/fluentd/"
+              "slug": "/management/guides/fluentd/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Monitor Audit Events with the Elastic Stack",
+              "slug": "/management/guides/elastic-stack/",
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "EC2 Tags",
