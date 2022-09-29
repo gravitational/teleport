@@ -97,7 +97,7 @@ impl Client {
         }?;
 
         if let Some(resp) = resp {
-            Ok((NTSTATUS_OK, encode_response(resp)?))
+            Ok((NTSTATUS_OK, pad_and_add_headers(resp)?))
         } else {
             Ok((SPECIAL_NO_RESPONSE, vec![]))
         }
@@ -464,7 +464,7 @@ impl RPCEStreamHeader {
     }
 }
 
-fn encode_response(resp: Vec<u8>) -> RdpResult<Vec<u8>> {
+fn pad_and_add_headers(resp: Vec<u8>) -> RdpResult<Vec<u8>> {
     let mut resp = resp;
     // Pad response to be 8-byte aligned.
     let tail = resp.length() % 8;
