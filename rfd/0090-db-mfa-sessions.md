@@ -71,7 +71,7 @@ Currently, `tsh db connect` starts a local proxy if any of the following are tru
 
 The local proxy it starts only uses a tunnel for Snowflake and Elastisearch.
 
-Instead, we should always use a local proxy and always with a tunnel.
+Instead, `tsh db connect` should always use a local proxy and always with a tunnel.
 This way database certs can be held in-memory.
 
 This should not change the UX of starting `tsh db connect <db>`; there are basically two cases:
