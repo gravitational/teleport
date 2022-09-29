@@ -1085,6 +1085,20 @@ export const formatters: Formatters = {
       return `User [${user}] accessed a session recording [${sid}]`;
     },
   },
+  [eventCodes.SSMRUN_SUCCESS]: {
+    type: 'ssm.run',
+    desc: 'SSM Command Executed',
+    format: ({ account_id, instance_id, region, command_id }) => {
+      return `SSM Command with ID [${command_id}] was successfully executed on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
+    },
+  },
+  [eventCodes.SSMRUN_FAIL]: {
+    type: 'ssm.run',
+    desc: 'SSM Command Execution Failed',
+    format: ({ account_id, instance_id, region, command_id }) => {
+      return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

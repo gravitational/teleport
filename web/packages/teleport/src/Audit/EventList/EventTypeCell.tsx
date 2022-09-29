@@ -175,6 +175,8 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.CERTIFICATE_CREATED]: Icons.Keypair,
   [eventCodes.UPGRADE_WINDOW_UPDATED]: Icons.Info,
   [eventCodes.SESSION_RECORDING_ACCESS]: Icons.Info,
+  [eventCodes.SSMRUN_SUCCESS]: Icons.Info,
+  [eventCodes.SSMRUN_FAIL]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

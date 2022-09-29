@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            135
+            137
           </strong>
            of
            
           <strong>
-            135
+            137
           </strong>
         </div>
         <button
@@ -645,6 +645,80 @@ exports[`list of all events 1`] = `
           style="min-width: 120px;"
         >
           2022-09-27T11:43:58.433Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SSM Command Execution Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          SSM Command with ID [c2936d68-fc0c-4c16-a860-916a97f57644] failed during execution on EC2 Instance [i-057d0ffe877128673] on AWS Account [278576220453] in [eu-central-1]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-14T14:45:38.122Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SSM Command Executed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          SSM Command with ID [e8a5f3ba-e9e5-4cbd-979b-18fd1e7ad00f] was successfully executed on EC2 Instance [i-057d0ffe877128673] on AWS Account [278576220453] in [eu-central-1]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-09-14T14:45:38.122Z
         </td>
         <td
           align="right"

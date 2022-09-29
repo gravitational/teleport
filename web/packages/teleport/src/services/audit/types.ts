@@ -172,6 +172,8 @@ export const eventCodes = {
   SESSION_UPLOAD: 'T2005I',
   SESSION_CONNECT: 'T2010I',
   SESSION_RECORDING_ACCESS: 'T2012I',
+  SSMRUN_FAIL: 'TDS00W',
+  SSMRUN_SUCCESS: 'TDS00I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -922,6 +924,28 @@ export type RawEvents = {
     {
       sid: string;
       user: string;
+    }
+  >;
+  [eventCodes.SSMRUN_SUCCESS]: RawEvent<
+    typeof eventCodes.SSMRUN_SUCCESS,
+    {
+      account_id: string;
+      instance_id: string;
+      command_id: string;
+      region: string;
+      status: string;
+      exit_code: number;
+    }
+  >;
+  [eventCodes.SSMRUN_FAIL]: RawEvent<
+    typeof eventCodes.SSMRUN_FAIL,
+    {
+      account_id: string;
+      instance_id: string;
+      command_id: string;
+      region: string;
+      status: string;
+      exit_code: number;
     }
   >;
 };
