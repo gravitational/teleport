@@ -125,55 +125,66 @@
             "$id": "#/properties/azureDatabases",
             "type": "array",
             "default": [],
-            "required": [
-                "types",
-                "tags"
-            ],
-            "properties": {
-                "types": {
-                    "$id": "#/properties/azureDatabases/types",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "default": []
-                },
-                "tags": {
-                    "$id": "#/properties/azureDatabases/tags",
-                    "type": "object",
-                    "default": {},
-                    "additionalProperties": {
+            "items": {
+                "type": "object",
+                "default": {},
+                "required": [
+                    "types",
+                    "tags"
+                ],
+                "properties": {
+                    "types": {
+                        "$id": "#/properties/azureDatabases/types",
                         "type": "array",
                         "items": {
                             "type": "string"
+                        },
+                        "default": []
+                    },
+                    "tags": {
+                        "$id": "#/properties/azureDatabases/tags",
+                        "type": "object",
+                        "default": {},
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            ]
                         }
-                    }
-                },
-                "subscriptions": {
-                    "$id": "#/properties/azureDatabases/subscriptions",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
                     },
-                    "default": []
-                },
-                "regions": {
-                    "$id": "#/properties/azureDatabases/regions",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
+                    "subscriptions": {
+                        "$id": "#/properties/azureDatabases/subscriptions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
                     },
-                    "default": []
-                },
-                "resourceGroups": {
-                    "$id": "#/properties/azureDatabases/resourceGroups",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
+                    "regions": {
+                        "$id": "#/properties/azureDatabases/regions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
                     },
-                    "default": []
-                },
-                "additionalProperties": false
+                    "resource_groups": {
+                        "$id": "#/properties/azureDatabases/resource_groups",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "additionalProperties": false
+                }
             }
         },
         "databases": {
