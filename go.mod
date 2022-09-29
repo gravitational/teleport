@@ -93,7 +93,7 @@ require (
 	github.com/russellhaering/gosaml2 v0.8.1
 	github.com/russellhaering/goxmldsig v1.2.0
 	github.com/schollz/progressbar/v3 v3.11.0
-	github.com/sethvargo/go-diceware v0.2.1
+	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/snowflakedb/gosnowflake v1.6.9
 	github.com/stretchr/testify v1.8.0
