@@ -23,12 +23,10 @@ tracing_service:
 ```
 </Details>
 
-<Admonition type="warning" title="Sampling Rate">
 It is important to choose the sampling rate wisely. Sampling at a rate of 100% could have a negative impact on the
 performance of your cluster. Teleport honors the parent span's sampling rate, which means that even when the
 `tracing_service` is enabled and the sampling rate is 0, if Teleport receives a request that has a span which is
 sampled, then Teleport will sample and exports all spans that are generated in response to that request.
-</Admonition>
 
 After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
 
