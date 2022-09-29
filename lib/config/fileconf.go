@@ -160,6 +160,8 @@ type SampleFlags struct {
 	Roles string
 	// AuthServer is the address of the auth server
 	AuthServer string
+	// ProxyAddress is the address of the proxy
+	ProxyAddress string
 	// AppName is the name of the application to start
 	AppName string
 	// AppURI is the internal address of the application to proxy
@@ -220,6 +222,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
+	}
+
+	if flags.ProxyAddress != "" {
+		g.ProxyServer = flags.ProxyAddress
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
@@ -311,7 +317,8 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 			a.LicenseFile = flags.LicensePath
 		}
 
-		if flags.Version == defaults.TeleportConfigVersionV2 {
+		// from config v2 onwards, we support `proxy_listener_mode`, so we set it to `multiplex`
+		if flags.Version != defaults.TeleportConfigVersionV1 {
 			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
 		}
 	} else {
@@ -574,12 +581,19 @@ type Global struct {
 	DataDir  string `yaml:"data_dir,omitempty"`
 	PIDFile  string `yaml:"pid_file,omitempty"`
 
+	JoinParams JoinParams `yaml:"join_params,omitempty"`
+
+	// v1, v2
+	AuthServers []string `yaml:"auth_servers,omitempty"`
 	// AuthToken is the old way of configuring the token to be used by the
 	// node to join the Teleport cluster. `JoinParams.TokenName` should be
 	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
-	AuthToken   string           `yaml:"auth_token,omitempty"`
-	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
-	AuthServers []string         `yaml:"auth_servers,omitempty"`
+	AuthToken string `yaml:"auth_token,omitempty"`
+
+	// v3
+	AuthServer  string `yaml:"auth_server,omitempty"`
+	ProxyServer string `yaml:"proxy_server,omitempty"`
+
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
@@ -879,13 +893,13 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type              string                     `yaml:"type"`
-	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
-	ConnectorName     string                     `yaml:"connector_name,omitempty"`
-	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
-	Webauthn          *Webauthn                  `yaml:"webauthn,omitempty"`
-	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
-	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
+	Type           string                     `yaml:"type"`
+	SecondFactor   constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName  string                     `yaml:"connector_name,omitempty"`
+	U2F            *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Webauthn       *Webauthn                  `yaml:"webauthn,omitempty"`
+	RequireMFAType types.RequireMFAType       `yaml:"require_session_mfa,omitempty"`
+	LockingMode    constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -923,7 +937,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		ConnectorName:     a.ConnectorName,
 		U2F:               u,
 		Webauthn:          w,
-		RequireSessionMFA: a.RequireSessionMFA,
+		RequireMFAType:    a.RequireMFAType,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,
@@ -1624,9 +1638,12 @@ type Kube struct {
 	// running in. If set, this proxy will handle kubernetes requests for the
 	// cluster.
 	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
-	// Static and dynamic labels for RBAC on kubernetes clusters.
-	StaticLabels  map[string]string `yaml:"labels,omitempty"`
-	DynamicLabels []CommandLabel    `yaml:"commands,omitempty"`
+	// StaticLabels are the static labels for RBAC on kubernetes clusters.
+	StaticLabels map[string]string `yaml:"labels,omitempty"`
+	// DynamicLabels are the dynamic labels for RBAC on kubernetes clusters.
+	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
+	// ResourceMatchers match cluster kube_cluster resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
@@ -1695,6 +1712,8 @@ func (m *Metrics) MTLSEnabled() bool {
 // WindowsDesktopService contains configuration for windows_desktop_service.
 type WindowsDesktopService struct {
 	Service `yaml:",inline"`
+	// Labels are the configured windows deesktops service labels.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.

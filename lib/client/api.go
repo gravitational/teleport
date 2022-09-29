@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
@@ -1850,12 +1852,7 @@ func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Cli
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := proxyClient.NewTracingClient(ctx, site.Name)
+	clt, err := proxyClient.NewTracingClient(ctx, tc.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1887,10 +1884,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	siteInfo, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
@@ -1901,12 +1895,23 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	}
 
 	if len(nodeAddrs) > 1 {
-		return tc.runShellOrCommandOnMultipleNodes(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
+		return tc.runShellOrCommandOnMultipleNodes(ctx, tc.SiteName, nodeAddrs, proxyClient, command)
 	}
-	return tc.runShellOrCommandOnSingleNode(ctx, siteInfo.Name, nodeAddrs[0], proxyClient, command, runLocally)
+	return tc.runShellOrCommandOnSingleNode(ctx, tc.SiteName, nodeAddrs[0], proxyClient, command, runLocally)
 }
 
 func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, siteName string, nodeAddr string, proxyClient *ProxyClient, command []string, runLocally bool) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runShellOrCommandOnSingleNode",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("site", siteName),
+			attribute.String("node", nodeAddr),
+		),
+	)
+	defer span.End()
+
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
 		NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: siteName},
@@ -1952,6 +1957,17 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, sit
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, siteName string, nodeAddrs []string, proxyClient *ProxyClient, command []string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runShellOrCommandOnMultipleNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("site", siteName),
+			attribute.StringSlice("node", nodeAddrs),
+		),
+	)
+	defer span.End()
+
 	if len(command) < 1 {
 		// Issue "shell" request to run single node.
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
@@ -2022,10 +2038,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
 
 	// Session joining is not supported in proxy recording mode
 	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
@@ -2110,10 +2123,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
+
 	// request events for that session (to get timing data)
 	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
@@ -2171,10 +2182,8 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxyClient.CurrentCluster()
+
 	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2229,11 +2238,6 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	}
 	defer proxyClient.Close()
 
-	clusterInfo, err := proxyClient.currentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
@@ -2245,7 +2249,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
-		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: clusterInfo.Name},
+		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2267,11 +2271,11 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	return nil
 }
 
-// SCP securely copies file(s) from one SSH server to another
-func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flags scp.Flags, quiet bool) (err error) {
+// SFTP securely copies files between Nodes or SSH servers using SFTP
+func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/SCP",
+		"teleportClient/SFTP",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -2287,133 +2291,77 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		return trace.BadParameter("making local copies is not supported")
 	}
 
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
-	log.Infof("Connecting to proxy to copy (recursively=%v)...", flags.Recursive)
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	var progressWriter io.Writer
-	if !quiet {
-		progressWriter = tc.Stdout
-	}
-
-	// helper function connects to the src/target node:
-	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
-		// determine which cluster we're connecting to:
-		siteInfo, err := proxyClient.currentCluster(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if hostLogin == "" {
-			hostLogin = tc.Config.HostLogin
-		}
-		return proxyClient.ConnectToNode(ctx,
-			NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
-			hostLogin)
-	}
-
-	// gets called to convert SSH error code to tc.ExitStatus
-	onError := func(err error) error {
-		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
-		if exitError != nil {
-			tc.ExitStatus = exitError.ExitStatus()
-		}
-		return err
-	}
-
-	tpl := scp.Config{
-		User:           tc.Username,
-		ProgressWriter: progressWriter,
-		Flags:          flags,
-	}
-
-	var config *scpConfig
-	// upload:
+	var config *sftpConfig
 	if isRemoteDest(last) {
-		config, err = tc.uploadConfig(ctx, tpl, port, args)
+		config, err = tc.uploadConfig(args, port, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		config, err = tc.downloadConfig(ctx, tpl, port, args)
+		config, err = tc.downloadConfig(args, port, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
-	client, err := connectToNode(config.addr, config.hostLogin)
-	if err != nil {
-		return trace.Wrap(err)
+	if config.hostLogin == "" {
+		config.hostLogin = tc.Config.HostLogin
 	}
 
-	return onError(client.ExecuteSCP(ctx, config.cmd))
+	if !quiet {
+		config.cfg.ProgressWriter = tc.Stdout
+	}
+
+	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
 }
 
-func (tc *TeleportClient) uploadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+type sftpConfig struct {
+	cfg       *sftp.Config
+	addr      string
+	hostLogin string
+}
+
+func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
 	// args are guaranteed to have len(args) > 1
-	filesToUpload := args[:len(args)-1]
+	srcPaths := args[:len(args)-1]
 	// copy everything except the last arg (the destination)
-	destPath := args[len(args)-1]
+	dstPath := args[len(args)-1]
 
-	// If more than a single file were provided, scp must be in directory mode
-	// and the target on the remote host needs to be a directory.
-	var directoryMode bool
-	if len(filesToUpload) > 1 {
-		directoryMode = true
+	dst, addr, err := getSCPDestination(dstPath, port)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	dest, addr, err := getSCPDestination(destPath, port)
+	cfg, err := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tpl.RemoteLocation = dest.Path
-	tpl.Flags.Target = filesToUpload
-	tpl.Flags.DirectoryMode = directoryMode
-
-	cmd, err := scp.CreateUploadCommand(tpl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &scpConfig{
-		cmd:       cmd,
+	return &sftpConfig{
+		cfg:       cfg,
 		addr:      addr,
-		hostLogin: dest.Login,
+		hostLogin: dst.Login,
 	}, nil
 }
 
-func (tc *TeleportClient) downloadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
+	if len(args) > 2 {
+		return nil, trace.BadParameter("only one source file is supported when downloading files")
+	}
+
 	// args are guaranteed to have len(args) > 1
 	src, addr, err := getSCPDestination(args[0], port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tpl.RemoteLocation = src.Path
-	tpl.Flags.Target = args[1:]
-
-	cmd, err := scp.CreateDownloadCommand(tpl)
+	cfg, err := sftp.CreateDownloadConfig(src.Path, args[1], opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &scpConfig{
-		cmd:       cmd,
+	return &sftpConfig{
+		cfg:       cfg,
 		addr:      addr,
 		hostLogin: src.Login,
 	}, nil
-}
-
-type scpConfig struct {
-	cmd       scp.Command
-	addr      string
-	hostLogin string
 }
 
 func getSCPDestination(target string, port int) (dest *scp.Destination, addr string, err error) {
@@ -2423,6 +2371,48 @@ func getSCPDestination(target string, port int) (dest *scp.Destination, addr str
 	}
 	addr = net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
 	return dest, addr, nil
+}
+
+// TransferFiles copies files between the current machine and the
+// specified Node using the supplied config
+func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr string, cfg *sftp.Config) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/TransferFiles",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	if hostLogin == "" {
+		return trace.BadParameter("host login is not specified")
+	}
+	if nodeAddr == "" {
+		return trace.BadParameter("node address is not specified")
+	}
+
+	if !tc.Config.ProxySpecified() {
+		return trace.BadParameter("proxy server is not specified")
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	client, err := proxyClient.ConnectToNode(
+		ctx,
+		NodeDetails{
+			Addr:      nodeAddr,
+			Namespace: tc.Namespace,
+			Cluster:   tc.SiteName,
+		},
+		hostLogin,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(client.TransferFiles(ctx, cfg))
 }
 
 func isRemoteDest(name string) bool {
@@ -2699,6 +2689,13 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 
 // ListDatabasesAllClusters returns all registered databases across all clusters.
 func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ListDatabasesAllClusters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2736,6 +2733,13 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 
 // ListKubernetesClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
 func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]types.KubeCluster, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ListKubernetesClustersWithFiltersAllClusters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	pc, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2761,10 +2765,53 @@ func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx conte
 	return kubeClusters, nil
 }
 
+// roleGetter retrieves roles for the current user
+type roleGetter interface {
+	GetRoles(ctx context.Context) ([]types.Role, error)
+}
+
+// commandLimit determines how many commands may be executed in parallel.
+// The limit will one of the following:
+//   - 1 if per session mfa is required
+//   - 1 if we cannot determine the users role set
+//   - half the max connection limit defined by the users role set
+//
+// Out of an abundance of caution we only use half the max connection
+// limit to allow other connections to be established.
+func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int {
+	if mfaRequired {
+		return 1
+	}
+
+	roles, err := getter.GetRoles(ctx)
+	if err != nil {
+		return 1
+	}
+
+	max := services.NewRoleSet(roles...).MaxConnections()
+	limit := max / 2
+
+	switch {
+	case max == 0:
+		return -1
+	case max == 1:
+		return 1
+	case limit <= 0:
+		return 1
+	default:
+		return int(limit)
+	}
+}
+
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
-func (tc *TeleportClient) runCommandOnNodes(
-	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string,
-) error {
+func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runCommandOnNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	clt, err := proxyClient.ConnectToCluster(ctx, siteName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2787,15 +2834,20 @@ func (tc *TeleportClient) runCommandOnNodes(
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
-	if mfaRequiredCheck.Required {
-		// Set limit 1 to run commands sequentially
-		g.SetLimit(1)
-	}
+	g.SetLimit(commandLimit(ctx, clt, mfaRequiredCheck.Required))
 	for _, address := range nodeAddresses {
 		address := address
 		g.Go(func() error {
-			nodeClient, err := proxyClient.ConnectToNode(
+			ctx, span := tc.Tracer.Start(
 				gctx,
+				"teleportClient/executingCommand",
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(attribute.String("node", address)),
+			)
+			defer span.End()
+
+			nodeClient, err := proxyClient.ConnectToNode(
+				ctx,
 				NodeDetails{
 					Addr:      address,
 					Namespace: tc.Namespace,
@@ -2812,7 +2864,7 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 			fmt.Printf("Running command on %v:\n", address)
 
-			return trace.Wrap(tc.runCommand(gctx, nodeClient, command))
+			return trace.Wrap(tc.runCommand(ctx, nodeClient, command))
 		})
 	}
 
@@ -3056,7 +3108,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		return nil, trace.Wrap(err)
 	}
 
-	return &ProxyClient{
+	pc := &ProxyClient{
 		teleportClient:  tc,
 		Client:          sshClient,
 		proxyAddress:    sshProxyAddr,
@@ -3067,7 +3119,24 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
 		Tracer:          tc.Tracer,
-	}, nil
+	}
+
+	// Create the auth.ClientI for the local auth server
+	// once per ProxyClient. This is an inexpensive
+	// operation since the actual dialing of the auth
+	// server is lazy - meaning it won't happen until the
+	// first use of the auth.ClientI. By establishing
+	// the auth.ClientI here we can ensure that any connections
+	// to the local cluster will end up reusing this auth.ClientI
+	// for the lifespan of the ProxyClient.
+	clt, err := pc.ConnectToCluster(ctx, pc.siteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pc.currentCluster = clt
+
+	return pc, nil
 }
 
 // makeProxySSHClient creates an SSH client by following steps:
@@ -3301,16 +3370,35 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	)
 	defer span.End()
 
+	// Get a new (or old) key to be signed via proxy on valid login.
+	var key *Key
+	var err error
+
+	// TODO (Joerger): Remove this env var check once we can pull server settings to decide whether
+	// or not to initiate PIV login - https://github.com/gravitational/teleport/pull/15336
+	if os.Getenv("PIV_LOGIN") != "" {
+		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key = NewKey(priv)
+	} else {
+		// If we find a valid key in the localAgent, reuse it instead of generating a new key.
+		// This is especially useful if the key is a hardware key, since they need to be reused
+		// between multiple login sessions and shouldn't be regenerated.
+		if key, err = tc.localAgent.GetCoreKey(); trace.IsNotFound(err) {
+			// No core key found, this is the first login for the proxy. Generate a new RSA key.
+			if key, err = GenerateRSAKey(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported, also show the message of the day if available.
 	pr, err := tc.PingAndShowMOTD(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// generate a new keypair. the public key will be signed via proxy if client's
-	// password+OTP are valid
-	key, err := GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3723,7 +3811,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName)
+	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4414,11 +4502,9 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	authClient := proxyClient.CurrentCluster()
 	defer authClient.Close()
+
 	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
 		pageSize, order, max, authClient)
 	if err != nil {

@@ -20,6 +20,10 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: master
       # Checkout main branch of shared-workflow repository.
       - name: Checkout shared-workflow
         uses: actions/checkout@v3
@@ -34,4 +38,4 @@ jobs:
           go-version-file: .github/shared-workflows/bot/go.mod
         # Run "check" subcommand on bot.
       - name: Backport PR
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=backport -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

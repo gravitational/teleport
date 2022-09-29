@@ -1,0 +1,1 @@
+{"kind":"token","version":"v3","metadata":{"name":"foo","expires":"1999-11-30T00:00:00Z","id":1337},"spec":{"roles":["Nop"],"join_method":"token"}}
