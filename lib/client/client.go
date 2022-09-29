@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
 
@@ -1926,6 +1927,18 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		err = nil
 	}
 	return trace.Wrap(err)
+}
+
+// TransferFiles transfers files over SFTP.
+func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/TransferFiles",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	return trace.Wrap(cfg.TransferFiles(ctx, c.Client.Client))
 }
 
 type netDialer interface {

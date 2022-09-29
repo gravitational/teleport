@@ -792,6 +792,7 @@ message CertAuthorityV2 {
 // CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 message CertAuthoritySpecV2 {
+  reserved 3, 4, 7, 10;
   // Type is either user or host certificate authority
   string Type = 1 [
     (gogoproto.jsontag) = "type",
@@ -804,35 +805,12 @@ message CertAuthoritySpecV2 {
   // for host authorities that means base hostname of all servers,
   // for user authorities that means organization name
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // Checkers is a list of SSH public keys that can be used to check
-  // certificate signatures
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated bytes CheckingKeys = 3 [
-    (gogoproto.jsontag) = "checking_keys,omitempty",
-    deprecated = true
-  ];
-  // SigningKeys is a list of private keys used for signing
-  //
-  // DEPRECATED: use ActiveKeys instead.
-  repeated bytes SigningKeys = 4 [
-    (gogoproto.jsontag) = "signing_keys,omitempty",
-    deprecated = true
-  ];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
   // RoleMap specifies role mappings to remote roles
   repeated RoleMapping RoleMap = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "role_map,omitempty"
-  ];
-  // TLS is a list of TLS key pairs
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated TLSKeyPair TLSKeyPairs = 7 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "tls_key_pairs,omitempty",
-    deprecated = true
   ];
   // Rotation is a status of the certificate authority rotation
   Rotation Rotation = 8 [
@@ -848,15 +826,6 @@ message CertAuthoritySpecV2 {
     RSA_SHA2_512 = 3;
   }
   SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
-  // JWTKeyPair is a list of JWT key pairs.
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated JWTKeyPair JWTKeyPairs = 10 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "jwt_key_pairs,omitempty",
-    deprecated = true
-  ];
-
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,

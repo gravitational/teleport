@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
@@ -2270,11 +2271,11 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	return nil
 }
 
-// SCP securely copies file(s) from one SSH server to another
-func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flags scp.Flags, quiet bool) (err error) {
+// SFTP securely copies files between Nodes or SSH servers using SFTP
+func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/SCP",
+		"teleportClient/SFTP",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -2290,130 +2291,77 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		return trace.BadParameter("making local copies is not supported")
 	}
 
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
-	log.Infof("Connecting to proxy to copy (recursively=%v)...", flags.Recursive)
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	var progressWriter io.Writer
-	if !quiet {
-		progressWriter = tc.Stdout
-	}
-
-	// helper function connects to the src/target node:
-	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
-		if hostLogin == "" {
-			hostLogin = tc.Config.HostLogin
-		}
-		return proxyClient.ConnectToNode(
-			ctx,
-			NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
-			hostLogin,
-		)
-	}
-
-	// gets called to convert SSH error code to tc.ExitStatus
-	onError := func(err error) error {
-		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
-		if exitError != nil {
-			tc.ExitStatus = exitError.ExitStatus()
-		}
-		return err
-	}
-
-	tpl := scp.Config{
-		User:           tc.Username,
-		ProgressWriter: progressWriter,
-		Flags:          flags,
-	}
-
-	var config *scpConfig
-	// upload:
+	var config *sftpConfig
 	if isRemoteDest(last) {
-		config, err = tc.uploadConfig(ctx, tpl, port, args)
+		config, err = tc.uploadConfig(args, port, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		config, err = tc.downloadConfig(ctx, tpl, port, args)
+		config, err = tc.downloadConfig(args, port, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
-	client, err := connectToNode(config.addr, config.hostLogin)
-	if err != nil {
-		return trace.Wrap(err)
+	if config.hostLogin == "" {
+		config.hostLogin = tc.Config.HostLogin
 	}
 
-	return onError(client.ExecuteSCP(ctx, config.cmd))
+	if !quiet {
+		config.cfg.ProgressWriter = tc.Stdout
+	}
+
+	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
 }
 
-func (tc *TeleportClient) uploadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+type sftpConfig struct {
+	cfg       *sftp.Config
+	addr      string
+	hostLogin string
+}
+
+func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
 	// args are guaranteed to have len(args) > 1
-	filesToUpload := args[:len(args)-1]
+	srcPaths := args[:len(args)-1]
 	// copy everything except the last arg (the destination)
-	destPath := args[len(args)-1]
+	dstPath := args[len(args)-1]
 
-	// If more than a single file were provided, scp must be in directory mode
-	// and the target on the remote host needs to be a directory.
-	var directoryMode bool
-	if len(filesToUpload) > 1 {
-		directoryMode = true
+	dst, addr, err := getSCPDestination(dstPath, port)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	dest, addr, err := getSCPDestination(destPath, port)
+	cfg, err := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tpl.RemoteLocation = dest.Path
-	tpl.Flags.Target = filesToUpload
-	tpl.Flags.DirectoryMode = directoryMode
-
-	cmd, err := scp.CreateUploadCommand(tpl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &scpConfig{
-		cmd:       cmd,
+	return &sftpConfig{
+		cfg:       cfg,
 		addr:      addr,
-		hostLogin: dest.Login,
+		hostLogin: dst.Login,
 	}, nil
 }
 
-func (tc *TeleportClient) downloadConfig(ctx context.Context, tpl scp.Config, port int, args []string) (config *scpConfig, err error) {
+func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
+	if len(args) > 2 {
+		return nil, trace.BadParameter("only one source file is supported when downloading files")
+	}
+
 	// args are guaranteed to have len(args) > 1
 	src, addr, err := getSCPDestination(args[0], port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tpl.RemoteLocation = src.Path
-	tpl.Flags.Target = args[1:]
-
-	cmd, err := scp.CreateDownloadCommand(tpl)
+	cfg, err := sftp.CreateDownloadConfig(src.Path, args[1], opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &scpConfig{
-		cmd:       cmd,
+	return &sftpConfig{
+		cfg:       cfg,
 		addr:      addr,
 		hostLogin: src.Login,
 	}, nil
-}
-
-type scpConfig struct {
-	cmd       scp.Command
-	addr      string
-	hostLogin string
 }
 
 func getSCPDestination(target string, port int) (dest *scp.Destination, addr string, err error) {
@@ -2423,6 +2371,48 @@ func getSCPDestination(target string, port int) (dest *scp.Destination, addr str
 	}
 	addr = net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
 	return dest, addr, nil
+}
+
+// TransferFiles copies files between the current machine and the
+// specified Node using the supplied config
+func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr string, cfg *sftp.Config) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/TransferFiles",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	if hostLogin == "" {
+		return trace.BadParameter("host login is not specified")
+	}
+	if nodeAddr == "" {
+		return trace.BadParameter("node address is not specified")
+	}
+
+	if !tc.Config.ProxySpecified() {
+		return trace.BadParameter("proxy server is not specified")
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	client, err := proxyClient.ConnectToNode(
+		ctx,
+		NodeDetails{
+			Addr:      nodeAddr,
+			Namespace: tc.Namespace,
+			Cluster:   tc.SiteName,
+		},
+		hostLogin,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(client.TransferFiles(ctx, cfg))
 }
 
 func isRemoteDest(name string) bool {

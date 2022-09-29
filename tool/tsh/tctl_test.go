@@ -233,9 +233,9 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 
 			_, err = common.ApplyConfig(ccf, cfg)
 			require.NoError(t, err)
-			require.NotEmpty(t, cfg.AuthServers, "auth servers should be set to a non-empty default if not specified")
+			require.NotEmpty(t, cfg.AuthServerAddresses(), "auth servers should be set to a non-empty default if not specified")
 
-			require.ElementsMatch(t, tt.want, cfg.AuthServers)
+			require.ElementsMatch(t, tt.want, cfg.AuthServerAddresses())
 		})
 	}
 }
