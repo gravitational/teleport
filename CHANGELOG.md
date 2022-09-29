@@ -1,6 +1,18 @@
 # Changelog
 
-## 10.2.3
+## 10.2.6
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with connecting to servers with some GUI clients e.g. PyCharm. [#16662](https://github.com/gravitational/teleport/pull/16662)
+* Fixed issue with connecting to SQL Server in a leaf cluster through the local proxy. [#16616](https://github.com/gravitational/teleport/pull/16616)
+* Fixed regression issue introduced in `10.2.3` with enterprise specific web UI pages returning errors. [webapps#1212](https://github.com/gravitational/webapps/pull/1212)
+* Added support for simplified Active Directory configuration in Desktop Access. [#16623](https://github.com/gravitational/teleport/pull/16623)
+
+## 10.2.4
+
+**Known issues:** Due to a regression enterprise features are not available via
+the web UI in this release. Please upgrade to `10.2.6` or newer.
 
 This release of Teleport contains multiple improvements and bug fixes.
 
@@ -14,7 +26,7 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Added support for automatic EC2 instance discovery and enrollment. [#16006](https://github.com/gravitational/teleport/pull/16006), [#16588](https://github.com/gravitational/teleport/pull/16588)
 * Added `allow_unverified_email` parameter to OIDC connectors allowing to opt out of email verification. [#16142](https://github.com/gravitational/teleport/pull/16142)
 * Added support for TLS routing for Database Access when Teleport is deployed behind an ALB. [#16415](https://github.com/gravitational/teleport/pull/16415)
-* Added support for Windows Desktops in the new "Add resource" wizard. [webapps#1172](https://github.com/gravitational/webapps/pull/1172)
+* Added support for providing custom CAs to `teleport-cluster` Helm chart. [#16325](https://github.com/gravitational/teleport/pull/16325)
 
 ## 10.2.2
 
@@ -1282,7 +1294,7 @@ Configure Database Access following the [Getting Started](https://goteleport.com
 * [AWS RDS/Aurora MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-aws/)
 * [Self-hosted PostgreSQL](https://goteleport.com/teleport/docs/database-access/guides/postgres-self-hosted/)
 * [Self-hosted MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-self-hosted/)
-* [GUI clients](https://goteleport.com/teleport/docs/database-access/guides/gui-clients/)
+* [GUI clients](https://goteleport.com/docs/connect-your-client/gui-clients/)
 
 ##### Resources
 

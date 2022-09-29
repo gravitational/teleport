@@ -245,6 +245,7 @@ func windowsRegisterArtifactsStep(workspace string) step {
 			`Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace`,
 			`Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir`,
 		},
+		Failure: "ignore",
 	}
 }
 

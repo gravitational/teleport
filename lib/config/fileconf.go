@@ -1723,8 +1723,12 @@ type LDAPConfig struct {
 	Username string `yaml:"username"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
 }
 
 // TracingService contains configuration for the tracing_service.
