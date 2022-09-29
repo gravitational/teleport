@@ -1288,6 +1288,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Domain:     database.AD.Domain,
 				SPN:        database.AD.SPN,
 			},
+			Azure: service.DatabaseAzure{
+				ResourceID: database.Azure.ResourceID,
+			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
