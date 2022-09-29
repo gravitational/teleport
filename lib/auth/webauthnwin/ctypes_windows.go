@@ -321,7 +321,7 @@ type webauthnCommonAttestation struct {
 	pX5c *webauthnX5C
 
 	// Following are also set for TPM
-	pwszVer    *uint16 // L"2.0"
+	pwszVer    *uint16 // "2.0"
 	cbCertInfo uint32
 	pbCertInfo *byte
 	cbPubArea  uint32
