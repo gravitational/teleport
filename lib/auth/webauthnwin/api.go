@@ -103,8 +103,6 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 		opts:          assertOpts,
 	})
 	if err != nil {
-		// TODO(tobiaszheller): right now error directly from webauthn.dll is
-		// returned. At some point probably we want to introducde typed errors.
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -178,8 +176,6 @@ func Register(
 		opts:          opts,
 	})
 	if err != nil {
-		// TODO(tobiaszheller): right now error directly from webauthn.dll is
-		// returned. At some point probably we want to introducde typed errors.
 		return nil, trace.Wrap(err)
 	}
 
