@@ -21,21 +21,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -189,7 +189,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, sshPublicKey, err := native.GenerateKeyPair()
+	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)

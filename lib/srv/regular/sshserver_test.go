@@ -33,6 +33,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/mailgun/timetools"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -44,10 +45,12 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -149,7 +152,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testServer.Shutdown(ctx)) })
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -270,6 +273,80 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	t.Cleanup(func() { f.ssh.assertCltClose(t, client.Close()) })
 	require.NoError(t, agent.ForwardToAgent(client.Client, keyring))
 	return f
+}
+
+// TestMultipleExecCommands asserts that multiple SSH exec commands can not be
+// sent over a single SSH channel, which is disallowed by the SSH standard
+// https://www.ietf.org/rfc/rfc4254.txt
+//
+// Conformant clients (tsh, openssh) will never try to do this, but we must
+// correctly handle the case where an attacker would try to send multiple
+// commands over the same channel to try to cover their tracks in the audit log
+// or do other nefarious things.
+//
+// We make sure that:
+//   - the first command is correctly added to the audit log
+//   - the second command does not appear in the audit log (as a proxy for testing
+//     that it was blocked/not executed)
+//   - there are no panics or unexpected errors
+//   - and we give the race detector a chance to detect any possible race
+//     conditions on this code path.
+func TestMultipleExecCommands(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = emitter
+
+	// Manually open an ssh channel
+	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)
+	require.NoError(t, err)
+
+	sendExec := func(cmd string) error {
+		type execRequest struct {
+			Command string
+		}
+		// Intentionally don't request a reply so that SendRequest won't wait,
+		// we want to maximize the chance of triggering any potential race
+		// condition.
+		_, err := channel.SendRequest(ctx, "exec", false /*wantReply*/, ssh.Marshal(&execRequest{Command: cmd}))
+		return err
+	}
+
+	t.Log("sending first exec request over channel")
+	err = sendExec("echo 1")
+	require.NoError(t, err)
+
+	t.Log("sending second exec request over channel")
+	// Since we don't wait for a reply, this may or may not return an error, and
+	// we don't really care either way
+	_ = sendExec("echo 2")
+
+	// Wait for session.end event
+	timeout := time.After(10 * time.Second)
+	var execEvent *apievents.Exec
+loop:
+	for {
+		select {
+		case event := <-emitter.C():
+			switch e := event.(type) {
+			case *apievents.Exec:
+				require.Nil(t, execEvent, "found more than 1 exec event in audit log")
+				execEvent = e
+			case *apievents.SessionEnd:
+				break loop
+			}
+		case <-timeout:
+			require.Fail(t, "hit timeout while waiting for session.end event")
+		}
+	}
+
+	// The first command, which was actually executed, should be recorded
+	// correctly in the audit log
+	require.NotNil(t, execEvent)
+	require.Equal(t, "echo 1", execEvent.CommandMetadata.Command)
 }
 
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
@@ -1209,8 +1286,8 @@ func TestProxyRoundRobin(t *testing.T) {
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	resolver := func(context.Context) (*utils.NetAddr, error) {
-		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
+	resolver := func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, types.ProxyListenerMode_Separate, nil
 	}
 
 	pool1, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
@@ -1613,6 +1690,79 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	require.True(t, response)
 }
 
+// TestGlobalRequestClusterDetails simulates sending a global out-of-band
+// cluster-details@goteleport.com request.
+func TestGlobalRequestClusterDetails(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name     string
+		fips     bool
+		mode     string
+		expected sshutils.ClusterDetails
+	}{
+		{
+			name: "node recording and fips",
+			fips: true,
+			mode: types.RecordAtNode,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: false,
+				FIPSEnabled:    true,
+			},
+		},
+		{
+			name: "node recording and not fips",
+			fips: false,
+			mode: types.RecordAtNode,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: false,
+				FIPSEnabled:    false,
+			},
+		},
+		{
+			name: "proxy recording and fips",
+			fips: true,
+			mode: types.RecordAtProxy,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: true,
+				FIPSEnabled:    true,
+			},
+		},
+		{
+			name: "proxy recording and not fips",
+			fips: false,
+			mode: types.RecordAtProxy,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: true,
+				FIPSEnabled:    false,
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newCustomFixture(t, func(*auth.TestServerConfig) {}, SetFIPS(tt.fips))
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{Mode: tt.mode})
+			require.NoError(t, err)
+
+			err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+			require.NoError(t, err)
+
+			ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+			require.NoError(t, err)
+			require.True(t, ok)
+
+			var details sshutils.ClusterDetails
+			require.NoError(t, ssh.Unmarshal(responseBytes, &details))
+			require.Empty(t, cmp.Diff(tt.expected, details))
+		})
+	}
+}
+
 // rawNode is a basic non-teleport node which holds a
 // valid teleport cert and allows any client to connect.
 // useful for simulating basic behaviors of openssh nodes.
@@ -1646,7 +1796,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -2082,7 +2232,7 @@ type upack struct {
 func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	ctx := context.Background()
 	auth := testSvr.Auth()
-	upriv, upub, err := native.GenerateKeyPair()
+	upriv, upub, err := testauthority.New().GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

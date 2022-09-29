@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -238,6 +239,7 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
 	}
+
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
@@ -324,6 +326,19 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForDiscovery sets up watch configuration for discovery servers.
+func ForDiscovery(cfg Config) Config {
+	cfg.target = "discovery"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		{Kind: types.KindNode},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
 }
 
@@ -745,11 +760,11 @@ func New(config Config) (*Cache, error) {
 
 // Starts the cache. Should only be called once.
 func (c *Cache) Start() error {
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
 		Step:   c.MaxRetryPeriod / 5,
 		Max:    c.MaxRetryPeriod,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
 	if err != nil {
@@ -795,7 +810,7 @@ Outer:
 	return c.eventsFanout.NewWatcher(ctx, watch)
 }
 
-func (c *Cache) update(ctx context.Context, retry utils.Retry) {
+func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 	defer func() {
 		c.Debugf("Cache is closing, returning from update loop.")
 		// ensure that close operations have been run
@@ -879,7 +894,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	have skipped 1 and 2, but in the absence of such mechanism in Dynamo
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
-func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
+func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		QueueSize:       c.QueueSize,
 		Name:            c.Component,
@@ -964,7 +979,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			relativeExpiryInterval = interval.New(interval.Config{
 				Duration:      c.Config.RelativeExpiryCheckInterval,
 				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-				Jitter:        utils.NewSeventhJitter(),
+				Jitter:        retryutils.NewSeventhJitter(),
 			})
 			break
 		}
@@ -2142,6 +2157,19 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.ListWindowsDesktops(ctx, req)
+}
+
+// ListWindowsDesktopServices returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
 }
 
 // ListResources is a part of auth.Cache implementation
