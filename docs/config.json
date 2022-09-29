@@ -1116,7 +1116,7 @@
       "version": "9.0.4",
       "golang": "1.17",
       "plugin": {
-        "version": "10.2.4"
+        "version": "10.2.6"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:9.1.2",
