@@ -165,14 +165,14 @@ $ helm install teleport-kube-agent . \
 --set "databaseResources[0].labels.${DB_RESOURCE_KEY?}=${DB_RESOURCE_VALUE?}"
 ```
 
-### Auto-discovery mode (AWS only)
+### Auto-discovery mode (AWS)
 
-To use Teleport database access in auto-discovery mode, you will also need:
+To use Teleport database access in AWS database auto-discovery mode, you will also need:
 - the database types you are attempting to auto-discover (`$DB_TYPES`)
 - the AWS region(s) you would like to run auto-discovery in (`$DB_REGIONS`)
-- the AWS resource tags if you want to target only certain databases (`$DB_TAGS`)
+- the AWS resource tags if you want to target only certain databases (`$DB_TAG_KEY`, `$DB_TAG_VALUES`)
 
-To install the agent in database auto-discovery mode, run:
+To install the agent in AWS database auto-discovery mode, run:
 
 ```sh
 $ helm install teleport-kube-agent . \
@@ -183,7 +183,38 @@ $ helm install teleport-kube-agent . \
   --set authToken=${JOIN_TOKEN?} \
   --set "awsDatabases[0].types=${DB_TYPES?}" \
   --set "awsDatabases[0].regions=${DB_REGIONS?}" \
-  --set "awsDatabases[0].tags=${DB_TAGS?}"
+  --set "awsDatabases[0].tags.${DB_TAG_KEY?}={${DB_TAG_VALUES?}}"
+```
+
+### Auto-discovery mode (Azure)
+
+To use Teleport database access in Azure database auto-discovery mode, you will also need:
+- the database types you are attempting to auto-discover (`$DB_TYPES`)
+- the Azure resource tags if you want to target only certain databases (`$DB_TAG_KEY`, `$DB_TAG_VALUES`)
+
+You can optionally specify:
+- the Azure subscription(s) to auto-discover in (`$DB_SUBSCRIPTIONS`)
+- the Azure region(s) to auto-discover in (`$DB_REGIONS`)
+- the Azure resource-group(s) to auto-discover in (`$DB_RESOURCE_GROUPS`)
+
+The default for each of these optional settings is `*`, which will auto-discover in all
+subscriptions, regions, or resource groups accessible by the Teleport service
+principal in Azure.
+
+To install the agent in Azure database auto-discovery mode, run:
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=db \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
+  --set "azureDatabases[0].types=${DB_TYPES?}" \
+  --set "azureDatabases[0].tags.${DB_TAG_KEY?}={${DB_TAG_VALUES?}}" \
+  --set "azureDatabases[0].subscriptions=${DB_SUBSCRIPTIONS?}" \
+  --set "azureDatabases[0].regions=${DB_REGIONS?}" \
+  --set "azureDatabases[0].resourceGroups=${DB_RESOURCE_GROUPS?}"
 ```
 
 ### Manual configuration mode
