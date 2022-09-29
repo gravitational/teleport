@@ -2414,7 +2414,7 @@ mod tests {
         connect_scard_to_ctx: Option<u32>,
         ctl_code: IoctlCode,
         payload: &dyn Encode,
-        expected: Vec<u8>,
+        expected: &dyn Encode,
     ) {
         let mut c = client();
 
@@ -2427,7 +2427,7 @@ mod tests {
 
         let (code, res) = c.ioctl(ctl_code, &mut to_payload(payload)).unwrap();
         assert_eq!(0, code);
-        assert_eq!(expected, res.encode().unwrap());
+        assert_eq!(expected.encode().unwrap(), res.encode().unwrap());
     }
 
     /// Connects a piv::Card to the client's internal context cache
@@ -2458,9 +2458,9 @@ mod tests {
             &ScardAccessStartedEvent_Call {
                 _unused: 3234823568,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2473,10 +2473,13 @@ mod tests {
             &EstablishContext_Call {
                 scope: Scope::SCARD_SCOPE_SYSTEM,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
-                0, 0, 2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &EstablishContext_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                context: Context {
+                    length: 4,
+                    value: 1,
+                },
+            },
         )
     }
 
@@ -2498,11 +2501,10 @@ mod tests {
                 readers_is_null: false,
                 readers_size: 4294967295,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0,
-                0, 0, 2, 0, 20, 0, 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0,
-                116, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &ListReaders_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                readers: vec!["Teleport".to_string()],
+            },
         )
     }
 
@@ -2521,9 +2523,10 @@ mod tests {
                 reader_ptr: 131076,
                 reader_name: "Teleport".to_string(),
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 0, 0, 0,
-            ],
+            &GetDeviceTypeId_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                device_type_id: 240,
+            },
         )
     }
 
@@ -2540,9 +2543,9 @@ mod tests {
                     value: context_value,
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2583,13 +2586,30 @@ mod tests {
                     },
                 ],
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
-                0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                16, 0, 0, 0, 34, 0, 0, 0, 11, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0,
-                11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &GetStatusChange_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                reader_states: vec![
+                    ReaderState_Common_Call {
+                        current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                        event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                        atr_length: 0,
+                        atr: [
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                    },
+                    ReaderState_Common_Call {
+                        current_state: CardStateFlags::SCARD_STATE_EMPTY,
+                        event_state: CardStateFlags::SCARD_STATE_CHANGED
+                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        atr_length: 11,
+                        atr: [
+                            59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                    },
+                ],
+            },
         )
     }
 
@@ -2613,11 +2633,18 @@ mod tests {
                         | CardProtocol::SCARD_PROTOCOL_TX,
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
-                0, 0, 2, 0, 4, 0, 0, 0, 4, 0, 2, 0, 2, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0,
-                1, 0, 0, 0,
-            ],
+            &Connect_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                handle: Handle {
+                    context: Context {
+                        length: 4,
+                        value: 5,
+                    },
+                    length: 4,
+                    value: 1,
+                },
+                active_protocol: CardProtocol::SCARD_PROTOCOL_T1,
+            },
         )
     }
 
@@ -2639,9 +2666,9 @@ mod tests {
                 },
                 disposition: 0,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2665,12 +2692,18 @@ mod tests {
                 reader_length: 4294967295,
                 atr_length: 32,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0,
-                0, 0, 2, 0, 6, 0, 0, 0, 2, 0, 0, 0, 59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 20, 0,
-                0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0, 111, 0, 114, 0, 116, 0, 0, 0, 0, 0,
-            ],
+            &Status_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                reader_names: vec!["Teleport".to_string()],
+                state: State::SCARD_SPECIFICMODE,
+                protocol: CardProtocol::SCARD_PROTOCOL_T1,
+                atr: [
+                    59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                atr_length: 11,
+                encoding: StringEncoding::Unicode,
+            },
         )
     }
 
@@ -2701,11 +2734,12 @@ mod tests {
                 recv_buffer_is_null: false,
                 recv_length: 258,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                21, 0, 0, 0, 0, 0, 2, 0, 21, 0, 0, 0, 97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121, 7, 79,
-                5, 160, 0, 0, 3, 8, 144, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Transmit_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+                recv_buffer: vec![
+                    97, 17, 79, 6, 0, 0, 16, 0, 1, 0, 121, 7, 79, 5, 160, 0, 0, 3, 8, 144, 0,
+                ],
+            },
         )
     }
 
@@ -2731,10 +2765,10 @@ mod tests {
                     data_len: 4294967295,
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 112, 0, 16, 128, 0, 0, 0,
-                0, 0, 0, 2, 0, 0, 0, 0, 0,
-            ],
+            &ReadCache_Return {
+                return_code: ReturnCode::SCARD_W_CACHE_ITEM_NOT_FOUND,
+                data: vec![],
+            },
         )
     }
 
@@ -2759,9 +2793,9 @@ mod tests {
                     data: vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0],
                 },
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2783,9 +2817,9 @@ mod tests {
                 },
                 disposition: 0,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2807,9 +2841,9 @@ mod tests {
                 },
                 disposition: 0,
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            &Long_Return {
+                return_code: ReturnCode::SCARD_S_SUCCESS,
+            },
         )
     }
 
@@ -2827,10 +2861,9 @@ mod tests {
                 },
                 reader_name: "Teleport".to_string(),
             },
-            vec![
-                1, 16, 8, 0, 204, 204, 204, 204, 16, 0, 0, 0, 0, 0, 0, 0, 34, 0, 16, 128, 0, 0, 0,
-                0, 0, 0, 2, 0, 0, 0, 0, 0,
-            ],
+            &GetReaderIcon_Return {
+                return_code: ReturnCode::SCARD_E_UNSUPPORTED_FEATURE,
+            },
         )
     }
 }
