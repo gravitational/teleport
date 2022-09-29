@@ -1,4 +1,4 @@
-.version: &version "11.0.0-dev.vitor.19"
+.version: &version "11.0.0-dev.vitor.20"
 
 name: teleport-kube-agent
 apiVersion: v2
