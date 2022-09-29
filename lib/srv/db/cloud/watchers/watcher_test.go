@@ -132,7 +132,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &clients.TestCloudClients{
+			clients: &common.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBClusters: []*rds.DBCluster{auroraClusterNoWriter},
 				},
