@@ -118,16 +118,7 @@ spec:
     <federationmedata.xml contents>
 ```
 
-<Admonition type="note" title="IdP-initiated SSO">
-  Enabling the `allow_idp_initiated` flag in SAML connectors allows users to
-  login to Teleport with one click from the dashboard provided by the IdP.
-
-  This feature is potentially unsafe and should be used with caution.
-
-  Enabling IdP-initiated login comes with notable security risks such as:
-  - Possibility of replay attacks on the SAML payload giving an attacker a secret web session
-  - Increased risk to man-in-the-middle based session hijacking and impersonation attacks
-</Admonition>
+(!docs/pages/access-controls/sso/idp-initiated-sec-note.mdx!)
 
 Replace the `acs` field with your Teleport address, update the group IDs in the `attributes_to_roles` field with the actual Azure AD group ID values, and insert the downloaded Federation Metadata XML into the `entity_descriptor` field.
 

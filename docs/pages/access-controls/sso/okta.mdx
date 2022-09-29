@@ -100,16 +100,7 @@ Now, create a SAML connector [resource](../../reference/resources.mdx):
 (!examples/resources/saml-connector.yaml!)
 ```
 
-<Admonition type="note" title="IdP-initiated SSO">
-  Enabling the `allow_idp_initiated` flag in SAML connectors allows users to
-  login to Teleport with one click from the dashboard provided by the IdP.
-
-  This feature is potentially unsafe and should be used with caution.
-
-  Enabling IdP-initiated login comes with notable security risks such as:
-  - Possibility of replay attacks on the SAML payload giving an attacker a secret web session
-  - Increased risk to man-in-the-middle based session hijacking and impersonation attacks
-</Admonition>
+(!docs/pages/access-controls/sso/idp-initiated-sec-note.mdx!)
 
 Create the connector using `tctl` tool:
 
