@@ -76,6 +76,10 @@ const (
 	// configuration Snowflake JWT access.
 	FormatSnowflake Format = "snowflake"
 
+	// FormatElasticsearch produces CA and key pair in the format suitable for
+	// configuring Elasticsearch for mutual TLS authentication.
+	FormatElasticsearch Format = "elasticsearch"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
@@ -85,7 +89,7 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake}
+	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
@@ -224,7 +228,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis:
+	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatElasticsearch:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
