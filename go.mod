@@ -352,7 +352,6 @@ require (
 
 // Update also `ignore` in .github/dependabot.yml.
 replace (
-	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20220925030905-69ba99298ac8
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20220509084309-3d41480ef74f
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
@@ -364,6 +363,7 @@ replace (
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1
+	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20220925030905-69ba99298ac8
 )
 
 // Exclude etcd/v3 from the modules graph.
