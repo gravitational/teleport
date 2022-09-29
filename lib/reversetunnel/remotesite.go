@@ -182,6 +182,7 @@ func (s *remoteSite) Close() error {
 	s.cancel()
 	for i := range s.connections {
 		s.connections[i].Close()
+		reverseSSHTunnels.WithLabelValues(s.connections[i].tunnelType).Dec()
 	}
 	s.connections = []*remoteConn{}
 	if s.remoteAccessPoint != nil {
@@ -243,6 +244,7 @@ func (s *remoteSite) removeInvalidConns() {
 			conns = append(conns, s.connections[i])
 		} else {
 			go s.connections[i].Close()
+			reverseSSHTunnels.WithLabelValues(s.connections[i].tunnelType).Dec()
 		}
 	}
 	s.connections = conns
@@ -265,6 +267,7 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 
 	s.connections = append(s.connections, rconn)
 	s.lastUsed = 0
+	reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Inc()
 	return rconn, nil
 }
 
