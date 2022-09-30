@@ -1,5 +1,4 @@
-//go:build !libpcsclite
-// +build !libpcsclite
+//go:build linux && !libpcsclite
 
 /*
 Copyright 2022 Gravitational, Inc.
@@ -26,7 +25,7 @@ import (
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
-func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*PrivateKey, error) {
+func getOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

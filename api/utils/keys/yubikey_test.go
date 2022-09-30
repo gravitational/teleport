@@ -1,5 +1,4 @@
-//go:build libpcsclite
-// +build libpcsclite
+//go:build !linux || libpcsclite
 
 /*
 Copyright 2022 Gravitational, Inc.
@@ -26,20 +25,14 @@ import (
 
 // TestGetOrGenerateYubiKeyPrivateKey tests GetOrGenerateYubiKeyPrivateKey.
 func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
-	// This test expects a yubiKey to be connected with default PIV settings and will overwrite any PIV data on the yubiKey.
+	// This test expects a yubiKey to be connected with default PIV
+	// settings and will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
 		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
 	ctx := context.Background()
-
-	// Connect to the first yubiKey and reset it.
-	y, err := findYubiKey(ctx, 0)
-	require.NoError(t, err)
-	yk, err := y.open(ctx)
-	require.NoError(t, err)
-	require.NoError(t, yk.Reset())
-	require.NoError(t, yk.Close())
+	resetYubikey(ctx, t)
 
 	// Generate a new YubiKeyPrivateKey.
 	priv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
@@ -58,4 +51,15 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	retrieveKey, err := ParsePrivateKey(priv.PrivateKeyPEM())
 	require.NoError(t, err)
 	require.Equal(t, priv, retrieveKey)
+}
+
+// resetYubikey connects to the first yubiKey and resets it to defaults.
+func resetYubikey(ctx context.Context, t *testing.T) {
+	t.Helper()
+	y, err := findYubiKey(ctx, 0)
+	require.NoError(t, err)
+	yk, err := y.open(ctx)
+	require.NoError(t, err)
+	require.NoError(t, yk.Reset())
+	require.NoError(t, yk.Close())
 }
