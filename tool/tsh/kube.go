@@ -931,7 +931,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Logged into kubernetes cluster %q\n", c.kubeCluster)
+	fmt.Printf("Logged into kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
 	return nil
 }
 
