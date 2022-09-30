@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	oxyutils "github.com/gravitational/oxy/utils"
+	oxyutils "github.com/gravitational/teleport/lib/oxy/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"

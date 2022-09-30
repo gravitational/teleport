@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/oxy/ratelimit"
-	"github.com/gravitational/oxy/utils"
+	"github.com/gravitational/teleport/lib/oxy/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/mailgun/timetools"

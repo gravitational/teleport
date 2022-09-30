@@ -48,3 +48,5 @@ run:
   skip-dirs-use-default: false
   timeout: 5m
   go: '1.18'
+  skip-dirs:
+  - lib/oxy # Forked library. Consider removing this after fixing linting issues.

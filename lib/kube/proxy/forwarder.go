@@ -59,8 +59,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	fwdutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/teleport/lib/oxy/forward"
+	fwdutils "github.com/gravitational/teleport/lib/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -2154,7 +2154,7 @@ func (r *responseStatusRecorder) WriteHeader(status int) {
 // Flush optionally flushes the inner ResponseWriter if it supports that.
 // Otherwise, Flush is a noop.
 //
-// Flush is optionally used by github.com/gravitational/oxy/forward to flush
+// Flush is optionally used by github.com/gravitational/teleport/lib/oxy/forward to flush
 // pending data on streaming HTTP responses (like streaming pod logs).
 //
 // Without this, oxy/forward will handle streaming responses by accumulating

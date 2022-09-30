@@ -29,12 +29,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/oxy/forward"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/trace"
@@ -300,6 +300,8 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedSSL), "rewritten-x-forwarded-ssl-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedPort), "rewritten-x-forwarded-port-header")
 
 	// Verify JWT tokens.
 	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {

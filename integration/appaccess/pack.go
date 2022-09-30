@@ -30,7 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/teleport/lib/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -654,6 +654,14 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 						{
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
+						},
+						{
+							Name:  forward.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
 						},
 						// Make sure we can insert JWT token in custom header.
 						{

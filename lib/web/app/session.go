@@ -28,8 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
-	"github.com/gravitational/oxy/forward"
-	oxyutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/teleport/lib/oxy/forward"
+	oxyutils "github.com/gravitational/teleport/lib/oxy/utils"
 	"github.com/sirupsen/logrus"
 )
 

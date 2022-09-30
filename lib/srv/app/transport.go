@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/teleport/lib/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )

@@ -19,7 +19,7 @@ package common
 import (
 	"net/http"
 
-	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/teleport/lib/oxy/forward"
 
 	"github.com/gravitational/teleport"
 )
@@ -32,6 +32,8 @@ var ReservedHeaders = []string{
 	forward.XForwardedHost,
 	forward.XForwardedProto,
 	forward.XForwardedServer,
+	forward.XForwardedSSL,
+	forward.XForwardedPort,
 }
 
 // IsReservedHeader returns true if the provided header is one of headers
