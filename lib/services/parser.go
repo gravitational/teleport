@@ -786,6 +786,14 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 				if len(fields) > 1 {
 					return nil, trace.BadParameter("only one field are supported with identifier %q, got %d: %v", ResourceNameIdentifier, len(fields), fields)
 				}
+
+				// For nodes, the resource "name" that user expects is the
+				// nodes hostname, not its UUID. Currently for other resources,
+				// the metadata.name returns the name as expected.
+				if server, ok := resource.(types.Server); ok {
+					return server.GetHostname(), nil
+				}
+
 				return resource.GetName(), nil
 			case ResourceIdentifier:
 				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
