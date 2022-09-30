@@ -1243,7 +1243,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	var attestedKeyPolicy keys.PrivateKeyPolicy
 	if req.skipAttestation {
 		// If auth signals to skip attestation, this means we should sign the certifcates
-		// with the rquired private key policy without actually attesting. This is used
+		// with the required private key policy without actually attesting. This is used
 		// when auth signs itself certificates, such as for creating new web sessions.
 		attestedKeyPolicy = requiredKeyPolicy
 	} else {
