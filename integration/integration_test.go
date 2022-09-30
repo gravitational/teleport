@@ -5405,6 +5405,13 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
 
+	// Max event size for file log (bufio.MaxScanTokenSize) should be 64k, make
+	// a command much larger than that.
+	lotsOfBytes := make([]byte, 100*1024)
+	for i := range lotsOfBytes {
+		lotsOfBytes[i] = 'a'
+	}
+
 	execTests := []struct {
 		name          string
 		isInteractive bool
@@ -5419,6 +5426,16 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 			name:          "PTY not allocated",
 			isInteractive: false,
 			command:       "echo 2",
+		},
+		{
+			name:          "long command interactive",
+			isInteractive: true,
+			command:       "true 1 " + string(lotsOfBytes),
+		},
+		{
+			name:          "long command uninteractive",
+			isInteractive: false,
+			command:       "true 2 " + string(lotsOfBytes),
 		},
 	}
 
@@ -5435,17 +5452,24 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 			_, err := runCommand(t, main, []string{tt.command}, clientConfig, 1)
 			require.NoError(t, err)
 
+			expectedCommandPrefix := tt.command
+			if len(expectedCommandPrefix) > 32 {
+				expectedCommandPrefix = expectedCommandPrefix[:32]
+			}
+
 			// Make sure the session start event was emitted to the audit log
-			// and includes the command
+			// and includes (a prefix of) the command
 			_, err = findMatchingEventInLog(main, events.SessionStartEvent, func(fields events.EventFields) bool {
 				initialCommand := fields.GetStrings("initial_command")
-				return events.SessionStartCode == fields.GetCode() && len(initialCommand) == 1 && initialCommand[0] == tt.command
+				return events.SessionStartCode == fields.GetCode() && len(initialCommand) == 1 &&
+					strings.HasPrefix(initialCommand[0], expectedCommandPrefix)
 			})
 			require.NoError(t, err)
 
 			// Make sure the exec event was emitted to the audit log.
 			_, err = findMatchingEventInLog(main, events.ExecEvent, func(fields events.EventFields) bool {
-				return events.ExecCode == fields.GetCode() && tt.command == fields.GetString(events.ExecEventCommand)
+				return events.ExecCode == fields.GetCode() &&
+					strings.HasPrefix(fields.GetString(events.ExecEventCommand), expectedCommandPrefix)
 			})
 			require.NoError(t, err)
 		})
