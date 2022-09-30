@@ -39,8 +39,6 @@ limitations under the License.
 // This default is overriden by the userspace portion.
 #define AUDIT_EVENTS_RING_SIZE  (4*4096)
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
 // Keeps the set of cgroups which are enforced
 BPF_HASH(restricted_cgroups, u64, u8, MAX_RESTRICTED_CGROUPS);
 

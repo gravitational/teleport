@@ -29,8 +29,6 @@ limitations under the License.
 // the userspace can adjust this value based on config.
 #define EVENTS_BUF_SIZE (4096*8)
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
 enum event_type {
     EVENT_ARG,
     EVENT_RET,
