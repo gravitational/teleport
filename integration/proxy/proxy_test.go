@@ -774,7 +774,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
-	sess = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.RootAppName(), pack.RootAppURI(), pack.LeafAppClusterName(), false)
+	sess = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppName(), pack.LeafAppURI(), pack.LeafAppClusterName(), false)
 	status, _, err = pack.MakeRequest(sess, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
