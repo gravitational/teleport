@@ -1141,32 +1141,6 @@ func TestFIDO2Login_errors(t *testing.T) {
 			wantErr:   context.DeadlineExceeded.Error(),
 		},
 		{
-			name:      "nil origin",
-			assertion: okAssertion,
-			prompt:    prompt,
-			wantErr:   "origin",
-		},
-		{
-			name:    "nil assertion",
-			origin:  origin,
-			prompt:  prompt,
-			wantErr: "assertion required",
-		},
-		{
-			name:      "assertion without challenge",
-			origin:    origin,
-			assertion: &nilChallengeAssertion,
-			prompt:    prompt,
-			wantErr:   "challenge",
-		},
-		{
-			name:      "assertion without RPID",
-			origin:    origin,
-			assertion: &emptyRPIDAssertion,
-			prompt:    prompt,
-			wantErr:   "relying party ID",
-		},
-		{
 			name:      "nil prompt",
 			origin:    origin,
 			assertion: okAssertion,
@@ -1566,41 +1540,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			wantErr:  context.DeadlineExceeded.Error(),
 		},
 		{
-			name:     "nil origin",
-			createCC: func() *wanlib.CredentialCreation { return okCC },
-			prompt:   prompt,
-			wantErr:  "origin",
-		},
-		{
-			name:     "nil cc",
-			origin:   origin,
-			createCC: func() *wanlib.CredentialCreation { return nil },
-			prompt:   prompt,
-			wantErr:  "credential creation required",
-		},
-		{
-			name:   "cc without challenge",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := *okCC
-				cp.Response.Challenge = nil
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "challenge",
-		},
-		{
-			name:   "cc without RPID",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := *okCC
-				cp.Response.RelyingParty.ID = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "relying party ID",
-		},
-		{
 			name:   "cc unsupported parameters",
 			origin: origin,
 			createCC: func() *wanlib.CredentialCreation {
@@ -1618,50 +1557,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			origin:   origin,
 			createCC: func() *wanlib.CredentialCreation { return okCC },
 			wantErr:  "prompt",
-		},
-		{
-			name:   "rrk empty RP name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.RelyingParty.Name = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "relying party name",
-		},
-		{
-			name:   "rrk empty user name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.Name = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user name",
-		},
-		{
-			name:   "rrk empty user display name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.DisplayName = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user display name",
-		},
-		{
-			name:   "rrk nil user ID",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.ID = nil
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user ID",
 		},
 	}
 	for _, test := range tests {

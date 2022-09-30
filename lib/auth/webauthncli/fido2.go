@@ -84,17 +84,8 @@ func fido2Login(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	switch {
-	case origin == "":
-		return nil, "", trace.BadParameter("origin required")
-	case assertion == nil:
-		return nil, "", trace.BadParameter("assertion required")
-	case prompt == nil:
+	if prompt == nil {
 		return nil, "", trace.BadParameter("prompt required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", trace.BadParameter("assertion challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", trace.BadParameter("assertion relying party ID required")
 	}
 	if opts == nil {
 		opts = &LoginOpts{}
@@ -317,44 +308,11 @@ func fido2Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
-	switch {
-	case origin == "":
-		return nil, trace.BadParameter("origin required")
-	case cc == nil:
-		return nil, trace.BadParameter("credential creation required")
-	case prompt == nil:
+	if prompt == nil {
 		return nil, trace.BadParameter("prompt required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, trace.BadParameter("credential creation challenge required")
-	case cc.Response.RelyingParty.ID == "":
-		return nil, trace.BadParameter("credential creation relying party ID required")
 	}
-
-	var rrk bool
-	switch cc.Response.AuthenticatorSelection.ResidentKey {
-	case "":
-		// If ResidentKey is not set, then fallback to the legacy RequireResidentKey
-		// field.
-		rrk = cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
-	case protocol.ResidentKeyRequirementRequired:
-		rrk = true
-	}
+	rrk := wanlib.RequireResidentKey(cc)
 	log.Debugf("FIDO2: registration: resident key=%v", rrk)
-
-	if rrk {
-		// Be more pedantic with resident keys, some of this info gets recorded with
-		// the credential.
-		switch {
-		case len(cc.Response.RelyingParty.Name) == 0:
-			return nil, trace.BadParameter("relying party name required for resident credential")
-		case len(cc.Response.User.Name) == 0:
-			return nil, trace.BadParameter("user name required for resident credential")
-		case len(cc.Response.User.DisplayName) == 0:
-			return nil, trace.BadParameter("user display name required for resident credential")
-		case len(cc.Response.User.ID) == 0:
-			return nil, trace.BadParameter("user ID required for resident credential")
-		}
-	}
 
 	// Can we create ES256 keys?
 	// TODO(codingllama): Consider supporting other algorithms and respecting

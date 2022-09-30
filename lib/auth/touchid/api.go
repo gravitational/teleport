@@ -221,22 +221,8 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	// - Extensions - none supported
 	// - Attestation - we always to our best (packed/self-attestation).
 	//   The server is free to ignore/reject.
-	switch {
-	case origin == "":
-		return nil, errors.New("origin required")
-	case cc == nil:
-		return nil, errors.New("credential creation required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, errors.New("challenge required")
-	// Note: we don't need other RelyingParty fields, but technically they would
-	// be required as well.
-	case cc.Response.RelyingParty.ID == "":
-		return nil, errors.New("relying party ID required")
-	case len(cc.Response.User.ID) == 0:
-		return nil, errors.New("user ID required")
-	case cc.Response.User.Name == "":
-		return nil, errors.New("user name required")
-	case cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform:
+
+	if cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform {
 		return nil, fmt.Errorf("cannot fulfill authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	}
 	ok := false
@@ -443,24 +429,15 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
+	if picker == nil {
+		return nil, "", errors.New("picker required")
+	}
 
 	// Ignored assertion fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
 	// - UserVerification - always performed
 	// - Extensions - none supported
-	switch {
-	case origin == "":
-		return nil, "", errors.New("origin required")
-	case assertion == nil:
-		return nil, "", errors.New("assertion required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", errors.New("challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", errors.New("relying party ID required")
-	case picker == nil:
-		return nil, "", errors.New("picker required")
-	}
 
 	rpID := assertion.Response.RelyingPartyID
 	infos, err := native.FindCredentials(rpID, user)
