@@ -33,6 +33,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -125,10 +126,10 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 	err = ConvertError(err)
 
 	if trace.IsAccessDenied(err) {
-		switch {
-		case sessionCtx.Database.IsRDS():
+		switch sessionCtx.Database.GetType() {
+		case types.DatabaseTypeRDS:
 			return createRDSAccessDeniedError(err, sessionCtx)
-		case sessionCtx.Database.IsAzure():
+		case types.DatabaseTypeAzure:
 			return createAzureAccessDeniedError(err, sessionCtx)
 		}
 	}
@@ -139,6 +140,10 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 // createRDSAccessDeniedError creates an error with help message to setup IAM
 // auth for RDS.
 func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
+	if sessionCtx.Database.GetAWS().RDS.IsRDSProxy() {
+		return createRDSProxyAccessDeniedError(err, sessionCtx)
+	}
+
 	policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
 	if getPolicyErr != nil {
 		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
@@ -172,6 +177,32 @@ take a few minutes to propagate):
 	default:
 		return trace.Wrap(err)
 	}
+}
+
+// createRDSProxyAccessDeniedError creates an error with help message to setup
+// IAM auth for RDS proxy.
+func createRDSProxyAccessDeniedError(err error, sessionCtx *Session) error {
+	policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+	if getPolicyErr != nil {
+		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+	}
+
+	return trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure credentials for %v user %q is added to the one of secrets
+associated with the RDS proxy and Teleport database agent's IAM policy has
+"rds-connect" permissions (note that IAM changes may take a few minutes to
+propagate):
+
+%v
+`,
+		err,
+		defaults.ReadableDatabaseProtocol(sessionCtx.Database.GetProtocol()),
+		sessionCtx.DatabaseUser,
+		policy,
+	)
 }
 
 // createAzureAccessDeniedError creates an error with help message to setup AAD

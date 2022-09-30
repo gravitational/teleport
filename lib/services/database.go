@@ -180,7 +180,7 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 			Labels:      labelsFromRDSInstance(instance, metadata),
 		}, aws.StringValue(instance.DBInstanceIdentifier)),
 		types.DatabaseSpecV3{
-			Protocol: engineToProtocol(aws.StringValue(instance.Engine)),
+			Protocol: rdsEngineToProtocol(aws.StringValue(instance.Engine)),
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
 			AWS:      *metadata,
 		})
@@ -198,7 +198,7 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
 		}, aws.StringValue(cluster.DBClusterIdentifier)),
 		types.DatabaseSpecV3{
-			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+			Protocol: rdsEngineToProtocol(aws.StringValue(cluster.Engine)),
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
 			AWS:      *metadata,
 		})
@@ -216,7 +216,7 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Data
 			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
 		}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
 		types.DatabaseSpecV3{
-			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+			Protocol: rdsEngineToProtocol(aws.StringValue(cluster.Engine)),
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
 			AWS:      *metadata,
 		})
@@ -234,9 +234,13 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	for _, endpoint := range cluster.CustomEndpoints {
 		// RDS custom endpoint format:
 		// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
-		endpointName, _, err := awsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
+		endpointDetails, err := awsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
+			continue
+		}
+		if endpointDetails.ClusterCustomEndpointName == "" {
+			errors = append(errors, trace.BadParameter("missing Aurora custom endpoint name"))
 			continue
 		}
 
@@ -244,9 +248,9 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 			setDBName(types.Metadata{
 				Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
 				Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
-			}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
+			}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointDetails.ClusterCustomEndpointName),
 			types.DatabaseSpecV3{
-				Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+				Protocol: rdsEngineToProtocol(aws.StringValue(cluster.Engine)),
 				URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
 				AWS:      *metadata,
 
@@ -265,6 +269,56 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	}
 
 	return databases, trace.NewAggregate(errors...)
+}
+
+// NewDatabaseFromRDSProxy creates database resource from RDS Proxy.
+func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) (types.Database, error) {
+	metadata, err := MetadataFromRDSProxy(dbProxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("RDS Proxy in %v", metadata.Region),
+			Labels:      labelsFromRDSProxy(dbProxy, metadata, tags),
+		}, aws.StringValue(dbProxy.DBProxyName)),
+		types.DatabaseSpecV3{
+			Protocol: rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily)),
+			URI:      fmt.Sprintf("%s:%d", aws.StringValue(dbProxy.Endpoint), port),
+			AWS:      *metadata,
+		})
+}
+
+// NewDatabaseFromRDSProxyCustomEndpiont creates database resource from RDS
+// Proxy custom endpoint.
+func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, port int64, tags []*rds.Tag) (types.Database, error) {
+	metadata, err := MetadataFromRDSProxyCustomEndpoint(dbProxy, customEndpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("RDS Proxy endpoint in %v", metadata.Region),
+			Labels:      labelsFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, metadata, tags),
+		}, aws.StringValue(dbProxy.DBProxyName), aws.StringValue(customEndpoint.DBProxyEndpointName)),
+		types.DatabaseSpecV3{
+			Protocol: rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily)),
+			URI:      fmt.Sprintf("%s:%d", aws.StringValue(customEndpoint.Endpoint), port),
+			AWS:      *metadata,
+
+			// RDS proxies serve wildcard certificates like this:
+			// *.proxy-<xxx>.<region>.rds.amazonaws.com
+			//
+			// However the custom endpoints have one extra level of subdomains like:
+			// <name>.endpoint.proxy-<xxx>.<region>.rds.amazonaws.com
+			// which will fail verify_full against the wildcard certificates.
+			//
+			// Using proxy's default endpoint as server name as it should always
+			// succeed.
+			TLS: types.DatabaseTLS{
+				ServerName: aws.StringValue(dbProxy.Endpoint),
+			},
+		})
 }
 
 // NewDatabaseFromRedshiftCluster creates a database resource from a Redshift cluster.
@@ -405,6 +459,51 @@ func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
 	}, nil
 }
 
+// MetadataFromRDSProxy creates AWS metadata from the provided RDS Proxy.
+func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(rdsProxy.DBProxyArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// rds.DBProxy has no resource ID attribute. The resource ID can be found
+	// in the ARN, e.g.:
+	//
+	// arn:aws:rds:ca-central-1:1234567890:db-proxy:prx-xxxyyyzzz
+	//
+	// In this example, the arn.Resource is "db-proxy:prx-xxxyyyzzz", where the
+	// resource type is "db-proxy" and the resource ID is "prx-xxxyyyzzz".
+	_, resourceID, ok := strings.Cut(parsedARN.Resource, ":")
+	if !ok {
+		log.Debugf("Failed to split resource %v to resource type and resource ID.", parsedARN.Resource)
+		resourceID = parsedARN.Resource
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RDS: types.RDS{
+			ProxyName:  aws.StringValue(rdsProxy.DBProxyName),
+			ResourceID: resourceID,
+			IAMAuth:    true, // Always enabled.
+		},
+	}, nil
+}
+
+// MetadataFromRDSProxyCustomEndpoint creates AWS metadata from the provided
+// RDS Proxy custom endpoint.
+func MetadataFromRDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint) (*types.AWS, error) {
+	// Using resource ID from the default proxy for IAM policies to gain the
+	// RDS connection access.
+	metadata, err := MetadataFromRDSProxy(rdsProxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	metadata.RDS.ProxyCustomEndpointName = aws.StringValue(customEndpoint.DBProxyEndpointName)
+	return metadata, nil
+}
+
 // MetadataFromRedshiftCluster creates AWS metadata from the provided Redshift cluster.
 func MetadataFromRedshiftCluster(cluster *redshift.Cluster) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(cluster.ClusterNamespaceArn))
@@ -530,13 +629,24 @@ func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSub
 	return labels
 }
 
-// engineToProtocol converts RDS instance engine to the database protocol.
-func engineToProtocol(engine string) string {
+// rdsEngineToProtocol converts RDS instance engine to the database protocol.
+func rdsEngineToProtocol(engine string) string {
 	switch engine {
 	case RDSEnginePostgres, RDSEngineAuroraPostgres:
 		return defaults.ProtocolPostgres
 	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL, RDSEngineMariaDB:
 		return defaults.ProtocolMySQL
+	}
+	return ""
+}
+
+// rdsEngineFamilyToProtocol converts RDS engine family to the database protocol.
+func rdsEngineFamilyToProtocol(engineFamily string) string {
+	switch engineFamily {
+	case rds.EngineFamilyMysql:
+		return defaults.ProtocolMySQL
+	case rds.EngineFamilyPostgresql:
+		return defaults.ProtocolPostgres
 	}
 	return ""
 }
@@ -579,6 +689,29 @@ func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointTy
 	labels[labelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[labelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
 	labels[labelEndpointType] = string(endpointType)
+	return labels
+}
+
+// labelsFromRDSProxy creates database labels for the provided RDS Proxy.
+func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS, tags []*rds.Tag) map[string]string {
+	// rds.DBProxy has no TagList.
+	labels := rdsTagsToLabels(tags)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelVPCID] = aws.StringValue(rdsProxy.VpcId)
+	labels[labelAccountID] = meta.AccountID
+	labels[labelRegion] = meta.Region
+	labels[labelEngine] = strings.ToLower(aws.StringValue(rdsProxy.EngineFamily))
+
+	// TargetRole is read/write for default proxy
+	labels[labelEndpointType] = strings.ToLower(rds.DBProxyEndpointTargetRoleReadWrite)
+	return labels
+}
+
+// labelsFromRDSProxyCustomEndpoint creates database labels for the provided
+// RDS Proxy custom endpoint.
+func labelsFromRDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, meta *types.AWS, tags []*rds.Tag) map[string]string {
+	labels := labelsFromRDSProxy(rdsProxy, meta, tags)
+	labels[labelEndpointType] = strings.ToLower(aws.StringValue(customEndpoint.TargetRole))
 	return labels
 }
 
@@ -837,7 +970,39 @@ func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
 			aws.StringValue(cluster.Name),
 		)
 		return true
+	}
+}
 
+// IsRDSProxyAvailable checks if the RDS Proxy is available.
+func IsRDSProxyAvailable(dbProxy *rds.DBProxy) bool {
+	switch aws.StringValue(dbProxy.Status) {
+	case "available", "modifying":
+		return true
+	case "creating", "deleting":
+		return false
+	default:
+		log.Warnf("Unknown status type: %q. Assuming RDS Proxy %q is available.",
+			aws.StringValue(dbProxy.Status),
+			aws.StringValue(dbProxy.DBProxyName),
+		)
+		return true
+	}
+}
+
+// IsRDSProxyCustomEndpointAvailable checks if the RDS Proxy custom endpoint is available.
+func IsRDSProxyCustomEndpointAvailable(customEndpoint *rds.DBProxyEndpoint) bool {
+	switch aws.StringValue(customEndpoint.Status) {
+	case "available":
+		return true
+	case "creating", "deleting":
+		return false
+	default:
+		log.Warnf("Unknown status type: %q. Assuming custom endpoint %q of RDS Proxy %q is available.",
+			aws.StringValue(customEndpoint.Status),
+			aws.StringValue(customEndpoint.DBProxyEndpointName),
+			aws.StringValue(customEndpoint.DBProxyName),
+		)
+		return true
 	}
 }
 

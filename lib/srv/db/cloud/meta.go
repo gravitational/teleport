@@ -18,6 +18,7 @@ package cloud
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -107,7 +108,19 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// First try to fetch the RDS instance metadata.
+
+	awsMetadata := database.GetAWS()
+	if awsMetadata.RDS.ProxyCustomEndpointName != "" {
+		return fetchRDSProxyCustomEndpointMetadata(ctx, rds, awsMetadata.RDS.ProxyCustomEndpointName, database.GetURI())
+	}
+	if awsMetadata.RDS.ProxyName != "" {
+		return fetchRDSProxyMetadata(ctx, rds, awsMetadata.RDS.ProxyName)
+	}
+	if awsMetadata.RDS.ClusterID != "" {
+		return fetchRDSClusterMetadata(ctx, rds, awsMetadata.RDS.ClusterID)
+	}
+
+	// Try to fetch the RDS instance metadata.
 	metadata, err := fetchRDSInstanceMetadata(ctx, rds, database.GetAWS().RDS.InstanceID)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err)
@@ -271,4 +284,62 @@ func describeMemoryDBCluster(ctx context.Context, client memorydbiface.MemoryDBA
 		return nil, trace.BadParameter("expected 1 MemoryDB cluster for %v, got %+v", clusterName, out.Clusters)
 	}
 	return out.Clusters[0], nil
+}
+
+// fetchRDSProxyMetadata fetches metadata about specified RDS Proxy name.
+func fetchRDSProxyMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyName string) (*types.AWS, error) {
+	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.MetadataFromRDSProxy(rdsProxy)
+}
+
+// describeRDSProxy returns AWS RDS Proxy for the specified RDS Proxy name.
+func describeRDSProxy(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyName string) (*rds.DBProxy, error) {
+	out, err := rdsClient.DescribeDBProxiesWithContext(ctx, &rds.DescribeDBProxiesInput{
+		DBProxyName: aws.String(proxyName),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.DBProxies) != 1 {
+		return nil, trace.BadParameter("expected 1 RDS Proxy for %v, got %s", proxyName, out.DBProxies)
+	}
+	return out.DBProxies[0], nil
+}
+
+// fetchRDSProxyCustomEndpointMetadata fetches metadata about specified RDS
+// proxy custom endpoint.
+func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName, uri string) (*types.AWS, error) {
+	rdsProxyEndpoint, err := describeRDSProxyCustomEndpoint(ctx, rdsClient, proxyEndpointName, uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rdsProxy, err := describeRDSProxy(ctx, rdsClient, aws.StringValue(rdsProxyEndpoint.DBProxyName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return services.MetadataFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint)
+}
+
+// describeRDSProxyCustomEndpoint returns AWS RDS Proxy endpoint for the
+// specified RDS Proxy custom endpoint.
+func describeRDSProxyCustomEndpoint(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName, uri string) (*rds.DBProxyEndpoint, error) {
+	out, err := rdsClient.DescribeDBProxyEndpointsWithContext(ctx, &rds.DescribeDBProxyEndpointsInput{
+		DBProxyEndpointName: aws.String(proxyEndpointName),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	for _, customEndpoint := range out.DBProxyEndpoints {
+		// Double check if it has the same URI in case multiple custom
+		// endpoints have the same name.
+		if strings.Contains(uri, aws.StringValue(customEndpoint.Endpoint)) {
+			return customEndpoint, nil
+		}
+	}
+	return nil, trace.BadParameter("could not find RDS Proxy custom endpoint %v with URI %v, got %s", proxyEndpointName, uri, out.DBProxyEndpoints)
 }

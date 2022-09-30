@@ -393,7 +393,7 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().MemoryDB.ClusterName != "" {
 		return DatabaseTypeMemoryDB
 	}
-	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
+	if d.GetAWS().Region != "" || d.GetAWS().RDS.HasValidID() {
 		return DatabaseTypeRDS
 	}
 	if d.GetGCP().ProjectID != "" {
@@ -462,15 +462,28 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
-		instanceID, region, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
+		details, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
-			return trace.Wrap(err)
+			logrus.WithError(err).Warnf("Failed to parse RDS endpoint %v.", d.Spec.URI)
+			break
 		}
 		if d.Spec.AWS.RDS.InstanceID == "" {
-			d.Spec.AWS.RDS.InstanceID = instanceID
+			d.Spec.AWS.RDS.InstanceID = details.InstanceID
+		}
+		if d.Spec.AWS.RDS.ClusterID == "" {
+			d.Spec.AWS.RDS.ClusterID = details.ClusterID
+		}
+		if d.Spec.AWS.RDS.ProxyName == "" {
+			d.Spec.AWS.RDS.ProxyName = details.ProxyName
+		}
+		if d.Spec.AWS.RDS.ProxyCustomEndpointName == "" {
+			d.Spec.AWS.RDS.ProxyCustomEndpointName = details.ProxyCustomEndpointName
 		}
 		if d.Spec.AWS.Region == "" {
-			d.Spec.AWS.Region = region
+			d.Spec.AWS.Region = details.Region
+		}
+		if details.ClusterCustomEndpointName != "" && d.Spec.AWS.RDS.ClusterID == "" {
+			return trace.BadParameter("missing RDS ClusterID for RDS Aurora custom endpoint %v", d.Spec.URI)
 		}
 	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
 		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
@@ -678,6 +691,16 @@ const (
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
 func (gcp GCPCloudSQL) GetServerName() string {
 	return fmt.Sprintf("%s:%s", gcp.ProjectID, gcp.InstanceID)
+}
+
+// HasValidID returns true if any of the identifer exists.
+func (rds RDS) HasValidID() bool {
+	return rds.ClusterID != "" || rds.InstanceID != "" || rds.ProxyName != "" || rds.ProxyCustomEndpointName != ""
+}
+
+// IsRDSProxy returns true if this is a RDS Proxy.
+func (rds RDS) IsRDSProxy() bool {
+	return rds.ProxyName != "" || rds.ProxyCustomEndpointName != ""
 }
 
 // DeduplicateDatabases deduplicates databases by name.

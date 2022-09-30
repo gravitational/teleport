@@ -57,10 +57,14 @@ var (
 	userBaseActions = []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"}
 	// roleBaseActions list of actions used when target is a role.
 	roleBaseActions = []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"}
-	// rdsActions list of actions used when giving RDS permissions.
-	rdsActions = []string{"rds:DescribeDBInstances", "rds:ModifyDBInstance"}
+	// rdsInstancesActions list of actions used when giving RDS instances permissions.
+	rdsInstancesActions = []string{"rds:DescribeDBInstances", "rds:ModifyDBInstance"}
 	// auroraActions list of actions used when giving RDS Aurora permissions.
 	auroraActions = []string{"rds:DescribeDBClusters", "rds:ModifyDBCluster"}
+	// rdsProxyActions list of actions used when giving RDS Proxy permissions.
+	rdsProxyActions = []string{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets"}
+	// allRDSActions list of actions used when giving all RDS permissions.
+	allRDSActions = append(rdsInstancesActions, append(auroraActions, rdsProxyActions...)...)
 	// redshiftActions list of actions used when giving Redshift auto-discovery
 	// permissions.
 	redshiftActions = []string{"redshift:DescribeClusters"}
@@ -98,9 +102,9 @@ var (
 		"kms:GenerateDataKey",
 		"kms:Decrypt",
 	}
-	// boundaryRDSAuroraActions additional actions added to the policy boundary
+	// boundaryRDSConnectActions additional actions added to the policy boundary
 	// when policy has RDS auto-discovery.
-	boundaryRDSAuroraActions = []string{"rds-db:connect"}
+	boundaryRDSConnectActions = []string{"rds-db:connect"}
 	// boundaryRedshiftActions additional actions added to the policy boundary
 	// when policy has Redshift auto-discovery.
 	boundaryRedshiftActions = []string{"redshift:GetClusterCredentials"}
@@ -413,7 +417,7 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
 
-	// If RDS the auto discovery is enabled or there are Redshift databases, we
+	// If the RDS auto discovery is enabled or there are Redshift databases, we
 	// need permission to edit the target user/role.
 	if rdsAutoDiscovery || redshiftDatabases {
 		targetStatements, err := buildIAMEditStatements(target)
@@ -463,7 +467,7 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
 
-	// If RDS the auto discovery is enabled or there are Redshift databases, we
+	// If the RDS auto discovery is enabled or there are Redshift databases, we
 	// need permission to edit the target user/role.
 	if rdsAutoDiscovery || redshiftDatabases {
 		targetStatements, err := buildIAMEditStatements(target)
@@ -577,7 +581,7 @@ func buildRDSAutoDiscoveryStatements() []*awslib.Statement {
 	return []*awslib.Statement{
 		{
 			Effect:    awslib.EffectAllow,
-			Actions:   append(rdsActions, auroraActions...),
+			Actions:   allRDSActions,
 			Resources: []string{"*"},
 		},
 	}
@@ -589,7 +593,7 @@ func buildRDSAutoDiscoveryBoundaryStatements() []*awslib.Statement {
 	return []*awslib.Statement{
 		{
 			Effect:    awslib.EffectAllow,
-			Actions:   append(rdsActions, append(auroraActions, boundaryRDSAuroraActions...)...),
+			Actions:   append(allRDSActions, boundaryRDSConnectActions...),
 			Resources: []string{"*"},
 		},
 	}

@@ -27,9 +27,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
 
@@ -56,7 +56,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{types.DatabaseTypeRDS}, Regions: []string{"us-west-2"}},
+						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -64,6 +64,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -73,6 +74,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
@@ -85,7 +87,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{types.DatabaseTypeRDS}, Regions: []string{"us-west-2"}},
+						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -93,6 +95,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -102,6 +105,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
@@ -114,7 +118,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{types.DatabaseTypeRedshift}, Regions: []string{"us-west-2"}},
+						{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -140,7 +144,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{types.DatabaseTypeRedshift}, Regions: []string{"us-west-2"}},
+						{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -195,7 +199,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{types.DatabaseTypeElastiCache}, Regions: []string{"us-west-2"}},
+						{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -328,7 +332,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{types.DatabaseTypeMemoryDB}, Regions: []string{"us-west-2"}},
+						{Types: []string{services.AWSMatcherMemoryDB}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
@@ -458,7 +462,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{types.DatabaseTypeRDS}, Regions: []string{"us-west-2"}},
+						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
 			},
