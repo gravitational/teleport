@@ -156,7 +156,7 @@ func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAML
 		}
 
 		// validate, set defaults for connector
-		err = services.ValidateSAMLConnector(connector)
+		err = services.ValidateSAMLConnector(connector, a)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

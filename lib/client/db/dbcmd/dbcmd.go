@@ -59,8 +59,10 @@ const (
 	mssqlBin = "mssql-cli"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
-	// curlBin is the path to `curl`, which is used as Elasticsearch client.
+	// curlBin is the program name for `curl`, which is used as Elasticsearch client if other options are unavailable.
 	curlBin = "curl"
+	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
+	elasticsearchSQLBin = "elasticsearch-sql-cli"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -177,10 +179,34 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 		return c.getSnowflakeCommand(), nil
 
 	case defaults.ProtocolElasticsearch:
-		return c.getElasticsearchCommand(), nil
+		return c.getElasticsearchCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
+}
+
+// CommandAlternative represents alternative command along with description.
+type CommandAlternative struct {
+	Description string
+	Command     *exec.Cmd
+}
+
+// GetConnectCommandAlternatives returns optional connection commands for protocols that offer multiple options.
+// Otherwise, it falls back to GetConnectCommand.
+// The keys in the returned map are command descriptions suitable for display to the end user.
+func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternative, error) {
+
+	switch c.db.Protocol {
+	case defaults.ProtocolElasticsearch:
+		return c.getElasticsearchAlternativeCommands(), nil
+	}
+
+	cmd, err := c.GetConnectCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []CommandAlternative{{Description: "default command", Command: cmd}}, nil
 }
 
 // GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
@@ -340,6 +366,12 @@ func (c *CLICommandBuilder) isMySQLBinAvailable() bool {
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 	_, err := c.options.exe.LookPath(mongoshBin)
+	return err == nil
+}
+
+// isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
+	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
 	return err == nil
 }
 
@@ -515,32 +547,51 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	return cmd
 }
 
-func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
+// getElasticsearchCommand returns a command to connect to Elasticsearch. We support `elasticsearch-sql-cli`, but only in non-TLS scenario.
+func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	if c.options.noTLS {
-		return c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+		return c.options.exe.Command(elasticsearchSQLBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
+	}
+	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
+}
+
+func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
+	var commands []CommandAlternative
+	if c.isElasticsearchSQLBinAvailable() {
+		if cmd, err := c.getElasticsearchCommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "interactive SQL connection", Command: cmd})
+		}
 	}
 
-	args := []string{
-		fmt.Sprintf("https://%v:%v/", c.host, c.port),
-		"--key", c.profile.KeyPath(),
-		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
-	}
+	var curlCommand *exec.Cmd
+	if c.options.noTLS {
+		curlCommand = c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	} else {
+		args := []string{
+			fmt.Sprintf("https://%v:%v/", c.host, c.port),
+			"--key", c.profile.KeyPath(),
+			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		}
 
-	if c.tc.InsecureSkipVerify {
-		args = append(args, "--insecure")
-	}
+		if c.tc.InsecureSkipVerify {
+			args = append(args, "--insecure")
+		}
 
-	if c.options.caPath != "" {
-		args = append(args, []string{"--cacert", c.options.caPath}...)
-	}
+		if c.options.caPath != "" {
+			args = append(args, []string{"--cacert", c.options.caPath}...)
+		}
 
-	// Force HTTP 1.1 when connecting to remote web proxy. Otherwise HTTP2 can
-	// be negotiated which breaks the engine.
-	if c.options.localProxyHost == "" {
-		args = append(args, "--http1.1")
-	}
+		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise, HTTP2 can
+		// be negotiated which breaks the engine.
+		if c.options.localProxyHost == "" {
+			args = append(args, "--http1.1")
+		}
 
-	return c.options.exe.Command(curlBin, args...)
+		curlCommand = c.options.exe.Command(curlBin, args...)
+	}
+	commands = append(commands, CommandAlternative{Description: "run single request with curl", Command: curlCommand})
+
+	return commands
 }
 
 type connectionCommandOpts struct {

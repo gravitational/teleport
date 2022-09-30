@@ -27,7 +27,7 @@ GOLANG_VERSION ?= go1.19.1
 
 NODE_VERSION ?= 16.13.2
 
-RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
+RUST_VERSION ?= 1.64.0 # don't bump this without checking GLIBC compatibility
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
