@@ -967,53 +967,51 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   </TabItem>
 </Tabs>
 
-## `serviceAccountName`
+## `serviceAccount.create`
 
-<Admonition type="note">
-  Most users will not need to change this.
-</Admonition>
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `boolean` | `true` | No | ✅ |
 
-| Type | Default value |
-| - | - |
-| `string` | `nil` |
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 
-`serviceAccountName` can be optionally used to override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+Boolean value to control whether Helm Chart should create the `ServiceAccount`.
+When off, the `serviceAccount.name` parameter should be set to the existing `ServiceAccount` name.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  serviceAccountName: kubernetes-serviceaccount
+  serviceAccount:
+    create: false
+    name: kubernetes-serviceaccount
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set serviceAccountName=kubernetes-serviceaccount
+  $ --set serviceAccount.create=false
+  $ --set serviceAccount.name=kubernetes-serviceaccount
   ```
   </TabItem>
 </Tabs>
 
-## `createServiceAccount`
+## `serviceAccount.name`
 
-<Admonition type="note">
-  Most users will not need to change this.
-</Admonition>
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `string` | `""` | No | ✅ |
 
-| Type | Default value |
-| - | - |
-| `bool` | `true` |
-
-`createServiceAccount` can be optionally used to disable the `ServiceAccount` creation by the `teleport-kube-agent` chart. It is usefull if the `ServiceAccount` is managed by external tools such as `eksctl`.  
-When off, `serviceAccountName` parameter should be set to the existing `ServiceAccount` name.  
+`serviceAccount.name` can be optionally used to override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  createServiceAccount: false
+  serviceAccount:
+    name: kubernetes-serviceaccount
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set createServiceAccount=false
+  $ --set serviceAccount.name=kubernetes-serviceaccount
   ```
   </TabItem>
 </Tabs>
