@@ -260,6 +260,7 @@ You can specify multiple database filters by adding additional list elements.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
+  roles: db
   awsDatabases:
     - types: ["rds"]
       regions: ["us-east-1", "us-west-2"]
@@ -273,28 +274,12 @@ You can specify multiple database filters by adding additional list elements.
       regions: ["eu-west-1"]
       tags:
         "*": "*"
+  annotations:
+    serviceAccount:
+      eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
   ```
 
   (!docs/pages/includes/yaml-lint-note.mdx!)
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set "awsDatabases[0].types[0]=rds" \
-  --set "awsDatabases[0].regions[0]=us-east-1" \
-  --set "awsDatabases[0].regions[1]=us-west-2" \
-  --set "awsDatabases[0].tags.environment=production" \
-  --set "awsDatabases[1].types[0]=rds" \
-  --set "awsDatabases[1].regions[0]=us-east-1" \
-  --set "awsDatabases[1].tags.environment=dev" \
-  --set "awsDatabases[2].types[0]=rds" \
-  --set "awsDatabases[2].regions[0]=eu-west-1" \
-  --set "awsDatabases[2].tags.*=*"
-  ```
-
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
-
   </TabItem>
 </Tabs>
 
@@ -357,8 +342,6 @@ principal in Azure.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  authToken: auth-token
-  proxyAddr: proxy.example.com:3080
   roles: db
   azureDatabases:
   - types: ["mysql", "postgres"]
@@ -386,30 +369,13 @@ principal in Azure.
 
   (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
-  <TabItem label="--set">
-  ```sh
-  --set "azureDatabases[0].types={mysql,postgres}" \
-  --set "azureDatabases[0].tags.*=*" \
-  --set "azureDatabases[1].types[0]=mysql" \
-  --set "azureDatabases[1].tags.env={dev,staging}" \
-  --set "azureDatabases[1].tags.origin=alice" \
-  --set "azureDatabases[1].regions={eastus,centralus}" \
-  --set "azureDatabases[1].subscriptions={subID1,subID2}" \
-  --set "azureDatabases[1].resource_groups={group1,group2}"
-  ```
-
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
-
-  </TabItem>
 </Tabs>
 
 ## `databases`
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `databaseResources` is required. |
 
 `databases` is a YAML list object detailing the databases that should be proxied by Teleport Database access.
 
