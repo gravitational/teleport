@@ -22,6 +22,18 @@ const (
 	MaxDatabaseNameLength = 63
 )
 
+const (
+	// BackendName is the name of this backend.
+	BackendName = "postgres"
+	// AlternativeName is another name of this backend.
+	AlternativeName = "cockroachdb"
+)
+
+// GetName returns BackendName (postgres).
+func GetName() string {
+	return BackendName
+}
+
 // ValidateDatabaseName returns true when name contains only alphanumeric and/or
 // underscore/dollar characters, the first character is not a digit, and the
 // name's length is less than MaxDatabaseNameLength (63 bytes).
