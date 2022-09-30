@@ -21,6 +21,9 @@ function __query_complete
         end
         tsh ls | string match --regex "([a-z0-9]*=[a-z0-9]*)" | sort -h | uniq
     case ssh scp
+        if test "$cmd" = "scp"
+            __fish_complete_path 
+        end
         if test -n (echo "$cluster" | string trim)
             tsh ls --cluster $cluster | string match --regex "^[a-z0-9\.]*" | sort -h | uniq
             return
