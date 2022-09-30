@@ -2824,7 +2824,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, siteName string
 	mfaRequiredCheck, err := clt.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 		Target: &proto.IsMFARequiredRequest_Node{
 			Node: &proto.NodeLogin{
-				Node:  nodeAddresses[0],
+				Node:  nodeName(nodeAddresses[0]),
 				Login: proxyClient.hostLogin,
 			},
 		},
@@ -2862,7 +2862,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, siteName string
 			}
 			defer nodeClient.Close()
 
-			fmt.Printf("Running command on %v:\n", address)
+			fmt.Printf("Running command on %v:\n", nodeName(address))
 
 			return trace.Wrap(tc.runCommand(ctx, nodeClient, command))
 		})
