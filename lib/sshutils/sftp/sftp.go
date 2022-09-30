@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/pkg/sftp"
-	"github.com/schollz/progressbar/v3"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -63,9 +61,9 @@ type Config struct {
 	// SSH session
 	getHomeDir homeDirRetriever
 
-	// ProgressWriter is a writer for printing the progress
+	// ProgressWriter is a callback to return writer for printing the progress
 	// (used only on the client)
-	ProgressWriter io.Writer
+	ProgressWriter func(fileInfo os.FileInfo) io.Writer
 	// Log optionally specifies the logger
 	Log log.FieldLogger
 }
@@ -394,8 +392,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	// if a progress writer was set, write file transfer progress
 	if c.ProgressWriter != nil {
-		progressBar := newProgressBar(srcFileInfo.Size(), srcFileInfo.Name(), c.ProgressWriter)
-		writer = io.MultiWriter(canceler, dstFile, progressBar)
+		writer = io.MultiWriter(canceler, dstFile, c.ProgressWriter(srcFileInfo))
 	} else {
 		writer = io.MultiWriter(canceler, dstFile)
 	}
@@ -446,25 +443,4 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 		return 0, err
 	}
 	return len(b), nil
-}
-
-// newProgressBar returns a new progress bar that writes to writer.
-func newProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
-	// this is necessary because progressbar.DefaultBytes doesn't allow
-	// the caller to specify a writer
-	return progressbar.NewOptions64(
-		size,
-		progressbar.OptionSetDescription(desc),
-		progressbar.OptionSetWriter(writer),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionSetWidth(10),
-		progressbar.OptionThrottle(100*time.Millisecond),
-		progressbar.OptionShowCount(),
-		progressbar.OptionOnCompletion(func() {
-			fmt.Fprint(writer, "\n")
-		}),
-		progressbar.OptionSpinnerType(14),
-		progressbar.OptionFullWidth(),
-		progressbar.OptionSetRenderBlankState(true),
-	)
 }

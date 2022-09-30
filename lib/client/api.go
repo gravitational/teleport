@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/schollz/progressbar/v3"
 	"io"
 	"net"
 	"net/url"
@@ -2335,10 +2336,33 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	}
 
 	if !quiet {
-		config.cfg.ProgressWriter = tc.Stdout
+		config.cfg.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
+			return newProgressBar(fileInfo.Size(), fileInfo.Name(), tc.Stdout)
+		}
 	}
 
 	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
+}
+
+// newProgressBar returns a new progress bar that writes to writer.
+func newProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
+	// this is necessary because progressbar.DefaultBytes doesn't allow
+	// the caller to specify a writer
+	return progressbar.NewOptions64(
+		size,
+		progressbar.OptionSetDescription(desc),
+		progressbar.OptionSetWriter(writer),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetWidth(10),
+		progressbar.OptionThrottle(100*time.Millisecond),
+		progressbar.OptionShowCount(),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprint(writer, "\n")
+		}),
+		progressbar.OptionSpinnerType(14),
+		progressbar.OptionFullWidth(),
+		progressbar.OptionSetRenderBlankState(true),
+	)
 }
 
 type sftpConfig struct {
