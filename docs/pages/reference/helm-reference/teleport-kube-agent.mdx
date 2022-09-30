@@ -381,17 +381,29 @@ You can specify multiple database filters by adding additional list elements.
 <Admonition type="note" title="Azure IAM">
   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../database-access/guides/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
 
-  After configuring a service principal with appropriate IAM permissions, you can use
-  `extraEnv` to provide credentials as environment variables to your pods:
+  After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
+  The easiest way is to use an Azure client secret.
 
+  First, create in the chart installation namespace a Kubernetes `Secret` containing the azure client secret:
+  ```code
+  $ kubectl create secret generic teleport-azure-client-secret --from-literal=client_secret=<your-azure-client-secret>
+  secret/teleport-azure-client-secret created
   ```
+
+  Then, use the [`extraEnv`](#extraenv) value to set the pods environment variables:
+
+  ```yaml
   extraEnv:
+  - name: AZURE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+      name: teleport-azure-client-secret
+      key: client_secret
+      optional: false
   - name: AZURE_TENANT_ID
     value: "11111111-2222-3333-4444-555555555555"
   - name: AZURE_CLIENT_ID
     value: "11111111-2222-3333-4444-555555555555"
-  - name: AZURE_CLIENT_SECRET
-    value: "123456789abcdefghijklmnopqrstuvwxyzABCDE"
   ```
 </Admonition>
 
