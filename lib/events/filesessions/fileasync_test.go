@@ -206,6 +206,7 @@ func TestUploadResume(t *testing.T) {
 			retries: 1,
 			newTest: func(streamer events.Streamer) resumeTestTuple {
 				var streamCreated, terminateConnection atomic.Uint64
+				terminateConnection.Store(1)
 
 				callbackStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 					Inner: streamer,
