@@ -493,26 +493,22 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "elasticsearch remote proxy",
-			dbProtocol:   defaults.ProtocolElasticsearch,
-			opts:         []ConnectCommandFunc{WithLocalProxy("", 0, "") /* negate default WithLocalProxy*/},
-			execer:       &fakeExec{},
-			databaseName: "warehouse1",
-			cmd: []string{"curl",
-				"https://proxy.example.com:3080/",
-				"--key", "/tmp/keys/example.com/bob",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"--http1.1"},
-			wantErr: false,
-		},
-		{
 			name:         "elasticsearch no TLS",
 			dbProtocol:   defaults.ProtocolElasticsearch,
 			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer:       &fakeExec{},
 			databaseName: "warehouse1",
-			cmd:          []string{"curl", "http://localhost:12345/"},
+			cmd:          []string{"elasticsearch-sql-cli", "http://localhost:12345/"},
 			wantErr:      false,
+		},
+		{
+			name:         "elasticsearch with TLS, errors",
+			dbProtocol:   defaults.ProtocolElasticsearch,
+			opts:         []ConnectCommandFunc{},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd:          nil,
+			wantErr:      true,
 		},
 	}
 
@@ -545,6 +541,121 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.cmd, got.Args)
+		})
+	}
+}
+
+func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
+	conf := &client.Config{
+		HomePath:     t.TempDir(),
+		Host:         "localhost",
+		WebProxyAddr: "proxy.example.com",
+		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
+	}
+
+	tc, err := client.NewClient(conf)
+	require.NoError(t, err)
+
+	profile := &client.ProfileStatus{
+		Name:     "example.com",
+		Username: "bob",
+		Dir:      "/tmp",
+	}
+
+	tests := []struct {
+		name         string
+		opts         []ConnectCommandFunc
+		dbProtocol   string
+		databaseName string
+		execer       *fakeExec
+		cmd          map[string][]string
+		wantErr      bool
+	}{
+		{
+			name:         "postgres no TLS",
+			dbProtocol:   defaults.ProtocolPostgres,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer:       &fakeExec{},
+			cmd:          map[string][]string{"default command": {"psql", "postgres://myUser@localhost:12345/mydb"}},
+			wantErr:      false,
+		},
+		{
+			name:         "elasticsearch with TLS",
+			dbProtocol:   defaults.ProtocolElasticsearch,
+			opts:         []ConnectCommandFunc{},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd:          map[string][]string{"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
+			wantErr:      false,
+		},
+		{
+			name:       "elasticsearch with TLS and SQL",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"elasticsearch-sql-cli": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: map[string][]string{
+				"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
+			wantErr: false,
+		},
+		{
+			name:       "elasticsearch with no TLS, with SQL",
+			dbProtocol: defaults.ProtocolElasticsearch,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"python":                {},
+					"elasticsearch-sql-cli": {},
+				},
+			},
+			databaseName: "warehouse1",
+			cmd: map[string][]string{
+				"interactive SQL connection":   {"elasticsearch-sql-cli", "http://localhost:12345/"},
+				"run single request with curl": {"curl", "http://localhost:12345/"},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			database := &tlsca.RouteToDatabase{
+				Protocol:    tt.dbProtocol,
+				Database:    tt.databaseName,
+				Username:    "myUser",
+				ServiceName: "mysql",
+			}
+
+			opts := append([]ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, ""),
+				WithExecer(tt.execer),
+			}, tt.opts...)
+
+			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c.uid = utils.NewFakeUID()
+
+			commandOptions, err := c.GetConnectCommandAlternatives()
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			commands := map[string][]string{}
+			for _, copt := range commandOptions {
+				commands[copt.Description] = copt.Command.Args
+			}
+
+			require.Equal(t, tt.cmd, commands)
 		})
 	}
 }

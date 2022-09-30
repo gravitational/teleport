@@ -23,6 +23,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 
 	"github.com/gravitational/trace"
@@ -201,4 +203,48 @@ func (m *ARMPostgresMock) NewListByResourceGroupPager(group string, _ *armpostgr
 			}, nil
 		},
 	})
+}
+
+// ARMRedisMock mocks armRedisClient.
+type ARMRedisMock struct {
+	Token  string
+	NoAuth bool
+}
+
+func (m *ARMRedisMock) ListKeys(ctx context.Context, resourceGroupName string, name string, options *armredis.ClientListKeysOptions) (armredis.ClientListKeysResponse, error) {
+	if m.NoAuth {
+		return armredis.ClientListKeysResponse{}, trace.AccessDenied("unauthorized")
+	}
+	return armredis.ClientListKeysResponse{
+		AccessKeys: armredis.AccessKeys{
+			PrimaryKey: &m.Token,
+		},
+	}, nil
+}
+
+// ARMRedisEnterpriseDatabaseMock mocks armRedisEnterpriseDatabaseClient.
+type ARMRedisEnterpriseDatabaseMock struct {
+	Token                string
+	TokensByDatabaseName map[string]string
+	NoAuth               bool
+}
+
+func (m *ARMRedisEnterpriseDatabaseMock) ListKeys(ctx context.Context, resourceGroupName string, clusterName string, databaseName string, options *armredisenterprise.DatabasesClientListKeysOptions) (armredisenterprise.DatabasesClientListKeysResponse, error) {
+	if m.NoAuth {
+		return armredisenterprise.DatabasesClientListKeysResponse{}, trace.AccessDenied("unauthorized")
+	}
+	if len(m.TokensByDatabaseName) != 0 {
+		if token, found := m.TokensByDatabaseName[databaseName]; found {
+			return armredisenterprise.DatabasesClientListKeysResponse{
+				AccessKeys: armredisenterprise.AccessKeys{
+					PrimaryKey: &token,
+				},
+			}, nil
+		}
+	}
+	return armredisenterprise.DatabasesClientListKeysResponse{
+		AccessKeys: armredisenterprise.AccessKeys{
+			PrimaryKey: &m.Token,
+		},
+	}, nil
 }
