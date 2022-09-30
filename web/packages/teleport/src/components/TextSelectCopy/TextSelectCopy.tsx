@@ -20,7 +20,7 @@ import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonPrimary, Box, Flex } from 'design';
 import { useTheme } from 'styled-components';
 
-export default function TextSelectCopy({
+export function TextSelectCopy({
   text,
   fontFamily,
   allowMultiline,

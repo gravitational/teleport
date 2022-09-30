@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
-import TextSelectCopy from './TextSelectCopy';
+import { TextSelectCopy } from './TextSelectCopy';
+import { TextSelectCopyMulti } from './TextSelectCopyMulti';
 
+export { TextSelectCopyMulti };
+// TODO (lisa): will remove this entirely after
+// TextSelectCopyMulti replaces existing use of TextSelectCopy.
 export default TextSelectCopy;
