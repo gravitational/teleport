@@ -255,6 +255,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
+	case KubernetesClusterCreateEvent:
+		e = &events.KubernetesClusterCreate{}
+	case KubernetesClusterUpdateEvent:
+		e = &events.KubernetesClusterUpdate{}
+	case KubernetesClusterDeleteEvent:
+		e = &events.KubernetesClusterDelete{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 	default:

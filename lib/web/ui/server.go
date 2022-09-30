@@ -253,6 +253,8 @@ type Desktop struct {
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
 	Labels []Label `json:"labels"`
+	// HostID is the ID of the Windows Desktop Service reporting the desktop.
+	HostID string `json:"host_id"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
@@ -281,6 +283,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		Name:   windowsDesktop.GetName(),
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
 		Labels: uiLabels,
+		HostID: windowsDesktop.GetHostID(),
 	}
 }
 
@@ -293,4 +296,48 @@ func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	}
 
 	return uiDesktops
+}
+
+// DesktopService describes a desktop service to pass to the ui.
+type DesktopService struct {
+	// Name is hostname of the Windows Desktop Service.
+	Name string `json:"name"`
+	// Hostname is hostname of the Windows Desktop Service.
+	Hostname string `json:"hostname"`
+	// Addr is the network address the Windows Desktop Service can be reached at.
+	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a desktop.
+	Labels []Label `json:"labels"`
+}
+
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
+	uiLabels := []Label{}
+
+	for name, value := range desktopService.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return DesktopService{
+		Name:     desktopService.GetName(),
+		Hostname: desktopService.GetHostname(),
+		Addr:     desktopService.GetAddr(),
+		Labels:   uiLabels,
+	}
+}
+
+// MakeDesktopServices converts desktops from their API form to a type the UI can display.
+func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) []DesktopService {
+	desktopServices := make([]DesktopService, 0, len(windowsDesktopServices))
+
+	for _, desktopService := range windowsDesktopServices {
+		desktopServices = append(desktopServices, MakeDesktopService(desktopService))
+	}
+
+	return desktopServices
 }

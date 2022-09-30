@@ -261,6 +261,8 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			if g.APIConfig.MetadataGetter != nil {
 				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				// TODO(zmb3): this may result in duplicate upload events, as the upload
+				// completer will emit its own session.upload
 				event := &apievents.SessionUpload{
 					Metadata: apievents.Metadata{
 						Type:        events.SessionUploadEvent,
@@ -2696,7 +2698,7 @@ func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *typ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateSAMLConnector(samlConnector); err != nil {
+	if err = services.ValidateSAMLConnector(samlConnector, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
@@ -2917,7 +2919,8 @@ func (g *GRPCServer) DeleteTrustedCluster(ctx context.Context, req *types.Resour
 	return &empty.Empty{}, nil
 }
 
-// GetToken retrieves a token by name.
+// GetToken retrieves a v2 token by name.
+// DELETE IN 13
 func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2927,14 +2930,32 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	provisionTokenV2, ok := t.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.Errorf("encountered unexpected token type: %T", t)
+
+	v2, err := t.V2()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return provisionTokenV2, nil
+
+	return v2, nil
+}
+
+// GetTokenV3 retrieves a token by name.
+// If the specified token is v2, it will be converted to v3.
+func (g *GRPCServer) GetTokenV3(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	t, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return t.V3(), nil
 }
 
 // GetTokens retrieves all tokens.
+// DELETE IN 13
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2944,20 +2965,54 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.Prov
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(ts))
-	for i, t := range ts {
-		var ok bool
-		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
-			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+	provisionTokensV2 := make([]*types.ProvisionTokenV2, 0, len(ts))
+	for _, t := range ts {
+		v2, err := t.V2()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		provisionTokensV2 = append(provisionTokensV2, v2)
 	}
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,
 	}, nil
 }
 
+// GetTokensV3 retrieves all tokens.
+// V2 tokens will be converted to V3 for presentation.
+func (g *GRPCServer) GetTokensV3(ctx context.Context, _ *empty.Empty) (*types.ProvisionTokenV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ts, err := auth.ServerWithRoles.GetTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v3Tokens := make([]*types.ProvisionTokenV3, len(ts))
+	for i, t := range ts {
+		v3Tokens[i] = t.V3()
+	}
+	return &types.ProvisionTokenV3List{
+		ProvisionTokens: v3Tokens,
+	}, nil
+}
+
 // UpsertToken upserts a token.
+// DELETE IN 13
 func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token.V3()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// UpsertTokenV3 upserts a v3 token.
+func (g *GRPCServer) UpsertTokenV3(ctx context.Context, token *types.ProvisionTokenV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2969,7 +3024,20 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 }
 
 // CreateToken creates a token.
+// DELETE IN 13
 func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.CreateToken(ctx, token.V3()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// CreateTokenV3 creates a v3 token.
+func (g *GRPCServer) CreateTokenV3(ctx context.Context, token *types.ProvisionTokenV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4044,6 +4112,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindWindowsDesktopService:
+			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
 		case types.KindKubernetesCluster:
 			cluster, ok := resource.(*types.KubernetesClusterV3)
 			if !ok {
