@@ -117,7 +117,7 @@ func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w i
 	var errs []error
 	for _, alert := range alerts {
 		if err := alert.CheckMessage(); err != nil {
-			errs = append(errs, trace.Errorf("Skipping invalid alert %q: %v", alert.Metadata.Name, err))
+			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
 		}
 		skip := false
 		for k, v := range ignore {
