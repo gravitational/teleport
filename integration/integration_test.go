@@ -5492,17 +5492,29 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 
 		// Make sure the session start event was emitted immediately to the audit log
 		// before waiting for the command to complete, and includes the command
-		_, err := findMatchingEventInLog(main, events.SessionStartEvent, func(fields events.EventFields) bool {
+		startEvent, err := findMatchingEventInLog(main, events.SessionStartEvent, func(fields events.EventFields) bool {
 			initialCommand := fields.GetStrings("initial_command")
 			return len(initialCommand) == 1 && initialCommand[0] == cmd
 		})
 		require.NoError(t, err)
+
+		sessionID := startEvent.GetString(events.SessionEventID)
+		require.NotEmpty(t, sessionID)
 
 		cancel()
 		// This may or may not be an error, depending on whether we canceled it
 		// before the command died of natural causes, no need to test the value
 		// here but we'll wait for it in order to avoid leaking goroutines
 		<-errC
+
+		// Wait for the session end event to avoid writes to the tempdir after
+		// the test completes (and make sure it's actually sent)
+		require.Eventually(t, func() bool {
+			_, err := findMatchingEventInLog(main, events.SessionEndEvent, func(fields events.EventFields) bool {
+				return sessionID == fields.GetString(events.SessionEventID)
+			})
+			return err == nil
+		}, 30*time.Second, 1*time.Second)
 	})
 }
 
