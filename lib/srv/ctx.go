@@ -303,9 +303,6 @@ type ServerContext struct {
 	// recording proxy.
 	RemoteSession *tracessh.Session
 
-	// clientLastActive records the last time there was activity from the client
-	clientLastActive time.Time
-
 	// disconnectExpiredCert is set to time when/if the certificate should
 	// be disconnected, set to empty if no disconnect is necessary
 	disconnectExpiredCert time.Time
@@ -584,21 +581,6 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 // use the returned ssh.Channel instead of the original one.
 func (c *ServerContext) TrackActivity(ch ssh.Channel) ssh.Channel {
 	return newTrackingChannel(ch, c)
-}
-
-// GetClientLastActive returns time when client was last active
-func (c *ServerContext) GetClientLastActive() time.Time {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.clientLastActive
-}
-
-// UpdateClientActivity sets last recorded client activity associated with this context
-// either channel or session
-func (c *ServerContext) UpdateClientActivity() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.clientLastActive = c.srv.GetClock().Now().UTC()
 }
 
 // AddCloser adds any closer in ctx that will be called
