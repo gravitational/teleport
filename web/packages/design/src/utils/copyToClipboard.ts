@@ -20,32 +20,8 @@
  * @param textToCopy the text to copy to clipboard
  */
 export default function copyToClipboard(textToCopy: string): Promise<any> {
-  // DELETE when navigator.clipboard is not a working draft
-  if (fallbackCopyToClipboard(textToCopy)) {
-    return Promise.resolve();
-  }
-
   return navigator.clipboard.writeText(textToCopy).catch(err => {
     // This can happen if the user denies clipboard permissions:
     window.prompt('Cannot copy to clipboard. Use ctrl/cmd + c', err);
   });
-}
-
-/**
- * fallbackCopyToClipboard is used when navigator.clipboard is not supported.
- * Note: document.execCommand is marked obselete.
- *
- * @param textToCopy the text to copy to clipboard
- */
-function fallbackCopyToClipboard(textToCopy: string): boolean {
-  let aux = document.createElement('textarea');
-  aux.value = textToCopy;
-  document.body.appendChild(aux);
-  aux.select();
-
-  // returns false if the command is not supported or enabled
-  let isSuccess = document.execCommand('copy');
-  document.body.removeChild(aux);
-
-  return isSuccess;
 }

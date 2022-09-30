@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import Component from './TextSelectCopy';
+import { TextSelectCopy as Component } from './TextSelectCopy';
 
 export default {
   title: 'Teleport/TextSelectCopy',
