@@ -158,8 +158,8 @@ func isSomeUserHasRole(users []types.User, roleNames []string) bool {
 	})
 }
 
-func (s *Server) getLocalUsers() ([]types.User, error) {
-	allUsers, err := s.Identity.GetUsers(false /* withSecrets */)
+func (a *Server) getLocalUsers() ([]types.User, error) {
+	allUsers, err := a.Identity.GetUsers(false /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,10 +171,10 @@ func (s *Server) getLocalUsers() ([]types.User, error) {
 
 // checkRoleRulesConstraint checks if the request will result in having
 // no roles with rules to upsert roles.
-func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.Role, request string) error {
+func (a *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.Role, request string) error {
 	targetRoleName := targetRole.GetName()
 
-	currentTargetRole, err := s.Access.GetRole(ctx, targetRoleName)
+	currentTargetRole, err := a.Access.GetRole(ctx, targetRoleName)
 
 	if err != nil {
 		return nil
@@ -186,7 +186,7 @@ func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.
 		return nil
 	}
 
-	localUsers, err := s.getLocalUsers()
+	localUsers, err := a.getLocalUsers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,7 +196,7 @@ func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.
 		return nil
 	}
 
-	rolesWithUpdateRolesRule, err := s.getRolesWithUpdateRolesRule(ctx)
+	rolesWithUpdateRolesRule, err := a.getRolesWithUpdateRolesRule(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
