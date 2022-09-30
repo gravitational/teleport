@@ -5407,10 +5407,7 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 
 	// Max event size for file log (bufio.MaxScanTokenSize) should be 64k, make
 	// a command much larger than that.
-	lotsOfBytes := make([]byte, 100*1024)
-	for i := range lotsOfBytes {
-		lotsOfBytes[i] = 'a'
-	}
+	lotsOfBytes := bytes.Repeat([]byte{'a'}, 100*1024)
 
 	execTests := []struct {
 		name          string
