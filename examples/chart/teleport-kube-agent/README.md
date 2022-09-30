@@ -172,19 +172,8 @@ To use Teleport database access in AWS database auto-discovery mode, you will al
 - the AWS region(s) you would like to run auto-discovery in (`$DB_REGIONS`)
 - the AWS resource tags if you want to target only certain databases (`$DB_TAG_KEY`, `$DB_TAG_VALUES`)
 
-To install the agent in AWS database auto-discovery mode, run:
-
-```sh
-$ helm install teleport-kube-agent . \
-  --create-namespace \
-  --namespace teleport \
-  --set roles=db \
-  --set proxyAddr=${PROXY_ENDPOINT?} \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "awsDatabases[0].types={${DB_TYPES?}}" \
-  --set "awsDatabases[0].regions={${DB_REGIONS?}}" \
-  --set "awsDatabases[0].tags.${DB_TAG_KEY?}={${DB_TAG_VALUES?}}"
-```
+See the [AWS databases Helm chart reference](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/#awsDatabases)
+for an example of installing an agent with AWS database auto-discovery.
 
 ### Auto-discovery mode (Azure)
 
@@ -201,21 +190,8 @@ The default for each of these optional settings is `*`, which will auto-discover
 subscriptions, regions, or resource groups accessible by the Teleport service
 principal in Azure.
 
-To install the agent in Azure database auto-discovery mode, run:
-
-```sh
-$ helm install teleport-kube-agent . \
-  --create-namespace \
-  --namespace teleport \
-  --set roles=db \
-  --set proxyAddr=${PROXY_ENDPOINT?} \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "azureDatabases[0].types={${DB_TYPES?}}" \
-  --set "azureDatabases[0].tags.${DB_TAG_KEY?}={${DB_TAG_VALUES?}}" \
-  --set "azureDatabases[0].subscriptions={${DB_SUBSCRIPTIONS?}}" \
-  --set "azureDatabases[0].regions={${DB_REGIONS?}}" \
-  --set "azureDatabases[0].resource_groups={${DB_RESOURCE_GROUPS?}}"
-```
+See the [Azure databases Helm chart reference](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/#azureDatabases)
+for an example of installing an agent with Azure database auto-discovery.
 
 ### Manual configuration mode
 
