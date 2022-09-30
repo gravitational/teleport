@@ -61,7 +61,7 @@ require (
 	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 	github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
-	github.com/gravitational/roundtrip v1.0.1
+	github.com/gravitational/roundtrip v1.0.2
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.1.19
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
