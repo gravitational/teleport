@@ -41,7 +41,8 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 	template := TemplateSSHClient{
 		ProxyPort: 1337,
 		getSSHVersion: func() (*semver.Version, error) {
-			return semver.New("8.5.0"), nil
+			return semver.New("6.5.0"), nil
+			//return semver.New("8.5.0"), nil
 		},
 		getExecutablePath: func() (string, error) {
 			return "/path/to/tbot", nil

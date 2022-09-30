@@ -20,36 +20,41 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/stretchr/testify/require"
 )
 
 // TestWriteSSHConfig tests the writeSSHConfig template output.
 func TestWriteSSHConfig(t *testing.T) {
-	want := `
+	want := `# Begin generated Teleport configuration for localhost by tsh
+
 # Common flags for all test-cluster hosts
 Host *.test-cluster localhost
     UserKnownHostsFile "/tmp/know_host"
     IdentityFile "/tmp/alice"
     CertificateFile "/tmp/localhost-cert.pub"
-    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
     HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com
 
 # Flags for all test-cluster hosts except the proxy
 Host *.test-cluster !localhost
     Port 3022
     ProxyCommand "/bin/tsh" proxy ssh --cluster=test-cluster --proxy=localhost %r@%h:%p
+
+# End generated Teleport configuration
 `
 
 	var sb strings.Builder
 	err := writeSSHConfig(&sb, &config.SSHConfigParameters{
 		AppName:             "tsh",
-		ClusterName:         "test-cluster",
+		ClusterNames:        []string{"test-cluster"},
 		KnownHostsPath:      "/tmp/know_host",
 		IdentityFilePath:    "/tmp/alice",
 		CertificateFilePath: "/tmp/localhost-cert.pub",
 		ProxyHost:           "localhost",
 		ExecutablePath:      "/bin/tsh",
+	}, func() (*semver.Version, error) {
+		return semver.New("9.0.0"), nil
 	})
 	require.NoError(t, err)
 	require.Equal(t, want, sb.String())

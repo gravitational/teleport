@@ -176,7 +176,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 	sshConf := config.NewSSHConfig(c.getSSHVersion, log)
 	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &config.SSHConfigParameters{
 		AppName:             "tbot",
-		ClusterName:         clusterName.GetClusterName(),
+		ClusterNames:        []string{clusterName.GetClusterName()},
 		KnownHostsPath:      knownHostsPath,
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: certificateFilePath,
