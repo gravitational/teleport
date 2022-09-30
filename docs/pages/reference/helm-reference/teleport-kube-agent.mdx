@@ -992,6 +992,32 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   </TabItem>
 </Tabs>
 
+## `createServiceAccount`
+
+<Admonition type="note">
+  Most users will not need to change this.
+</Admonition>
+
+| Type | Default value |
+| - | - |
+| `bool` | `true` |
+
+`createServiceAccount` can be optionally used to disable the `ServiceAccount` creation by the `teleport-kube-agent` chart. It is usefull if the `ServiceAccount` is managed by external tools such as `eksctl`.  
+When off, `serviceAccountName` parameter should be set to the existing `ServiceAccount` name.  
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  createServiceAccount: false
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set createServiceAccount=false
+  ```
+  </TabItem>
+</Tabs>
+
 ## `secretName`
 
 | Type | Default value |

@@ -168,6 +168,11 @@ roleName: ""
 roleBindingName: ""
 # (optional) Override the name of the service account used by the agent.
 serviceAccountName: ""
+# (optional) Enables or disables the service account creation.
+# It is usefull if the service account is managed by other tools such as `eksctl`.
+# When assigning AWS IAM permissions to `ServiceAccount` `eksctl` creates and manages the `ServiceAccount`.
+# When off, `serviceAccountName` parameter should be set to the existing `ServiceAccount` name.  
+createServiceAccount: true
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 
