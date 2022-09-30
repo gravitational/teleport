@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -375,6 +376,15 @@ func (s *Service) Stop() {
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
+}
+
+func (s *Service) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
+	cluster, err := s.ResolveCluster(request.ServerUri)
+	if err != nil {
+		return err
+	}
+
+	return cluster.TransferFile(request, server)
 }
 
 // Service is the daemon service

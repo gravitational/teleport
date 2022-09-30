@@ -91,6 +91,8 @@ service TerminalService {
   rpc LoginPasswordless(stream LoginPasswordlessRequest) returns (stream LoginPasswordlessResponse);
   // ClusterLogin logs out a user from cluster
   rpc Logout(LogoutRequest) returns (EmptyResponse);
+  // TransferFile downloads/uploads a file
+  rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
 }
 
 // RemoveClusterRequest describes RemoveClusterRequest
@@ -163,6 +165,27 @@ message LoginPasswordlessRequest {
     // in as.
     int64 index = 1;
   }
+}
+
+message FileTransferRequest {
+  string server_uri = 1;
+  string login = 2;
+  string source = 3;
+  string destination = 4;
+  string server_id = 5;
+  string cluster_id = 6;
+  FileTransferDirection direction = 7;
+}
+
+// FileTransferDirection describes directions of a file transfer
+enum FileTransferDirection {
+  FILE_TRANSFER_DIRECTION_UNSPECIFIED = 0;
+  FILE_TRANSFER_DIRECTION_DOWNLOAD = 1;
+  FILE_TRANSFER_DIRECTION_UPLOAD = 2;
+}
+
+message FileTransferProgress {
+  uint32 percentage = 1;
 }
 
 // LoginRequest describes cluster login request
