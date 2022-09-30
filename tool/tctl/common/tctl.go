@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
@@ -208,24 +208,10 @@ func TryRun(commands []CLICommand, args []string) error {
 		}
 	}
 
-	// Get license expired alerts.
-	alertCtx, _ := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
-	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
-		Labels: map[string]string{
-			types.AlertLicenseExpired: "yes",
-		},
-	})
-	if err != nil && !trace.IsNotImplemented(err) {
-		log.Warnf("getting cluster alerts: %v", trace.Wrap(err))
-	}
-
-	types.SortClusterAlerts(alerts)
-
-	for _, alert := range alerts {
-		if err := alert.CheckMessage(); err != nil {
-			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
-		}
-		fmt.Fprintf(os.Stderr, "%s\n\n", utils.FormatAlertOutput(alert))
+	if err := common.ShowClusterAlerts(ctx, client, os.Stdout, map[string]string{
+		types.AlertLicenseExpired: "yes",
+	}, nil); err != nil {
+		log.Warn(err)
 	}
 
 	return nil

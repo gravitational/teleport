@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,8 +28,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -84,7 +87,7 @@ func (e *SessionsCollection) WriteYAML(w io.Writer) error {
 	return utils.WriteYAML(w, e.SessionEvents)
 }
 
-// ShowSessions is s helper function for displaying listed sessions via tsh or tctl
+// ShowSessions is s helper function for displaying listed sessions via tsh or tctl.
 func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error {
 	sessions := &SessionsCollection{SessionEvents: events}
 	switch format {
@@ -97,4 +100,35 @@ func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error 
 	default:
 		return trace.BadParameter("unknown format %q", format)
 	}
+}
+
+// ShowClusterAlerts shows cluster alerts with the given label.
+func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w io.Writer, labels map[string]string, ignore map[string]string) error {
+	// get any "on login" alerts
+	alertCtx, _ := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
+		Labels: labels,
+	})
+	if err != nil && !trace.IsNotImplemented(err) {
+		trace.Wrap(err)
+	}
+
+	types.SortClusterAlerts(alerts)
+	var errs []error
+	for _, alert := range alerts {
+		if err := alert.CheckMessage(); err != nil {
+			errs = append(errs, trace.Errorf("Skipping invalid alert %q: %v", alert.Metadata.Name, err))
+		}
+		skip := false
+		for k, v := range ignore {
+			if labelValue, ok := alert.Metadata.Labels[k]; ok && labelValue == v {
+				skip = true
+			}
+		}
+		if skip {
+			continue
+		}
+		fmt.Fprintf(w, "%s\n\n", utils.FormatAlertOutput(alert))
+	}
+	return trace.NewAggregate(errs...)
 }

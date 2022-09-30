@@ -1584,25 +1584,12 @@ func onLogin(cf *CLIConf) error {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
-	// get any "on login" alerts
-	alertCtx, _ := context.WithTimeout(cf.Context, constants.TimeoutGetClusterAlerts)
-	alerts, err := tc.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
-		Labels: map[string]string{
-			types.AlertOnLogin: "yes",
-		},
-	})
-	if err != nil && !trace.IsNotImplemented(err) {
-		log.Warnf("getting cluster alerts: %v", trace.Wrap(err))
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stdout, map[string]string{
+		types.AlertOnLogin: "yes",
+	}, nil); err != nil {
+		log.Warn(err)
 	}
 
-	types.SortClusterAlerts(alerts)
-
-	for _, alert := range alerts {
-		if err := alert.CheckMessage(); err != nil {
-			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
-		}
-		fmt.Fprintf(os.Stdout, "%s\n\n", utils.FormatAlertOutput(alert))
-	}
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
