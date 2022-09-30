@@ -1,0 +1,36 @@
+//go:build linux && !libpcsclite
+
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package hardwarekey
+
+import (
+	"errors"
+
+	"github.com/gravitational/trace"
+
+	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
+	"github.com/gravitational/teleport/api/utils/keys"
+)
+
+var errPIVUnavailable = errors.New("PIV is unavailable in current build")
+
+// attestYubikey verifies that the given slot certificate chains to the attestation certificate,
+// which chains to a Yubico CA.
+func attestYubikey(stm *attestation.YubiKeyAttestationStatement) (*keys.AttestationData, error) {
+	return nil, trace.Wrap(errPIVUnavailable)
+}

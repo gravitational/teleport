@@ -1,13 +1,20 @@
 package modules
 
 import (
+	"context"
+	"crypto"
 	"crypto/sha256"
 	"fmt"
 	"reflect"
 	"runtime"
+	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -67,4 +74,16 @@ func (p *enterpriseModules) IsBoringBinary() bool {
 	// dev.boringcrypto branch of Go.
 	hash := sha256.New()
 	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
+
+// AttestHardwareKey attests a hardware key, either with the given statement or
+// previously stored attestation data matching the given public key.
+func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI interface{}, requiredKeyPolicy keys.PrivateKeyPolicy, att *keys.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (keys.PrivateKeyPolicy, error) {
+	// serverI is passed as a plain interface{} to make it more cryptic,
+	// and therefore difficult for OSS users to implement themselves 😈
+	server, ok := serverI.(hardwarekey.AttestationServer)
+	if !ok {
+		return "", trace.BadParameter("Received unexpected server interface of type %T", serverI)
+	}
+	return hardwarekey.AttestHardwareKey(ctx, server, requiredKeyPolicy, att, pub, sessionTTL)
 }
