@@ -5401,9 +5401,6 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	lsPath, err := exec.LookPath("ls")
-	require.NoError(t, err)
-
 	// Creates new teleport cluster
 	main := suite.newTeleport(t, nil, true)
 	defer main.StopAll()
@@ -5411,17 +5408,17 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	execTests := []struct {
 		name          string
 		isInteractive bool
-		outCommand    string
+		command       string
 	}{
 		{
 			name:          "PTY allocated",
 			isInteractive: true,
-			outCommand:    lsPath,
+			command:       "echo 1",
 		},
 		{
 			name:          "PTY not allocated",
 			isInteractive: false,
-			outCommand:    lsPath,
+			command:       "echo 2",
 		},
 	}
 
@@ -5435,16 +5432,57 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 				Port:        helpers.Port(t, main.SSH),
 				Interactive: tt.isInteractive,
 			}
-			_, err := runCommand(t, main, []string{lsPath}, clientConfig, 1)
+			_, err := runCommand(t, main, []string{tt.command}, clientConfig, 1)
+			require.NoError(t, err)
+
+			// Make sure the session start event was emitted to the audit log
+			// and includes the command
+			_, err = findMatchingEventInLog(main, events.SessionStartEvent, func(fields events.EventFields) bool {
+				initialCommand := fields.GetStrings("initial_command")
+				return events.SessionStartCode == fields.GetCode() && len(initialCommand) == 1 && initialCommand[0] == tt.command
+			})
 			require.NoError(t, err)
 
 			// Make sure the exec event was emitted to the audit log.
-			eventFields, err := findEventInLog(main, events.ExecEvent)
+			_, err = findMatchingEventInLog(main, events.ExecEvent, func(fields events.EventFields) bool {
+				return events.ExecCode == fields.GetCode() && tt.command == fields.GetString(events.ExecEventCommand)
+			})
 			require.NoError(t, err)
-			require.Equal(t, events.ExecCode, eventFields.GetCode())
-			require.Equal(t, tt.outCommand, eventFields.GetString(events.ExecEventCommand))
 		})
 	}
+
+	t.Run("long running", func(t *testing.T) {
+		clientConfig := helpers.ClientConfig{
+			Login:       suite.Me.Username,
+			Cluster:     helpers.Site,
+			Host:        Host,
+			Port:        helpers.Port(t, main.SSH),
+			Interactive: false,
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+
+		cmd := "sleep 10"
+
+		errC := make(chan error)
+		go func() {
+			_, err := runCommandWithContext(ctx, t, main, []string{cmd}, clientConfig, 1)
+			errC <- err
+		}()
+
+		// Make sure the session start event was emitted immediately to the audit log
+		// before waiting for the command to complete, and includes the command
+		_, err := findMatchingEventInLog(main, events.SessionStartEvent, func(fields events.EventFields) bool {
+			initialCommand := fields.GetStrings("initial_command")
+			return len(initialCommand) == 1 && initialCommand[0] == cmd
+		})
+		require.NoError(t, err)
+
+		cancel()
+		// This may or may not be an error, depending on whether we cancelled it
+		// before the command died of natural causes, no need to test the value
+		// here but we'll wait for it in order to avoid leaking goroutines
+		<-errC
+	})
 }
 
 func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestSuite) {
@@ -5611,6 +5649,14 @@ func findEventInLog(t *helpers.TeleInstance, eventName string) (events.EventFiel
 
 // findCommandEventInLog polls the event log looking for an event of a particular type.
 func findCommandEventInLog(t *helpers.TeleInstance, eventName string, programName string) (events.EventFields, error) {
+	return findMatchingEventInLog(t, eventName, func(fields events.EventFields) bool {
+		eventType := fields[events.EventType]
+		eventPath := fields[events.Path]
+		return eventType == eventName && eventPath == programName
+	})
+}
+
+func findMatchingEventInLog(t *helpers.TeleInstance, eventName string, match func(events.EventFields) bool) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
 		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
 		if err != nil {
@@ -5619,15 +5665,7 @@ func findCommandEventInLog(t *helpers.TeleInstance, eventName string, programNam
 		}
 
 		for _, fields := range eventFields {
-			eventType, ok := fields[events.EventType]
-			if !ok {
-				continue
-			}
-			eventPath, ok := fields[events.Path]
-			if !ok {
-				continue
-			}
-			if eventType == eventName && eventPath == programName {
+			if match(fields) {
 				return fields, nil
 			}
 		}
