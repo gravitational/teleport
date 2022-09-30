@@ -25,11 +25,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
@@ -499,6 +500,8 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolElasticsearch is the Elasticsearch database protocol.
+	ProtocolElasticsearch = "elasticsearch"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -510,6 +513,7 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolElasticsearch,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
@@ -528,6 +532,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Redis"
 	case ProtocolSnowflake:
 		return "Snowflake"
+	case ProtocolElasticsearch:
+		return "Elasticsearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
 	default:
