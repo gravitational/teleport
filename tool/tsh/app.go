@@ -252,7 +252,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 
 	var curlCmd string
 	if insecure {
-		curlCmd = fmt.Sprintf(`curl -k \
+		curlCmd = fmt.Sprintf(`curl --insecure \
   --cert %v \
   --key %v \
   %v`,
