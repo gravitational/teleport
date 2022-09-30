@@ -198,8 +198,8 @@ type PNGFrame struct {
 	enc *png.Encoder // optionally override the PNG encoder
 }
 
-func NewPNG(img image.Image, enc *png.Encoder) PNGFrame {
-	return PNGFrame{
+func NewPNG(img image.Image, enc *png.Encoder) PNG2Frame {
+	return PNG2Frame{
 		Img: img,
 		enc: enc,
 	}
