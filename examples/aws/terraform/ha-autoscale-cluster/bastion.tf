@@ -13,7 +13,7 @@ resource "aws_instance" "bastion" {
 
   metadata_options {
     http_tokens = "required"
-    http_endpoing = "enabled"
+    http_endpoint = "enabled"
   }
 
   root_block_device {
