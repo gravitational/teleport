@@ -163,6 +163,9 @@ func TestSAMLAuthRequest(t *testing.T) {
 	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
 	require.NoError(t, err)
 
+	_, err = CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV5{})
+	require.NoError(t, err)
+
 	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{

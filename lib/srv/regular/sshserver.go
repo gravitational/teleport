@@ -794,6 +794,7 @@ func New(addr utils.NetAddr,
 		sshutils.SetKEXAlgorithms(s.kexAlgorithms),
 		sshutils.SetMACAlgorithms(s.macAlgorithms),
 		sshutils.SetFIPS(s.fips),
+		sshutils.SetClock(s.clock),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
