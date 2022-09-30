@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.terminal.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 message AccessRequest {
@@ -25,8 +27,8 @@ message AccessRequest {
   string request_reason = 4;
   string user = 5;
   repeated string roles = 6;
-  string created = 7;
-  string expires = 8;
+  google.protobuf.Timestamp created = 7;
+  google.protobuf.Timestamp expires = 8;
   repeated AccessRequestReview reviews = 9;
   repeated string suggested_reviewers = 10;
   repeated string threshold_names = 11;
@@ -38,7 +40,7 @@ message AccessRequestReview {
   repeated string roles = 2;
   string state = 3;
   string reason = 4;
-  string created = 5;
+  google.protobuf.Timestamp created = 5;
 }
 
 message ResourceID {

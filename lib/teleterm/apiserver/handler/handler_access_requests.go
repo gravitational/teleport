@@ -19,6 +19,7 @@ import (
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/trace"
 )
@@ -118,7 +119,7 @@ func newApiAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 			Roles:   rev.Roles,
 			State:   rev.ProposedState.String(),
 			Reason:  rev.Reason,
-			Created: rev.Created.String(),
+			Created: timestamppb.New(rev.Created),
 		})
 	}
 
@@ -145,8 +146,8 @@ func newApiAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		RequestReason:      req.GetRequestReason(),
 		User:               req.GetUser(),
 		Roles:              req.GetRoles(),
-		Created:            req.GetCreationTime().String(),
-		Expires:            req.GetAccessExpiry().String(),
+		Created:            timestamppb.New(req.GetCreationTime()),
+		Expires:            timestamppb.New(req.GetAccessExpiry()),
 		Reviews:            reviews,
 		SuggestedReviewers: req.GetSuggestedReviewers(),
 		ThresholdNames:     thresholdNames,

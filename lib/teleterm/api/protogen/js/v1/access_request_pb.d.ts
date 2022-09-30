@@ -5,6 +5,7 @@
 /* eslint-disable */
 
 import * as jspb from "google-protobuf";
+import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/timestamp_pb";
 
 export class AccessRequest extends jspb.Message { 
     getId(): string;
@@ -27,11 +28,17 @@ export class AccessRequest extends jspb.Message {
     setRolesList(value: Array<string>): AccessRequest;
     addRoles(value: string, index?: number): string;
 
-    getCreated(): string;
-    setCreated(value: string): AccessRequest;
 
-    getExpires(): string;
-    setExpires(value: string): AccessRequest;
+    hasCreated(): boolean;
+    clearCreated(): void;
+    getCreated(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setCreated(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequest;
+
+
+    hasExpires(): boolean;
+    clearExpires(): void;
+    getExpires(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setExpires(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequest;
 
     clearReviewsList(): void;
     getReviewsList(): Array<AccessRequestReview>;
@@ -72,8 +79,8 @@ export namespace AccessRequest {
         requestReason: string,
         user: string,
         rolesList: Array<string>,
-        created: string,
-        expires: string,
+        created?: google_protobuf_timestamp_pb.Timestamp.AsObject,
+        expires?: google_protobuf_timestamp_pb.Timestamp.AsObject,
         reviewsList: Array<AccessRequestReview.AsObject>,
         suggestedReviewersList: Array<string>,
         thresholdNamesList: Array<string>,
@@ -96,8 +103,11 @@ export class AccessRequestReview extends jspb.Message {
     getReason(): string;
     setReason(value: string): AccessRequestReview;
 
-    getCreated(): string;
-    setCreated(value: string): AccessRequestReview;
+
+    hasCreated(): boolean;
+    clearCreated(): void;
+    getCreated(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setCreated(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequestReview;
 
 
     serializeBinary(): Uint8Array;
@@ -116,7 +126,7 @@ export namespace AccessRequestReview {
         rolesList: Array<string>,
         state: string,
         reason: string,
-        created: string,
+        created?: google_protobuf_timestamp_pb.Timestamp.AsObject,
     }
 }
 
