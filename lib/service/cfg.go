@@ -777,6 +777,8 @@ type Database struct {
 	GCP DatabaseGCP
 	// AD contains Active Directory configuration for database.
 	AD DatabaseAD
+	// Azure contains Azure database configuration.
+	Azure DatabaseAzure
 }
 
 // TLSMode defines all possible database verification modes.
@@ -906,6 +908,12 @@ type DatabaseAD struct {
 	Domain string
 	// SPN is the service principal name for the database.
 	SPN string
+}
+
+// DatabaseAzure contains Azure database configuration.
+type DatabaseAzure struct {
+	// ResourceID is the Azure fully qualified ID for the resource.
+	ResourceID string `yaml:"resource_id,omitempty"`
 }
 
 // CheckAndSetDefaults validates database Active Directory configuration.

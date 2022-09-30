@@ -1022,7 +1022,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalSAMLConnector(connector)

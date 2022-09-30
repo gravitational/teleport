@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
@@ -587,4 +589,125 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 		}
 	}
 	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+}
+
+func TestFormatCommand(t *testing.T) {
+	setEnv := func(command *exec.Cmd, envs ...string) *exec.Cmd {
+		command.Env = append(command.Env, envs...)
+		return command
+	}
+
+	tests := []struct {
+		name string
+		cmd  *exec.Cmd
+		want string
+	}{
+		{
+			name: "simple command",
+			cmd:  exec.Command("echo", "hello"),
+			want: "echo hello",
+		},
+		{
+			name: "whitespace arguments",
+			cmd: exec.Command("echo", "hello world", "return\n\r", `1
+2
+3`),
+			want: "echo \"hello world\" \"return\n\r\" \"1\n2\n3\"",
+		},
+		{
+			name: "args and env",
+			cmd:  setEnv(exec.Command("echo", "hello"), "DEBUG=1", "RUN=YES"),
+			want: "DEBUG=1 RUN=YES echo hello",
+		},
+		{
+			name: "args, whitespace and env",
+			cmd:  setEnv(exec.Command("echo", "hello\"\nworld"), "DEBUG=1", "RUN=YES"),
+			want: "DEBUG=1 RUN=YES echo \"hello\\\"\nworld\"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, formatCommand(tt.cmd))
+		})
+	}
+}
+
+func Test_chooseProxyCommandTemplate(t *testing.T) {
+	tests := []struct {
+		name             string
+		commands         []dbcmd.CommandAlternative
+		wantTemplate     *template.Template
+		wantTemplateArgs map[string]any
+		wantOutput       string
+	}{
+		{
+			name: "single command",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+			},
+			wantTemplate:     dbProxyAuthTpl,
+			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+
+Use the following command to connect to the database:
+  $ echo "hello world"
+`,
+		},
+		{
+			name: "multiple commands",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+				{
+					Description: "alternative",
+					Command:     exec.Command("echo", "goodbye world"),
+				},
+			},
+			wantTemplate: dbProxyAuthMultiTpl,
+			wantTemplateArgs: map[string]any{
+				"commands": []templateCommandItem{
+					{Description: "default", Command: "echo \"hello world\""},
+					{Description: "alternative", Command: "echo \"goodbye world\""},
+				},
+			},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+
+Use one of the following commands to connect to the database:
+
+  * default: 
+
+  $ echo "hello world"
+
+  * alternative: 
+
+  $ echo "goodbye world"
+
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			templateArgs := map[string]any{}
+			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands)
+			require.Equal(t, tt.wantTemplate, tpl)
+			require.Equal(t, tt.wantTemplateArgs, templateArgs)
+
+			// test resulting template
+
+			templateArgs["database"] = "mydb"
+			templateArgs["cluster"] = "mycluster"
+			templateArgs["address"] = "127.0.0.1:64444"
+			templateArgs["type"] = dbProtocolToText(defaults.ProtocolMySQL)
+
+			buf := new(bytes.Buffer)
+			err := tpl.Execute(buf, templateArgs)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantOutput, buf.String())
+		})
+	}
 }
