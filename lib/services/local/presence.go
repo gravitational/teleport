@@ -242,7 +242,11 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if server.GetNamespace() == "" {
-		return nil, trace.BadParameter("missing node namespace")
+		server.SetNamespace(apidefaults.Namespace)
+	}
+
+	if n := server.GetNamespace(); n != apidefaults.Namespace {
+		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
 
 	value, err := services.MarshalServer(server)
