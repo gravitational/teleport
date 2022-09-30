@@ -149,38 +149,62 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 	return nil
 }
 
+func isSomeUserHasRole(users []types.User, roleNames []string) bool {
+	return Some(users, func(u types.User) bool {
+		return Some(u.GetRoles(), func(role string) bool {
+			return Contains(roleNames, role)
+		})
+	})
+}
+
+func (s *Server) getLocalUsers() ([]types.User, error) {
+	allUsers, err := s.Identity.GetUsers(false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return Filter(allUsers, func(u types.User) bool {
+		return u.GetCreatedBy().Connector == nil
+	}), nil
+}
+
 // checkRoleRulesConstraint checks if the request will result in having
 // no roles with rules to upsert roles.
 func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.Role, request string) error {
+	targetRoleName := targetRole.GetName()
+
+	currentTargetRole, err := s.Access.GetRole(ctx, targetRoleName)
+
+	if err != nil {
+		return nil
+	}
+
+	isTargetRoleLosingUpdateRolesRule := roleHasUpdateRolesRule(currentTargetRole) && !roleHasUpdateRolesRule(targetRole)
+
+	if !isTargetRoleLosingUpdateRolesRule {
+		return nil
+	}
+
+	localUsers, err := s.getLocalUsers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if no local user uses targetRoleName it can be safely changed
+	if !isSomeUserHasRole(localUsers, []string{targetRoleName}) {
+		return nil
+	}
+
 	rolesWithUpdateRolesRule, err := s.getRolesWithUpdateRolesRule(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	isRoleLosingUpdateRolesRule := Contains(rolesWithUpdateRolesRule, targetRole.GetName()) && !roleHasUpdateRolesRule(targetRole)
-
-	if !isRoleLosingUpdateRolesRule {
-		return nil
-	}
-
-	allUsers, err := s.Identity.GetUsers(false /* withSecrets */)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	localUsersWithPermissionToEditRoles := Filter(allUsers, func(u types.User) bool {
-		isLocalUser := u.GetCreatedBy().Connector == nil
-
-		rolesWithoutTarget := Filter(u.GetRoles(), func(role string) bool {
-			return role != targetRole.GetName()
-		})
-
-		return isLocalUser && Some(rolesWithoutTarget, func(role string) bool {
-			return Contains(rolesWithUpdateRolesRule, role)
-		})
+	rolesWithUpdateRolesRuleWithoutTargetRole := Filter(rolesWithUpdateRolesRule, func(role string) bool {
+		return role != targetRoleName
 	})
 
-	if len(localUsersWithPermissionToEditRoles) > 0 {
+	if isSomeUserHasRole(localUsers, rolesWithUpdateRolesRuleWithoutTargetRole) {
 		return nil
 	}
 
@@ -205,14 +229,6 @@ func (a *Server) getRolesWithUpdateRolesRule(ctx context.Context) ([]string, err
 // checks if role has permission to edit roles
 func roleHasUpdateRolesRule(role types.Role) bool {
 	return Some(role.GetRules(types.Allow), func(rule types.Rule) bool {
-		if !rule.HasResource(types.KindRole) {
-			return false
-		}
-
-		if !rule.HasVerb(types.VerbUpdate) {
-			return false
-		}
-
-		return true
+		return rule.HasResource(types.KindRole) && rule.HasVerb(types.VerbUpdate)
 	})
 }
