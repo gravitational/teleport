@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -991,17 +993,16 @@ func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.O
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, req.StateToken),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1016,11 +1017,11 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.OIDCAuthRequest
-	if err := json.Unmarshal(item.Value, &req); err != nil {
+	req := new(types.OIDCAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
 // UpsertSAMLConnector upserts SAML Connector
@@ -1113,17 +1114,16 @@ func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.S
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, req.ID),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1138,11 +1138,11 @@ func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.SAMLAuthRequest
-	if err := json.Unmarshal(item.Value, &req); err != nil {
+	req := new(types.SAMLAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
 // CreateSSODiagnosticInfo creates new SAML diagnostic info record.
@@ -1276,21 +1276,19 @@ func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
 func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error {
-	err := req.Check()
-	if err != nil {
+	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, req.StateToken),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: req.Expiry(),
 	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1305,12 +1303,11 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.GithubAuthRequest
-	err = json.Unmarshal(item.Value, &req)
-	if err != nil {
+	req := new(types.GithubAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
 // GetRecoveryCodes returns user's recovery codes.

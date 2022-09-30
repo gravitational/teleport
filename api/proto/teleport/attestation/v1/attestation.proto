@@ -16,11 +16,7 @@ syntax = "proto3";
 
 package teleport.attestation.v1;
 
-import "gogoproto/gogo.proto";
-
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1";
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
 
 // AttestationStatement is an attestation statement for a hardware private key.
 message AttestationStatement {

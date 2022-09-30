@@ -54,7 +54,8 @@ func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
 	return PrivateKeyPolicyNone
 }
 
-// AttestationStatement is an attestation statement for a hardware private key.
+// AttestationStatement is an attestation statement for a hardware private key
+// that supports json marshaling through the standard json/encoding package.
 type AttestationStatement attestation.AttestationStatement
 
 // ToProto converts this AttestationStatement to its protobuf form.

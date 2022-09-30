@@ -257,10 +257,37 @@ type GithubAuthResponse struct {
 	// TLSCert is PEM encoded TLS client certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is the original auth request
-	Req types.GithubAuthRequest `json:"req"`
+	Req GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+}
+
+// GithubAuthRequest is an Github auth request that supports standard json marshaling
+type GithubAuthRequest struct {
+	// ConnectorID is the name of the connector to use.
+	ConnectorID string `json:"connector_id"`
+	// CSRFToken is used to protect against CSRF attacks.
+	CSRFToken string `json:"csrf_token"`
+	// PublicKey is an optional public key to sign in case of successful auth.
+	PublicKey []byte `json:"public_key"`
+	// CreateWebSession indicates that a user wants to generate a web session
+	// after successful authentication.
+	CreateWebSession bool `json:"create_web_session"`
+	// ClientRedirectURL is the URL where client will be redirected after
+	// successful auth.
+	ClientRedirectURL string `json:"client_redirect_url"`
+}
+
+// GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
+func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest {
+	return GithubAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		PublicKey:         req.PublicKey,
+		CSRFToken:         req.CSRFToken,
+		CreateWebSession:  req.CreateWebSession,
+		ClientRedirectURL: req.ClientRedirectURL,
+	}
 }
 
 type githubManager interface {
@@ -523,7 +550,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := GithubAuthResponse{
-		Req: *req,
+		Req: GithubAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
 			Username:    params.username,

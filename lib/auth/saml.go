@@ -362,10 +362,39 @@ type SAMLAuthResponse struct {
 	// TLSCert is a PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is an original SAML auth request
-	Req types.SAMLAuthRequest `json:"req"`
+	Req SAMLAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+}
+
+// SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
+type SAMLAuthRequest struct {
+	// ID is a unique request ID.
+	ID string `json:"id"`
+	// PublicKey is an optional public key, users want these
+	// keys to be signed by auth servers user CA in case
+	// of successful auth.
+	PublicKey []byte `json:"public_key"`
+	// CSRFToken is associated with user web session token.
+	CSRFToken string `json:"csrf_token"`
+	// CreateWebSession indicates if user wants to generate a web
+	// session after successful authentication.
+	CreateWebSession bool `json:"create_web_session"`
+	// ClientRedirectURL is a URL client wants to be redirected
+	// after successful authentication.
+	ClientRedirectURL string `json:"client_redirect_url"`
+}
+
+// SAMLAuthRequestFromProto converts the types.SAMLAuthRequest to SAMLAuthRequestData.
+func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) SAMLAuthRequest {
+	return SAMLAuthRequest{
+		ID:                req.ID,
+		PublicKey:         req.PublicKey,
+		CSRFToken:         req.CSRFToken,
+		CreateWebSession:  req.CreateWebSession,
+		ClientRedirectURL: req.ClientRedirectURL,
+	}
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
@@ -552,9 +581,9 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	}
 
 	if request != nil {
-		auth.Req = *request
+		auth.Req = SAMLAuthRequestFromProto(request)
 	} else {
-		auth.Req = types.SAMLAuthRequest{
+		auth.Req = SAMLAuthRequest{
 			CreateWebSession: true,
 		}
 	}
