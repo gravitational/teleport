@@ -21,8 +21,6 @@ limitations under the License.
 
 #include "../helpers.h"
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
 BPF_COUNTER(test_counter);
 
 SEC("tp/syscalls/sys_close")

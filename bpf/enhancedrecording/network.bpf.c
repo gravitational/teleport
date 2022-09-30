@@ -21,8 +21,6 @@ limitations under the License.
 
 #include "../helpers.h"
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
 // Maximum number of in-flight connect syscalls supported
 #define INFLIGHT_MAX 8192
 

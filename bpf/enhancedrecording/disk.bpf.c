@@ -30,8 +30,6 @@ limitations under the License.
 // the userspace can adjust this value based on config.
 #define EVENTS_BUF_SIZE (4096*128)
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
 struct val_t {
     u64 pid;
     const char *fname;
