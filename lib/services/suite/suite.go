@@ -779,7 +779,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 			},
 		},
 	}
-	err := services.ValidateSAMLConnector(connector)
+	err := services.ValidateSAMLConnector(connector, nil)
 	require.NoError(t, err)
 	err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
