@@ -20,8 +20,10 @@
 package protocol
 
 import (
+	"bufio"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/trace"
@@ -129,7 +131,29 @@ func writeError(wr *redis.Writer, prefix string, val error) error {
 		return trace.Wrap(err)
 	}
 
-	if _, err := wr.WriteString(val.Error()); err != nil {
+	// If the error message contains "\r" or "\n", redis-cli will have trouble
+	// parsing the message and show "Bad simple string value" instead. So if
+	// newlines are detected in the original error message, merge them to one
+	// line.
+	errString := val.Error()
+	if strings.ContainsAny(errString, "\r\n") {
+		scanner := bufio.NewScanner(strings.NewReader(errString))
+		errString = ""
+
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+
+			if errString != "" {
+				errString += " "
+			}
+			errString += line
+		}
+	}
+
+	if _, err := wr.WriteString(errString); err != nil {
 		return trace.Wrap(err)
 	}
 

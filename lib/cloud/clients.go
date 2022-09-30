@@ -100,6 +100,10 @@ type AzureClients interface {
 	GetAzurePostgresClient(subscription string) (azure.DBServersClient, error)
 	// GetAzureSubscriptionClient returns an Azure Subscriptions client
 	GetAzureSubscriptionClient() (*azure.SubscriptionClient, error)
+	// GetAzureRedisClient returns an Azure Redis client for the given subscription.
+	GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error)
+	// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+	GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -107,8 +111,10 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:    make(map[string]azure.DBServersClient),
-			azurePostgresClients: make(map[string]azure.DBServersClient),
+			azureMySQLClients:           make(map[string]azure.DBServersClient),
+			azurePostgresClients:        make(map[string]azure.DBServersClient),
+			azureRedisClients:           azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients: azure.NewClientMap(azure.NewRedisEnterpriseClient),
 		},
 	}
 }
@@ -139,6 +145,10 @@ type azureClients struct {
 	azurePostgresClients map[string]azure.DBServersClient
 	// azureSubscriptionsClient is the cached Azure Subscriptions client.
 	azureSubscriptionsClient *azure.SubscriptionClient
+	// azureRedisClients contains the cached Azure Redis clients.
+	azureRedisClients azure.ClientMap[azure.CacheForRedisClient]
+	// azureRedisEnterpriseClients contains the cached Azure Redis Enterprise clients.
+	azureRedisEnterpriseClients azure.ClientMap[azure.CacheForRedisClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -297,6 +307,16 @@ func (c *cloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, 
 	}
 	c.mtx.RUnlock()
 	return c.initAzureSubscriptionsClient()
+}
+
+// GetAzureRedisClient returns an Azure Redis client for the given subscription.
+func (c *cloudClients) GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.azureRedisClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+func (c *cloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.azureRedisEnterpriseClients.Get(subscription, c.GetAzureCredential)
 }
 
 // Close closes all initialized clients.
@@ -469,6 +489,8 @@ type TestCloudClients struct {
 	AzurePostgres           azure.DBServersClient
 	AzurePostgresPerSub     map[string]azure.DBServersClient
 	AzureSubscriptionClient *azure.SubscriptionClient
+	AzureRedis              azure.CacheForRedisClient
+	AzureRedisEnterprise    azure.CacheForRedisClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -560,6 +582,16 @@ func (c *TestCloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClie
 // GetAWSSSMClient returns an AWS SSM client
 func (c *TestCloudClients) GetAWSSSMClient(region string) (ssmiface.SSMAPI, error) {
 	return c.SSM, nil
+}
+
+// GetAzureRedisClient returns an Azure Redis client for the given subscription.
+func (c *TestCloudClients) GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.AzureRedis, nil
+}
+
+// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.AzureRedisEnterprise, nil
 }
 
 // Close closes all initialized clients.

@@ -140,9 +140,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		panic("unknown CA type")
 	}
 
-	if err := services.SyncCertAuthorityKeys(ca); err != nil {
-		panic(err)
-	}
 	return ca
 }
 
@@ -309,9 +306,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
-	ca2.Spec.SigningKeys = nil
 	ca2.Spec.ActiveKeys.TLS[0].Key = nil
-	ca2.Spec.TLSKeyPairs[0].Key = nil
 	require.Equal(t, cas[0], ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
@@ -652,29 +647,6 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	_, err = s.ProvisioningS.GetToken(ctx, "token")
 	require.True(t, trace.IsNotFound(err))
 
-	// check tokens backwards compatibility and marshal/unmarshal
-	expiry := time.Now().UTC().Add(time.Hour)
-	v1 := &types.ProvisionTokenV1{
-		Token:   "old",
-		Roles:   types.SystemRoles{types.RoleNode, types.RoleProxy},
-		Expires: expiry,
-	}
-	v2, err := types.NewProvisionToken(v1.Token, v1.Roles, expiry)
-	require.NoError(t, err)
-
-	// Tokens in different version formats are backwards and forwards
-	// compatible
-	require.Empty(t, cmp.Diff(v1.V2(), v2))
-	require.Empty(t, cmp.Diff(v2.V1(), v1))
-
-	// Marshal V1, unmarshal V2
-	data, err := services.MarshalProvisionToken(v2, services.WithVersion(types.V1))
-	require.NoError(t, err)
-
-	out, err := services.UnmarshalProvisionToken(data)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, v2))
-
 	// Test delete all tokens
 	tok, err = types.NewProvisionToken("token1", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
 	require.NoError(t, err)
@@ -807,7 +779,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 			},
 		},
 	}
-	err := services.ValidateSAMLConnector(connector)
+	err := services.ValidateSAMLConnector(connector, nil)
 	require.NoError(t, err)
 	err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
@@ -1402,6 +1374,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindToken,
 			},
+			expectDeleteVersion: true,
 			crud: func(context.Context) types.Resource {
 				expires := time.Now().UTC().Add(time.Hour)
 				tok, err := types.NewProvisionToken("token",
@@ -1848,14 +1821,18 @@ skiploop:
 		}
 		// delete events don't have IDs yet
 		header.SetResourceID(0)
+		if tc.expectDeleteVersion {
+			header.Version = types.VDeleted
+		}
 		ExpectDeleteResource(t, w, 3*time.Second, header)
 	}
 }
 
 type eventTest struct {
-	name string
-	kind types.WatchKind
-	crud func(context.Context) types.Resource
+	name                string
+	kind                types.WatchKind
+	expectDeleteVersion bool
+	crud                func(context.Context) types.Resource
 }
 
 func eventsTestKinds(tests []eventTest) []types.WatchKind {

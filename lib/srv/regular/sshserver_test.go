@@ -33,6 +33,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/mailgun/timetools"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -44,10 +45,12 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -272,6 +275,80 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	return f
 }
 
+// TestMultipleExecCommands asserts that multiple SSH exec commands can not be
+// sent over a single SSH channel, which is disallowed by the SSH standard
+// https://www.ietf.org/rfc/rfc4254.txt
+//
+// Conformant clients (tsh, openssh) will never try to do this, but we must
+// correctly handle the case where an attacker would try to send multiple
+// commands over the same channel to try to cover their tracks in the audit log
+// or do other nefarious things.
+//
+// We make sure that:
+//   - the first command is correctly added to the audit log
+//   - the second command does not appear in the audit log (as a proxy for testing
+//     that it was blocked/not executed)
+//   - there are no panics or unexpected errors
+//   - and we give the race detector a chance to detect any possible race
+//     conditions on this code path.
+func TestMultipleExecCommands(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = emitter
+
+	// Manually open an ssh channel
+	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)
+	require.NoError(t, err)
+
+	sendExec := func(cmd string) error {
+		type execRequest struct {
+			Command string
+		}
+		// Intentionally don't request a reply so that SendRequest won't wait,
+		// we want to maximize the chance of triggering any potential race
+		// condition.
+		_, err := channel.SendRequest(ctx, "exec", false /*wantReply*/, ssh.Marshal(&execRequest{Command: cmd}))
+		return err
+	}
+
+	t.Log("sending first exec request over channel")
+	err = sendExec("echo 1")
+	require.NoError(t, err)
+
+	t.Log("sending second exec request over channel")
+	// Since we don't wait for a reply, this may or may not return an error, and
+	// we don't really care either way
+	_ = sendExec("echo 2")
+
+	// Wait for session.end event
+	timeout := time.After(10 * time.Second)
+	var execEvent *apievents.Exec
+loop:
+	for {
+		select {
+		case event := <-emitter.C():
+			switch e := event.(type) {
+			case *apievents.Exec:
+				require.Nil(t, execEvent, "found more than 1 exec event in audit log")
+				execEvent = e
+			case *apievents.SessionEnd:
+				break loop
+			}
+		case <-timeout:
+			require.Fail(t, "hit timeout while waiting for session.end event")
+		}
+	}
+
+	// The first command, which was actually executed, should be recorded
+	// correctly in the audit log
+	require.NotNil(t, execEvent)
+	require.Equal(t, "echo 1", execEvent.CommandMetadata.Command)
+}
+
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
@@ -336,41 +413,80 @@ func TestInactivityTimeout(t *testing.T) {
 
 		cfg.Auth.ClusterNetworkingConfig = networkCfg
 	}
-	f := newCustomFixture(t, mutateCfg)
 
-	// If all goes well, the client will be closed by the time cleanup happens,
-	// so change the assertion on closing the client to expect it to fail
-	f.ssh.assertCltClose = require.Error
+	waitForTimeout := func(t *testing.T, f *sshTestFixture, se *tracessh.Session) {
+		stderr, err := se.StderrPipe()
+		require.NoError(t, err)
+		stdErrCh := startReadAll(stderr)
 
-	se, err := f.ssh.clt.NewSession(context.Background())
-	require.NoError(t, err)
-	defer se.Close()
+		endCh := make(chan error)
+		go func() { endCh <- f.ssh.clt.Wait() }()
+		t.Cleanup(func() { f.ssh.clt.Close() })
 
-	stderr, err := se.StderrPipe()
-	require.NoError(t, err)
-	stdErrCh := startReadAll(stderr)
+		// When I let the session idle (with the clock running at approx 10x speed)...
+		sessionHasFinished := func() bool {
+			f.clock.Advance(1 * time.Second)
+			select {
+			case <-endCh:
+				return true
 
-	endCh := make(chan error)
-	go func() { endCh <- f.ssh.clt.Wait() }()
+			default:
+				return false
+			}
+		}
+		require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
+			"Timed out waiting for session to finish")
 
-	// When I let the session idle (with the clock running at approx 10x speed)...
-	sessionHasFinished := func() bool {
-		f.clock.Advance(1 * time.Second)
+		// Expect that the idle timeout has been delivered via stderr
+		text, err := waitForBytes(stdErrCh)
+		require.NoError(t, err)
+		require.Equal(t, timeoutMessage, string(text))
+	}
+
+	t.Run("Normal timeout", func(t *testing.T) {
+		f := newCustomFixture(t, mutateCfg)
+
+		// If all goes well, the client will be closed by the time cleanup happens,
+		// so change the assertion on closing the client to expect it to fail
+		f.ssh.assertCltClose = require.Error
+		se, err := f.ssh.clt.NewSession(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, err) })
+		waitForTimeout(t, f, se)
+	})
+
+	t.Run("Reset timeout on input", func(t *testing.T) {
+		f := newCustomFixture(t, mutateCfg)
+
+		// If all goes well, the client will be closed by the time cleanup happens,
+		// so change the assertion on closing the client to expect it to fail
+		f.ssh.assertCltClose = require.Error
+		se, err := f.ssh.clt.NewSession(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, err) })
+
+		stdin, err := se.StdinPipe()
+		require.NoError(t, err)
+		t.Cleanup(func() { require.ErrorIs(t, stdin.Close(), io.EOF) })
+
+		endCh := make(chan error)
+		go func() { endCh <- f.ssh.clt.Wait() }()
+		t.Cleanup(func() { f.ssh.clt.Close() })
+
+		f.clock.Advance(3 * time.Second)
+		// Input should reset idle timeout.
+		_, err = stdin.Write([]byte("echo hello\n"))
+		require.NoError(t, err)
+		f.clock.Advance(3 * time.Second)
+
 		select {
 		case <-endCh:
-			return true
-
+			require.Fail(t, "Session timed out too early")
 		default:
-			return false
 		}
-	}
-	require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
-		"Timed out waiting for session to finish")
 
-	// Expect that the idle timeout has been delivered via stderr
-	text, err := waitForBytes(stdErrCh)
-	require.NoError(t, err)
-	require.Equal(t, timeoutMessage, string(text))
+		waitForTimeout(t, f, se)
+	})
 }
 
 func TestLockInForce(t *testing.T) {
@@ -391,6 +507,7 @@ func TestLockInForce(t *testing.T) {
 
 	endCh := make(chan error)
 	go func() { endCh <- f.ssh.clt.Wait() }()
+	t.Cleanup(func() { f.ssh.clt.Close() })
 
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{Login: f.user},
@@ -1611,6 +1728,79 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	response, err = strconv.ParseBool(string(responseBytes))
 	require.NoError(t, err)
 	require.True(t, response)
+}
+
+// TestGlobalRequestClusterDetails simulates sending a global out-of-band
+// cluster-details@goteleport.com request.
+func TestGlobalRequestClusterDetails(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cases := []struct {
+		name     string
+		fips     bool
+		mode     string
+		expected sshutils.ClusterDetails
+	}{
+		{
+			name: "node recording and fips",
+			fips: true,
+			mode: types.RecordAtNode,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: false,
+				FIPSEnabled:    true,
+			},
+		},
+		{
+			name: "node recording and not fips",
+			fips: false,
+			mode: types.RecordAtNode,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: false,
+				FIPSEnabled:    false,
+			},
+		},
+		{
+			name: "proxy recording and fips",
+			fips: true,
+			mode: types.RecordAtProxy,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: true,
+				FIPSEnabled:    true,
+			},
+		},
+		{
+			name: "proxy recording and not fips",
+			fips: false,
+			mode: types.RecordAtProxy,
+			expected: sshutils.ClusterDetails{
+				RecordingProxy: true,
+				FIPSEnabled:    false,
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newCustomFixture(t, func(*auth.TestServerConfig) {}, SetFIPS(tt.fips))
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{Mode: tt.mode})
+			require.NoError(t, err)
+
+			err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+			require.NoError(t, err)
+
+			ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+			require.NoError(t, err)
+			require.True(t, ok)
+
+			var details sshutils.ClusterDetails
+			require.NoError(t, ssh.Unmarshal(responseBytes, &details))
+			require.Empty(t, cmp.Diff(tt.expected, details))
+		})
+	}
 }
 
 // rawNode is a basic non-teleport node which holds a

@@ -13,8 +13,8 @@ an EC2 instance with an attached IAM role. No specific permissions or IAM policy
 is required: an IAM role with no attached policies is sufficient. No IAM
 credentials are required on the Teleport Auth Service.
 
-<Details 
-scope={["oss", "enterprise"]} 
+<Details
+scope={["oss", "enterprise"]}
 scopeOnly
 opened
 title="Other AWS Node joining methods"
@@ -38,8 +38,8 @@ Read more in the following guide:
 [Adding Nodes to the cluster](../admin/adding-nodes.mdx)
 
 </Details>
-<Details 
-scope={["cloud"]} 
+<Details
+scope={["cloud"]}
 scopeOnly
 opened
 title="Another AWS Node joining method"
@@ -149,12 +149,12 @@ and `method: iam` as shown in the following example config:
 
 ```
 # /etc/teleport.yaml
+version: v3
 teleport:
   join_params:
     token_name: iam-token
     method: iam
-  auth_servers:
-  - https://teleport.example.com:443
+  proxy_server: https://teleport.example.com:443
 ssh_service:
   enabled: yes
 auth_service:
