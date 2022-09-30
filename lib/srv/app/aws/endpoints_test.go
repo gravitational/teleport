@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -147,7 +148,7 @@ var signingNameToHostname = map[string]string{
 	"greengrass":                            "greengrass.us-east-1.amazonaws.com",
 	"groundstation":                         "groundstation.us-east-1.amazonaws.com",
 	"guardduty":                             "guardduty.us-east-1.amazonaws.com",
-	"health":                                "health.us-east-1.amazonaws.com",
+	"health":                                "global.health.amazonaws.com",
 	"healthlake":                            "healthlake.us-east-1.amazonaws.com",
 	"honeycode":                             "honeycode.us-east-1.amazonaws.com",
 	"iam":                                   "iam.amazonaws.com",
@@ -159,7 +160,6 @@ var signingNameToHostname = map[string]string{
 	"iot-jobs-data":                         "data.jobs.iot.us-east-1.amazonaws.com",
 	"iot1click":                             "devices.iot1click.us-east-1.amazonaws.com",
 	"iotanalytics":                          "iotanalytics.us-east-1.amazonaws.com",
-	"iotdata":                               "data.iot.us-east-1.amazonaws.com",
 	"iotdeviceadvisor":                      "api.iotdeviceadvisor.us-east-1.amazonaws.com",
 	"iotevents":                             "iotevents.us-east-1.amazonaws.com",
 	"ioteventsdata":                         "data.iotevents.us-east-1.amazonaws.com",
@@ -311,6 +311,7 @@ var signingNameToHostname = map[string]string{
 	// "forecast":        "forecastquery.us-east-1.amazonaws.com",
 	// "iot1click":       "devices.iot1click.us-east-1.amazonaws.com",
 	// "iot1click":       "projects.iot1click.us-east-1.amazonaws.com",
+	// "iotdata":         "data.iot.us-east-1.amazonaws.com",
 	// "lex":             "models-v2-lex.us-east-1.amazonaws.com",
 	// "lex":             "models.lex.us-east-1.amazonaws.com",
 	// "lex":             "runtime-v2-lex.us-east-1.amazonaws.com",
@@ -353,8 +354,8 @@ func TestResolveEndpoints(t *testing.T) {
 
 		endpoint, err := resolveEndpoint(req)
 		require.NoError(t, err)
-		require.Equal(t, signingName, endpoint.SigningName)
-		require.Equal(t, "https://"+signingNameToHostname[signingName], endpoint.URL, "for signing name %q", signingName)
+		assert.Equal(t, signingName, endpoint.SigningName)
+		assert.Equal(t, "https://"+signingNameToHostname[signingName], endpoint.URL, "for signing name %q", signingName)
 	}
 
 	t.Run("X-Forwarded-Host", func(t *testing.T) {
