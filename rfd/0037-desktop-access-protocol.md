@@ -227,7 +227,7 @@ encoding, where desktop sessions wrap the MFA JSON in a TDP message.
 #### 27 - PNG frame 2
 
 ```
-| message type (2) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
+| message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
 ```
 
 This is a newer version of the PNG frame message, which includes the length of the PNG data after
