@@ -5,6 +5,8 @@ updates:
     schedule:
       interval: weekly
     ignore:
+      # Breaks backwards compatibility
+      - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
