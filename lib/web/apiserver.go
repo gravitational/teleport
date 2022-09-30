@@ -154,6 +154,8 @@ type Config struct {
 	ProxyClient auth.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
 	ProxySSHAddr utils.NetAddr
+	// ProxyKubeAddr points to the Kube address of the proxy
+	ProxyKubeAddr utils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
@@ -3078,6 +3080,24 @@ func (h *Handler) ProxyHostPort() string {
 		return fmt.Sprintf("localhost:%v,%s", h.cfg.ProxyWebAddr.Port(defaults.HTTPListenPort), h.sshPort)
 	}
 	return fmt.Sprintf("%s,%s", h.cfg.ProxyWebAddr.String(), h.sshPort)
+}
+
+func (h *Handler) kubeProxyHostPort() string {
+	// Kube Proxy web address can be set in the config with unspecified host, like
+	// 0.0.0.0:3080 or :443.
+	//
+	// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
+	// localhost in Go) but the Kube host certificate will not validate since
+	// 0.0.0.0 is never a valid principal (auth server explicitly removes it
+	// when issuing host certs).
+	//
+	// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
+	// all interfaces and localhost is always included in the valid principal
+	// set.
+	if h.cfg.ProxyKubeAddr.IsHostUnspecified() {
+		return fmt.Sprintf("localhost:%v", h.cfg.ProxyKubeAddr.Port(defaults.KubeListenPort))
+	}
+	return h.cfg.ProxyKubeAddr.String()
 }
 
 func message(msg string) interface{} {
