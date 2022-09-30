@@ -107,8 +107,6 @@ github.com/AzureAD/microsoft-authentication-library-for-go v0.4.0 h1:WVsrXCnHlDD
 github.com/AzureAD/microsoft-authentication-library-for-go v0.4.0/go.mod h1:Vt9sXTKwMyGcOxSmLDMnGPgqsUg7m8pe215qMLrDXw4=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/Clever/go-utils v0.0.0-20180917210021-2dac0ec6f2ac h1:eoofDGlVjiTro1kr97QnRkW4b/MGDSmm4E0ta2rqFos=
-github.com/Clever/go-utils v0.0.0-20180917210021-2dac0ec6f2ac/go.mod h1:XXTA9F/953CGhnDRslFaBp7S0560745gMZSDm+C4ebw=
 github.com/HdrHistogram/hdrhistogram-go v1.0.1 h1:GX8GAYDuhlFQnI2fRDHQhTlkHMz8bEn0jTI6LJU0mpw=
 github.com/HdrHistogram/hdrhistogram-go v1.0.1/go.mod h1:BWJ+nMSHY3L41Zj7CA3uXnloDp7xxV0YvstAE7nKTaM=
 github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
