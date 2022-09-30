@@ -84,11 +84,10 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:    appSessionID,
-		appPublicAddr:   req.PublicAddr,
-		appClusterName:  req.ClusterName,
-		awsRoleARN:      req.AWSRoleARN,
-		skipAttestation: true,
+		appSessionID:   appSessionID,
+		appPublicAddr:  req.PublicAddr,
+		appClusterName: req.ClusterName,
+		awsRoleARN:     req.AWSRoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
