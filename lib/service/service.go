@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
@@ -2153,7 +2154,8 @@ func (process *TeleportProcess) newAsyncEmitter(clt apievents.Emitter) (*events.
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
-		Inner: emitter,
+		Inner:      emitter,
+		BufferSize: 131072,
 	})
 }
 
@@ -4554,7 +4556,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 		bk, err = etcdbk.New(ctx, bc.Params)
 	// PostgreSQL backend
 	case postgres.GetName():
-		bk, err = postgres.New(ctx, bc.Params)
+		bk, err = pgbk.New(ctx, bc.Params)
 	default:
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}
