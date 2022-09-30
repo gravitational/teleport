@@ -32,6 +32,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/fp"
 )
 
 // CreateUser inserts a new user entry in a backend.
@@ -234,40 +235,31 @@ func (s *Server) DeleteUser(ctx context.Context, username string) error {
 
 // checkUserRoleConstraint checks if the request will result in having
 // no users with access to update roles.
-func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, request string) error {
+func (s *Server) checkUserRoleConstraint(ctx context.Context, targetUser types.User, request string) error {
+	currentTargetUser, err := s.Identity.GetUser(targetUser.GetName(), false /* withSecrets */)
+	if err != nil {
+		return nil
+	}
+
 	rolesWithUpdateRolesRule, err := s.getRolesWithUpdateRolesRule(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	allUsers, err := s.Identity.GetUsers(false)
+	isTargetUserLosingPermissionToEditRoles := isSomeUserHasRole([]types.User{currentTargetUser}, rolesWithUpdateRolesRule) && !isSomeUserHasRole([]types.User{targetUser}, rolesWithUpdateRolesRule)
+	if !isTargetUserLosingPermissionToEditRoles {
+		return nil
+	}
+
+	localUsers, err := s.getLocalUsers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	localUsersWithPermissionToEditRoles := Filter(allUsers, func(u types.User) bool {
-		isLocalUser := u.GetCreatedBy().Connector == nil
-
-		return isLocalUser && Some(u.GetRoles(), func(role string) bool {
-			return Contains(rolesWithUpdateRolesRule, role)
-		})
+	localUsersWithoutTargetUser := fp.Filter(localUsers, func(u types.User) bool {
+		return u.GetName() != targetUser.GetName()
 	})
-
-	if len(localUsersWithPermissionToEditRoles) > 1 {
-		return nil
-	}
-
-	isUserWithPermissionToEditRoles := Some(localUsersWithPermissionToEditRoles, func(u types.User) bool {
-		return user.GetName() == u.GetName()
-	})
-
-	isUpdatedUserWithPermissionToEditRoles := Some(user.GetRoles(), func(role string) bool {
-		return Contains(rolesWithUpdateRolesRule, role)
-	})
-
-	isUserLosingPermissionToEditRoles := isUserWithPermissionToEditRoles && !isUpdatedUserWithPermissionToEditRoles
-
-	if !isUserLosingPermissionToEditRoles {
+	if isSomeUserHasRole(localUsersWithoutTargetUser, rolesWithUpdateRolesRule) {
 		return nil
 	}
 
