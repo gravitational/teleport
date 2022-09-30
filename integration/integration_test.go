@@ -5499,7 +5499,7 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		cancel()
-		// This may or may not be an error, depending on whether we cancelled it
+		// This may or may not be an error, depending on whether we canceled it
 		// before the command died of natural causes, no need to test the value
 		// here but we'll wait for it in order to avoid leaking goroutines
 		<-errC
