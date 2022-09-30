@@ -182,7 +182,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
 		}
 		if _, ok := alert.Metadata.Labels[types.AlertLicenseExpired]; ok {
-			// Skip license expired alert warnings as they should already have been shown by now.
+			// Skip license expired alert warnings as they are shown before every tctl command instead.
 			continue
 		}
 		fmt.Fprintf(os.Stderr, "%s\n\n", utils.FormatAlertOutput(alert))
