@@ -36,7 +36,7 @@ jobs:
         oss-fuzz-project-name: 'teleport'
         language: go
         fuzz-seconds: 600
-    - name: chmod output directory
+    - name: Fix permissions on output directory
       run: sudo chmod -R g=u-w,o=u-w ./out
       shell: bash
       if: failure() && steps.build.outcome == 'success'
