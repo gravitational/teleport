@@ -100,7 +100,7 @@ func (p *Pool) start(target uint64) {
 			Active: 0,
 			Target: target,
 		},
-		leaseIDs: p.leaseIDs,
+		leaseIDs: &p.leaseIDs,
 		grantC:   p.grantC,
 		notifyC:  notifyC,
 		ctx:      ctx,
@@ -144,7 +144,7 @@ type Counts struct {
 type group struct {
 	cmu      sync.Mutex
 	counts   Counts
-	leaseIDs atomic.Uint64
+	leaseIDs *atomic.Uint64
 	grantC   chan Lease
 	notifyC  chan struct{}
 	ctx      context.Context
