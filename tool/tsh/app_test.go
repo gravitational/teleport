@@ -94,7 +94,7 @@ func TestFormatAppConfig(t *testing.T) {
 			tc:       defaultTc,
 			format:   appFormatCURL,
 			insecure: true,
-			expected: `curl -k \
+			expected: `curl --insecure \
   --cert /test/dir/keys/test-user-app/test-tp-x509.pem \
   --key /test/dir/keys/test-user \
   https://test-tp.teleport:8443`,
@@ -144,7 +144,8 @@ Key:       /test/dir/keys/test-user
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, testCluster, test.insecure)
+			test.tc.InsecureSkipVerify = test.insecure
+			result, err := formatAppConfig(test.tc, testProfile, testAppName, testAppPublicAddr, test.format, testCluster)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expected, result)
 		})
