@@ -247,7 +247,7 @@ You can specify multiple selectors by including additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `databaseResources` is required. |
 
 `awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
 
@@ -335,7 +335,7 @@ You can specify multiple database filters by adding additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `databaseResources` is required. |
 
 `azureDatabases` is a YAML list object detailing the filters for the Azure databases that should be discovered and proxied by Teleport Database access.
 
@@ -490,20 +490,20 @@ You can specify multiple databases by adding additional list elements.
   ```
 </Admonition>
 
-## `dbResources`
+## `databaseResources`
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`, `databaseResources` is required. |
 
-`dbResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
+`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
 
 You can specify multiple selectors by adding elements to the list.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  dbResources:
+  databaseResources:
   - labels:
       "env": "prod"
       "engine": "postgres"
@@ -516,10 +516,10 @@ You can specify multiple selectors by adding elements to the list.
   <TabItem label="--set">
   ```code
   $
-  --set "dbResources[0].labels.env=prod" \
-  --set "dbResources[0].labels.engine=postgres" \
-  --set "dbResources[1].labels.env=test" \
-  --set "dbResources[0].labels.engine=mysql"
+  --set "databaseResources[0].labels.env=prod" \
+  --set "databaseResources[0].labels.engine=postgres" \
+  --set "databaseResources[1].labels.env=test" \
+  --set "databaseResources[0].labels.engine=mysql"
   ```
 
   <Admonition type="note">
@@ -530,7 +530,7 @@ You can specify multiple selectors by adding elements to the list.
 </Tabs>
 
 <Admonition type="tip" title="Example">
-  Once `dbResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
+  Once `databaseResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
 
 ## `teleportVersionOverride`
