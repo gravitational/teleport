@@ -126,7 +126,7 @@ require (
 	google.golang.org/api v0.98.0
 	google.golang.org/genproto v0.0.0-20220930163606-c98284e70a91
 	google.golang.org/grpc v1.49.0
-	google.golang.org/grpc/examples v0.0.0-20210424002626-9572fd6faeae
+	google.golang.org/grpc/examples v0.0.0-20220930163405-54521b22e01f
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/ini.v1 v1.62.0
