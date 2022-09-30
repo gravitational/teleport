@@ -90,7 +90,7 @@ func TestAuditWriter(t *testing.T) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
 				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-					if event.GetIndex() > 1 && terminateConnection.CAS(1, 0) == true {
+					if event.GetIndex() > 1 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
@@ -153,7 +153,7 @@ func TestAuditWriter(t *testing.T) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
 				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-					if event.GetIndex() > 600 && terminateConnection.CAS(1, 0) == true {
+					if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
@@ -212,7 +212,7 @@ func TestAuditWriter(t *testing.T) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
 				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CAS(1, 0) == true {
+					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Locking connection at event %v", event.GetIndex())
 						<-hangCtx.Done()
 						return trace.ConnectionProblem(hangCtx.Err(), "stream hangs")
