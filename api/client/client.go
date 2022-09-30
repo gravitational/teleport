@@ -1371,6 +1371,8 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	resp, err := c.grpc.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
 		Username:    req.Username,
 		PublicAddr:  req.PublicAddr,
+		AppName:     req.AppName,
+		AppURI:      req.AppURI,
 		ClusterName: req.ClusterName,
 		AWSRoleARN:  req.AWSRoleARN,
 	}, c.callOpts...)
