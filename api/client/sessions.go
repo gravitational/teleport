@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 
-	"github.com/golang/protobuf/ptypes/empty"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // GetWebSession returns the web session for the specified request.
@@ -49,7 +49,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 
 // List returns the list of all web sessions
 func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
-	resp, err := r.c.grpc.GetWebSessions(ctx, &empty.Empty{}, r.c.callOpts...)
+	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{}, r.c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -76,7 +76,7 @@ func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequ
 
 // DeleteAll deletes all web sessions
 func (r *webSessions) DeleteAll(ctx context.Context) error {
-	_, err := r.c.grpc.DeleteAllWebSessions(ctx, &empty.Empty{}, r.c.callOpts...)
+	_, err := r.c.grpc.DeleteAllWebSessions(ctx, &emptypb.Empty{}, r.c.callOpts...)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -109,7 +109,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 
 // List returns the list of all web tokens
 func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
-	resp, err := r.c.grpc.GetWebTokens(ctx, &empty.Empty{}, r.c.callOpts...)
+	resp, err := r.c.grpc.GetWebTokens(ctx, &emptypb.Empty{}, r.c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -136,7 +136,7 @@ func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest)
 
 // DeleteAll deletes all web tokens
 func (r *webTokens) DeleteAll(ctx context.Context) error {
-	_, err := r.c.grpc.DeleteAllWebTokens(ctx, &empty.Empty{}, r.c.callOpts...)
+	_, err := r.c.grpc.DeleteAllWebTokens(ctx, &emptypb.Empty{}, r.c.callOpts...)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
