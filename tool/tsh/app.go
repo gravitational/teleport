@@ -108,7 +108,7 @@ func onAppLogin(cf *CLIConf) error {
 			"appName": app.GetName(),
 		})
 	}
-	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, cf.InsecureSkipVerify)
+	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -234,7 +234,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "", cf.InsecureSkipVerify)
+	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -242,7 +242,7 @@ func onAppConfig(cf *CLIConf) error {
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string, insecure bool) (string, error) {
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
 	var uri string
 	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
 		uri = fmt.Sprintf("https://%v", appPublicAddr)
@@ -251,7 +251,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 	}
 
 	var curlCmd string
-	if insecure {
+	if tc.InsecureSkipVerify {
 		curlCmd = fmt.Sprintf(`curl --insecure \
   --cert %v \
   --key %v \
