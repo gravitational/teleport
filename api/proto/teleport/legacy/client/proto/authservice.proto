@@ -522,8 +522,6 @@ message Features {
   reserved 11; // bool ModeratedSessions
   reserved 12; // bool MachineID
   reserved 13; // bool ResourceAccessRequests
-  // HardwareKey enables hardware key support.
-  bool HardwareKey = 14 [(gogoproto.jsontag) = "hardware_key"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

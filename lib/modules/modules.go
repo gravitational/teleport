@@ -59,8 +59,6 @@ type Features struct {
 	HSM bool
 	// Desktop enables desktop access product
 	Desktop bool
-	// HardwareKey enables hardware key support.
-	HardwareKey bool
 }
 
 // ToProto converts Features into proto.Features
@@ -76,7 +74,6 @@ func (f Features) ToProto() *proto.Features {
 		Cloud:                   f.Cloud,
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
-		HardwareKey:             f.HardwareKey,
 	}
 }
 

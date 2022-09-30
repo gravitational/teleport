@@ -1028,12 +1028,7 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
-	// Set hardware key test modules so that attestation will always succeed.
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			HardwareKey: true,
-		},
-	})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)

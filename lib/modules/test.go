@@ -84,10 +84,6 @@ func (m *TestModules) BuildType() string {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (m *TestModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
-	if m.Features().HardwareKey {
-		// attest all keys in TestMode as hardware_key_touch, the strictest option.
-		return keys.PrivateKeyPolicyHardwareKeyTouch, nil
-	}
-	return keys.PrivateKeyPolicyNone, nil
+func (m *TestModules) AttestHardwareKey(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+	return policy, nil
 }

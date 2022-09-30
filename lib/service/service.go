@@ -803,7 +803,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	switch cfg.Auth.Preference.GetRequireMFAType() {
 	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
-		if !modules.GetModules().Features().HardwareKey {
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
 	}
