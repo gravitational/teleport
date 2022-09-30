@@ -311,9 +311,6 @@ matches snapshot for azure-databases.yaml:
           azure:
           - tags:
               '*': '*'
-              env:
-              - dev
-              - staging
             types:
             - mysql
             - postgres
@@ -327,7 +324,10 @@ matches snapshot for azure-databases.yaml:
             - subID1
             - subID2
             tags:
-              env: dev
+              env:
+              - dev
+              - staging
+              origin: alice
             types:
             - mysql
 
