@@ -501,6 +501,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-elasticsearch-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -511,6 +512,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-elasticsearch",
 			},
 		},
 		{
@@ -523,6 +525,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-elasticsearch-ping",
 				// Ensure h2 has precedence over http/1.1.
 				"h2",
 				"http/1.1",
@@ -536,6 +539,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-elasticsearch",
 			},
 		},
 	}
