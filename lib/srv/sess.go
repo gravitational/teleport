@@ -869,6 +869,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	}
 	s.recorder = rec
 
+	execRequest, err := scx.GetExecRequest()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Emit a session.start event for the exec session.
 	sessionStartEvent := &apievents.SessionStart{
 		Metadata: apievents.Metadata{
@@ -891,6 +896,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: scx.SessionRecordingConfig.GetMode(),
+		InitialCommand:   []string{execRequest.GetCommand()},
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !scx.srv.UseTunnel() {
@@ -898,11 +904,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	}
 	if err := s.recorder.EmitAuditEvent(scx.srv.Context(), sessionStartEvent); err != nil {
 		scx.WithError(err).Warn("Failed to emit session start event.")
-	}
-
-	execRequest, err := scx.GetExecRequest()
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Start execution. If the program failed to start, send that result back.
