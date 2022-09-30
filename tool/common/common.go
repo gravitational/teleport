@@ -87,7 +87,7 @@ func (e *SessionsCollection) WriteYAML(w io.Writer) error {
 	return utils.WriteYAML(w, e.SessionEvents)
 }
 
-// ShowSessions is s helper function for displaying listed sessions via tsh or tctl.
+// ShowSessions is a helper function for displaying listed sessions via tsh or tctl.
 func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error {
 	sessions := &SessionsCollection{SessionEvents: events}
 	switch format {
