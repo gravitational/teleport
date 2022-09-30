@@ -19,7 +19,8 @@ package workpool
 import (
 	"context"
 	"sync"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 )
 
 // Pool manages a collection of work group by key and is the primary means
@@ -28,7 +29,7 @@ import (
 // group.
 type Pool struct {
 	mu       sync.Mutex
-	leaseIDs atomic.Uint64
+	leaseIDs *atomic.Uint64
 	group    *group
 	// grantC is an unbuffered channel that funnels available leases from the
 	// workgroups to the outside world
@@ -40,9 +41,10 @@ type Pool struct {
 func NewPool(ctx context.Context) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Pool{
-		grantC: make(chan Lease),
-		ctx:    ctx,
-		cancel: cancel,
+		leaseIDs: atomic.NewUint64(0),
+		grantC:   make(chan Lease),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 }
 
@@ -100,7 +102,7 @@ func (p *Pool) start(target uint64) {
 			Active: 0,
 			Target: target,
 		},
-		leaseIDs: &p.leaseIDs,
+		leaseIDs: p.leaseIDs,
 		grantC:   p.grantC,
 		notifyC:  notifyC,
 		ctx:      ctx,
