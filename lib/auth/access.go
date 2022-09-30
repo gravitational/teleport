@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils/fp"
 )
 
 // UpsertRole creates or updates a role and emits a related audit event.
@@ -150,9 +151,9 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 }
 
 func isSomeUserHasRole(users []types.User, roleNames []string) bool {
-	return Some(users, func(u types.User) bool {
-		return Some(u.GetRoles(), func(role string) bool {
-			return Contains(roleNames, role)
+	return fp.Some(users, func(u types.User) bool {
+		return fp.Some(u.GetRoles(), func(role string) bool {
+			return fp.Contains(roleNames, role)
 		})
 	})
 }
@@ -163,7 +164,7 @@ func (s *Server) getLocalUsers() ([]types.User, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return Filter(allUsers, func(u types.User) bool {
+	return fp.Filter(allUsers, func(u types.User) bool {
 		return u.GetCreatedBy().Connector == nil
 	}), nil
 }
@@ -200,7 +201,7 @@ func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.
 		return trace.Wrap(err)
 	}
 
-	rolesWithUpdateRolesRuleWithoutTargetRole := Filter(rolesWithUpdateRolesRule, func(role string) bool {
+	rolesWithUpdateRolesRuleWithoutTargetRole := fp.Filter(rolesWithUpdateRolesRule, func(role string) bool {
 		return role != targetRoleName
 	})
 
@@ -219,16 +220,16 @@ func (a *Server) getRolesWithUpdateRolesRule(ctx context.Context) ([]string, err
 		return nil, trace.Wrap(err)
 	}
 
-	getRolesWithUpdateRolesRule := Filter(allRoles, roleHasUpdateRolesRule)
+	getRolesWithUpdateRolesRule := fp.Filter(allRoles, roleHasUpdateRolesRule)
 
-	return Map(getRolesWithUpdateRolesRule, func(r types.Role) string {
+	return fp.Map(getRolesWithUpdateRolesRule, func(r types.Role) string {
 		return r.GetName()
 	}), nil
 }
 
 // checks if role has permission to edit roles
 func roleHasUpdateRolesRule(role types.Role) bool {
-	return Some(role.GetRules(types.Allow), func(rule types.Rule) bool {
+	return fp.Some(role.GetRules(types.Allow), func(rule types.Rule) bool {
 		return rule.HasResource(types.KindRole) && rule.HasVerb(types.VerbUpdate)
 	})
 }
