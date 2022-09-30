@@ -30,6 +30,7 @@ resource "aws_instance" "cluster" {
 
   metadata_options {
     http_tokens = "required"
+    http_endpoint = "enabled"
   }
 
   root_block_device {
