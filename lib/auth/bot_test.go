@@ -31,35 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// TestServerCreateBotFeatureDisabled ensures that you cannot create a bot when
-// the appropriate license does not exist. It is a separate test from
-// TestServerCreateBot as `modules.SetTestModules` does not work with parallel
-// tests.
-func TestServerCreateBotFeatureDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			MachineID: false,
-		},
-	})
-	ctx := context.Background()
-
-	srv := newTestTLSServer(t)
-	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	// Attempt to create a bot. This should fail immediately.
-	_, err = srv.Auth().createBot(ctx, &proto.CreateBotRequest{
-		Name:  "test",
-		Roles: []string{"example"},
-	})
-	require.True(t, trace.IsAccessDenied(err))
-	require.Contains(t, err.Error(), "not licensed")
-}
 
 // TestServerCreateBot ensures that the create bot RPC creates the appropriate
 // role and users.
@@ -185,53 +159,6 @@ func TestServerCreateBot(t *testing.T) {
 func TestBotResourceName(t *testing.T) {
 	require.Equal(t, "bot-name", BotResourceName("name"))
 	require.Equal(t, "bot-name-with-spaces", BotResourceName("name with spaces"))
-}
-
-func TestRegisterBotOnboardFeatureDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			MachineID: false,
-		},
-	})
-
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-
-	botName := "test"
-	botResourceName := BotResourceName(botName)
-
-	_, err := createBotRole(ctx, srv.Auth(), "test", "bot-test", []string{})
-	require.NoError(t, err)
-
-	_, err = createBotUser(ctx, srv.Auth(), botName, botResourceName, wrappers.Traits{})
-	require.NoError(t, err)
-
-	later := srv.Clock().Now().Add(4 * time.Hour)
-	goodToken := newBotToken(t, "good-token", botName, types.RoleBot, later)
-
-	err = srv.Auth().UpsertToken(ctx, goodToken)
-	require.NoError(t, err)
-
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
-	// Attempt to register a bot. This should fail even if a token was manually
-	// created.
-	_, err = Register(RegisterParams{
-		Token: goodToken.GetName(),
-		ID: IdentityID{
-			Role: types.RoleBot,
-		},
-		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "not licensed")
 }
 
 func renewBotCerts(

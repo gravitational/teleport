@@ -100,6 +100,8 @@ const (
 	githubCacheTimeout = time.Hour
 )
 
+var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
+
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
 
@@ -1161,8 +1163,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.checker.GetAllowedResourceIDs()) > 0 && !modules.GetModules().Features().ResourceAccessRequests {
-		return nil, trace.AccessDenied("this Teleport cluster is not licensed for resource access requests, please contact the cluster administrator")
+	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, fmt.Errorf("Resource Access Requests: %w", ErrRequiresEnterprise)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -3139,8 +3141,8 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	// Don't allow sessions that require moderation without the enterprise feature enabled.
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
-			if !modules.GetModules().Features().ModeratedSessions {
-				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			if modules.GetModules().BuildType() != modules.BuildEnterprise {
+				return nil, fmt.Errorf("Moderated Sessions: %w", ErrRequiresEnterprise)
 			}
 		}
 	}

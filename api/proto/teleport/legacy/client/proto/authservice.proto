@@ -519,12 +519,9 @@ message Features {
   bool HSM = 9 [(gogoproto.jsontag) = "hsm"];
   // Desktop enables desktop access product
   bool Desktop = 10 [(gogoproto.jsontag) = "desktop"];
-  // ModeratedSessions enables moderated sessions product
-  bool ModeratedSessions = 11 [(gogoproto.jsontag) = "moderated_sessions"];
-  // MachineID enables MachineID product
-  bool MachineID = 12 [(gogoproto.jsontag) = "machine_id"];
-  // ResourceAccessRequests enables resource access requests product
-  bool ResourceAccessRequests = 13 [(gogoproto.jsontag) = "resource_access_requests"];
+  reserved 11; // bool ModeratedSessions
+  reserved 12; // bool MachineID
+  reserved 13; // bool ResourceAccessRequests
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
