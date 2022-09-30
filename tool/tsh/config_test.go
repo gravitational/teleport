@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,13 +42,14 @@ Host *.test-cluster !localhost
 `
 
 	var sb strings.Builder
-	err := writeSSHConfig(&sb, hostConfigParameters{
+	err := writeSSHConfig(&sb, &config.SSHConfigParameters{
+		AppName:             "tsh",
 		ClusterName:         "test-cluster",
 		KnownHostsPath:      "/tmp/know_host",
 		IdentityFilePath:    "/tmp/alice",
 		CertificateFilePath: "/tmp/localhost-cert.pub",
 		ProxyHost:           "localhost",
-		TSHPath:             "/bin/tsh",
+		ExecutablePath:      "/bin/tsh",
 	})
 	require.NoError(t, err)
 	require.Equal(t, want, sb.String())

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"text/template"
 
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/trace"
@@ -29,44 +28,12 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 )
 
-// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
-const sshConfigTemplate = `
-# Common flags for all {{ .ClusterName }} hosts
-Host *.{{ .ClusterName }} {{ .ProxyHost }}
-    UserKnownHostsFile "{{ .KnownHostsPath }}"
-    IdentityFile "{{ .IdentityFilePath }}"
-    CertificateFile "{{ .CertificateFilePath }}"{{ if .LegacyOpenSSH }}
-    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{else}}
-    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com{{end}}
-
-# Flags for all {{ .ClusterName }} hosts except the proxy
-Host *.{{ .ClusterName }} !{{ .ProxyHost }}
-    Port 3022
-    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
-`
-
-type hostConfigParameters struct {
-	ClusterName         string
-	KnownHostsPath      string
-	IdentityFilePath    string
-	CertificateFilePath string
-	ProxyHost           string
-	TSHPath             string
-	LegacyOpenSSH       bool
-}
-
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(sb *strings.Builder, params hostConfigParameters) error {
-	t, err := template.New("ssh-config").Parse(sshConfigTemplate)
-	if err != nil {
+func writeSSHConfig(sb *strings.Builder, params *config.SSHConfigParameters) error {
+	sshConf := config.NewSSHConfig(config.GetSystemSSHVersion, log)
+	if err := sshConf.GetSSHConfig(sb, params); err != nil {
 		return trace.Wrap(err)
-	}
-
-	err = t.Execute(sb, params)
-	if err != nil {
-		return trace.WrapWithMessage(err, "error generating SSH configuration from template")
 	}
 
 	return nil
@@ -114,38 +81,29 @@ func onConfig(cf *CLIConf) error {
 	fmt.Fprintln(&sb)
 	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
 
-	// Default to including the RSA deprecation workaround.
-	var sshConfigOptions *config.SSHConfigOptions
-	version, err := config.GetSystemSSHVersion()
-	if err != nil {
-		log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
-		sshConfigOptions = config.GetDefaultSSHConfigOptions()
-	} else {
-		log.Debugf("Found OpenSSH version %s", version)
-		sshConfigOptions = config.GetSSHConfigOptions(version)
-	}
-
-	err = writeSSHConfig(&sb, hostConfigParameters{
-		ClusterName:         rootClusterName,
-		KnownHostsPath:      knownHostsPath,
-		IdentityFilePath:    identityFilePath,
-		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
-		ProxyHost:           proxyHost,
-		TSHPath:             cf.executablePath,
-		LegacyOpenSSH:       sshConfigOptions.PubkeyAcceptedKeyTypesWorkaroundNeeded,
-	})
-	if err != nil {
+	if err := writeSSHConfig(&sb, &config.SSHConfigParameters{
+		AppName:          "tsh",
+		ClusterName:      rootClusterName,
+		KnownHostsPath:   knownHostsPath,
+		IdentityFilePath: identityFilePath,
+		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
+			tc.Config.Username, rootClusterName),
+		ProxyHost:      proxyHost,
+		ExecutablePath: cf.executablePath,
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
 	for _, leafCluster := range leafClusters {
-		err = writeSSHConfig(&sb, hostConfigParameters{
-			ClusterName:         leafCluster.GetName(),
-			KnownHostsPath:      knownHostsPath,
-			IdentityFilePath:    identityFilePath,
-			CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
-			ProxyHost:           proxyHost,
-			TSHPath:             cf.executablePath,
+		err = writeSSHConfig(&sb, &config.SSHConfigParameters{
+			AppName:          "tsh",
+			ClusterName:      leafCluster.GetName(),
+			KnownHostsPath:   knownHostsPath,
+			IdentityFilePath: identityFilePath,
+			CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
+				tc.Config.Username, rootClusterName),
+			ProxyHost:      proxyHost,
+			ExecutablePath: cf.executablePath,
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -24,10 +24,53 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
+
+var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
+# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
+
+# Common flags for all {{ .ClusterName }} hosts
+Host *.{{ .ClusterName }} {{ .ProxyHost }}
+    UserKnownHostsFile "{{ .KnownHostsPath }}"
+    IdentityFile "{{ .IdentityFilePath }}"
+    CertificateFile "{{ .CertificateFilePath }}"
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{- if .PubkeyAcceptedKeyTypesWorkaroundNeeded }}
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{else}}
+    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com{{end}}
+
+# Flags for all {{ .ClusterName }} hosts except the proxy
+Host *.{{ .ClusterName }} !{{ .ProxyHost }}
+    Port 3022
+    {{- if eq .AppName "tsh" }}
+    ProxyCommand "{{ .ExecutablePath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
+{{- end }}{{- if eq .AppName "tbot" }}
+    ProxyCommand "{{ .ExecutablePath }}" proxy --destination-dir={{ .DestinationDir }} --proxy={{ .ProxyHost }} ssh --cluster={{ .ClusterName }}  %r@%h:%p
+{{- end }}
+
+# End generated Teleport configuration
+`))
+
+type SSHConfigParameters struct {
+	AppName             string
+	ClusterName         string
+	KnownHostsPath      string
+	IdentityFilePath    string
+	CertificateFilePath string
+	ProxyHost           string
+	ExecutablePath      string
+	DestinationDir      string
+}
+
+type sshTmplParams struct {
+	SSHConfigParameters
+	SSHConfigOptions
+}
 
 // openSSHVersionRegex is a regex used to parse OpenSSH version strings.
 var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor>\d+)(?:p(?P<patch>\d+))?`)
@@ -95,6 +138,13 @@ func GetSystemSSHVersion() (*semver.Version, error) {
 }
 
 type SSHConfigOptions struct {
+	// PubkeyAcceptedKeyTypesWorkaroundNeeded controls whether the RSA deprecation workaround is
+	// included in the generated configuration. Newer versions of OpenSSH
+	// deprecate RSA certificates and, due to a bug in golang's ssh package,
+	// Teleport wrongly advertises its unaffected certificates as a
+	// now-deprecated certificate type. The workaround includes a config
+	// override to re-enable RSA certs for just Teleport hosts, however it is
+	// only supported on OpenSSH 8.5 and later.
 	PubkeyAcceptedKeyTypesWorkaroundNeeded bool
 	NewerHostKeyAlgorithmsSupported        bool
 }
@@ -138,4 +188,36 @@ func GetDefaultSSHConfigOptions() *SSHConfigOptions {
 		PubkeyAcceptedKeyTypesWorkaroundNeeded: true,
 		NewerHostKeyAlgorithmsSupported:        false,
 	}
+}
+
+type SSHConfig struct {
+	getSSHVersion func() (*semver.Version, error)
+	log           logrus.FieldLogger
+}
+
+func NewSSHConfig(getSSHVersion func() (*semver.Version, error), log logrus.FieldLogger) *SSHConfig {
+	return &SSHConfig{getSSHVersion: getSSHVersion, log: log}
+}
+
+func (c *SSHConfig) GetSSHConfig(sb *strings.Builder, config *SSHConfigParameters) error {
+	var sshConfigOptions *SSHConfigOptions
+	version, err := c.getSSHVersion()
+	if err != nil {
+		c.log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
+		sshConfigOptions = GetDefaultSSHConfigOptions()
+	} else {
+		c.log.Debugf("Found OpenSSH version %s", version)
+		sshConfigOptions = GetSSHConfigOptions(version)
+	}
+
+	c.log.Debugf("Using SSH options: %s", sshConfigOptions)
+
+	if err := sshConfigTemplate.Execute(sb, sshTmplParams{
+		SSHConfigParameters: *config,
+		SSHConfigOptions:    *sshConfigOptions,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

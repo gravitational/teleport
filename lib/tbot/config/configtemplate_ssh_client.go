@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"text/template"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
@@ -91,7 +90,7 @@ func (c *TemplateSSHClient) Describe(destination bot.Destination) []FileDescript
 // using non-filesystem backends.
 var sshConfigUnsupportedWarning sync.Once
 
-func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
@@ -173,15 +172,17 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity
 	knownHostsPath := filepath.Join(destDir, knownHostsName)
 	identityFilePath := filepath.Join(destDir, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(destDir, identity.SSHCertKey)
-	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
-		ClusterName:          clusterName.GetClusterName(),
-		ProxyHost:            proxyHost,
-		KnownHostsPath:       knownHostsPath,
-		IdentityFilePath:     identityFilePath,
-		CertificateFilePath:  certificateFilePath,
-		IncludeRSAWorkaround: sshConfigOptions.PubkeyAcceptedKeyTypesWorkaroundNeeded,
-		TBotPath:             executablePath,
-		DestinationDir:       destDir,
+
+	sshConf := config.NewSSHConfig(c.getSSHVersion, log)
+	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &config.SSHConfigParameters{
+		AppName:             "tbot",
+		ClusterName:         clusterName.GetClusterName(),
+		KnownHostsPath:      knownHostsPath,
+		IdentityFilePath:    identityFilePath,
+		CertificateFilePath: certificateFilePath,
+		ProxyHost:           proxyHost,
+		ExecutablePath:      executablePath,
+		DestinationDir:      destDir,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,44 +193,6 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity
 
 	return nil
 }
-
-type sshConfigParameters struct {
-	ClusterName         string
-	KnownHostsPath      string
-	IdentityFilePath    string
-	CertificateFilePath string
-	ProxyHost           string
-	TBotPath            string
-	DestinationDir      string
-
-	// IncludeRSAWorkaround controls whether the RSA deprecation workaround is
-	// included in the generated configuration. Newer versions of OpenSSH
-	// deprecate RSA certificates and, due to a bug in golang's ssh package,
-	// Teleport wrongly advertises its unaffected certificates as a
-	// now-deprecated certificate type. The workaround includes a config
-	// override to re-enable RSA certs for just Teleport hosts, however it is
-	// only supported on OpenSSH 8.5 and later.
-	IncludeRSAWorkaround bool
-}
-
-var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
-# Begin generated Teleport configuration for {{ .ProxyHost }} by tbot
-
-# Common flags for all {{ .ClusterName }} hosts
-Host *.{{ .ClusterName }} {{ .ProxyHost }}
-    UserKnownHostsFile "{{ .KnownHostsPath }}"
-    IdentityFile "{{ .IdentityFilePath }}"
-    CertificateFile "{{ .CertificateFilePath }}"
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{- if .IncludeRSAWorkaround }}
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com{{- end }}
-
-# Flags for all {{ .ClusterName }} hosts except the proxy
-Host *.{{ .ClusterName }} !{{ .ProxyHost }}
-    Port 3022
-    ProxyCommand "{{ .TBotPath }}" proxy --destination-dir={{ .DestinationDir }} --proxy={{ .ProxyHost }} ssh --cluster={{ .ClusterName }}  %r@%h:%p
-
-# End generated Teleport configuration
-`))
 
 func fetchKnownHosts(ctx context.Context, client auth.ClientI, clusterName, proxyHosts string) (string, error) {
 	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
