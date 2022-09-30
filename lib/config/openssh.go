@@ -31,26 +31,26 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
-# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
+var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(
+	`# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
+{{$dot := . }}
+{{- range $clusterName := .ClusterNames }}
+# Common flags for all {{ $clusterName }} hosts
+Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
+    UserKnownHostsFile "{{ $dot.KnownHostsPath }}"
+    IdentityFile "{{ $dot.IdentityFilePath }}"
+    CertificateFile "{{ $dot.CertificateFilePath }}"{{- if $dot.NewerHostKeyAlgorithmsSupported }}
+    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com{{- else }}
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{- end }}
 
-# Common flags for all {{ .ClusterName }} hosts
-Host *.{{ .ClusterName }} {{ .ProxyHost }}
-    UserKnownHostsFile "{{ .KnownHostsPath }}"
-    IdentityFile "{{ .IdentityFilePath }}"
-    CertificateFile "{{ .CertificateFilePath }}"
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{- if .PubkeyAcceptedKeyTypesWorkaroundNeeded }}
-    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{else}}
-    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com{{end}}
-
-# Flags for all {{ .ClusterName }} hosts except the proxy
-Host *.{{ .ClusterName }} !{{ .ProxyHost }}
+# Flags for all {{ $clusterName }} hosts except the proxy
+Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     Port 3022
-    {{- if eq .AppName "tsh" }}
-    ProxyCommand "{{ .ExecutablePath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
-{{- end }}{{- if eq .AppName "tbot" }}
-    ProxyCommand "{{ .ExecutablePath }}" proxy --destination-dir={{ .DestinationDir }} --proxy={{ .ProxyHost }} ssh --cluster={{ .ClusterName }}  %r@%h:%p
+    {{- if eq $dot.AppName "tsh" }}
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }} %r@%h:%p
+{{- end }}{{- if eq $dot.AppName "tbot" }}
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+{{- end }}
 {{- end }}
 
 # End generated Teleport configuration
@@ -58,7 +58,7 @@ Host *.{{ .ClusterName }} !{{ .ProxyHost }}
 
 type SSHConfigParameters struct {
 	AppName             string
-	ClusterName         string
+	ClusterNames        []string
 	KnownHostsPath      string
 	IdentityFilePath    string
 	CertificateFilePath string

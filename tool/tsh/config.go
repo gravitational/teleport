@@ -21,6 +21,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/trace"
 
@@ -30,8 +31,11 @@ import (
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(sb *strings.Builder, params *config.SSHConfigParameters) error {
-	sshConf := config.NewSSHConfig(config.GetSystemSSHVersion, log)
+func writeSSHConfig(sb *strings.Builder, params *config.SSHConfigParameters, getSSHVersion func() (*semver.Version, error)) error {
+	if getSSHVersion == nil {
+		getSSHVersion = config.GetSystemSSHVersion
+	}
+	sshConf := config.NewSSHConfig(getSSHVersion, log)
 	if err := sshConf.GetSSHConfig(sb, params); err != nil {
 		return trace.Wrap(err)
 	}
@@ -78,39 +82,44 @@ func onConfig(cf *CLIConf) error {
 
 	// Start with a newline in case an existing config file does not end with
 	// one.
-	fmt.Fprintln(&sb)
-	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
+	//fmt.Fprintln(&sb)
+	//fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
+
+	leafClustersNames := make([]string, 0, len(leafClusters))
+	for _, leafCluster := range leafClusters {
+		leafClustersNames = append(leafClustersNames, leafCluster.GetName())
+	}
 
 	if err := writeSSHConfig(&sb, &config.SSHConfigParameters{
 		AppName:          "tsh",
-		ClusterName:      rootClusterName,
+		ClusterNames:     append([]string{rootClusterName}, leafClustersNames...),
 		KnownHostsPath:   knownHostsPath,
 		IdentityFilePath: identityFilePath,
 		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
 			tc.Config.Username, rootClusterName),
 		ProxyHost:      proxyHost,
 		ExecutablePath: cf.executablePath,
-	}); err != nil {
+	}, nil); err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, leafCluster := range leafClusters {
-		err = writeSSHConfig(&sb, &config.SSHConfigParameters{
-			AppName:          "tsh",
-			ClusterName:      leafCluster.GetName(),
-			KnownHostsPath:   knownHostsPath,
-			IdentityFilePath: identityFilePath,
-			CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
-				tc.Config.Username, rootClusterName),
-			ProxyHost:      proxyHost,
-			ExecutablePath: cf.executablePath,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
+	//for _, leafCluster := range leafClusters {
+	//	err = writeSSHConfig(&sb, &config.SSHConfigParameters{
+	//		AppName:          "tsh",
+	//		ClusterName:      leafCluster.GetName(),
+	//		KnownHostsPath:   knownHostsPath,
+	//		IdentityFilePath: identityFilePath,
+	//		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
+	//			tc.Config.Username, rootClusterName),
+	//		ProxyHost:      proxyHost,
+	//		ExecutablePath: cf.executablePath,
+	//	}, nil)
+	//	if err != nil {
+	//		return trace.Wrap(err)
+	//	}
+	//}
 
-	fmt.Fprintf(&sb, "\n# End generated Teleport configuration\n")
+	//fmt.Fprintf(&sb, "\n# End generated Teleport configuration\n")
 
 	stdout := cf.Stdout()
 	fmt.Fprint(stdout, sb.String())
