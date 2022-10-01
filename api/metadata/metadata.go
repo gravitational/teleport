@@ -26,6 +26,7 @@ import (
 
 const (
 	VersionKey = "version"
+	ClientAddr = "client-addr"
 )
 
 // defaultMetadata returns the default metadata which will be added to all outgoing calls.

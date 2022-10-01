@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apimetadata "github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -73,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -2611,6 +2613,11 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
+
+	ctx = metadata.NewOutgoingContext(ctx, metadata.MD{
+		apimetadata.ClientAddr: []string{proxyClient.Client.LocalAddr().String()},
+	})
+
 	return proxyClient.CreateAppSession(ctx, req)
 }
 

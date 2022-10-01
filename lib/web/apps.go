@@ -22,6 +22,7 @@ import (
 	"context"
 	"net/http"
 
+	apimetadata "github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -161,6 +163,10 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
 
+	grpcCtx := metadata.NewOutgoingContext(r.Context(), metadata.MD{
+		apimetadata.ClientAddr: []string{r.RemoteAddr},
+	})
+
 	// Create an application web session.
 	//
 	// Application sessions should not last longer than the parent session.TTL
@@ -169,7 +175,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	//
 	// PublicAddr and ClusterName will get encoded within the certificate and
 	// used for request routing.
-	ws, err := authClient.CreateAppSession(r.Context(), types.CreateAppSessionRequest{
+	ws, err := authClient.CreateAppSession(grpcCtx, types.CreateAppSessionRequest{
 		Username:    ctx.GetUser(),
 		PublicAddr:  result.App.GetPublicAddr(),
 		AppName:     result.App.GetName(),

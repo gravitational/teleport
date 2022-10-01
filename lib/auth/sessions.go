@@ -18,13 +18,13 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apimetadata "github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -117,11 +117,16 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	userMetadata.User = session.GetUser()
 	userMetadata.AWSRoleARN = req.AWSRoleARN
 
-	// Record peer for the address of the requesting connection.
-	p, ok := peer.FromContext(ctx)
+	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return nil, trace.Wrap(errors.New("unable to get peer from context"))
+		return nil, trace.BadParameter("unable to get metadata from context")
 	}
+
+	clientAddrVals := md.Get(apimetadata.ClientAddr)
+	if len(clientAddrVals) != 1 {
+		return nil, trace.BadParameter("client address not present in metadata")
+	}
+	clientAddr := clientAddrVals[0]
 
 	// Now that the certificate has been issued, emit a "new session created"
 	// for all events associated with this certificate.
@@ -141,7 +146,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		},
 		UserMetadata: identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: p.Addr.String(),
+			RemoteAddr: clientAddr,
 		},
 		PublicAddr: req.PublicAddr,
 		AppMetadata: apievents.AppMetadata{
