@@ -43,7 +43,7 @@ to build Teleport:
 
 ```
 $ cd webapps
-$ make teleport-e
+$ make build-teleport-e
 ```
 
 ## Development
