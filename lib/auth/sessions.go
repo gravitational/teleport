@@ -117,7 +117,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	// Record peer for the address of the requesting connection.
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, trace.Wrap(errors.New("unable to get peer from context"))
+		return nil, trace.BadParameter("unable to get peer from context")
 	}
 
 	// Now that the certificate has been issued, emit a "new session created"
