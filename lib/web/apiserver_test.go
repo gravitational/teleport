@@ -4134,10 +4134,15 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 }
 
 func TestDiagnoseKubeConnection(t *testing.T) {
-	ctx := context.Background()
 
-	validKubeUsers, validKubeGroups, invalidKubeGroups := []string{}, []string{"validKubeUser"}, []string{"invalidKubeGroups"}
-	kubeClusterName := "kube_cluster"
+	var (
+		validKubeUsers              = []string{}
+		validKubeGroups             = []string{"validKubeGroup"}
+		invalidKubeGroups           = []string{"invalidKubeGroups"}
+		kubeClusterName             = "kube_cluster"
+		disconnectedKubeClustername = "dis_kube_cluster"
+		ctx                         = context.Background()
+	)
 
 	roleWithFullAccess := func(username string, kubeUsers, kubeGroups []string) []types.Role {
 		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
@@ -4204,15 +4209,16 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	for _, tt := range []struct {
-		name            string
-		teleportUser    string
-		roleFunc        func(string, []string, []string) []types.Role
-		kubeUsers       []string
-		kubeGroups      []string
-		resourceName    string
-		expectedSuccess bool
-		expectedMessage string
-		expectedTraces  []types.ConnectionDiagnosticTrace
+		name             string
+		teleportUser     string
+		roleFunc         func(string, []string, []string) []types.Role
+		kubeUsers        []string
+		kubeGroups       []string
+		resourceName     string
+		expectedSuccess  bool
+		disconnectedKube bool
+		expectedMessage  string
+		expectedTraces   []types.ConnectionDiagnosticTrace
 	}{
 		{
 			name:            "kube cluster not found",
@@ -4229,6 +4235,25 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to kubernetes cluster. Ensure the cluster is registered.`,
 					Error:   "kubernetes cluster \"notregistered\" is not registered",
+				},
+			},
+		},
+		{
+			name:             "kube cluster disconnected",
+			roleFunc:         roleWithFullAccess,
+			kubeGroups:       validKubeGroups,
+			kubeUsers:        validKubeUsers,
+			teleportUser:     "disconnected",
+			resourceName:     disconnectedKubeClustername,
+			disconnectedKube: true,
+			expectedSuccess:  false,
+			expectedMessage:  "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to kubernetes cluster. Ensure the cluster is registered.`,
+					Error:   fmt.Sprintf("kubernetes cluster %q is not registered", disconnectedKubeClustername),
 				},
 			},
 		},
@@ -4325,11 +4350,51 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			resourceName:    kubeClusterName,
 			expectedSuccess: true,
 			expectedMessage: "success",
-			expectedTraces:  []types.ConnectionDiagnosticTrace{},
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "User-associated roles define valid Kubernetes principals.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_KUBE,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "You are authorized to access this Kubernetes Cluster.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Access to the Kubernetes Cluster granted.",
+					Error:   "",
+				},
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			localEnv := env
+
+			if tt.disconnectedKube {
+				kubeServer, _ := startKubeWithoutCleanup(ctx, t, startKubeOptions{
+					serviceType: kubeproxy.KubeService,
+					authServer:  env.server.TLS,
+					clusters: []kubeClusterConfig{
+						{
+							name:        tt.resourceName,
+							apiEndpoint: testKube.URL,
+						},
+					},
+				})
+				err := kubeServer.Close()
+				require.NoError(t, err)
+			}
 
 			clusterName := localEnv.server.ClusterName()
 			roles := tt.roleFunc(tt.teleportUser, tt.kubeUsers, tt.kubeGroups)
@@ -4348,7 +4413,6 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
-
 			gotFailedTraces := 0
 			expectedFailedTraces := 0
 
@@ -5356,6 +5420,15 @@ type startKubeOptions struct {
 }
 
 func startKube(ctx context.Context, t *testing.T, cfg startKubeOptions) net.Addr {
+	server, addr := startKubeWithoutCleanup(ctx, t, cfg)
+	t.Cleanup(func() {
+		err := server.Close()
+		require.NoError(t, err)
+	})
+	return addr
+}
+
+func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOptions) (*kubeproxy.TLSServer, net.Addr) {
 	role := types.RoleProxy
 	if cfg.serviceType == kubeproxy.KubeService {
 		role = types.RoleKube
@@ -5473,11 +5546,7 @@ func startKube(ctx context.Context, t *testing.T, cfg startKubeOptions) net.Addr
 		<-heartbeatsWaitChannel
 	}
 
-	t.Cleanup(func() {
-		err := kubeServer.Close()
-		require.NoError(t, err)
-	})
-	return listener.Addr()
+	return kubeServer, listener.Addr()
 }
 
 func marshalRBACError(t *testing.T, w http.ResponseWriter) {
