@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/pkg/errors"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
 
@@ -50,8 +49,8 @@ func ConvertError(err error) error {
 	if pgErr, ok := err.(pgError); ok {
 		return ConvertError(pgErr.Unwrap())
 	}
-	if _, ok := err.(causer); ok {
-		return ConvertError(errors.Cause(err))
+	if causer, ok := err.(causer); ok {
+		return ConvertError(causer.Cause())
 	}
 	if _, ok := status.FromError(err); ok {
 		return trail.FromGRPC(err)
