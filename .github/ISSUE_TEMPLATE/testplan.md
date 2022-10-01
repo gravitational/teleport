@@ -382,6 +382,28 @@ and Linux `tsh` binaries are tested for FIDO2 items.
   - [ ] `tsh touchid ls` works
   - [ ] `tsh touchid rm` works (careful, may lock you out!)
 
+### Hardware Key Login
+
+Hardware Key Login is an Enterprise feature and is not available for OSS.
+
+On Linux, hardware key support requires that `tsh` and `teleport` are both built with libpcsclite. Ask for a statically-built `tsh` and `teleport` binary for realistic tests.
+
+You will need a YubiKey 4.3+ for each test.
+
+- [ ] `auth_service.authentication.require_session_mfa: hardware_key`
+  - [ ] `tsh login`
+    - [ ] requires yubikey to be connected
+  - [ ] `tsh ssh`
+    - [ ] requires yubikey to be connected
+    - [ ] prompts for per-session MFA
+- [ ] `auth_service.authentication.require_session_mfa: hardware_key_touch`
+  - [ ] `tsh login`
+    - [ ] requires yubikey to be connected
+    - [ ] prompts for touch (maximum of once per 15 seconds)
+  - [ ] `tsh ssh`
+    - [ ] requires yubikey to be connected
+    - [ ] prompts for touch (maximum of once per 15 seconds)
+
 ## WEB UI
 
 ## Main
