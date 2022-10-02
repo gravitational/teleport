@@ -53,6 +53,13 @@ Back up before upgrading. We have more instructions in [Backing up Teleport](./b
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 When upgrading a single Teleport cluster:
 
+<Notice type="tip">
+Teleport requires upgrading the Auth Service from one major version to another in sequence.
+That means if you are currently on version 8.X you must upgrade to the latest version 9 before
+going to version 10. To upgrade in sequence repeat upgrading the Auth Service confirming
+a healthy start before continuing to the next version.
+</Notice>
+
 1. **Upgrade the Auth Service first**. The Auth Service keeps the cluster state
    and, if there are data format changes introduced in the new version, will
    perform necessary migrations.
