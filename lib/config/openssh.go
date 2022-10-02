@@ -145,7 +145,7 @@ type SSHConfigOptions struct {
 	// now-deprecated certificate type. The workaround includes a config
 	// override to re-enable RSA certs for just Teleport hosts, however it is
 	// only supported on OpenSSH 8.5 and later.
-	PubkeyAcceptedKeyTypesWorkaroundNeeded bool
+	PubkeyAcceptedKeyTypesWorkaroundNeeded bool // TODO(jakule): remove
 	NewerHostKeyAlgorithmsSupported        bool
 }
 
@@ -159,7 +159,7 @@ func (c *SSHConfigOptions) String() string {
 		sb.WriteString(" PubkeyAcceptedKeyTypes will not be added")
 	}
 
-	if c.PubkeyAcceptedKeyTypesWorkaroundNeeded {
+	if c.NewerHostKeyAlgorithmsSupported {
 		sb.WriteString(", HostKeyAlgorithms will include SHA-1")
 	} else {
 		sb.WriteString(", HostKeyAlgorithms will include SHA-256 and SHA-512")

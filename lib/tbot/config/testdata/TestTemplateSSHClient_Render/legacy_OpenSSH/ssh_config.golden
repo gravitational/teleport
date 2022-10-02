@@ -1,4 +1,3 @@
-
 # Begin generated Teleport configuration for tele.blackmesa.gov by tbot
 
 # Common flags for all tele.blackmesa.gov hosts
@@ -7,7 +6,6 @@ Host *.tele.blackmesa.gov tele.blackmesa.gov
     IdentityFile "/test/dir/key"
     CertificateFile "/test/dir/key-cert.pub"
     HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
 
 # Flags for all tele.blackmesa.gov hosts except the proxy
 Host *.tele.blackmesa.gov !tele.blackmesa.gov
