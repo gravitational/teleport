@@ -66,28 +66,25 @@ type TestServer struct {
 
 // NewTestServer returns a new instance of a test Snowflake server.
 func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
-	address := "localhost:0"
-	if config.Address != "" {
-		address = config.Address
+	err := config.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.InsecureSkipVerify = true
 
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, port, err := net.SplitHostPort(listener.Addr().String())
+	port, err := config.Port()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	testServer := &TestServer{
 		cfg:       config,
-		listener:  listener,
+		listener:  config.Listener,
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{

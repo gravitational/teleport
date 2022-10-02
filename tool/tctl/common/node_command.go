@@ -116,7 +116,7 @@ This token will expire in %d minutes
 Use this token when defining a trusted cluster resource on a remote cluster.
 `
 
-var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}.
+var nodeMessageTemplate = template.Must(template.New("node").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Run this on the new node to join the cluster:

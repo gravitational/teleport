@@ -17,18 +17,19 @@ limitations under the License.
 /*
 Package postgres implements a SQL backend for PostgreSQL and CockroachDB.
 
-Schema
+# Schema
 
 The database schema consists of three tables: item, lease, and event.
-    ┌──────────┐ ┌──────────┐ ┌──────────┐
-    │  item    │ │  lease   │ │  event   │
-    ├──────────┤ ├──────────┤ ├──────────┤
-    │* key     │ │* key     │ │* eventid │
-    │* id      │ │  id      │ │  created │
-    │  value   │ │  expires │ │  key     │
-    │          │ │          │ │  id      │
-    │          │ │          │ │  type    │
-    └──────────┘ └──────────┘ └──────────┘
+
+	┌──────────┐ ┌──────────┐ ┌──────────┐
+	│  item    │ │  lease   │ │  event   │
+	├──────────┤ ├──────────┤ ├──────────┤
+	│* key     │ │* key     │ │* eventid │
+	│* id      │ │  id      │ │  created │
+	│  value   │ │  expires │ │  key     │
+	│          │ │          │ │  id      │
+	│          │ │          │ │  type    │
+	└──────────┘ └──────────┘ └──────────┘
 
 The item table contains the backend item's value and is insert-only. The table
 supports multiple items per key. Updates to an item's value creates a new
@@ -44,6 +45,5 @@ type represents the value of types.OpType.
 
 The design allows for items to be updated before an event for previous item has
 been emitted without duplicating storage for value.
-
 */
 package postgres

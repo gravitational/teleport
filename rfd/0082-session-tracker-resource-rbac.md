@@ -1,6 +1,6 @@
 ---
 authors: Joel Wejdenstål (jwejdenstal@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 82 - Session Tracker Resource RBAC

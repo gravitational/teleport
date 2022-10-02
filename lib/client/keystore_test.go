@@ -23,8 +23,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -178,52 +181,91 @@ func TestDeleteAll(t *testing.T) {
 }
 
 func TestKnownHosts(t *testing.T) {
-	s, cleanup := newTest(t)
-	defer cleanup()
+	t.Parallel()
+	t.Run("can successfully write/read keys", func(t *testing.T) {
+		s, cleanup := newTest(t)
+		t.Cleanup(cleanup)
 
-	err := os.MkdirAll(s.store.KeyDir, 0777)
-	require.NoError(t, err)
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
-	require.NoError(t, err)
+		err := os.MkdirAll(s.store.KeyDir, 0777)
+		require.NoError(t, err)
+		pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
+		require.NoError(t, err)
 
-	_, p2, _ := s.keygen.GenerateKeyPair()
-	pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
+		_, p2, _ := s.keygen.GenerateKeyPair()
+		pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
-	err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub})
-	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub2})
-	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
-	require.NoError(t, err)
+		err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub})
+		require.NoError(t, err)
+		err = s.store.AddKnownHostKeys("example.com", "proxy.example.com", []ssh.PublicKey{pub2})
+		require.NoError(t, err)
+		err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
+		require.NoError(t, err)
 
-	keys, err := s.store.GetKnownHostKeys("")
-	require.NoError(t, err)
-	require.Len(t, keys, 3)
-	require.Equal(t, keys, []ssh.PublicKey{pub, pub2, pub2})
+		keys, err := s.store.GetKnownHostKeys("")
+		require.NoError(t, err)
+		require.Len(t, keys, 3)
+		require.Equal(t, keys, []ssh.PublicKey{pub, pub2, pub2})
 
-	// check against dupes:
-	before, _ := s.store.GetKnownHostKeys("")
-	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
-	require.NoError(t, err)
-	err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
-	require.NoError(t, err)
-	after, _ := s.store.GetKnownHostKeys("")
-	require.Equal(t, len(before), len(after))
+		// check against dupes:
+		before, _ := s.store.GetKnownHostKeys("")
+		err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
+		require.NoError(t, err)
+		err = s.store.AddKnownHostKeys("example.org", "proxy.example.org", []ssh.PublicKey{pub2})
+		require.NoError(t, err)
+		after, _ := s.store.GetKnownHostKeys("")
+		require.Equal(t, len(before), len(after))
 
-	// check by hostname:
-	keys, _ = s.store.GetKnownHostKeys("badhost")
-	require.Equal(t, len(keys), 0)
-	keys, _ = s.store.GetKnownHostKeys("example.org")
-	require.Equal(t, len(keys), 1)
-	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+		// check by hostname:
+		keys, _ = s.store.GetKnownHostKeys("badhost")
+		require.Equal(t, len(keys), 0)
+		keys, _ = s.store.GetKnownHostKeys("example.org")
+		require.Equal(t, len(keys), 1)
+		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 
-	// check for proxy and wildcard as well:
-	keys, _ = s.store.GetKnownHostKeys("proxy.example.org")
-	require.Equal(t, 1, len(keys))
-	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
-	keys, _ = s.store.GetKnownHostKeys("*.example.org")
-	require.Equal(t, 1, len(keys))
-	require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+		// check for proxy and wildcard as well:
+		keys, _ = s.store.GetKnownHostKeys("proxy.example.org")
+		require.Equal(t, 1, len(keys))
+		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+		keys, _ = s.store.GetKnownHostKeys("*.example.org")
+		require.Equal(t, 1, len(keys))
+		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
+	})
+	t.Run("can write keys in parallel without corrupting content of the file", func(t *testing.T) {
+		s, cleanup := newTest(t)
+		t.Cleanup(cleanup)
+
+		err := os.MkdirAll(s.store.KeyDir, 0777)
+		require.NoError(t, err)
+		pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
+		require.NoError(t, err)
+
+		err = s.store.AddKnownHostKeys("example1.com", "proxy.example1.com", []ssh.PublicKey{pub})
+		require.NoError(t, err)
+
+		var wg sync.WaitGroup
+		for i := 0; i < 100; i++ {
+			wg.Add(1)
+			go func() {
+				_, p2, _ := s.keygen.GenerateKeyPair()
+				tmpPub, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
+
+				err := s.store.AddKnownHostKeys("example2.com", "proxy.example2.com", []ssh.PublicKey{tmpPub})
+				assert.NoError(t, err)
+
+				_, err = s.store.GetKnownHostKeys("")
+				assert.NoError(t, err)
+
+				wg.Done()
+			}()
+		}
+
+		wg.Wait()
+
+		keys, err := s.store.GetKnownHostKeys("")
+		require.NoError(t, err)
+		require.NotNil(t, keys)
+		require.True(t, len(keys) > 1)
+	})
 }
 
 // TestCheckKey makes sure Teleport clients can load non-RSA algorithms in

@@ -45,6 +45,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
+	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"google.golang.org/grpc/credentials/insecure"
@@ -76,6 +78,8 @@ type Clients interface {
 	GetAWSSTSClient(region string) (stsiface.STSAPI, error)
 	// GetAWSEC2Client returns AWS EC2 client for the specified region.
 	GetAWSEC2Client(region string) (ec2iface.EC2API, error)
+	// GetAWSSSMClient returns AWS SSM client for the specified region.
+	GetAWSSSMClient(region string) (ssmiface.SSMAPI, error)
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
@@ -96,6 +100,10 @@ type AzureClients interface {
 	GetAzurePostgresClient(subscription string) (azure.DBServersClient, error)
 	// GetAzureSubscriptionClient returns an Azure Subscriptions client
 	GetAzureSubscriptionClient() (*azure.SubscriptionClient, error)
+	// GetAzureRedisClient returns an Azure Redis client for the given subscription.
+	GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error)
+	// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+	GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -103,8 +111,10 @@ func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 		azureClients: azureClients{
-			azureMySQLClients:    make(map[string]azure.DBServersClient),
-			azurePostgresClients: make(map[string]azure.DBServersClient),
+			azureMySQLClients:           make(map[string]azure.DBServersClient),
+			azurePostgresClients:        make(map[string]azure.DBServersClient),
+			azureRedisClients:           azure.NewClientMap(azure.NewRedisClient),
+			azureRedisEnterpriseClients: azure.NewClientMap(azure.NewRedisEnterpriseClient),
 		},
 	}
 }
@@ -135,6 +145,10 @@ type azureClients struct {
 	azurePostgresClients map[string]azure.DBServersClient
 	// azureSubscriptionsClient is the cached Azure Subscriptions client.
 	azureSubscriptionsClient *azure.SubscriptionClient
+	// azureRedisClients contains the cached Azure Redis clients.
+	azureRedisClients azure.ClientMap[azure.CacheForRedisClient]
+	// azureRedisEnterpriseClients contains the cached Azure Redis Enterprise clients.
+	azureRedisEnterpriseClients azure.ClientMap[azure.CacheForRedisClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -220,6 +234,15 @@ func (c *cloudClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
 	return ec2.New(session), nil
 }
 
+// GetAWSSSMClient returns AWS SSM client for the specified region.
+func (c *cloudClients) GetAWSSSMClient(region string) (ssmiface.SSMAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ssm.New(session), nil
+}
+
 // GetGCPIAMClient returns GCP IAM client.
 func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.RLock()
@@ -284,6 +307,16 @@ func (c *cloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, 
 	}
 	c.mtx.RUnlock()
 	return c.initAzureSubscriptionsClient()
+}
+
+// GetAzureRedisClient returns an Azure Redis client for the given subscription.
+func (c *cloudClients) GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.azureRedisClients.Get(subscription, c.GetAzureCredential)
+}
+
+// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+func (c *cloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.azureRedisEnterpriseClients.Get(subscription, c.GetAzureCredential)
 }
 
 // Close closes all initialized clients.
@@ -450,11 +483,14 @@ type TestCloudClients struct {
 	STS                     stsiface.STSAPI
 	GCPSQL                  GCPSQLAdminClient
 	EC2                     ec2iface.EC2API
+	SSM                     ssmiface.SSMAPI
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
 	AzurePostgresPerSub     map[string]azure.DBServersClient
 	AzureSubscriptionClient *azure.SubscriptionClient
+	AzureRedis              azure.CacheForRedisClient
+	AzureRedisEnterprise    azure.CacheForRedisClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -541,6 +577,21 @@ func (c *TestCloudClients) GetAzurePostgresClient(subscription string) (azure.DB
 // GetAzureSubscriptionClient returns an Azure SubscriptionClient
 func (c *TestCloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, error) {
 	return c.AzureSubscriptionClient, nil
+}
+
+// GetAWSSSMClient returns an AWS SSM client
+func (c *TestCloudClients) GetAWSSSMClient(region string) (ssmiface.SSMAPI, error) {
+	return c.SSM, nil
+}
+
+// GetAzureRedisClient returns an Azure Redis client for the given subscription.
+func (c *TestCloudClients) GetAzureRedisClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.AzureRedis, nil
+}
+
+// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.CacheForRedisClient, error) {
+	return c.AzureRedisEnterprise, nil
 }
 
 // Close closes all initialized clients.
