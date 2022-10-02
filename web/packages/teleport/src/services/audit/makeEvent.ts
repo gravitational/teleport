@@ -699,7 +699,9 @@ export const formatters: Formatters = {
     type: 'db.session.start',
     desc: 'Database Session Started',
     format: ({ user, db_service, db_name, db_user }) =>
-      `User [${user}] has connected to database [${db_name}] as [${db_user}] on [${db_service}]`,
+      `User [${user}] has connected ${
+        db_name ? `to database [${db_name}] ` : ''
+      }as [${db_user}] on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
     type: 'db.session.start',
@@ -711,7 +713,9 @@ export const formatters: Formatters = {
     type: 'db.session.end',
     desc: 'Database Session Ended',
     format: ({ user, db_service, db_name }) =>
-      `User [${user}] has disconnected from database [${db_name}] on [${db_service}]`,
+      `User [${user}] has disconnected ${
+        db_name ? `from database [${db_name}] ` : ''
+      }on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_QUERY]: {
     type: 'db.session.query',

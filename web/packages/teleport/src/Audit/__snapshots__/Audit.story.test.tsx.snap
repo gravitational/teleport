@@ -2563,7 +2563,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alice@example.com] has disconnected from database [] on [mongo-primary]
+          User [alice@example.com] has disconnected on [mongo-primary]
         </td>
         <td
           style="min-width: 120px;"
@@ -2674,7 +2674,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alice@example.com] has connected to database [] as [alice] on [mongo-primary]
+          User [alice@example.com] has connected as [alice] on [mongo-primary]
         </td>
         <td
           style="min-width: 120px;"
