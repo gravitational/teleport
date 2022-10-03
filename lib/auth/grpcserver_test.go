@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -1027,6 +1028,8 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 

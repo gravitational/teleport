@@ -62,6 +62,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -99,6 +100,8 @@ const (
 	// githubCacheTimeout is how long Github org entries are cached.
 	githubCacheTimeout = time.Hour
 )
+
+var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
 
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
@@ -978,6 +981,8 @@ type certRequest struct {
 	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this instance.
 	connectionDiagnosticID string
+	// attestationStatement is an attestation statement associated with the given public key.
+	attestationStatement *keys.AttestationStatement
 }
 
 // check verifies the cert request is valid.
@@ -1161,8 +1166,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.checker.GetAllowedResourceIDs()) > 0 && !modules.GetModules().Features().ResourceAccessRequests {
-		return nil, trace.AccessDenied("this Teleport cluster is not licensed for resource access requests, please contact the cluster administrator")
+	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, fmt.Errorf("Resource Access Requests: %w", ErrRequiresEnterprise)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -1228,6 +1233,14 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	// verify that the required private key policy for the requesting identity
+	// is met by the provided attestation statement.
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	attestedKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	clusterName, err := a.GetDomainName()
@@ -1296,6 +1309,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AllowedResourceIDs:     requestedResourcesStr,
 		SourceIP:               req.sourceIP,
 		ConnectionDiagnosticID: req.connectionDiagnosticID,
+		PrivateKeyPolicy:       attestedKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1377,6 +1391,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:          req.renewable,
 		Generation:         req.generation,
 		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
+		PrivateKeyPolicy:   attestedKeyPolicy,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -3139,8 +3154,8 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	// Don't allow sessions that require moderation without the enterprise feature enabled.
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
-			if !modules.GetModules().Features().ModeratedSessions {
-				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			if modules.GetModules().BuildType() != modules.BuildEnterprise {
+				return nil, fmt.Errorf("Moderated Sessions: %w", ErrRequiresEnterprise)
 			}
 		}
 	}

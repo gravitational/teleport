@@ -115,8 +115,6 @@ message Event {
     types.KubernetesClusterV3 KubernetesCluster = 33 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
     // Installer is an installer resource
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
-    // ProvisionTokenV3 is a V3 Provision Token resource.
-    types.ProvisionTokenV3 ProvisionTokenV3 = 35 [(gogoproto.jsontag) = "provision_token_v3,omitempty"];
   }
 }
 
@@ -519,12 +517,9 @@ message Features {
   bool HSM = 9 [(gogoproto.jsontag) = "hsm"];
   // Desktop enables desktop access product
   bool Desktop = 10 [(gogoproto.jsontag) = "desktop"];
-  // ModeratedSessions enables moderated sessions product
-  bool ModeratedSessions = 11 [(gogoproto.jsontag) = "moderated_sessions"];
-  // MachineID enables MachineID product
-  bool MachineID = 12 [(gogoproto.jsontag) = "machine_id"];
-  // ResourceAccessRequests enables resource access requests product
-  bool ResourceAccessRequests = 13 [(gogoproto.jsontag) = "resource_access_requests"];
+  reserved 11; // bool ModeratedSessions
+  reserved 12; // bool MachineID
+  reserved 13; // bool ResourceAccessRequests
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -2432,30 +2427,14 @@ service AuthService {
   // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 
-  // GetToken retrieves a v2 token described by the given request.
-  // Deprecated: use GetTokenV3.
-  // DELETE IN 13.0 (strideynet).
+  // GetToken retrieves a token described by the given request.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
-  // GetTokenV3 retrieves a token described by the given request.
-  rpc GetTokenV3(types.ResourceRequest) returns (types.ProvisionTokenV3);
-  // GetTokens retrieves all v2 tokens.
-  // Deprecated: use GetTokensV3.
-  // DELETE IN 13.0 (strideynet).
+  // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
-  // GetTokensV3 retrieves all tokens.
-  rpc GetTokensV3(google.protobuf.Empty) returns (types.ProvisionTokenV3List);
-  // UpsertToken upserts a v2 token in a backend.
-  // Deprecated: use UpsertTokenV3.
-  // DELETE IN 13.0 (strideynet).
+  // UpsertToken upserts a token in a backend.
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-  // UpsertTokenV3 upserts a v3 token in a backend.
-  rpc UpsertTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);
-  // CreateToken creates a v2 token in a backend.
-  // Deprecated: Use CreateTokenV3.
-  // DELETE IN 13.0 (strideynet)
+  // CreateToken creates a token in a backend.
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-  // CreateTokenV3 creates a v3 token in a backend.
-  rpc CreateTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);
   // GenerateToken generates a new auth token.
   rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.

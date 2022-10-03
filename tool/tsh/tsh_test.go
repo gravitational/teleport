@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto"
 	"fmt"
 	"net"
 	"net/url"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -133,13 +135,17 @@ func (p *cliModules) Features() modules.Features {
 		App:                     true,
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
-		ResourceAccessRequests:  true,
 	}
 }
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *cliModules) IsBoringBinary() bool {
 	return false
+}
+
+// AttestHardwareKey attests a hardware key.
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+	return keys.PrivateKeyPolicyNone, nil
 }
 
 func TestAlias(t *testing.T) {
@@ -278,7 +284,7 @@ func TestFailedLogin(t *testing.T) {
 
 	// build a mock SSO login function to patch into tsh
 	loginFailed := trace.AccessDenied("login failed")
-	ssoLogin := func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+	ssoLogin := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		return nil, loginFailed
 	}
 
@@ -1169,7 +1175,7 @@ func (o *output) String() string {
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	tmpHomePath := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -2457,10 +2463,10 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 }
 
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSOLoginFunc {
-	return func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
-			pub, user.GetName(), time.Hour,
+			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
 			"localhost", "",
 		)
