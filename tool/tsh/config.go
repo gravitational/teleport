@@ -32,9 +32,6 @@ import (
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
 func writeSSHConfig(sb *strings.Builder, params *config.SSHConfigParameters, getSSHVersion func() (*semver.Version, error)) error {
-	if getSSHVersion == nil {
-		getSSHVersion = config.GetSystemSSHVersion
-	}
 	sshConf := config.NewSSHConfig(getSSHVersion, log)
 	if err := sshConf.GetSSHConfig(sb, params); err != nil {
 		return trace.Wrap(err)
