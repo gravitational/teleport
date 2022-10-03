@@ -1,5 +1,26 @@
 # Changelog
 
+## 10.3.1
+
+This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
+
+### Audit log escape for non-interactive commands
+
+Fixed multiple issues with SSH commands escaping audit logs in certain scenarios.
+
+[#16813](https://github.com/gravitational/teleport/pull/16813)
+[#16905](https://github.com/gravitational/teleport/pull/16905)
+
+### Other fixes and improvements
+
+* Fixed issue with RDS auto-discovery of a secondary cluster of a global Aurora database. [#16710](https://github.com/gravitational/teleport/pull/16710)
+* Added Kubernetes Access support to Teleport Connect. [webapps#1201](https://github.com/gravitational/webapps/pull/1201)
+* Added Elasticsearch support to Database Access. [#16873](https://github.com/gravitational/teleport/pull/16873)
+* Added information about available security releases to `tsh status`. [#16850](https://github.com/gravitational/teleport/pull/16850)
+* Improved error handling when registering MFA devices. [#16765](https://github.com/gravitational/teleport/pull/16765)
+* Updated default AWS install script to use v2 metadata API. [#16664](https://github.com/gravitational/teleport/pull/16664)
+* Updated `tsh db connect` hint to not display `--db-user` and `--db-name` flags unless needed. [#16747](https://github.com/gravitational/teleport/pull/16747)
+
 ## 10.2.6
 
 This release of Teleport contains multiple improvements and bug fixes.
