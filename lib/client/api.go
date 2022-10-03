@@ -3564,6 +3564,7 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 		return SSHLogin{}, trace.Wrap(err)
 	}
 
+	log.Debugf("Sending ssh login with attestation statement")
 	return SSHLogin{
 		ProxyAddr:            tc.WebProxyAddr,
 		PubKey:               priv.MarshalSSHPublicKey(),
