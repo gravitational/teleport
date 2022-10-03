@@ -2640,7 +2640,9 @@ func TestSerializeDatabases(t *testing.T) {
       },
       "mysql": {},
       "gcp": {},
-      "azure": {},
+      "azure": {
+	    "redis": {}
+	  },
       "tls": {
         "mode": 0
       },
@@ -2661,7 +2663,9 @@ func TestSerializeDatabases(t *testing.T) {
         "secret_store": {},
         "memorydb": {}
       },
-      "azure": {}
+      "azure": {
+	    "redis": {}
+	  }
     }
   }]
 	`
