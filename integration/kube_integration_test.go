@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -540,7 +541,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainRole.GetName(), Local: []string{auxRole.GetName()}},
@@ -795,7 +796,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainRole.GetName(), Local: []string{auxRole.GetName()}},
