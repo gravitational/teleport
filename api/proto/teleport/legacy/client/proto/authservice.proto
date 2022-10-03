@@ -763,18 +763,6 @@ message GetWebTokensResponse {
   repeated types.WebTokenV3 Tokens = 1 [(gogoproto.jsontag) = "tokens"];
 }
 
-// GetKubeServicesRequest are the parameters used to request kubernetes services.
-// DELETE IN 10.0
-message GetKubeServicesRequest {}
-
-// GetKubeServicesResponse contains all requested kubernetes services.
-// DELETE IN 10.0
-message GetKubeServicesResponse {
-  // Servers is a slice of types.Server that represent kubernetes
-  // services.
-  repeated types.ServerV2 Servers = 1 [(gogoproto.jsontag) = "servers"];
-}
-
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
 // DELETE IN 12.0.0
@@ -2203,12 +2191,6 @@ service AuthService {
 
   // UpdateRemoteCluster updates remote cluster
   rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
-
-  // GetKubeServices gets all kubernetes services.
-  // DELETE IN 10.0. Deprecated, use ListResources.
-  rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse) {
-    option deprecated = true;
-  }
 
   // UpsertKubeService adds or updates a kubernetes service.
   // DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2

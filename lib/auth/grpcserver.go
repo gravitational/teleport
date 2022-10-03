@@ -1695,32 +1695,6 @@ func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteC
 	return &emptypb.Empty{}, nil
 }
 
-// GetKubeServices gets all kubernetes services.
-func (g *GRPCServer) GetKubeServices(ctx context.Context, req *proto.GetKubeServicesRequest) (*proto.GetKubeServicesResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kubeServices, err := auth.GetKubeServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var servers []*types.ServerV2
-	for _, s := range kubeServices {
-		server, ok := s.(*types.ServerV2)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", s)
-		}
-		servers = append(servers, server)
-	}
-
-	return &proto.GetKubeServicesResponse{
-		Servers: servers,
-	}, nil
-}
-
 // UpsertKubeService adds a kubernetes service.
 func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
