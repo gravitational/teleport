@@ -16,6 +16,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -153,8 +154,10 @@ func TestUserUpdate(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
+	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			_, err = types.NewUser("test-user-" + fmt.Sprint(i))
+
 			require.NoError(t, client.UpsertUser(baseUser))
 			args := append([]string{"update"}, tc.args...)
 			args = append(args, "test-user")
