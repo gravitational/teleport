@@ -1125,29 +1125,6 @@ func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *types.SemaphoreFi
 	return &emptypb.Empty{}, nil
 }
 
-// GetDatabaseServers returns all registered database proxy servers.
-func (g *GRPCServer) GetDatabaseServers(ctx context.Context, req *proto.GetDatabaseServersRequest) (*proto.GetDatabaseServersResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	databaseServers, err := auth.GetDatabaseServers(ctx, req.GetNamespace())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var servers []*types.DatabaseServerV3
-	for _, s := range databaseServers {
-		server, ok := s.(*types.DatabaseServerV3)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", s)
-		}
-		servers = append(servers, server)
-	}
-	return &proto.GetDatabaseServersResponse{
-		Servers: servers,
-	}, nil
-}
-
 // UpsertDatabaseServer registers a new database proxy server.
 func (g *GRPCServer) UpsertDatabaseServer(ctx context.Context, req *proto.UpsertDatabaseServerRequest) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)

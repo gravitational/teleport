@@ -810,25 +810,6 @@ message DeleteKubernetesServerRequest {
 // DeleteAllKubernetesServersRequest are the parameters used to remove all kubernetes servers.
 message DeleteAllKubernetesServersRequest {}
 
-// GetDatabaseServersRequest is a request to return all registered database servers.
-// DELETE IN 10.0.
-message GetDatabaseServersRequest {
-  // Namespace is the database server namespace.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-  // DEPRECATED: SkipValidation allows to turn off JSON schema validation.
-  bool SkipValidation = 2 [
-    deprecated = true,
-    (gogoproto.jsontag) = "skip_validation"
-  ];
-}
-
-// GetDatabaseServersResponse contains all registered database servers.
-// DELETE IN 10.0.
-message GetDatabaseServersResponse {
-  // Servers is a list of database proxy servers.
-  repeated types.DatabaseServerV3 Servers = 1 [(gogoproto.jsontag) = "servers"];
-}
-
 // UpsertDatabaseServerRequest is a request to register database server.
 message UpsertDatabaseServerRequest {
   // Server is the database proxy server to register.
@@ -2259,12 +2240,6 @@ service AuthService {
   rpc DeleteKubernetesServer(DeleteKubernetesServerRequest) returns (google.protobuf.Empty);
   // DeleteAllKubernetesServers removes all kubernetes servers.
   rpc DeleteAllKubernetesServers(DeleteAllKubernetesServersRequest) returns (google.protobuf.Empty);
-
-  // GetDatabaseServers returns all registered database proxy servers.
-  // DELETE IN 10.0. Deprecated, use ListResources.
-  rpc GetDatabaseServers(GetDatabaseServersRequest) returns (GetDatabaseServersResponse) {
-    option deprecated = true;
-  }
 
   // UpsertDatabaseServer registers a new database proxy server.
   rpc UpsertDatabaseServer(UpsertDatabaseServerRequest) returns (types.KeepAlive);

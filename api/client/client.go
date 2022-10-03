@@ -1407,43 +1407,12 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]ty
 		ResourceType: types.KindDatabaseServer,
 	})
 	if err != nil {
-		// Underlying ListResources for db server was not available, use fallback.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := c.getDatabaseServersFallback(ctx, namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return servers, nil
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
 	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
-}
-
-// getDatabaseServersFallback fetches database servers using legacy API call
-// `GetDatabaseServers`.
-//
-// DELETE IN 10.0.
-func (c *Client) getDatabaseServersFallback(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
-	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
-		Namespace: namespace,
-	}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	servers := make([]types.DatabaseServer, 0, len(resp.GetServers()))
-	for _, server := range resp.GetServers() {
-		servers = append(servers, server)
 	}
 
 	return servers, nil
