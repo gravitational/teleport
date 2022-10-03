@@ -152,9 +152,9 @@ func (c *SSHConfigOptions) String() string {
 	sb.WriteString("SSHConfigOptions:")
 
 	if c.NewerHostKeyAlgorithmsSupported {
-		sb.WriteString(", HostKeyAlgorithms will include SHA-1")
+		sb.WriteString("HostKeyAlgorithms will include SHA-1")
 	} else {
-		sb.WriteString(", HostKeyAlgorithms will include SHA-256 and SHA-512")
+		sb.WriteString("HostKeyAlgorithms will include SHA-256 and SHA-512")
 	}
 
 	return sb.String()
