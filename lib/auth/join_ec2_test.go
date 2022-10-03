@@ -169,7 +169,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 
 	testCases := []struct {
 		desc        string
-		tokenSpec   types.ProvisionTokenSpecV3
+		tokenSpec   types.ProvisionTokenSpecV2
 		ec2Client   ec2Client
 		request     types.RegisterUsingTokenRequest
 		expectError func(error) bool
@@ -177,15 +177,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	}{
 		{
 			desc: "basic passing case",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -202,19 +199,16 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "pass with multiple rules",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance2.account,
-							Regions: []string{instance2.region},
-						},
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance2.account,
+						AWSRegions: []string{instance2.region},
+					},
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -231,15 +225,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "pass with multiple regions",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{"us-east-1", instance1.region, "us-east-2"},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{"us-east-1", instance1.region, "us-east-2"},
 					},
 				},
 			},
@@ -256,14 +247,11 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "pass with no regions",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
 					},
 				},
 			},
@@ -280,15 +268,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "wrong account",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: "bad account",
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "bad account",
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -305,15 +290,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "wrong region",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{"bad region"},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{"bad region"},
 					},
 				},
 			},
@@ -330,15 +312,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "bad HostID",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -355,15 +334,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "no identity document",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -379,15 +355,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "bad identity document",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -404,15 +377,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "instance already joined",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance2.account,
-							Regions: []string{instance2.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance2.account,
+						AWSRegions: []string{instance2.region},
 					},
 				},
 			},
@@ -429,15 +399,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "instance already joined, fake ID",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance2.account,
-							Regions: []string{instance2.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance2.account,
+						AWSRegions: []string{instance2.region},
 					},
 				},
 			},
@@ -454,15 +421,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "instance not running",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -479,15 +443,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "instance not exists",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -504,15 +465,12 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "TTL expired",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
 			},
@@ -529,18 +487,15 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "custom TTL pass",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					IIDTTL: types.Duration(10 * time.Minute),
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
+				AWSIIDTTL: types.Duration(10 * time.Minute),
 			},
 			ec2Client: ec2ClientRunning{},
 			request: types.RegisterUsingTokenRequest{
@@ -555,18 +510,15 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 		},
 		{
 			desc: "custom TTL fail",
-			tokenSpec: types.ProvisionTokenSpecV3{
-				JoinMethod: types.JoinMethodEC2,
-				Roles:      []types.SystemRole{types.RoleNode},
-				EC2: &types.ProvisionTokenSpecV3AWSEC2{
-					IIDTTL: types.Duration(10 * time.Minute),
-					Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-						{
-							Account: instance1.account,
-							Regions: []string{instance1.region},
-						},
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: instance1.account,
+						AWSRegions: []string{instance1.region},
 					},
 				},
+				AWSIIDTTL: types.Duration(10 * time.Minute),
 			},
 			ec2Client: ec2ClientRunning{},
 			request: types.RegisterUsingTokenRequest{
@@ -634,8 +586,7 @@ func TestHostUniqueCheck(t *testing.T) {
 	token, err := types.NewProvisionTokenFromSpec(
 		"test_token",
 		time.Now().Add(time.Minute),
-		types.ProvisionTokenSpecV3{
-			JoinMethod: types.JoinMethodEC2,
+		types.ProvisionTokenSpecV2{
 			Roles: []types.SystemRole{
 				types.RoleNode,
 				types.RoleProxy,
@@ -644,12 +595,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleApp,
 				types.RoleWindowsDesktop,
 			},
-			EC2: &types.ProvisionTokenSpecV3AWSEC2{
-				Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-					{
-						Account: instance1.account,
-						Regions: []string{instance1.region},
-					},
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: instance1.account,
+					AWSRegions: []string{instance1.region},
 				},
 			},
 		})

@@ -1341,6 +1341,8 @@ type Database struct {
 	GCP DatabaseGCP `yaml:"gcp"`
 	// AD contains Active Directory database configuration.
 	AD DatabaseAD `yaml:"ad"`
+	// Azure contains Azure database configuration.
+	Azure DatabaseAzure `yaml:"azure"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
@@ -1429,6 +1431,12 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
+}
+
+// DatabaseAzure contains Azure database configuration.
+type DatabaseAzure struct {
+	// ResourceID is the Azure fully qualified ID for the resource.
+	ResourceID string `yaml:"resource_id,omitempty"`
 }
 
 // Apps represents the configuration for the collection of applications this

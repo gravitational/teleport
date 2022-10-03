@@ -172,11 +172,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 }
 
 func TestAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			ResourceAccessRequests: true,
-		},
-	})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 

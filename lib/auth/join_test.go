@@ -258,10 +258,9 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 
 func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole, expiry time.Time) types.ProvisionToken {
 	t.Helper()
-	token, err := types.NewProvisionTokenFromSpec(tokenName, expiry, types.ProvisionTokenSpecV3{
-		JoinMethod: types.JoinMethodToken,
-		Roles:      []types.SystemRole{role},
-		BotName:    botName,
+	token, err := types.NewProvisionTokenFromSpec(tokenName, expiry, types.ProvisionTokenSpecV2{
+		Roles:   []types.SystemRole{role},
+		BotName: botName,
 	})
 	require.NoError(t, err, "could not create bot token")
 	return token
