@@ -150,19 +150,6 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		return nil
 	}
 
-	// Default to including the RSA deprecation workaround.
-	var sshConfigOptions *config.SSHConfigOptions
-	version, err := c.getSSHVersion()
-	if err != nil {
-		log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
-		sshConfigOptions = config.GetDefaultSSHConfigOptions()
-	} else {
-		log.Debugf("Found OpenSSH version %s", version)
-		sshConfigOptions = config.GetSSHConfigOptions(version)
-	}
-
-	log.Debugf("Using SSH options: %s", sshConfigOptions)
-
 	executablePath, err := c.getExecutablePath()
 	if err != nil {
 		return trace.Wrap(err)

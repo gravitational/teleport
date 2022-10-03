@@ -57,6 +57,7 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 # End generated Teleport configuration
 `))
 
+// SSHConfigParameters is a set of SSH related parameters used to generate ~/.ssh/config file.
 type SSHConfigParameters struct {
 	AppName             SSHConfigApps
 	ClusterNames        []string
@@ -70,7 +71,7 @@ type SSHConfigParameters struct {
 
 type sshTmplParams struct {
 	SSHConfigParameters
-	SSHConfigOptions
+	sshConfigOptions
 }
 
 // openSSHVersionRegex is a regex used to parse OpenSSH version strings.
@@ -80,6 +81,7 @@ var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor
 // HostKeyAlgorithms will be added to ssh config if the version is above listed here.
 var openSSHMinVersionForHostAlgos = semver.New("7.8.0")
 
+// SSHConfigApps represent apps that support ssh config generation.
 type SSHConfigApps string
 
 const (
@@ -141,15 +143,15 @@ func GetSystemSSHVersion() (*semver.Version, error) {
 	return parseSSHVersion(out.String())
 }
 
-type SSHConfigOptions struct {
+type sshConfigOptions struct {
 	// NewerHostKeyAlgorithmsSupported when true sets HostKeyAlgorithms OpenSSH configuration option
 	// to SHA256/512 compatible algorithms. Otherwise, SHA-1 is being used.
 	NewerHostKeyAlgorithmsSupported bool
 }
 
-func (c *SSHConfigOptions) String() string {
+func (c *sshConfigOptions) String() string {
 	sb := &strings.Builder{}
-	sb.WriteString("SSHConfigOptions:")
+	sb.WriteString("sshConfigOptions:")
 
 	if c.NewerHostKeyAlgorithmsSupported {
 		sb.WriteString("HostKeyAlgorithms will include SHA-1")
@@ -160,19 +162,19 @@ func (c *SSHConfigOptions) String() string {
 	return sb.String()
 }
 
-func IsNewerHostKeyAlgorithmsSupported(ver *semver.Version) bool {
+func isNewerHostKeyAlgorithmsSupported(ver *semver.Version) bool {
 	return !ver.LessThan(*openSSHMinVersionForHostAlgos)
 }
 
-func GetSSHConfigOptions(sshVer *semver.Version) *SSHConfigOptions {
-	return &SSHConfigOptions{
-		NewerHostKeyAlgorithmsSupported: IsNewerHostKeyAlgorithmsSupported(sshVer),
+func getSSHConfigOptions(sshVer *semver.Version) *sshConfigOptions {
+	return &sshConfigOptions{
+		NewerHostKeyAlgorithmsSupported: isNewerHostKeyAlgorithmsSupported(sshVer),
 	}
 }
 
-func GetDefaultSSHConfigOptions() *SSHConfigOptions {
-	return &SSHConfigOptions{
-		NewerHostKeyAlgorithmsSupported: false,
+func getDefaultSSHConfigOptions() *sshConfigOptions {
+	return &sshConfigOptions{
+		NewerHostKeyAlgorithmsSupported: true,
 	}
 }
 
@@ -182,25 +184,28 @@ type SSHConfig struct {
 }
 
 func NewSSHConfig(getSSHVersion func() (*semver.Version, error), log logrus.FieldLogger) *SSHConfig {
+	if getSSHVersion == nil {
+		getSSHVersion = GetSystemSSHVersion
+	}
 	return &SSHConfig{getSSHVersion: getSSHVersion, log: log}
 }
 
 func (c *SSHConfig) GetSSHConfig(sb *strings.Builder, config *SSHConfigParameters) error {
-	var sshConfigOptions *SSHConfigOptions
+	var sshOptions *sshConfigOptions
 	version, err := c.getSSHVersion()
 	if err != nil {
 		c.log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
-		sshConfigOptions = GetDefaultSSHConfigOptions()
+		sshOptions = getDefaultSSHConfigOptions()
 	} else {
 		c.log.Debugf("Found OpenSSH version %s", version)
-		sshConfigOptions = GetSSHConfigOptions(version)
+		sshOptions = getSSHConfigOptions(version)
 	}
 
-	c.log.Debugf("Using SSH options: %s", sshConfigOptions)
+	c.log.Debugf("Using SSH options: %s", sshOptions)
 
 	if err := sshConfigTemplate.Execute(sb, sshTmplParams{
 		SSHConfigParameters: *config,
-		SSHConfigOptions:    *sshConfigOptions,
+		sshConfigOptions:    *sshOptions,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
