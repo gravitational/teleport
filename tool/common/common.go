@@ -123,7 +123,7 @@ outer:
 		}
 		for k, v := range ignore {
 			if labelValue, ok := alert.Metadata.Labels[k]; ok && labelValue == v {
-				break outer
+				continue outer
 			}
 		}
 		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
