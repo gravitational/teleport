@@ -295,7 +295,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		ttl = defaults.DefaultBotJoinTTL
 	}
 
-	tokenSpec := types.ProvisionTokenSpecV3{
+	tokenSpec := types.ProvisionTokenSpecV2{
 		Roles:      types.SystemRoles{types.RoleBot},
 		JoinMethod: types.JoinMethodToken,
 		BotName:    botName,
