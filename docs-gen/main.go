@@ -1,7 +1,6 @@
 package main
 
 import (
-	"docs-gen/auditevents"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -12,6 +11,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/gravitational/teleport/docs-gen/auditevents"
 )
 
 const auditEventsFileName = "audit-events.md"

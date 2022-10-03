@@ -1194,4 +1194,4 @@ backport:
 # Generate docs from the Teleport source code
 .PHONY: docs-gen
 docs-gen:
-	(cd ./assets/docs-gen && go run main.go -in="../.." -out=../../docs/gen)
+	(cd ./docs-gen && go run main.go -in="../" -out=../docs/gen)
