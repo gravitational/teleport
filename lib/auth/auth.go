@@ -31,6 +31,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/githubactions"
 	"math"
 	"math/big"
 	insecurerand "math/rand"
@@ -264,6 +265,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if as.ghaIDTokenValidator == nil {
+		as.ghaIDTokenValidator, err = githubactions.NewIDTokenValidator(
+			githubactions.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	return &as, nil
 }
@@ -443,6 +454,10 @@ type Server struct {
 
 	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	fips bool
+
+	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
+	// by the auth server. It can be overridden for the purpose of tests.
+	ghaIDTokenValidator ghaIDTokenValidator
 }
 
 func (a *Server) CloseContext() context.Context {
