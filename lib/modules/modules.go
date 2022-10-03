@@ -28,6 +28,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -171,6 +173,9 @@ func (p *defaultModules) IsBoringBinary() bool {
 // AttestHardwareKey attests a hardware key.
 func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
 	// Default modules do not support attesting hardware keys.
+	logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.ComponentAuth,
+	}).Debug("Skipping attestation")
 	return keys.PrivateKeyPolicyNone, nil
 }
 
