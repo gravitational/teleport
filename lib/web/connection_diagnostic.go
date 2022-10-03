@@ -44,7 +44,7 @@ func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request
 		ID:      connectionDiagnostic.GetName(),
 		Success: connectionDiagnostic.IsSuccess(),
 		Message: connectionDiagnostic.GetMessage(),
-		Traces:  connectionDiagnostic.GetTraces(),
+		Traces:  ui.ConnectionDiagnosticTraceUIFromTypes(connectionDiagnostic.GetTraces()),
 	}, nil
 }
 
@@ -59,12 +59,24 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	userClt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, clt)
+	proxySettings, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionTesterConfig := conntest.ConnectionTesterConfig{
+		ResourceKind:      req.ResourceKind,
+		UserClient:        userClt,
+		ProxyHostPort:     h.ProxyHostPort(),
+		TLSRoutingEnabled: proxySettings.TLSRoutingEnabled,
+	}
+
+	tester, err := conntest.ConnectionTesterForKind(connectionTesterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,6 +90,6 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		ID:      connectionDiagnostic.GetName(),
 		Success: connectionDiagnostic.IsSuccess(),
 		Message: connectionDiagnostic.GetMessage(),
-		Traces:  connectionDiagnostic.GetTraces(),
+		Traces:  ui.ConnectionDiagnosticTraceUIFromTypes(connectionDiagnostic.GetTraces()),
 	}, nil
 }

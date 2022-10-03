@@ -5,6 +5,12 @@ deps:
 lint:
   use:
     - DEFAULT
+    - PACKAGE_NO_IMPORT_CYCLE
+    # Top-level types require comments.
+    - COMMENT_ENUM
+    - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
   except:
     # Allow Google API-style responses (CreateFoo returns Foo).
     # See https://cloud.google.com/apis/design/standard_methods.

@@ -202,13 +202,12 @@ func VerifyCertificateChain(certificateChain []*x509.Certificate) error {
 //
 // From RFC5280: https://tools.ietf.org/html/rfc5280#section-4.2.1.1
 //
-//   The signature on a self-signed certificate is generated with the private
-//   key associated with the certificate's subject public key. (This
-//   proves that the issuer possesses both the public and private keys.)
-//   In this case, the subject and authority key identifiers would be
-//   identical, but only the subject key identifier is needed for
-//   certification path building.
-//
+//	The signature on a self-signed certificate is generated with the private
+//	key associated with the certificate's subject public key. (This
+//	proves that the issuer possesses both the public and private keys.)
+//	In this case, the subject and authority key identifiers would be
+//	identical, but only the subject key identifier is needed for
+//	certification path building.
 func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 	if len(certificateChain) != 1 {
 		return false
@@ -217,13 +216,12 @@ func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 	return bytes.Equal(certificateChain[0].SubjectKeyId, certificateChain[0].AuthorityKeyId)
 }
 
-// ReadCertificateChain parses PEM encoded bytes that can contain one or
+// ReadCertificates parses PEM encoded bytes that can contain one or
 // multiple certificates and returns a slice of x509.Certificate.
-func ReadCertificateChain(certificateChainBytes []byte) ([]*x509.Certificate, error) {
-	// build the certificate chain next
+func ReadCertificates(certificateChainBytes []byte) ([]*x509.Certificate, error) {
 	var (
 		certificateBlock *pem.Block
-		certificateChain [][]byte
+		certificates     [][]byte
 	)
 	remainingBytes := bytes.TrimSpace(certificateChainBytes)
 
@@ -232,29 +230,59 @@ func ReadCertificateChain(certificateChainBytes []byte) ([]*x509.Certificate, er
 		if certificateBlock == nil || certificateBlock.Type != pemBlockCertificate {
 			return nil, trace.NotFound("no PEM data found")
 		}
-		certificateChain = append(certificateChain, certificateBlock.Bytes)
+		certificates = append(certificates, certificateBlock.Bytes)
 
 		if len(remainingBytes) == 0 {
 			break
 		}
 	}
 
-	// build a concatenated certificate chain
+	// build concatenated certificates into a buffer
 	var buf bytes.Buffer
-	for _, cc := range certificateChain {
+	for _, cc := range certificates {
 		_, err := buf.Write(cc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	// parse the chain and get a slice of x509.Certificates.
-	x509Chain, err := x509.ParseCertificates(buf.Bytes())
+	// parse the buffer and get a slice of x509.Certificates.
+	x509Certs, err := x509.ParseCertificates(buf.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return x509Chain, nil
+	return x509Certs, nil
+}
+
+// ReadCertificatesFromPath parses PEM encoded certificates from provided path.
+func ReadCertificatesFromPath(path string) ([]*x509.Certificate, error) {
+	bytes, err := ReadPath(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := ReadCertificates(bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs, nil
+}
+
+// NewCertPoolFromPath creates a new x509.CertPool from provided path.
+func NewCertPoolFromPath(path string) (*x509.CertPool, error) {
+	// x509.CertPool.AppendCertsFromPEM skips parse errors. Using our own
+	// implementation here to be more strict.
+	cas, err := ReadCertificatesFromPath(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool := x509.NewCertPool()
+	for _, ca := range cas {
+		pool.AddCert(ca)
+	}
+	return pool, nil
 }
 
 const pemBlockCertificate = "CERTIFICATE"

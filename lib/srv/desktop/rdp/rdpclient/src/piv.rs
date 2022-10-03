@@ -22,6 +22,7 @@ use rdp::model::error::*;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::{BigUint, PublicKeyParts, RsaPrivateKey};
 use std::convert::TryFrom;
+use std::fmt::Write as _;
 use std::io::{Cursor, Read};
 use uuid::Uuid;
 
@@ -36,7 +37,7 @@ const PIV_AID: Aid = Aid::new_truncatable(
 
 // Card implements a PIV-compatible smartcard, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Card<const S: usize> {
     // Card-holder user ID (CHUID). In federal agencies, this value would be unique per employee
     // and encodes some agency information. In our case it's static.
@@ -138,12 +139,12 @@ impl<const S: usize> Card<S> {
     }
 
     fn handle_verify(&mut self, cmd: Command<S>) -> RdpResult<Response> {
-        return if cmd.data() == self.pin.as_bytes() {
+        if cmd.data() == self.pin.as_bytes() {
             Ok(Response::new(Status::Success))
         } else {
             warn!("PIN mismatch, want {}, got {:?}", self.pin, cmd.data());
             Ok(Response::new(Status::VerificationFailed))
-        };
+        }
     }
 
     fn handle_get_data(&mut self, cmd: Command<S>) -> RdpResult<Response> {
@@ -420,7 +421,8 @@ fn hex_data<const S: usize>(cmd: &Command<S>) -> String {
 fn to_hex(bytes: &[u8]) -> String {
     let mut s = String::new();
     for b in bytes {
-        s.push_str(&format!("{:02X}", b));
+        // https://rust-lang.github.io/rust-clippy/master/index.html#format_push_string
+        let _ = write!(s, "{:02X}", b);
     }
     s
 }

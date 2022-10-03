@@ -35,10 +35,12 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/google/go-cmp/cmp"
@@ -54,7 +56,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -143,7 +145,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -159,6 +161,9 @@ func TestSAMLAuthRequest(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, srv.Auth(), "baz", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV5{
@@ -1041,7 +1046,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := native.GenerateKeyPair()
+			_, pub, err := testauthority.New().GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1139,7 +1144,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -2361,7 +2366,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 		req                *proto.IsMFARequiredRequest
 	}{
 		{
-			name:       "RequireSessionMFA enabled MySQL protocol doesn't match database name",
+			name:       "RequireSessionMFA on MySQL protocol doesn't match database name",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2375,7 +2380,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2385,7 +2390,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.True,
 		},
 		{
-			name:       "RequireSessionMFA disabled",
+			name:       "RequireSessionMFA off",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2399,7 +2404,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = false
+				roleOpt.RequireMFAType = types.RequireMFAType_OFF
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2409,7 +2414,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name doesn't match",
+			name:       "RequireSessionMFA on Postgres protocol database name doesn't match",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2423,7 +2428,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2433,7 +2438,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name matches",
+			name:       "RequireSessionMFA on Postgres protocol database name matches",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2447,7 +2452,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -3642,6 +3647,343 @@ func TestListResources_WithRoles(t *testing.T) {
 					require.Len(t, nodes, tt.expected)
 				})
 			}
+		})
+	}
+}
+
+// TestGenerateHostCert attempts to generate host certificates using various
+// RBAC rules
+func TestGenerateHostCert(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clusterName := srv.ClusterName()
+
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	noError := func(err error) bool {
+		return err == nil
+	}
+
+	for _, test := range []struct {
+		desc       string
+		principals []string
+		skipRule   bool
+		where      string
+		deny       bool
+		denyWhere  string
+		expect     func(error) bool
+	}{
+		{
+			desc:       "disallowed",
+			skipRule:   true,
+			principals: []string{"foo.example.com"},
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "denied",
+			deny:       true,
+			principals: []string{"foo.example.com"},
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed",
+			principals: []string{"foo.example.com"},
+			expect:     noError,
+		},
+		{
+			desc:       "allowed-subset",
+			principals: []string{"foo.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-subset",
+			principals: []string{"baz.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-all-equal",
+			principals: []string{"foo.example.com"},
+			where:      `all_equal(host_cert.principals, "foo.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-all-equal",
+			principals: []string{"bar.example.com"},
+			where:      `all_equal(host_cert.principals, "foo.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-all-end-with",
+			principals: []string{"node.foo.example.com"},
+			where:      `all_end_with(host_cert.principals, ".foo.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-all-end-with",
+			principals: []string{"node.bar.example.com"},
+			where:      `all_end_with(host_cert.principals, ".foo.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-complex",
+			principals: []string{"foo.example.com"},
+			where:      `all_end_with(host_cert.principals, ".example.com")`,
+			denyWhere:  `is_subset(host_cert.principals, "bar.example.com", "baz.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-complex",
+			principals: []string{"bar.example.com"},
+			where:      `all_end_with(host_cert.principals, ".example.com")`,
+			denyWhere:  `is_subset(host_cert.principals, "bar.example.com", "baz.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+		{
+			desc:       "allowed-multiple",
+			principals: []string{"bar.example.com", "foo.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
+		},
+		{
+			desc:       "disallowed-multiple",
+			principals: []string{"foo.example.com", "bar.example.com", "baz.example.com"},
+			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     trace.IsAccessDenied,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			rules := []types.Rule{}
+			if !test.skipRule {
+				rules = append(rules, types.Rule{
+					Resources: []string{types.KindHostCert},
+					Verbs:     []string{types.VerbCreate},
+					Where:     test.where,
+				})
+			}
+
+			denyRules := []types.Rule{}
+			if test.deny || test.denyWhere != "" {
+				denyRules = append(denyRules, types.Rule{
+					Resources: []string{types.KindHostCert},
+					Verbs:     []string{types.VerbCreate},
+					Where:     test.denyWhere,
+				})
+			}
+
+			role, err := CreateRole(ctx, srv.Auth(), test.desc, types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: rules},
+				Deny:  types.RoleConditions{Rules: denyRules},
+			})
+			require.NoError(t, err)
+
+			user, err := CreateUser(srv.Auth(), test.desc, role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			require.True(t, test.expect(err))
+		})
+	}
+}
+
+// TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
+// builtin roles have permissions to execute the calls required by the uploader service.
+// This is because only one uploader service runs per Teleport process, and it will use
+// the first available identity.
+func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	for _, role := range types.LocalServiceMappings() {
+		if role == types.RoleAuth {
+			continue
+		}
+		t.Run(role.String(), func(t *testing.T) {
+			ctx := context.Background()
+
+			identity := TestBuiltin(role)
+			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, identity.I))
+			require.NoError(t, err)
+
+			s := &ServerWithRoles{
+				authServer: srv.AuthServer,
+				alog:       srv.AuditLog,
+				context:    *authContext,
+			}
+
+			t.Run("GetSessionTracker", func(t *testing.T) {
+				sid := session.ID("foo/" + role.String())
+				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
+					ResourceHeader: types.ResourceHeader{
+						Metadata: types.Metadata{
+							Name: sid.String(),
+						},
+					},
+					Spec: types.SessionTrackerSpecV1{
+						SessionID: sid.String(),
+					},
+				})
+				require.NoError(t, err)
+
+				_, err = s.GetSessionTracker(ctx, tracker.GetSessionID())
+				require.NoError(t, err)
+			})
+
+			t.Run("EmitAuditEvent", func(t *testing.T) {
+				err := s.EmitAuditEvent(ctx, &apievents.UserLogin{
+					Metadata: apievents.Metadata{
+						Type: events.UserLoginEvent,
+						Code: events.UserLocalLoginFailureCode,
+					},
+					Method: events.LoginMethodClientCert,
+					Status: apievents.Status{Success: true},
+				})
+				require.NoError(t, err)
+			})
+
+			t.Run("StreamSessionEvents", func(t *testing.T) {
+				// swap out the audit log with a discard log because we don't care if
+				// the streaming actually succeeds, we just want to make sure RBAC checks
+				// pass and allow us to enter the audit log code
+				originalLog := s.alog
+				t.Cleanup(func() { s.alog = originalLog })
+				s.alog = events.NewDiscardAuditLog()
+
+				eventC, errC := s.StreamSessionEvents(ctx, "foo", 0)
+				select {
+				case err := <-errC:
+					require.NoError(t, err)
+				default:
+					// drain eventC to prevent goroutine leak
+					for range eventC {
+					}
+				}
+			})
+
+			t.Run("CreateAuditStream", func(t *testing.T) {
+				stream, err := s.CreateAuditStream(ctx, session.ID("streamer"))
+				require.NoError(t, err)
+				require.NoError(t, stream.Close(ctx))
+			})
+
+			t.Run("ResumeAuditStream", func(t *testing.T) {
+				stream, err := s.ResumeAuditStream(ctx, session.ID("streamer"), "upload")
+				require.NoError(t, err)
+				require.NoError(t, stream.Close(ctx))
+			})
+		})
+	}
+}
+
+type getActiveSessionsTestCase struct {
+	name      string
+	tracker   types.SessionTracker
+	role      types.Role
+	hasAccess bool
+}
+
+func TestGetActiveSessionTrackers(t *testing.T) {
+	t.Parallel()
+
+	testCases := []getActiveSessionsTestCase{func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"with access simple", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"with no access rule", tracker, role, false}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(session_tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"access with match expression", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "2",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(session_tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"no access with match expression", tracker, role, false}
+	}()}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+			err := srv.Auth().CreateRole(ctx, testCase.role)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)
+			require.NoError(t, err)
+
+			user, err := types.NewUser(uuid.NewString())
+			require.NoError(t, err)
+
+			user.AddRole(testCase.role.GetName())
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			clt, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			found, err := clt.GetActiveSessionTrackers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, testCase.hasAccess, len(found) != 0)
 		})
 	}
 }

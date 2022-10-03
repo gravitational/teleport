@@ -29,8 +29,6 @@ import (
 type StaticTokens interface {
 	// Resource provides common resource properties.
 	Resource
-	// SetStaticTokens sets the list of static tokens used to provision nodes.
-	SetStaticTokens([]ProvisionToken)
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() []ProvisionToken
 }
@@ -104,11 +102,6 @@ func (c *StaticTokensV2) SetExpiry(expires time.Time) {
 // GetMetadata returns object metadata
 func (c *StaticTokensV2) GetMetadata() Metadata {
 	return c.Metadata
-}
-
-// SetStaticTokens sets the list of static tokens used to provision nodes.
-func (c *StaticTokensV2) SetStaticTokens(s []ProvisionToken) {
-	c.Spec.StaticTokens = ProvisionTokensToV1(s)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.

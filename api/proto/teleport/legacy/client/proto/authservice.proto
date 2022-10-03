@@ -115,6 +115,8 @@ message Event {
     types.KubernetesClusterV3 KubernetesCluster = 33 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
     // Installer is an installer resource
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
+    // ProvisionTokenV3 is a V3 Provision Token resource.
+    types.ProvisionTokenV3 ProvisionTokenV3 = 35 [(gogoproto.jsontag) = "provision_token_v3,omitempty"];
   }
 }
 
@@ -281,6 +283,10 @@ message UserCertsRequest {
   // DropAccessRequests is an optional list of request IDs indicating requests
   // whose escalated privileges should be removed from the certificate.
   repeated string DropAccessRequests = 15 [(gogoproto.jsontag) = "drop_access_requests,omitempty"];
+
+  // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
+  // traces as we pass certain checkpoints.
+  string ConnectionDiagnosticID = 16 [(gogoproto.jsontag) = "connection_diagnostic_id,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -513,12 +519,9 @@ message Features {
   bool HSM = 9 [(gogoproto.jsontag) = "hsm"];
   // Desktop enables desktop access product
   bool Desktop = 10 [(gogoproto.jsontag) = "desktop"];
-  // ModeratedSessions enables moderated sessions product
-  bool ModeratedSessions = 11 [(gogoproto.jsontag) = "moderated_sessions"];
-  // MachineID enables MachineID product
-  bool MachineID = 12 [(gogoproto.jsontag) = "machine_id"];
-  // ResourceAccessRequests enables resource access requests product
-  bool ResourceAccessRequests = 13 [(gogoproto.jsontag) = "resource_access_requests"];
+  reserved 11; // bool ModeratedSessions
+  reserved 12; // bool MachineID
+  reserved 13; // bool ResourceAccessRequests
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -719,6 +722,10 @@ message CreateAppSessionRequest {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is AWS role the user wants to assume.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn"];
+  // AppName is the name of the application.
+  string AppName = 6 [(gogoproto.jsontag) = "app_name"];
+  // AppURI is the URI of the application.
+  string AppURI = 7 [(gogoproto.jsontag) = "app_uri"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -1636,6 +1643,8 @@ message PaginatedResource {
     types.KubernetesClusterV3 KubeCluster = 6 [(gogoproto.jsontag) = "kube_cluster,omitempty"];
     // KubernetesServer represents a Kubernetes Server resource.
     types.KubernetesServerV3 KubernetesServer = 7 [(gogoproto.jsontag) = "kubernetes_server,omitempty"];
+    // WindowsDesktopService represents a WindowsDesktopServiceV3 resource.
+    types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
   }
 }
 
@@ -2034,6 +2043,14 @@ message GetConnectionDiagnosticRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
+// AppendDiagnosticTraceRequest is a request to append a trace into a DiagnosticConnection.
+message AppendDiagnosticTraceRequest {
+  // Name is the name of the connection diagnostic.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Trace is the ConnectionDiagnosticTrace to append into the DiagnosticConnection.
+  types.ConnectionDiagnosticTrace Trace = 2 [(gogoproto.jsontag) = "trace"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2412,14 +2429,30 @@ service AuthService {
   // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 
-  // GetToken retrieves a token described by the given request.
+  // GetToken retrieves a v2 token described by the given request.
+  // Deprecated: use GetTokenV3.
+  // DELETE IN 13.0 (strideynet).
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
-  // GetToken retrieves all tokens.
+  // GetTokenV3 retrieves a token described by the given request.
+  rpc GetTokenV3(types.ResourceRequest) returns (types.ProvisionTokenV3);
+  // GetTokens retrieves all v2 tokens.
+  // Deprecated: use GetTokensV3.
+  // DELETE IN 13.0 (strideynet).
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
-  // UpsertToken upserts a token in a backend.
+  // GetTokensV3 retrieves all tokens.
+  rpc GetTokensV3(google.protobuf.Empty) returns (types.ProvisionTokenV3List);
+  // UpsertToken upserts a v2 token in a backend.
+  // Deprecated: use UpsertTokenV3.
+  // DELETE IN 13.0 (strideynet).
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-  // CreateToken creates a token in a backend.
+  // UpsertTokenV3 upserts a v3 token in a backend.
+  rpc UpsertTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);
+  // CreateToken creates a v2 token in a backend.
+  // Deprecated: Use CreateTokenV3.
+  // DELETE IN 13.0 (strideynet)
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+  // CreateTokenV3 creates a v3 token in a backend.
+  rpc CreateTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);
   // GenerateToken generates a new auth token.
   rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.
@@ -2501,8 +2534,22 @@ service AuthService {
   // DeleteAllDatabases removes all database resources.
   rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 
+  // GetKubernetesClusters returns all registered kubernetes clusters.
+  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List);
+  // GetKubernetesCluster returns a kubernetes cluster by name.
+  rpc GetKubernetesCluster(types.ResourceRequest) returns (types.KubernetesClusterV3);
+  // CreateKubernetesCluster creates a new kubernetes cluster resource.
+  rpc CreateKubernetesCluster(types.KubernetesClusterV3) returns (google.protobuf.Empty);
+  // UpdateKubernetesCluster updates existing kubernetes cluster resource.
+  rpc UpdateKubernetesCluster(types.KubernetesClusterV3) returns (google.protobuf.Empty);
+  // DeleteKubernetesCluster removes specified kubernetes cluster resource.
+  rpc DeleteKubernetesCluster(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+  rpc DeleteAllKubernetesClusters(google.protobuf.Empty) returns (google.protobuf.Empty);
+
   // GetWindowsDesktopServices returns all registered Windows desktop services.
   rpc GetWindowsDesktopServices(google.protobuf.Empty) returns (GetWindowsDesktopServicesResponse);
+  // TODO(zmb3): Document me.
   rpc GetWindowsDesktopService(GetWindowsDesktopServiceRequest) returns (GetWindowsDesktopServiceResponse);
   // UpsertWindowsDesktopService registers a new Windows desktop service.
   rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);
@@ -2537,6 +2584,8 @@ service AuthService {
   rpc UpdateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
   // GetConnectionDiagnostic reads a connection diagnostic.
   rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest) returns (types.ConnectionDiagnosticV1);
+  // AppendDiagnosticTrace appends a Trace to the ConnectionDiagnostic.
+  rpc AppendDiagnosticTrace(AppendDiagnosticTraceRequest) returns (types.ConnectionDiagnosticV1);
 
   // ChangeUserAuthentication allows a user to change their password and if enabled,
   // also adds a new MFA device. After successful invocation, a new web session is created as well

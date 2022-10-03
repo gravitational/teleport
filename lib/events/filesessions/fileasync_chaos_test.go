@@ -46,7 +46,6 @@ import (
 // Data race detector slows down the test significantly (10x+),
 // that is why the test is skipped when tests are running with
 // `go test -race` flag or `go test -short` flag
-//
 func TestChaosUpload(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping chaos test in short mode.")
@@ -121,7 +120,6 @@ func TestChaosUpload(t *testing.T) {
 		ScanPeriod: scanPeriod,
 		Streamer:   faultyStreamer,
 		Clock:      clock,
-		AuditLog:   &events.DiscardAuditLog{},
 	})
 	require.NoError(t, err)
 	go uploader.Serve(ctx)

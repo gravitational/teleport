@@ -26,12 +26,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/moby/term"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -40,14 +50,6 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/moby/term"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -560,7 +562,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	}()
 
 	var err error
-	if err = sess.trackSession(scx.Identity.TeleportUser, policySets); err != nil {
+	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets); err != nil {
 		if trace.IsNotImplemented(err) {
 			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
 		}
@@ -680,6 +682,10 @@ func (s *session) BroadcastSystemMessage(format string, args ...interface{}) {
 
 // emitSessionStartEvent emits a session start event.
 func (s *session) emitSessionStartEvent(ctx *ServerContext) {
+	var initialCommand []string
+	if execRequest, err := ctx.GetExecRequest(); err == nil {
+		initialCommand = []string{execRequest.GetCommand()}
+	}
 	sessionStartEvent := &apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
@@ -696,6 +702,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		InitialCommand:   initialCommand,
 	}
 
 	if s.term != nil {
@@ -943,32 +950,18 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		return trace.Wrap(err)
 	}
 
-	// Open a BPF recording session. If BPF was not configured, not available,
-	// or running in a recording proxy, OpenSession is a NOP.
-	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       s.term.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: s.id.String(),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
-	}
-
-	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
+	if cgroupID, err := scx.srv.OpenBPFSession(scx); err != nil {
 		scx.Errorf("Failed to open enhanced recording (interactive) session: %v: %v.", s.id, err)
 		return trace.Wrap(err)
 	} else if cgroupID > 0 {
 		// If a cgroup ID was assigned then enhanced session recording was enabled.
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
+		scx.srv.OpenRestrictedSession(scx, cgroupID)
 		go func() {
 			// Close the BPF recording session once the session is closed
 			<-s.stopC
-			scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
-			err = scx.srv.GetBPF().CloseSession(sessionContext)
+			scx.srv.CloseRestrictedSession(scx, cgroupID)
+			err = scx.srv.CloseBPFSession(scx)
 			if err != nil {
 				scx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
 			}
@@ -1011,8 +1004,8 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		case <-s.doneCh:
 		}
 
-		if scx.ExecRequest.GetCommand() != "" {
-			emitExecAuditEvent(scx, scx.ExecRequest.GetCommand(), err)
+		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
+			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
 		}
 
 		if result != nil {
@@ -1126,41 +1119,35 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
+	execRequest, err := scx.GetExecRequest()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start execution. If the program failed to start, send that result back.
 	// Note this is a partial start. Teleport will have re-exec'ed itself and
 	// wait until it's been placed in a cgroup and told to continue.
-	result, err := scx.ExecRequest.Start(ctx, channel)
+	result, err := execRequest.Start(ctx, channel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if result != nil {
-		scx.Debugf("Exec request (%v) result: %v.", scx.ExecRequest, result)
+		scx.Debugf("Exec request (%v) result: %v.", execRequest, result)
 		scx.SendExecResult(*result)
 	}
 
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
-	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       scx.ExecRequest.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: string(s.id),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
-	}
-	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
+	cgroupID, err := scx.srv.OpenBPFSession(scx)
 	if err != nil {
-		scx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", scx.ExecRequest.GetCommand(), err)
+		scx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", execRequest.GetCommand(), err)
 		return trace.Wrap(err)
 	}
 
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
+		scx.srv.OpenRestrictedSession(scx, cgroupID)
 	}
 
 	if tempUser != nil {
@@ -1175,11 +1162,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	}
 
 	// Process has been placed in a cgroup, continue execution.
-	scx.ExecRequest.Continue()
+	execRequest.Continue()
 
 	// Process is running, wait for it to stop.
 	go func() {
-		result = scx.ExecRequest.Wait()
+		result = execRequest.Wait()
 		if result != nil {
 			scx.SendExecResult(*result)
 		}
@@ -1188,11 +1175,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 
-		scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
+		scx.srv.CloseRestrictedSession(scx, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.
-		err = scx.srv.GetBPF().CloseSession(sessionContext)
+		err = scx.srv.CloseBPFSession(scx)
 		if err != nil {
 			scx.Errorf("Failed to close enhanced recording (exec) session: %v: %v.", s.id, err)
 		}
@@ -1608,7 +1595,7 @@ func (p *party) closeUnderSessionLock() {
 // trackSession creates a new session tracker for the ssh session.
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
-func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
+func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:    s.id.String(),
 		Kind:         string(types.SSHSessionKind),
@@ -1634,16 +1621,27 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 
 	// if doing proxy recording, don't propagate tracker to the cluster level
 	if s.registry.Srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
-		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, nil)
+		s.tracker, err = NewSessionTracker(ctx, trackerSpec, nil)
 	} else {
-		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
+		s.tracker, err = NewSessionTracker(ctx, trackerSpec, s.registry.SessionTrackerService)
 	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
-		if err := s.tracker.UpdateExpirationLoop(s.serverCtx, s.registry.clock); err != nil {
+		ctx, span := tracing.DefaultProvider().Tracer("session").Start(
+			s.serverCtx,
+			"session/UpdateExpirationLoop",
+			oteltrace.WithLinks(oteltrace.LinkFromContext(ctx)),
+			oteltrace.WithAttributes(
+				attribute.String("session_id", s.id.String()),
+				attribute.String("kind", string(types.SSHSessionKind)),
+			),
+		)
+		defer span.End()
+
+		if err := s.tracker.UpdateExpirationLoop(ctx, s.registry.clock); err != nil {
 			s.log.WithError(err).Debug("Failed to update session tracker expiration")
 		}
 	}()

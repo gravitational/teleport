@@ -161,7 +161,38 @@ type ConnectionDiagnostic struct {
 	// Message is the diagnostic summary
 	Message string `json:"message"`
 	// Traces contains multiple checkpoints results
-	Traces []*types.ConnectionDiagnosticTrace `json:"traces"`
+	Traces []ConnectionDiagnosticTraceUI `json:"traces,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUI describes a connection diagnostic trace using a UI representation.
+// This is required in order to have a more friendly representation of the enum fields - TraceType and Status.
+// They are converted into string instead of using the numbers (as they are represented in gRPC).
+type ConnectionDiagnosticTraceUI struct {
+	// TraceType as string
+	TraceType string `json:"traceType,omitempty"`
+	// Status as string
+	Status string `json:"status,omitempty"`
+	// Details of the trace
+	Details string `json:"details,omitempty"`
+	// Error in case of failure
+	Error string `json:"error,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUIFromTypes converts a list of ConnectionDiagnosticTrace into its format for HTTP API.
+// This is mostly copying things around and converting the enum into a string value.
+func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTrace) []ConnectionDiagnosticTraceUI {
+	ret := make([]ConnectionDiagnosticTraceUI, 0)
+
+	for _, t := range traces {
+		ret = append(ret, ConnectionDiagnosticTraceUI{
+			TraceType: t.Type.String(),
+			Status:    t.Status.String(),
+			Details:   t.Details,
+			Error:     t.Error,
+		})
+	}
+
+	return ret
 }
 
 // Database describes a database server.
@@ -222,6 +253,8 @@ type Desktop struct {
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
 	Labels []Label `json:"labels"`
+	// HostID is the ID of the Windows Desktop Service reporting the desktop.
+	HostID string `json:"host_id"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
@@ -250,6 +283,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		Name:   windowsDesktop.GetName(),
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
 		Labels: uiLabels,
+		HostID: windowsDesktop.GetHostID(),
 	}
 }
 
@@ -262,4 +296,48 @@ func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 	}
 
 	return uiDesktops
+}
+
+// DesktopService describes a desktop service to pass to the ui.
+type DesktopService struct {
+	// Name is hostname of the Windows Desktop Service.
+	Name string `json:"name"`
+	// Hostname is hostname of the Windows Desktop Service.
+	Hostname string `json:"hostname"`
+	// Addr is the network address the Windows Desktop Service can be reached at.
+	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a desktop.
+	Labels []Label `json:"labels"`
+}
+
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
+	uiLabels := []Label{}
+
+	for name, value := range desktopService.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return DesktopService{
+		Name:     desktopService.GetName(),
+		Hostname: desktopService.GetHostname(),
+		Addr:     desktopService.GetAddr(),
+		Labels:   uiLabels,
+	}
+}
+
+// MakeDesktopServices converts desktops from their API form to a type the UI can display.
+func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) []DesktopService {
+	desktopServices := make([]DesktopService, 0, len(windowsDesktopServices))
+
+	for _, desktopService := range windowsDesktopServices {
+		desktopServices = append(desktopServices, MakeDesktopService(desktopService))
+	}
+
+	return desktopServices
 }
