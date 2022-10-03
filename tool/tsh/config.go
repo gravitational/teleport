@@ -78,20 +78,14 @@ func onConfig(cf *CLIConf) error {
 	knownHostsPath := keypaths.KnownHostsPath(keysDir)
 	identityFilePath := keypaths.UserKeyPath(keysDir, proxyHost, tc.Config.Username)
 
-	var sb strings.Builder
-
-	// Start with a newline in case an existing config file does not end with
-	// one.
-	//fmt.Fprintln(&sb)
-	//fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
-
 	leafClustersNames := make([]string, 0, len(leafClusters))
 	for _, leafCluster := range leafClusters {
 		leafClustersNames = append(leafClustersNames, leafCluster.GetName())
 	}
 
+	var sb strings.Builder
 	if err := writeSSHConfig(&sb, &config.SSHConfigParameters{
-		AppName:          "tsh",
+		AppName:          config.TshApp,
 		ClusterNames:     append([]string{rootClusterName}, leafClustersNames...),
 		KnownHostsPath:   knownHostsPath,
 		IdentityFilePath: identityFilePath,
@@ -102,24 +96,6 @@ func onConfig(cf *CLIConf) error {
 	}, nil); err != nil {
 		return trace.Wrap(err)
 	}
-
-	//for _, leafCluster := range leafClusters {
-	//	err = writeSSHConfig(&sb, &config.SSHConfigParameters{
-	//		AppName:          "tsh",
-	//		ClusterName:      leafCluster.GetName(),
-	//		KnownHostsPath:   knownHostsPath,
-	//		IdentityFilePath: identityFilePath,
-	//		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
-	//			tc.Config.Username, rootClusterName),
-	//		ProxyHost:      proxyHost,
-	//		ExecutablePath: cf.executablePath,
-	//	}, nil)
-	//	if err != nil {
-	//		return trace.Wrap(err)
-	//	}
-	//}
-
-	//fmt.Fprintf(&sb, "\n# End generated Teleport configuration\n")
 
 	stdout := cf.Stdout()
 	fmt.Fprint(stdout, sb.String())
