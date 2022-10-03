@@ -169,7 +169,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 	}, map[string]string{
 		types.AlertLicenseExpired: "yes",
 	}); err != nil {
-		log.Warn(err)
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 	return nil
 }
