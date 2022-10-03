@@ -104,7 +104,7 @@ func startMockServerWithListener(t *testing.T, l net.Listener) *mockServer {
 	t.Cleanup(srv.grpc.Stop)
 
 	go func() {
-		require.NoError(t, srv.grpc.Serve(l))
+		srv.grpc.Serve(l)
 	}()
 	return srv
 }

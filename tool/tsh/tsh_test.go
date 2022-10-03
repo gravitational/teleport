@@ -345,13 +345,17 @@ func TestOIDCLogin(t *testing.T) {
 
 	didAutoRequest := atomic.NewBool(false)
 
+	errCh := make(chan error)
 	go func() {
 		watcher, err := authServer.NewWatcher(ctx, types.Watch{
 			Kinds: []types.WatchKind{
 				{Kind: types.KindAccessRequest},
 			},
 		})
-		require.NoError(t, err)
+		if err != nil {
+			errCh <- err
+			return
+		}
 		for {
 			select {
 			case event := <-watcher.Events():
@@ -362,12 +366,14 @@ func TestOIDCLogin(t *testing.T) {
 					RequestID: event.Resource.(types.AccessRequest).GetName(),
 					State:     types.RequestState_APPROVED,
 				})
-				require.NoError(t, err)
 				didAutoRequest.Store(true)
+				errCh <- err
 				return
 			case <-watcher.Done():
+				errCh <- nil
 				return
 			case <-ctx.Done():
+				errCh <- nil
 				return
 			}
 		}
@@ -390,6 +396,7 @@ func TestOIDCLogin(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	require.NoError(t, <-errCh)
 
 	// verify that auto-request happened
 	require.True(t, didAutoRequest.Load())
