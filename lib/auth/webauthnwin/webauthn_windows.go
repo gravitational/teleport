@@ -116,7 +116,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion,
 		return nil, trace.Wrap(err)
 	}
 	var out *webauthnAssertion
-	ret, _, lastErr := procWebAuthNAuthenticatorGetAssertion.Call(
+	ret, _, err := procWebAuthNAuthenticatorGetAssertion.Call(
 		uintptr(hwnd),
 		uintptr(unsafe.Pointer(rpid)),
 		uintptr(unsafe.Pointer(cd)),
@@ -124,7 +124,7 @@ func (n *nativeImpl) GetAssertion(origin string, in *wanlib.CredentialAssertion,
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if ret != 0 {
-		return nil, trace.Wrap(getErrorNameOrLastErr(ret, lastErr))
+		return nil, trace.Wrap(getErrorNameOrLastErr(ret, err))
 	}
 	if out == nil {
 		return nil, errors.New("unexpected nil response from GetAssertion")
@@ -192,7 +192,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation
 		return nil, trace.Wrap(err)
 	}
 	var out *webauthnCredentialAttestation
-	ret, _, lastErr := procWebAuthNAuthenticatorMakeCredential.Call(
+	ret, _, err := procWebAuthNAuthenticatorMakeCredential.Call(
 		uintptr(hwnd),
 		uintptr(unsafe.Pointer(rp)),
 		uintptr(unsafe.Pointer(u)),
@@ -202,7 +202,7 @@ func (n *nativeImpl) MakeCredential(origin string, in *wanlib.CredentialCreation
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if ret != 0 {
-		return nil, trace.Wrap(getErrorNameOrLastErr(ret, lastErr))
+		return nil, trace.Wrap(getErrorNameOrLastErr(ret, err))
 	}
 	if out == nil {
 		return nil, errors.New("unexpected nil response from MakeCredential")
@@ -262,6 +262,9 @@ func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
 	if err := procWebAuthNGetApiVersionNumber.Find(); err != nil {
 		return 0, err
 	}
+	// This is the only API call of Windows Webauthn API that returns non-zero
+	// value when everything went fine.
+	// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L895-L897
 	ret, _, err := procWebAuthNGetApiVersionNumber.Call()
 	if ret == 0 && err != syscall.Errno(0) {
 		return 0, err
@@ -285,11 +288,11 @@ func getErrorNameOrLastErr(in uintptr, lastError error) error {
 
 func isUVPlatformAuthenticatorAvailable() (bool, error) {
 	var out uint32
-	ret, _, lastErr := procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Call(
+	ret, _, err := procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Call(
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if ret != 0 {
-		return false, getErrorNameOrLastErr(ret, lastErr)
+		return false, getErrorNameOrLastErr(ret, err)
 	}
 	return out == 1, nil
 }
