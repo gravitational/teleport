@@ -110,7 +110,7 @@ func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w i
 		Labels: labels,
 	})
 	if err != nil && !trace.IsNotImplemented(err) {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	types.SortClusterAlerts(alerts)
