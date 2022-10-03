@@ -62,6 +62,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -980,6 +981,8 @@ type certRequest struct {
 	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this instance.
 	connectionDiagnosticID string
+	// attestationStatement is an attestation statement associated with the given public key.
+	attestationStatement *keys.AttestationStatement
 }
 
 // check verifies the cert request is valid.
@@ -1232,6 +1235,14 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
+	// verify that the required private key policy for the requesting identity
+	// is met by the provided attestation statement.
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	attestedKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1298,6 +1309,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AllowedResourceIDs:     requestedResourcesStr,
 		SourceIP:               req.sourceIP,
 		ConnectionDiagnosticID: req.connectionDiagnosticID,
+		PrivateKeyPolicy:       attestedKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1379,6 +1391,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:          req.renewable,
 		Generation:         req.generation,
 		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
+		PrivateKeyPolicy:   attestedKeyPolicy,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

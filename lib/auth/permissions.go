@@ -200,7 +200,31 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
+
+	// Enforce required private key policy if set.
+	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return authContext, nil
+}
+
+func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *Context, authPref types.AuthPreference) error {
+	switch authContext.Identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		// built in roles do not need to pass private key policies
+		return nil
+	}
+
+	// Check that the required private key policy, defined by roles and auth pref,
+	// is met by this Identity's tls certificate.
+	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
+	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err := requiredPolicy.VerifyPolicy(identityPolicy); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
@@ -289,6 +313,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
 		ClientIP:          u.Identity.ClientIP,
+		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 
 	return &Context{
