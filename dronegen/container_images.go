@@ -88,6 +88,7 @@ func buildContainerImagePipelines() []pipeline {
 	branchMajorVersion := "v10"
 
 	triggers := []*TriggerInfo{
+		NewTagTrigger(branchMajorVersion),
 		NewPromoteTrigger(branchMajorVersion),
 		NewCronTrigger(latestMajorVersions),
 	}
@@ -124,6 +125,23 @@ func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
 	return baseTrigger
 }
 
+func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
+	tagTrigger := triggerTag
+
+	return &TriggerInfo{
+		Trigger:                      tagTrigger,
+		Name:                         "tag",
+		ShouldAffectProductionImages: false,
+		SupportedVersions: []*releaseVersion{
+			{
+				MajorVersion:        branchMajorVersion,
+				ShellVersion:        "$DRONE_TAG",
+				RelativeVersionName: "branch",
+			},
+		},
+	}
+}
+
 func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 	promoteTrigger := triggerPromote
 	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
@@ -136,7 +154,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 			{
 				MajorVersion:        branchMajorVersion,
 				ShellVersion:        "$DRONE_TAG",
-				RelativeVersionName: "drone-tag",
+				RelativeVersionName: "branch",
 			},
 		},
 		SetupSteps: verifyValidPromoteRunSteps(),
@@ -749,7 +767,8 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 	}
 
 	return &ContainerRepo{
-		Name: "Quay",
+		Name:             "Quay",
+		IsProductionRepo: true,
 		Environment: map[string]value{
 			"QUAY_USERNAME": {
 				fromSecret: dockerUsername,
