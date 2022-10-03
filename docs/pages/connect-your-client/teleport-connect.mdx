@@ -23,7 +23,11 @@ To upgrade Teleport Connect to a newer version, drag the new version to the Appl
 Download the DEB (Debian-based distros) or RPM (RHEL-based distros) package and install it using
 your package manager. Repeat the process for in-place upgrades.
 
-You can also download the project as a `tar.gz` file to extract and run it in place.
+You can also download the project as a `tar.gz` file to extract and run it in place:
+
+```code
+$ tar -xf  teleport-(=teleport.version=)-linux-*.tar.gz
+```
 </TabItem>
 <TabItem label="Windows">
 Download and run the installer `.exe` file. It will install and open Teleport Connect without
@@ -139,11 +143,11 @@ and follow the *Submit a Bug* link.
 
 <Tabs>
 <TabItem label="macOS">
-Be sure to attach logs which can be found under `~/Library/Application Support/Teleport Connect/logs`.
+Be sure to attach logs, which can be found under `~/Library/Application Support/Teleport Connect/logs`.
 The version of the app can be found in the app menu under the About Teleport Connect menu item.
 </TabItem>
 <TabItem label="Linux">
-Be sure to attach logs which can be found under `~/.config/Teleport Connect/logs`. The app version
+Be sure to attach logs, which can be found under `~/.config/Teleport Connect/logs`. The app version
 can be found by pressing `Alt` to access the app menu, then -> Help -> About Teleport Connect.
 </TabItem>
 <TabItem label="Windows">
