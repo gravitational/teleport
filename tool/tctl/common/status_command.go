@@ -164,7 +164,7 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 		fmt.Print(view())
 	}
 
-	if err := common.ShowClusterAlerts(ctx, client, os.Stdout, map[string]string{
+	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, map[string]string{
 		types.AlertLicenseExpired: "yes",
