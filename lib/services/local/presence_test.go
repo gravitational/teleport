@@ -153,6 +153,8 @@ func TestApplicationServersCRUD(t *testing.T) {
 	// Make sure all app servers are registered.
 	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
 	require.NoError(t, err)
+	servers := types.AppServers(out)
+	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
