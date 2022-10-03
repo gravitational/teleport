@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace/trail"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // NewKeepAliver returns a new instance of keep aliver.
@@ -92,7 +92,7 @@ func (k *streamKeepAliver) Done() <-chan struct{} {
 // recv is necessary to receive errors from the
 // server, otherwise no errors will be propagated
 func (k *streamKeepAliver) recv() {
-	err := k.stream.RecvMsg(&empty.Empty{})
+	err := k.stream.RecvMsg(&emptypb.Empty{})
 	k.closeWithError(trail.FromGRPC(err))
 }
 

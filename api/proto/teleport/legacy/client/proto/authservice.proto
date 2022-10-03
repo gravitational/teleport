@@ -519,12 +519,9 @@ message Features {
   bool HSM = 9 [(gogoproto.jsontag) = "hsm"];
   // Desktop enables desktop access product
   bool Desktop = 10 [(gogoproto.jsontag) = "desktop"];
-  // ModeratedSessions enables moderated sessions product
-  bool ModeratedSessions = 11 [(gogoproto.jsontag) = "moderated_sessions"];
-  // MachineID enables MachineID product
-  bool MachineID = 12 [(gogoproto.jsontag) = "machine_id"];
-  // ResourceAccessRequests enables resource access requests product
-  bool ResourceAccessRequests = 13 [(gogoproto.jsontag) = "resource_access_requests"];
+  reserved 11; // bool ModeratedSessions
+  reserved 12; // bool MachineID
+  reserved 13; // bool ResourceAccessRequests
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -725,6 +722,10 @@ message CreateAppSessionRequest {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is AWS role the user wants to assume.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn"];
+  // AppName is the name of the application.
+  string AppName = 6 [(gogoproto.jsontag) = "app_name"];
+  // AppURI is the URI of the application.
+  string AppURI = 7 [(gogoproto.jsontag) = "app_uri"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
