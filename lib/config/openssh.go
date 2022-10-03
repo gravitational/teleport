@@ -27,6 +27,7 @@ import (
 	"text/template"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -57,7 +58,7 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 `))
 
 type SSHConfigParameters struct {
-	AppName             string
+	AppName             SSHConfigApps
 	ClusterNames        []string
 	KnownHostsPath      string
 	IdentityFilePath    string
@@ -75,13 +76,16 @@ type sshTmplParams struct {
 // openSSHVersionRegex is a regex used to parse OpenSSH version strings.
 var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor>\d+)(?:p(?P<patch>\d+))?`)
 
-// openSSHMinVersionForRSAWorkaround is the OpenSSH version after which the
-// RSA deprecation workaround should be added to generated ssh_config.
-var openSSHMinVersionForRSAWorkaround = semver.New("8.5.0")
-
 // openSSHMinVersionForHostAlgos is the first version that understands all host keys required by us.
 // HostKeyAlgorithms will be added to ssh config if the version is above listed here.
 var openSSHMinVersionForHostAlgos = semver.New("7.8.0")
+
+type SSHConfigApps string
+
+const (
+	TshApp  SSHConfigApps = teleport.ComponentTSH
+	TbotApp SSHConfigApps = teleport.ComponentTBot
+)
 
 // parseSSHVersion attempts to parse the local SSH version, used to determine
 // certain config template parameters for client version compatibility.
@@ -138,26 +142,14 @@ func GetSystemSSHVersion() (*semver.Version, error) {
 }
 
 type SSHConfigOptions struct {
-	// PubkeyAcceptedKeyTypesWorkaroundNeeded controls whether the RSA deprecation workaround is
-	// included in the generated configuration. Newer versions of OpenSSH
-	// deprecate RSA certificates and, due to a bug in golang's ssh package,
-	// Teleport wrongly advertises its unaffected certificates as a
-	// now-deprecated certificate type. The workaround includes a config
-	// override to re-enable RSA certs for just Teleport hosts, however it is
-	// only supported on OpenSSH 8.5 and later.
-	PubkeyAcceptedKeyTypesWorkaroundNeeded bool // TODO(jakule): remove
-	NewerHostKeyAlgorithmsSupported        bool
+	// NewerHostKeyAlgorithmsSupported when true sets HostKeyAlgorithms OpenSSH configuration option
+	// to SHA256/512 compatible algorithms. Otherwise, SHA-1 is being used.
+	NewerHostKeyAlgorithmsSupported bool
 }
 
 func (c *SSHConfigOptions) String() string {
 	sb := &strings.Builder{}
 	sb.WriteString("SSHConfigOptions:")
-
-	if c.PubkeyAcceptedKeyTypesWorkaroundNeeded {
-		sb.WriteString(" PubkeyAcceptedKeyTypes with SHA-1 will be added")
-	} else {
-		sb.WriteString(" PubkeyAcceptedKeyTypes will not be added")
-	}
 
 	if c.NewerHostKeyAlgorithmsSupported {
 		sb.WriteString(", HostKeyAlgorithms will include SHA-1")
@@ -168,25 +160,19 @@ func (c *SSHConfigOptions) String() string {
 	return sb.String()
 }
 
-func IsPubkeyAcceptedKeyTypesWorkaroundNeeded(ver *semver.Version) bool {
-	return ver.LessThan(*openSSHMinVersionForRSAWorkaround)
-}
-
 func IsNewerHostKeyAlgorithmsSupported(ver *semver.Version) bool {
 	return !ver.LessThan(*openSSHMinVersionForHostAlgos)
 }
 
 func GetSSHConfigOptions(sshVer *semver.Version) *SSHConfigOptions {
 	return &SSHConfigOptions{
-		PubkeyAcceptedKeyTypesWorkaroundNeeded: IsPubkeyAcceptedKeyTypesWorkaroundNeeded(sshVer),
-		NewerHostKeyAlgorithmsSupported:        IsNewerHostKeyAlgorithmsSupported(sshVer),
+		NewerHostKeyAlgorithmsSupported: IsNewerHostKeyAlgorithmsSupported(sshVer),
 	}
 }
 
 func GetDefaultSSHConfigOptions() *SSHConfigOptions {
 	return &SSHConfigOptions{
-		PubkeyAcceptedKeyTypesWorkaroundNeeded: true,
-		NewerHostKeyAlgorithmsSupported:        false,
+		NewerHostKeyAlgorithmsSupported: false,
 	}
 }
 

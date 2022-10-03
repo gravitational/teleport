@@ -17,9 +17,12 @@ limitations under the License.
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,5 +67,43 @@ func TestParseSSHVersion(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, version.Equal(*test.version), "got version = %v, want = %v", version, test.version)
 		}
+	}
+}
+
+func TestSSHConfig_GetSSHConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		sshVersion string
+		config     *SSHConfigParameters
+	}{
+		{
+			name:       "legacy OpenSSH - single cluster",
+			sshVersion: "6.4.0",
+			config: &SSHConfigParameters{
+				AppName:             TshApp,
+				ClusterNames:        []string{"example.com"},
+				KnownHostsPath:      "/home/alice/.tsh/known_hosts",
+				IdentityFilePath:    "/home/alice/.tsh/keys/example.com/bob",
+				CertificateFilePath: "/home/alice/.tsh/keys/example.com/bob-ssh/example.com-cert.pub",
+				ProxyHost:           "proxy.example.com",
+				ExecutablePath:      "/tmp/tsh",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &SSHConfig{
+				getSSHVersion: func() (*semver.Version, error) {
+					return semver.New(tt.sshVersion), nil
+				},
+				log: logrus.New(),
+			}
+
+			sb := &strings.Builder{}
+			err := c.GetSSHConfig(sb, tt.config)
+			require.NoError(t, err)
+			require.Equal(t, string(golden.Get(t)), sb.String())
+		})
 	}
 }
