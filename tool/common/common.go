@@ -115,20 +115,18 @@ func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w i
 
 	types.SortClusterAlerts(alerts)
 	var errs []error
+outer:
 	for _, alert := range alerts {
 		if err := alert.CheckMessage(); err != nil {
 			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
-		}
-		skip := false
-		for k, v := range ignore {
-			if labelValue, ok := alert.Metadata.Labels[k]; ok && labelValue == v {
-				skip = true
-			}
-		}
-		if skip {
 			continue
 		}
-		fmt.Fprintf(w, "%s\n\n", utils.FormatAlertOutput(alert))
+		for k, v := range ignore {
+			if labelValue, ok := alert.Metadata.Labels[k]; ok && labelValue == v {
+				break outer
+			}
+		}
+		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
 	}
 	return trace.NewAggregate(errs...)
 }

@@ -536,7 +536,7 @@ func FormatAlert(alert types.ClusterAlert) string {
 		if alert.Spec.Severity == types.AlertSeverity_HIGH {
 			fmt.Fprint(&buf, Color(Red, alert.Spec.Message))
 		} else {
-			fmt.Fprint(&buf, Color(yellow, alert.Spec.Message))
+			fmt.Fprint(&buf, Color(Yellow, alert.Spec.Message))
 		}
 	}
 	return buf.String()

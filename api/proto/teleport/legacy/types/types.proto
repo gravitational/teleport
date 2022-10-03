@@ -4287,7 +4287,7 @@ message ClusterAlertSpec {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // HostID is the id of the auth server that generated the alert.
+  // HostID is id of the node the alert applies to.
   string HostID = 4 [(gogoproto.jsontag) = "host_id"];
 }
 
