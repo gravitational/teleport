@@ -249,6 +249,8 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
       # Set as saml, oidc, or github
       type: saml|oidc|github
   ```
+
+  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
   <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
@@ -283,6 +285,7 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
   ```
 
   </ScopedBlock>
+  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
 </Tabs>
 
@@ -327,7 +330,12 @@ spec:
   # in the Web interface
   display: "Okta"
 
-  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs
+  # enables/disables idp-initiated saml login
+  allow_idp_initiated: false
+
+  # The last segment of the URL must be identical to the connector metadata name
+  # when IdP-initiated login is enabled.
+  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs/corporate
   attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["access"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
@@ -342,6 +350,8 @@ spec:
   entity_descriptor: |
     <paste SAML XML contents here>
 ```
+
+(!docs/pages/includes/sso/idp-initiated.mdx!)
 
 </TabItem>
 <TabItem label="OneLogin">
@@ -377,6 +387,8 @@ spec:
 ```yaml
 (!/examples/resources/saml-connector.yaml!)
 ```
+
+(!docs/pages/includes/sso/idp-initiated.mdx!)
 
 </TabItem>
 <TabItem label="GitHub">

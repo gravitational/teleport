@@ -38,6 +38,7 @@ type alertOptions struct {
 	labels   map[string]string
 	severity AlertSeverity
 	created  time.Time
+	expires  time.Time
 }
 
 // AlertOption is a functional option for alert construction.
@@ -68,6 +69,14 @@ func WithAlertCreated(created time.Time) AlertOption {
 	}
 }
 
+// WithAlertExpires sets the alerts expiry time. Auth server automatically applies a
+// 24h expiry before inserting the alert in the backend if none is set.
+func WithAlertExpires(expires time.Time) AlertOption {
+	return func(options *alertOptions) {
+		options.expires = expires.UTC()
+	}
+}
+
 // NewClusterAlert creates a new cluster alert.
 func NewClusterAlert(name string, message string, opts ...AlertOption) (ClusterAlert, error) {
 	options := alertOptions{
@@ -79,8 +88,9 @@ func NewClusterAlert(name string, message string, opts ...AlertOption) (ClusterA
 	alert := ClusterAlert{
 		ResourceHeader: ResourceHeader{
 			Metadata: Metadata{
-				Name:   name,
-				Labels: options.labels,
+				Name:    name,
+				Labels:  options.labels,
+				Expires: &options.expires,
 			},
 		},
 		Spec: ClusterAlertSpec{
