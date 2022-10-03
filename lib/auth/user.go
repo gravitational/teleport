@@ -32,7 +32,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/fp"
 )
 
 // CreateUser inserts a new user entry in a backend.
@@ -261,9 +260,12 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, newUser types.User
 		return trace.Wrap(err)
 	}
 
-	localUsersWithoutTargetUser := fp.Filter(localUsers, func(u types.User) bool {
-		return u.GetName() != targetUsername
-	})
+	var localUsersWithoutTargetUser []types.User
+	for _, u := range localUsers {
+		if u.GetName() != targetUsername {
+			localUsersWithoutTargetUser = append(localUsersWithoutTargetUser, u)
+		}
+	}
 	if isSomeUserHasRole(localUsersWithoutTargetUser, rolesWithUpdateRolesRule) {
 		return nil
 	}

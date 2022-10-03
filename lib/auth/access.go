@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils/fp"
 )
 
 // UpsertRole creates or updates a role and emits a related audit event.
@@ -151,11 +150,16 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 }
 
 func isSomeUserHasRole(users []types.User, roleNames []string) bool {
-	return fp.Some(users, func(u types.User) bool {
-		return fp.Some(u.GetRoles(), func(role string) bool {
-			return fp.Contains(roleNames, role)
-		})
-	})
+	for _, user := range users {
+		for _, roleName := range roleNames {
+			for _, userRole := range user.GetRoles() {
+				if userRole == roleName {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (a *Server) getLocalUsers() ([]types.User, error) {
@@ -164,9 +168,14 @@ func (a *Server) getLocalUsers() ([]types.User, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return fp.Filter(allUsers, func(u types.User) bool {
-		return u.GetCreatedBy().Connector == nil
-	}), nil
+	var localUsers []types.User
+	for _, user := range allUsers {
+		if user.GetCreatedBy().Connector == nil {
+			localUsers = append(localUsers, user)
+		}
+	}
+
+	return localUsers, nil
 }
 
 // checkRoleRulesConstraint checks if the request will result in having
@@ -201,9 +210,12 @@ func (a *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.
 		return trace.Wrap(err)
 	}
 
-	rolesWithUpdateRolesRuleWithoutTargetRole := fp.Filter(rolesWithUpdateRolesRule, func(role string) bool {
-		return role != targetRoleName
-	})
+	var rolesWithUpdateRolesRuleWithoutTargetRole []string
+	for _, role := range rolesWithUpdateRolesRule {
+		if role != targetRoleName {
+			rolesWithUpdateRolesRuleWithoutTargetRole = append(rolesWithUpdateRolesRuleWithoutTargetRole, role)
+		}
+	}
 
 	if isSomeUserHasRole(localUsers, rolesWithUpdateRolesRuleWithoutTargetRole) {
 		return nil
@@ -220,16 +232,22 @@ func (a *Server) getRolesWithUpdateRolesRule(ctx context.Context) ([]string, err
 		return nil, trace.Wrap(err)
 	}
 
-	getRolesWithUpdateRolesRule := fp.Filter(allRoles, roleHasUpdateRolesRule)
+	var rolesWithUpdateRolesRule []string
+	for _, role := range allRoles {
+		if roleHasUpdateRolesRule(role) {
+			rolesWithUpdateRolesRule = append(rolesWithUpdateRolesRule, role.GetName())
+		}
+	}
 
-	return fp.Map(getRolesWithUpdateRolesRule, func(r types.Role) string {
-		return r.GetName()
-	}), nil
+	return rolesWithUpdateRolesRule, nil
 }
 
 // checks if role has permission to edit roles
 func roleHasUpdateRolesRule(role types.Role) bool {
-	return fp.Some(role.GetRules(types.Allow), func(rule types.Rule) bool {
-		return rule.HasResource(types.KindRole) && rule.HasVerb(types.VerbUpdate)
-	})
+	for _, rule := range role.GetRules(types.Allow) {
+		if rule.HasResource(types.KindRole) && rule.HasVerb(types.VerbUpdate) {
+			return true
+		}
+	}
+	return false
 }
