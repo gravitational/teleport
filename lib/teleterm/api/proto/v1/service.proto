@@ -33,9 +33,9 @@ service TerminalService {
   rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
   // ListLeafClusters lists leaf clusters
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-  // ListDatabases lists databases
+  // ListDatabases lists all databases without pagination
   rpc GetAllDatabases(GetAllDatabasesRequest) returns (GetAllDatabasesResponse);
-  // ListDatabaseUsers lists allowed users for the given database based on the role set.
+  // GetDatabases returns a filtered and paginated list of databases
   rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);

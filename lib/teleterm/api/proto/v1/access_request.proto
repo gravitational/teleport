@@ -22,23 +22,32 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 message AccessRequest {
   string id = 1;
+  // the request state of Access Request. option of PENDING, APPROVED, DENIED, NONE
   string state = 2;
   string resolve_reason = 3;
   string request_reason = 4;
+  // user is the user who submitted the Access Request
   string user = 5;
+  // a list of roles requested in the AccessRequest
   repeated string roles = 6;
   google.protobuf.Timestamp created = 7;
   google.protobuf.Timestamp expires = 8;
   repeated AccessRequestReview reviews = 9;
   repeated string suggested_reviewers = 10;
+  // thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
   repeated string threshold_names = 11;
+  // a list of resourceIDs requested in the AccessRequest
   repeated ResourceID resource_ids = 12;
 }
 
 message AccessRequestReview {
+  // author is the creator of the AccessRequestReiew. 
   string author = 1;
+  // list of roles approved
   repeated string roles = 2;
+  // the state of the review, either APPROVED or DENIED
   string state = 3;
+  // reason is why the request was approved or denied
   string reason = 4;
   google.protobuf.Timestamp created = 5;
 }
