@@ -71,8 +71,6 @@ func onAppLogin(cf *CLIConf) error {
 	ws, err := tc.CreateAppSession(cf.Context, types.CreateAppSessionRequest{
 		Username:    tc.Username,
 		PublicAddr:  app.GetPublicAddr(),
-		AppName:     app.GetName(),
-		AppURI:      app.GetURI(),
 		ClusterName: tc.SiteName,
 		AWSRoleARN:  arn,
 	})
