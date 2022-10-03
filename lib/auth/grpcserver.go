@@ -826,31 +826,6 @@ func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.Cr
 	return r, nil
 }
 
-func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *proto.RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tokenID := ""
-	if req != nil {
-		tokenID = req.TokenID
-	}
-
-	secrets, err := auth.RotateUserTokenSecrets(ctx, tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r, ok := secrets.(*types.UserTokenSecretsV3)
-	if !ok {
-		err = trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
-		return nil, trace.Wrap(err)
-	}
-
-	return r, nil
-}
-
 func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

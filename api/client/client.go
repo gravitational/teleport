@@ -742,22 +742,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	return nil
 }
 
-// RotateUserTokenSecrets rotates secrets for a given tokenID.
-// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
-// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
-// extract the OTP key from the QR code, then allow the user to signup with
-// the same OTP token.
-func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
-		TokenID: tokenID,
-	}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return secrets, nil
-}
-
 // GetResetPasswordToken returns a reset password token for the specified tokenID.
 func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	token, err := c.grpc.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{

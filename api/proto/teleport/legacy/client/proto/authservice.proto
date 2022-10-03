@@ -377,11 +377,6 @@ message RequestID {
   string ID = 1 [(gogoproto.jsontag) = "id"];
 }
 
-// RotateUserTokenSecretsRequest is a request to rotate token secrets.
-message RotateUserTokenSecretsRequest {
-  string TokenID = 1 [(gogoproto.jsontag) = "token"];
-}
-
 // GetResetPasswordTokenRequest is a request to get a reset password token.
 message GetResetPasswordTokenRequest {
   string TokenID = 1 [(gogoproto.jsontag) = "token"];
@@ -2041,9 +2036,6 @@ service AuthService {
   // clients for verification or configuration on startup.
   rpc Ping(PingRequest) returns (PingResponse);
 
-  // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-  // DELETE IN: 9.0.0 in favor of CreateRegisterChallenge.
-  rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
   // GetResetPasswordToken returns a reset password token.
   rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
   // CreateResetPasswordToken resets users current password and second factors and creates a reset

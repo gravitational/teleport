@@ -2646,11 +2646,6 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 	return a.authServer.getResetPasswordToken(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
-}
-
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
