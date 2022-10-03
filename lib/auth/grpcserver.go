@@ -1290,34 +1290,6 @@ func (g *GRPCServer) DeleteAllApplicationServers(ctx context.Context, req *proto
 	return &emptypb.Empty{}, nil
 }
 
-// GetAppServers gets all application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-func (g *GRPCServer) GetAppServers(ctx context.Context, req *proto.GetAppServersRequest) (*proto.GetAppServersResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	appServers, err := auth.GetAppServers(ctx, req.GetNamespace())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var servers []*types.ServerV2
-	for _, s := range appServers {
-		server, ok := s.(*types.ServerV2)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", s)
-		}
-		servers = append(servers, server)
-	}
-
-	return &proto.GetAppServersResponse{
-		Servers: servers,
-	}, nil
-}
-
 // UpsertAppServer adds an application server.
 //
 // DELETE IN 9.0. Deprecated, use UpsertApplicationServer.

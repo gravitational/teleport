@@ -124,21 +124,15 @@ func TestApplicationServersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Make a legacy app server.
-	appBLegacy := &types.App{Name: "b", URI: "http://localhost:8081"}
-	appB, err := types.NewAppV3FromLegacyApp(appBLegacy)
-	require.NoError(t, err)
-	serverBLegacy, err := types.NewServer(uuid.New().String(), types.KindAppServer,
-		types.ServerSpecV2{
-			Hostname: "localhost",
-			Apps:     []*types.App{appBLegacy},
-		})
+	// Make another app and an app server.
+	appB, err := types.NewAppV3(types.Metadata{Name: "b"},
+		types.AppSpecV3{URI: "http://localhost:8081"})
 	require.NoError(t, err)
 	serverB, err := types.NewAppServerV3(types.Metadata{
-		Name: appBLegacy.Name,
+		Name: appB.GetName(),
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   serverBLegacy.GetName(),
+		HostID:   uuid.New().String(),
 		App:      appB,
 	})
 	require.NoError(t, err)
@@ -148,13 +142,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 
-	// Create app server.
+	// Create app servers.
 	lease, err := presence.UpsertApplicationServer(ctx, serverA)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{}, lease)
-
-	// Create legacy app server.
-	lease, err = presence.UpsertAppServer(ctx, serverBLegacy)
+	lease, err = presence.UpsertApplicationServer(ctx, serverB)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{}, lease)
 
@@ -164,11 +156,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-	// Delete app server.
+	// Delete an app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
 	require.NoError(t, err)
 
-	// Expect only the legacy one to be returned.
+	// Expect only one to return.
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
@@ -191,11 +183,10 @@ func TestApplicationServersCRUD(t *testing.T) {
 	err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
 	require.NoError(t, err)
 
-	// Expect only legacy one to be returned.
+	// Expect no servers to return.
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, out)
 }
 
 func TestDatabaseServersCRUD(t *testing.T) {

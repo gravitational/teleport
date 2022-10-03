@@ -1282,11 +1282,7 @@ func (s *PresenceService) GetApplicationServers(ctx context.Context, namespace s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	legacyServers, err := s.getApplicationServersLegacy(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return append(servers, legacyServers...), nil
+	return servers, nil
 }
 
 func (s *PresenceService) getApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
@@ -1305,26 +1301,6 @@ func (s *PresenceService) getApplicationServers(ctx context.Context, namespace s
 			return nil, trace.Wrap(err)
 		}
 		servers[i] = server
-	}
-	return servers, nil
-}
-
-// getApplicationServersLegacy fetches legacy application servers that are
-// represented by types.Server and adapts them to the types.AppServer type.
-//
-// DELETE IN 9.0.
-func (s *PresenceService) getApplicationServersLegacy(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	legacyServers, err := s.GetAppServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var servers []types.AppServer
-	for _, legacyServer := range legacyServers {
-		appServers, err := types.NewAppServersV3FromServer(legacyServer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers = append(servers, appServers...)
 	}
 	return servers, nil
 }
@@ -1377,39 +1353,6 @@ func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace
 func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
 	startKey := backend.Key(appServersPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-}
-
-// GetAppServers gets all application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing namespace")
-	}
-
-	// Get all items in the bucket.
-	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Marshal values into a []services.Server slice.
-	servers := make([]types.Server, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalServer(
-			item.Value,
-			types.KindAppServer,
-			services.AddOptions(opts,
-				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires))...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-
-	return servers, nil
 }
 
 // UpsertAppServer adds an application server.
