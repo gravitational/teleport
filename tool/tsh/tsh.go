@@ -1587,7 +1587,7 @@ func onLogin(cf *CLIConf) error {
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, nil); err != nil {
-		log.Warn(err)
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
