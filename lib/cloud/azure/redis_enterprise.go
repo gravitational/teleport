@@ -204,7 +204,7 @@ func (c *redisEnterpriseClient) listDatabasesByCluster(ctx context.Context, clus
 	return databases, nil
 }
 
-// RedisEnterpriseCluster is a wrapper of a armredisenterprise.Database and
+// RedisEnterpriseDatabase is a wrapper of a armredisenterprise.Database and
 // its parent cluster.
 type RedisEnterpriseDatabase struct {
 	*armredisenterprise.Database
