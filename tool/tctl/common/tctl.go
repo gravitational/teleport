@@ -211,7 +211,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, map[string]string{
 		types.AlertLicenseExpired: "yes",
 	}, nil); err != nil {
-		log.Warn(err)
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
 	return nil
