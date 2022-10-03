@@ -23,7 +23,6 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,6 +64,9 @@ func TestCredentialCreation_Validate(t *testing.T) {
 			Challenge: make([]byte, 32),
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "Teleport",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
@@ -73,21 +75,15 @@ func TestCredentialCreation_Validate(t *testing.T) {
 				UserVerification: protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
+			User: protocol.UserEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "llama",
+				},
+				DisplayName: "Llama",
+				ID:          []byte{1, 2, 3, 4, 5}, // arbitrary
+			},
 		},
 	}
-
-	pwdlessOK := *okCC
-	pwdlessOK.Response.RelyingParty.Name = "Teleport"
-	pwdlessOK.Response.User = protocol.UserEntity{
-		CredentialEntity: protocol.CredentialEntity{
-			Name: "llama",
-		},
-		DisplayName: "Llama",
-		ID:          []byte{1, 2, 3, 4, 5}, // arbitrary
-	}
-	rrk := true
-	pwdlessOK.Response.AuthenticatorSelection.RequireResidentKey = &rrk
-	pwdlessOK.Response.AuthenticatorSelection.UserVerification = protocol.VerificationRequired
 
 	tests := []struct {
 		name           string
@@ -124,9 +120,9 @@ func TestCredentialCreation_Validate(t *testing.T) {
 			wantErr: "relying party ID",
 		},
 		{
-			name: "rrk empty RP name",
+			name: "empty RP name",
 			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
+				cp := *okCC
 				cp.Response.RelyingParty.Name = ""
 				return &cp
 			},
@@ -134,9 +130,8 @@ func TestCredentialCreation_Validate(t *testing.T) {
 		},
 		{
 			name: "rrk empty user name",
-
 			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
+				cp := *okCC
 				cp.Response.User.Name = ""
 				return &cp
 			},
@@ -144,36 +139,37 @@ func TestCredentialCreation_Validate(t *testing.T) {
 		},
 		{
 			name: "rrk empty user display name",
-
 			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
+				cp := *okCC
 				cp.Response.User.DisplayName = ""
 				return &cp
 			},
 			wantErr: "user display name",
 		},
 		{
-			name: "rrk nil user ID",
+			name: "user ID",
 			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
+				cp := *okCC
 				cp.Response.User.ID = nil
 				return &cp
 			},
 			wantErr: "user ID",
 		},
 		{
-			name:           "cc without rrk but pass alwaysCreateRK",
-			createCC:       func() *wanlib.CredentialCreation { return okCC },
-			alwaysCreateRK: true,
-			wantErr:        "relying party name required",
+			name: "cc without rp name",
+			createCC: func() *wanlib.CredentialCreation {
+				cp := *okCC
+				cp.Response.RelyingParty.Name = ""
+				return &cp
+			},
+			wantErr: "relying party name required",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.createCC().Validate(test.alwaysCreateRK)
+			err := test.createCC().Validate()
 			if test.wantErr != "" {
-				require.Error(t, err, "Validate returned err = nil, want %q", test.wantErr)
-				assert.Contains(t, err.Error(), test.wantErr, "Validate returned err = %q, want %q", err, test.wantErr)
+				require.ErrorContains(t, err, test.wantErr, "Validate returned err = %q, want %q", err, test.wantErr)
 			} else {
 				require.NoError(t, err, "Validate returned err %v, want nil", err)
 			}
@@ -226,8 +222,7 @@ func TestCredentialAssertion_Validate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.assertion.Validate()
 			if test.wantErr != "" {
-				require.Error(t, err, "Validate returned err = nil, want %q", test.wantErr)
-				assert.Contains(t, err.Error(), test.wantErr, "Validate returned err = %q, want %q", err, test.wantErr)
+				require.ErrorContains(t, err, test.wantErr, "Validate returned err = %q, want %q", err, test.wantErr)
 			} else {
 				require.NoError(t, err, "Validate returned err %v, want nil", err)
 			}
@@ -237,9 +232,10 @@ func TestCredentialAssertion_Validate(t *testing.T) {
 
 func TestRequireResidentKey(t *testing.T) {
 	tests := []struct {
-		name string
-		in   protocol.AuthenticatorSelection
-		want bool
+		name    string
+		in      protocol.AuthenticatorSelection
+		want    bool
+		wantErr string
 	}{
 		{
 			name: "nothing set",
@@ -247,12 +243,20 @@ func TestRequireResidentKey(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "prefer ResidentKey over RequireResidentKey",
+			name: "mismatch of ResidentKey and RequireResidentKey - return error",
 			in: protocol.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
 				RequireResidentKey: protocol.ResidentKeyRequired(),
 			},
-			want: false,
+			wantErr: "invalid combinantion of ResidentKey: discouraged and RequireResidentKey: true",
+		},
+		{
+			name: "other mismatch of ResidentKey and RequireResidentKey - return error",
+			in: protocol.AuthenticatorSelection{
+				ResidentKey:        protocol.ResidentKeyRequirementRequired,
+				RequireResidentKey: protocol.ResidentKeyUnrequired(),
+			},
+			wantErr: "invalid combinantion of ResidentKey: required and RequireResidentKey: false",
 		},
 		{
 			name: "support nil RequireResidentKey",
@@ -267,6 +271,20 @@ func TestRequireResidentKey(t *testing.T) {
 			in: protocol.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementPreferred,
 				RequireResidentKey: nil,
+			},
+			want: false,
+		},
+		{
+			name: "ResidentKey required",
+			in: protocol.AuthenticatorSelection{
+				ResidentKey: protocol.ResidentKeyRequirementRequired,
+			},
+			want: true,
+		},
+		{
+			name: "ResidentKey discouraged",
+			in: protocol.AuthenticatorSelection{
+				ResidentKey: protocol.ResidentKeyRequirementDiscouraged,
 			},
 			want: false,
 		},
@@ -286,23 +304,22 @@ func TestRequireResidentKey(t *testing.T) {
 			},
 			want: false,
 		},
-		{
-			name: "support nil RequireResidentKey with ResidentKey empty",
-			in: protocol.AuthenticatorSelection{
-				ResidentKey:        "",
-				RequireResidentKey: nil,
-			},
-			want: false,
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := wanlib.RequireResidentKey(&wanlib.CredentialCreation{
+			req := &wanlib.CredentialCreation{
 				Response: protocol.PublicKeyCredentialCreationOptions{
 					AuthenticatorSelection: test.in,
 				},
-			}); got != test.want {
-				t.Errorf("RequireResidentKey() = %v, want %v", got, test.want)
+			}
+			got, err := req.RequireResidentKey()
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr, "RequireResidentKey() returned err = %q, want %q", err, test.wantErr)
+			} else {
+				require.NoError(t, err, "RequireResidentKey() returned err %v, want nil", err)
+				if got != test.want {
+					t.Errorf("RequireResidentKey() = %v, want %v", got, test.want)
+				}
 			}
 		})
 	}

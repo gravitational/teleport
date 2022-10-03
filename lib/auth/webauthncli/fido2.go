@@ -84,8 +84,14 @@ func fido2Login(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if prompt == nil {
+	switch {
+	case origin == "":
+		return nil, "", trace.BadParameter("origin required")
+	case prompt == nil:
 		return nil, "", trace.BadParameter("prompt required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 	if opts == nil {
 		opts = &LoginOpts{}
@@ -308,10 +314,19 @@ func fido2Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
-	if prompt == nil {
+	switch {
+	case origin == "":
+		return nil, trace.BadParameter("origin required")
+	case prompt == nil:
 		return nil, trace.BadParameter("prompt required")
 	}
-	rrk := wanlib.RequireResidentKey(cc)
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rrk, err := cc.RequireResidentKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	log.Debugf("FIDO2: registration: resident key=%v", rrk)
 
 	// Can we create ES256 keys?

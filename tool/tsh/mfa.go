@@ -524,13 +524,6 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 func promptTouchIDRegisterChallenge(origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
 	log.Debugf("Touch ID: prompting registration with origin %q", origin)
 
-	if origin == "" {
-		return nil, nil, trace.BadParameter("origin required")
-	}
-	if err := cc.Validate(true /* alwaysCreateRK */); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	reg, err := touchid.Register(origin, cc)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

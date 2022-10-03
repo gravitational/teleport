@@ -92,16 +92,11 @@ func Login(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if origin == "" {
-		return nil, "", trace.BadParameter("origin required")
-	}
-	if err := assertion.Validate(); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
 	// origin vs RPID sanity check.
 	// Doesn't necessarily means a failure, but it's likely to be one.
-	if !strings.HasPrefix(origin, "https://"+assertion.Response.RelyingPartyID) {
+	switch {
+	case origin == "", assertion == nil: // let downstream handle empty/nil
+	case !strings.HasPrefix(origin, "https://"+assertion.Response.RelyingPartyID):
 		log.Warnf(""+
 			"WebAuthn: origin and RPID mismatch, "+
 			"if you are having authentication problems double check your proxy address "+
@@ -184,13 +179,6 @@ type RegisterPrompt interface {
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
-	if origin == "" {
-		return nil, trace.BadParameter("origin required")
-	}
-	if err := cc.Validate(false /* alwaysCreateRK */); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if IsFIDO2Available() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)

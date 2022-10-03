@@ -213,6 +213,13 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, ErrNotAvailable
 	}
 
+	if origin == "" {
+		return nil, trace.BadParameter("origin required")
+	}
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Ignored cc fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
@@ -429,8 +436,14 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
-	if picker == nil {
-		return nil, "", errors.New("picker required")
+	switch {
+	case origin == "":
+		return nil, "", trace.BadParameter("origin required")
+	case picker == nil:
+		return nil, "", trace.BadParameter("picker required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	// Ignored assertion fields:
