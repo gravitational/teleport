@@ -290,7 +290,7 @@ func readRawPNG2Frame(firstByte byte, in peekReader) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMsg(b), nil
+	return b, nil
 }
 
 func (f PNG2Frame) Encode() ([]byte, error) {
@@ -414,13 +414,13 @@ func (s ClientScreenSpec) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeFixedSizeMessage(in peekReader, mt MessageType, n int) (rawMsg, error) {
+func decodeFixedSizeMessage(in peekReader, mt MessageType, n int) ([]byte, error) {
 	b := make([]byte, n+1)
 	b[0] = byte(mt)
 	if _, err := io.ReadFull(in, b[1:]); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMsg(b), nil
+	return b, nil
 }
 
 func decodeClientScreenSpec(in peekReader) (ClientScreenSpec, error) {
@@ -1408,12 +1408,6 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	}
 	return string(s), nil
 }
-
-// rawMsg is a tdp.Message that has not been decoded.
-// Its encode operation is therefore a no-op.
-type rawMsg []byte
-
-func (r rawMsg) Encode() ([]byte, error) { return []byte(r), nil }
 
 // writeUint16 writes v to b in big endian order
 func writeUint16(b *bytes.Buffer, v uint16) {
