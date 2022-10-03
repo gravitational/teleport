@@ -89,6 +89,32 @@ func TestSSHConfig_GetSSHConfig(t *testing.T) {
 				ExecutablePath:      "/tmp/tsh",
 			},
 		},
+		{
+			name:       "modern OpenSSH - single cluster",
+			sshVersion: "9.0.0",
+			config: &SSHConfigParameters{
+				AppName:             TshApp,
+				ClusterNames:        []string{"example.com"},
+				KnownHostsPath:      "/home/alice/.tsh/known_hosts",
+				IdentityFilePath:    "/home/alice/.tsh/keys/example.com/bob",
+				CertificateFilePath: "/home/alice/.tsh/keys/example.com/bob-ssh/example.com-cert.pub",
+				ProxyHost:           "proxy.example.com",
+				ExecutablePath:      "/tmp/tsh",
+			},
+		},
+		{
+			name:       "modern OpenSSH - multiple clusters",
+			sshVersion: "9.0.0",
+			config: &SSHConfigParameters{
+				AppName:             TshApp,
+				ClusterNames:        []string{"root", "leaf"},
+				KnownHostsPath:      "/home/alice/.tsh/known_hosts",
+				IdentityFilePath:    "/home/alice/.tsh/keys/example.com/bob",
+				CertificateFilePath: "/home/alice/.tsh/keys/example.com/bob-ssh/example.com-cert.pub",
+				ProxyHost:           "proxy.example.com",
+				ExecutablePath:      "/tmp/tsh",
+			},
+		},
 	}
 
 	for _, tt := range tests {
