@@ -235,8 +235,10 @@ func (s *Server) DeleteUser(ctx context.Context, username string) error {
 
 // checkUserRoleConstraint checks if the request will result in having
 // no users with access to update roles.
-func (s *Server) checkUserRoleConstraint(ctx context.Context, targetUser types.User, request string) error {
-	currentTargetUser, err := s.Identity.GetUser(targetUser.GetName(), false /* withSecrets */)
+func (s *Server) checkUserRoleConstraint(ctx context.Context, newUser types.User, request string) error {
+	targetUsername := newUser.GetName()
+
+	oldUser, err := s.Identity.GetUser(targetUsername, false /* withSecrets */)
 	if err != nil {
 		return nil
 	}
@@ -246,7 +248,10 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, targetUser types.U
 		return trace.Wrap(err)
 	}
 
-	isTargetUserLosingPermissionToEditRoles := isSomeUserHasRole([]types.User{currentTargetUser}, rolesWithUpdateRolesRule) && !isSomeUserHasRole([]types.User{targetUser}, rolesWithUpdateRolesRule)
+	isOldUserHasUpdateRolesRule := isSomeUserHasRole([]types.User{oldUser}, rolesWithUpdateRolesRule)
+	isNewUserHasUpdateRolesRule := isSomeUserHasRole([]types.User{newUser}, rolesWithUpdateRolesRule)
+
+	isTargetUserLosingPermissionToEditRoles := isOldUserHasUpdateRolesRule && !isNewUserHasUpdateRolesRule
 	if !isTargetUserLosingPermissionToEditRoles {
 		return nil
 	}
@@ -257,7 +262,7 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, targetUser types.U
 	}
 
 	localUsersWithoutTargetUser := fp.Filter(localUsers, func(u types.User) bool {
-		return u.GetName() != targetUser.GetName()
+		return u.GetName() != targetUsername
 	})
 	if isSomeUserHasRole(localUsersWithoutTargetUser, rolesWithUpdateRolesRule) {
 		return nil
