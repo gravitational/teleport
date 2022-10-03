@@ -524,7 +524,7 @@ func (p PredicateError) Error() string {
 	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
 }
 
-func FormatAlertOutput(alert types.ClusterAlert) string {
+func FormatAlert(alert types.ClusterAlert) string {
 	var buf bytes.Buffer
 	if runtime.GOOS == constants.WindowsOS {
 		// TODO(timothyb89): Due to complications with globally enabling +
