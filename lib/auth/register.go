@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+
 	"github.com/gravitational/teleport/lib/githubactions"
 
 	"github.com/gravitational/teleport"
