@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -270,6 +271,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 		waitForDockerStep(),
 		waitForDockerRegistryStep(),
 		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
+		rv.buildSplitSemverSteps(),
 	}
 	for _, setupStep := range setupSteps {
 		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
@@ -282,6 +284,58 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 	}
 
 	return steps
+}
+
+type semver struct {
+	Name       string // Human-readable name for the information contained in the semver, i.e. "major"
+	FilePath   string // The path under the working dir where the information can be read from
+	FieldCount int    // The number of significant version fields available in the semver i.e. "v10" -> 1
+}
+
+func (rv *releaseVersion) getSemvers() []*semver {
+	varDirectory := "/go/var"
+	semverFieldCounts := map[string]int{
+		"major":     1,
+		"minor":     2,
+		"canonical": 3,
+	}
+
+	semvers := make([]*semver, 0, len(semverFieldCounts))
+	for semverName, cutFieldCount := range semverFieldCounts {
+		semverFileName := fmt.Sprintf("%s-version", semverName)
+		semverFilePath := path.Join(varDirectory, semverFileName)
+		semvers = append(semvers, &semver{
+			Name:       semverName,
+			FilePath:   semverFilePath,
+			FieldCount: cutFieldCount,
+		})
+	}
+
+	return semvers
+}
+
+func (rv *releaseVersion) buildSplitSemverSteps() step {
+	semvers := rv.getSemvers()
+
+	commands := make([]string, 0, len(semvers))
+	for _, semver := range semvers {
+		// Ex: semver.FieldCount = 3, cutFieldString = "1,2,3"
+		cutFieldStrings := make([]string, 0, semver.FieldCount)
+		for i := 1; i <= semver.FieldCount; i++ {
+			cutFieldStrings = append(cutFieldStrings, strconv.Itoa(i))
+		}
+		cutFieldString := strings.Join(cutFieldStrings, ",")
+
+		commands = append(commands,
+			fmt.Sprintf("echo %s | sed 's/v//' | cut -d'.' -f %q > %q", rv.ShellVersion, cutFieldString, semver.FilePath),
+		)
+	}
+
+	return step{
+		Name:     "Build major, minor, and canonical semver",
+		Image:    "alpine",
+		Commands: commands,
+	}
 }
 
 func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
@@ -299,20 +353,16 @@ func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
 }
 
 func (rv *releaseVersion) getTagsForVersion() []*ImageTag {
-	return []*ImageTag{
-		{
-			ShellBaseValue:   fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1)", rv.ShellVersion),
-			DisplayBaseValue: "major",
-		},
-		{
-			ShellBaseValue:   fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2)", rv.ShellVersion),
-			DisplayBaseValue: "minor",
-		},
-		{
-			ShellBaseValue:   fmt.Sprintf("$(echo %s | sed 's/v//' | cut -d'.' -f 1,2,3)", rv.ShellVersion),
-			DisplayBaseValue: "canonical",
-		},
+	semvers := rv.getSemvers()
+	imageTags := make([]*ImageTag, 0, len(semvers))
+	for _, semver := range semvers {
+		imageTags = append(imageTags, &ImageTag{
+			ShellBaseValue:   fmt.Sprintf("$(cat %s)", semver.FilePath),
+			DisplayBaseValue: semver.Name,
+		})
 	}
+
+	return imageTags
 }
 
 type Image struct {
