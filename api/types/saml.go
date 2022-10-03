@@ -20,12 +20,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
 )
 
 // SAMLConnector specifies configuration for SAML 2.0 identity providers
