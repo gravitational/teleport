@@ -3350,7 +3350,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	require.NoError(t, err)
 	suite.ExpectDeleteResource(t, w, 3*time.Second, &types.ResourceHeader{
 		Kind:    types.KindToken,
-		Version: types.VDeleted,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: apidefaults.Namespace,
 			Name:      token.GetName(),
