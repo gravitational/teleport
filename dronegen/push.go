@@ -37,6 +37,7 @@ func pushCheckoutCommands(b buildType) []string {
 		// do a recursive submodule checkout to get both webassets and webassets/e
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
+		`mkdir -pv /go/cache`,
 	)
 
 	if b.hasTeleportConnect() {
