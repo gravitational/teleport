@@ -45,18 +45,23 @@ type AccessRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	State              string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
-	ResolveReason      string                 `protobuf:"bytes,3,opt,name=resolve_reason,json=resolveReason,proto3" json:"resolve_reason,omitempty"`
-	RequestReason      string                 `protobuf:"bytes,4,opt,name=request_reason,json=requestReason,proto3" json:"request_reason,omitempty"`
-	User               string                 `protobuf:"bytes,5,opt,name=user,proto3" json:"user,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// the request state of Access Request. option of PENDING, APPROVED, DENIED, NONE
+	State         string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	ResolveReason string `protobuf:"bytes,3,opt,name=resolve_reason,json=resolveReason,proto3" json:"resolve_reason,omitempty"`
+	RequestReason string `protobuf:"bytes,4,opt,name=request_reason,json=requestReason,proto3" json:"request_reason,omitempty"`
+	// user is the user who submitted the Access Request
+	User string `protobuf:"bytes,5,opt,name=user,proto3" json:"user,omitempty"`
+	// a list of roles requested in the AccessRequest
 	Roles              []string               `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
 	Created            *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created,proto3" json:"created,omitempty"`
 	Expires            *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=expires,proto3" json:"expires,omitempty"`
 	Reviews            []*AccessRequestReview `protobuf:"bytes,9,rep,name=reviews,proto3" json:"reviews,omitempty"`
 	SuggestedReviewers []string               `protobuf:"bytes,10,rep,name=suggested_reviewers,json=suggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	ThresholdNames     []string               `protobuf:"bytes,11,rep,name=threshold_names,json=thresholdNames,proto3" json:"threshold_names,omitempty"`
-	ResourceIds        []*ResourceID          `protobuf:"bytes,12,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
+	// thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
+	ThresholdNames []string `protobuf:"bytes,11,rep,name=threshold_names,json=thresholdNames,proto3" json:"threshold_names,omitempty"`
+	// a list of resourceIDs requested in the AccessRequest
+	ResourceIds []*ResourceID `protobuf:"bytes,12,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
 }
 
 func (x *AccessRequest) Reset() {
@@ -180,9 +185,13 @@ type AccessRequestReview struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Author  string                 `protobuf:"bytes,1,opt,name=author,proto3" json:"author,omitempty"`
-	Roles   []string               `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
-	State   string                 `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	// author is the creator of the AccessRequestReiew.
+	Author string `protobuf:"bytes,1,opt,name=author,proto3" json:"author,omitempty"`
+	// list of roles approved
+	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	// the state of the review, either APPROVED or DENIED
+	State string `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	// reason is why the request was approved or denied
 	Reason  string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
 	Created *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created,proto3" json:"created,omitempty"`
 }

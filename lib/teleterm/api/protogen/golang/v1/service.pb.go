@@ -4409,9 +4409,9 @@ type TerminalServiceClient interface {
 	ListRootClusters(ctx context.Context, in *ListClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
-	// ListDatabases lists databases
+	// ListDatabases lists all databases without pagination
 	GetAllDatabases(ctx context.Context, in *GetAllDatabasesRequest, opts ...grpc.CallOption) (*GetAllDatabasesResponse, error)
-	// ListDatabaseUsers lists allowed users for the given database based on the role set.
+	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
@@ -4783,9 +4783,9 @@ type TerminalServiceServer interface {
 	ListRootClusters(context.Context, *ListClustersRequest) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
-	// ListDatabases lists databases
+	// ListDatabases lists all databases without pagination
 	GetAllDatabases(context.Context, *GetAllDatabasesRequest) (*GetAllDatabasesResponse, error)
-	// ListDatabaseUsers lists allowed users for the given database based on the role set.
+	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)

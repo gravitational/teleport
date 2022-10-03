@@ -41,7 +41,7 @@ message AccessRequest {
 }
 
 message AccessRequestReview {
-  // author is the creator of the AccessRequestReiew. 
+  // author is the creator of the AccessRequestReiew.
   string author = 1;
   // list of roles approved
   repeated string roles = 2;
