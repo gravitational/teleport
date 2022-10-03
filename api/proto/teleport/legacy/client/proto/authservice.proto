@@ -581,20 +581,6 @@ message CompleteStream {}
 // FlushAndCloseStream flushes the stream data and closes the stream
 message FlushAndCloseStream {}
 
-// GetApplicationServersRequest is a request to fetch all registered apps.
-// DELETE IN 10.0.
-message GetApplicationServersRequest {
-  // Namespace is the app servers namespace.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-}
-
-// GetApplicationServersResponse contains all registered app servers.
-// DELETE IN 10.0.
-message GetApplicationServersResponse {
-  // Servers is a list of proxied applications.
-  repeated types.AppServerV3 Servers = 1 [(gogoproto.jsontag) = "servers"];
-}
-
 // UpsertApplicationServerRequest upserts an app server.
 message UpsertApplicationServerRequest {
   // Server is an app server resource to register.
@@ -2158,12 +2144,6 @@ service AuthService {
   rpc EmitAuditEvent(events.OneOf) returns (google.protobuf.Empty);
   // CreateAuditStream creates or resumes audit events streams
   rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
-
-  // GetApplicationServers gets all application servers.
-  // DELETE IN 10.0. Deprecated, use ListResources.
-  rpc GetApplicationServers(GetApplicationServersRequest) returns (GetApplicationServersResponse) {
-    option deprecated = true;
-  }
 
   // UpsertApplicationServer adds an application server.
   rpc UpsertApplicationServer(UpsertApplicationServerRequest) returns (types.KeepAlive);

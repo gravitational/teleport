@@ -1228,29 +1228,6 @@ func (g *GRPCServer) GenerateSnowflakeJWT(ctx context.Context, req *proto.Snowfl
 	return response, nil
 }
 
-// GetApplicationServers returns all registered application servers.
-func (g *GRPCServer) GetApplicationServers(ctx context.Context, req *proto.GetApplicationServersRequest) (*proto.GetApplicationServersResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	serversI, err := auth.GetApplicationServers(ctx, req.GetNamespace())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var servers []*types.AppServerV3
-	for _, serverI := range serversI {
-		server, ok := serverI.(*types.AppServerV3)
-		if !ok {
-			return nil, trace.BadParameter("expected application server type *types.AppServerV3, got %T", serverI)
-		}
-		servers = append(servers, server)
-	}
-	return &proto.GetApplicationServersResponse{
-		Servers: servers,
-	}, nil
-}
-
 // UpsertApplicationServer registers an application server.
 func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *proto.UpsertApplicationServerRequest) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
