@@ -72,3 +72,50 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 	return out
 }
+
+// TrimToMaxSize trims the SessionStart event to the given maximum size.
+// Currently assumes that the largest field will be InitialCommand and tries to
+// trim that.
+func (e *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
+	size := e.Size()
+	if size <= maxSize {
+		return e
+	}
+
+	out := proto.Clone(e).(*SessionStart)
+	out.InitialCommand = nil
+
+	// Use 10% max size ballast + message size without InitialCommand
+	sizeBallast := maxSize/10 + out.Size()
+	maxSize -= sizeBallast
+
+	maxFieldSize := maxSizePerField(maxSize, len(e.InitialCommand))
+
+	out.InitialCommand = make([]string, len(e.InitialCommand))
+	for i, c := range e.InitialCommand {
+		out.InitialCommand[i] = trimN(c, maxFieldSize)
+	}
+
+	return out
+}
+
+// TrimToMaxSize trims the Exec event to the given maximum size.
+// Currently assumes that the largest field will be Command and tries to trim
+// that.
+func (e *Exec) TrimToMaxSize(maxSize int) AuditEvent {
+	size := e.Size()
+	if size <= maxSize {
+		return e
+	}
+
+	out := proto.Clone(e).(*Exec)
+	out.Command = ""
+
+	// Use 10% max size ballast + message size without Command
+	sizeBallast := maxSize/10 + out.Size()
+	maxSize -= sizeBallast
+
+	out.Command = trimN(e.Command, maxSize)
+
+	return out
+}

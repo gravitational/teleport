@@ -17,10 +17,12 @@ limitations under the License.
 package github
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -39,29 +41,26 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentVersionControl,
 })
 
-// LatestStable gets the most recent "stable" (not pre-release) version.
-// NOTE: this may return a version *older* than the current teleport version
-// if the current teleport version is a newer prerelease.
-func LatestStable() (string, error) {
-	return latestStable(Iterator{}, vc.Normalize(teleport.Version))
+// Visit uses the supplied visitor to aggregate release info from the github releases api.
+func Visit(visitor *vc.Visitor) error {
+	return visit(Iterator{}, visitor)
 }
 
-// latestStable is the business logic of LatestStable, broken out for testing purposes.
-func latestStable(iter Iterator, current string) (string, error) {
-	if !semver.IsValid(current) {
-		return "", trace.BadParameter("cannot get latest stable, invalid semver: %q", current)
+// visit is the business logic of Visit, broken out for testing purposes.
+func visit(iter Iterator, visitor *vc.Visitor) error {
+	if !visitor.Current.Ok() {
+		return trace.BadParameter("cannot scrape github releases, invalid 'current' target: %+v", visitor.Current)
 	}
-	// we only care about newer releaseas, so set halting point to 'current'
-	iter.halt = current
 
-	// set up visitor that will default to 'current' if nothing newer is observed.
-	var visitor vc.Visitor
+	// we only care about newer releaseas, so set halting point to the version of 'current'
+	iter.halt = visitor.Current.Version()
+
 	for iter.Next() {
-		for _, r := range iter.Page() {
-			visitor.Visit(r.Version)
+		for _, target := range iter.Page() {
+			visitor.Visit(target)
 		}
 	}
-	return visitor.Latest(), trace.Wrap(iter.Error())
+	return trace.Wrap(iter.Error())
 }
 
 // defaultHaltingPoint represents the default cutoff for the iterator. this value
@@ -77,14 +76,18 @@ type Release struct {
 	// Version is the semver version from the git tag of the release.
 	Version string
 
-	// TODO(fspmarshall): decide on a scheme for embedding additional tags
-	// in our git releases (e.g. security-patch=yes, etc).
+	// OtherLabels are the labels extracted from the release notes.
+	OtherLabels map[string]string
+
+	// TODO(fspmarshall): get rid of this type in favor of a common attribute-based
+	// release representation based in lib/versioncontrol.
 }
 
 // release is the representation of a release returned
 // by the github API.
 type release struct {
 	TagName string `json:"tag_name"`
+	Body    string `json:"body"`
 }
 
 // getter loads a page of releases. we override the standard page loading logic
@@ -152,7 +155,7 @@ type Iterator struct {
 	getPage getter
 	n       int
 	size    int
-	page    []Release
+	page    []vc.Target
 	halt    string
 	done    bool
 	err     error
@@ -188,23 +191,23 @@ func (i *Iterator) Next() bool {
 		// check unfiltered page size for halt condition
 		i.done = true
 	}
-	i.page = make([]Release, 0, len(page))
+	i.page = make([]vc.Target, 0, len(page))
 	for _, r := range page {
 		if !semver.IsValid(r.TagName) {
 			log.Debugf("Skipping non-semver release tag: %q\n", r.TagName)
 			continue
 		}
-		i.page = append(i.page, Release{
-			Version: r.TagName,
-		})
+		labels := parseReleaseNoteLabels(r.Body)
+		labels[vc.LabelVersion] = r.TagName
+		i.page = append(i.page, labels)
 
 		// only match `<major>.<minor>` when finding halt point. theoretically
 		// unnecessary, but this feels a bit less brittle than halting on a specific
 		// tag, and is more consistent than using a gt/lt rule, since we occasionally
 		// release patches for very old versions.
 		if semver.MajorMinor(r.TagName) == semver.MajorMinor(i.halt) {
+			// set 'done' so that this is the last page we end up processing
 			i.done = true
-			break
 		}
 	}
 	return i.err == nil && len(page) != 0
@@ -212,11 +215,62 @@ func (i *Iterator) Next() bool {
 
 // Page loads the current page. Must not be called until after Next() has been
 // called. Subsequent calls between calls to Next() return the same value.
-func (i *Iterator) Page() []Release {
+func (i *Iterator) Page() []vc.Target {
 	return i.page
 }
 
 // Error checks if an error occurred during iteration.
 func (i *Iterator) Error() error {
 	return i.err
+}
+
+// parseReleaseNoteLabels attempts to extract labels from github release notes.
+// Invalid values are skipped/ignored in order to ensure that future extensions of
+// the label format can be reasonably backwards-compatible. Labels are encoded
+// in the form '\nlabels:<key>=<val>[,<key>=<val>]'. Characters are normalize to
+// lowercase and spaces between keypairs are stripped. See TestLabelParse for
+// examples.
+func parseReleaseNoteLabels(notes string) map[string]string {
+	const labelPrefix = "labels:"
+
+	labels := make(map[string]string)
+
+	scanner := bufio.NewScanner(strings.NewReader(notes))
+
+	for scanner.Scan() {
+		l := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if !strings.HasPrefix(l, labelPrefix) {
+			continue
+		}
+		l = strings.TrimPrefix(l, labelPrefix)
+		for _, kv := range strings.Split(l, ",") {
+			if !strings.Contains(kv, "=") {
+				log.Debugf("Skipping invalid release label keypair: %q", kv)
+				continue
+			}
+
+			parts := strings.SplitN(kv, "=", 2)
+			if len(parts) != 2 {
+				log.Debugf("Skipping invalid release label keypair: %q", kv)
+				continue
+			}
+
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+
+			if !vc.IsValidTargetKey(key) || !vc.IsValidTargetVal(val) {
+				log.Debugf("Skipping invalid release label keypair: %q", kv)
+				// NOTE: we are skipping invalid keypairs for github release scraping
+				// because github releases are using a generally simplistic release representation.
+				// The TUF implementation will not skip invalid keypairs, preferring to
+				// preserve them in the backend in order to ensure that backend representations
+				// are forward-compatible with future versions auth version.
+				continue
+			}
+
+			labels[key] = val
+		}
+	}
+
+	return labels
 }
