@@ -3963,17 +3963,6 @@ func (a *ServerWithRoles) DeleteAllApplicationServers(ctx context.Context, names
 	return a.authServer.DeleteAllApplicationServers(ctx, namespace)
 }
 
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	if err := a.action(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.UpsertAppServer(ctx, server)
-}
-
 // DeleteAppServer removes an application server.
 //
 // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.

@@ -1177,24 +1177,6 @@ func (c *Client) DeleteAllApplicationServers(ctx context.Context, namespace stri
 	return trail.FromGRPC(err)
 }
 
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-func (c *Client) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	s, ok := server.(*types.ServerV2)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", server)
-	}
-
-	keepAlive, err := c.grpc.UpsertAppServer(ctx, &proto.UpsertAppServerRequest{
-		Server: s,
-	}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return keepAlive, nil
-}
-
 // DeleteAppServer removes an application server.
 //
 // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.

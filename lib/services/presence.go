@@ -175,10 +175,6 @@ type Presence interface {
 	// UpsertKubeServiceV2 registers kubernetes service presence
 	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
-	// UpsertAppServer adds an application server.
-	//
-	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
 	// DeleteAppServer removes an application server.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.

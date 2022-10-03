@@ -1244,22 +1244,6 @@ func (g *GRPCServer) DeleteAllApplicationServers(ctx context.Context, req *proto
 	return &emptypb.Empty{}, nil
 }
 
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-func (g *GRPCServer) UpsertAppServer(ctx context.Context, req *proto.UpsertAppServerRequest) (*types.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keepAlive, err := auth.UpsertAppServer(ctx, req.GetServer())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keepAlive, nil
-}
-
 // DeleteAppServer removes an application server.
 //
 // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.

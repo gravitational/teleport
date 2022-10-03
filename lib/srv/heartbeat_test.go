@@ -334,14 +334,6 @@ type fakeAnnouncer struct {
 	keepAlivesC chan<- types.KeepAlive
 }
 
-func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	f.upsertCalls[HeartbeatModeApp]++
-	if f.err != nil {
-		return nil, f.err
-	}
-	return &types.KeepAlive{}, nil
-}
-
 func (f *fakeAnnouncer) UpsertApplicationServer(ctx context.Context, s types.AppServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeApp]++
 	if f.err != nil {

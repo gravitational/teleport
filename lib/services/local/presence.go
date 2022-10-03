@@ -1355,37 +1355,6 @@ func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, names
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-func (s *PresenceService) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	value, err := services.MarshalServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lease, err := s.Put(ctx, backend.Item{
-		Key:     backend.Key(appsPrefix, serversPrefix, server.GetNamespace(), server.GetName()),
-		Value:   value,
-		Expires: server.Expiry(),
-		ID:      server.GetResourceID(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if server.Expiry().IsZero() {
-		return &types.KeepAlive{}, nil
-	}
-	return &types.KeepAlive{
-		Type:    types.KeepAlive_APP,
-		LeaseID: lease.ID,
-		Name:    server.GetName(),
-	}, nil
-}
-
 // DeleteAppServer removes an application server.
 //
 // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.

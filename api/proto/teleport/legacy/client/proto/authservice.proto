@@ -603,13 +603,6 @@ message DeleteAllApplicationServersRequest {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
-// UpsertAppServerRequest are the parameters used to add an application.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServerRequest.
-message UpsertAppServerRequest {
-  types.ServerV2 Server = 1 [(gogoproto.jsontag) = "server"];
-}
-
 // DeleteAppServerRequest are the parameters used to remove an application.
 //
 // DELETE IN 9.0. Deprecated, use DeleteApplicationServerRequest.
@@ -2120,13 +2113,6 @@ service AuthService {
   rpc DeleteApplicationServer(DeleteApplicationServerRequest) returns (google.protobuf.Empty);
   // DeleteAllApplicationServers removes all application servers.
   rpc DeleteAllApplicationServers(DeleteAllApplicationServersRequest) returns (google.protobuf.Empty);
-
-  // UpsertAppServer adds an application server.
-  //
-  // DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-  rpc UpsertAppServer(UpsertAppServerRequest) returns (types.KeepAlive) {
-    option deprecated = true;
-  }
 
   // DeleteAppServer removes an application server.
   //
