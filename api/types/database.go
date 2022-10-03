@@ -374,8 +374,8 @@ func (d *DatabaseV3) IsMemoryDB() bool {
 // IsAWSCassandra returns true if this is an AWS hosted Cassandra database.
 func (d *DatabaseV3) IsAWSCassandra() bool {
 	return d.Spec.Protocol == DatabaseTypeAWSKeyspace &&
-		d.Spec.AWS.AccountID != "" &&
-		d.Spec.AWS.Region != ""
+		d.GetAWS().AccountID != "" &&
+		d.GetAWS().Region != ""
 }
 
 // IsAWSHosted returns true if database is hosted by AWS.
@@ -465,7 +465,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.Spec.URI == "" {
 		switch {
-		case d.IsAWSCassandra() && d.Spec.AWS.Region != "":
+		case d.IsAWSCassandra() && d.GetAWS().Region != "":
 			// In case of AWS Hosted Cassandra allow to omit URI.
 			// The URL will be constructed from the database resource based on the region and account ID.
 			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)

@@ -488,7 +488,7 @@ const (
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
-	//DatabaseSessionCassandraBatchEvent is emitted when a Cassandra client executes a batch of queries.
+	// DatabaseSessionCassandraBatchEvent is emitted when a Cassandra client executes a batch of queries.
 	DatabaseSessionCassandraBatchEvent = "db.session.cassandra.batch"
 	// DatabaseSessionCassandraPrepareEvent is emitted when a Cassandra client sends prepare packet.
 	DatabaseSessionCassandraPrepareEvent = "db.session.cassandra.prepare"

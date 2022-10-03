@@ -3952,15 +3952,16 @@ message CassandraBatch {
   ];
 
   // QueryId is the prepared query id to execute.
-  string Queries = 5 [(gogoproto.jsontag) = "query_id,omitempty"];
+  string QueryID = 5 [(gogoproto.jsontag) = "query_id,omitempty"];
   // Consistency is the consistency level to use.
   string Consistency = 6 [(gogoproto.jsontag) = "consistency,omitempty"];
   // Keyspace is the keyspace the statement is in.
   string Keyspace = 7 [(gogoproto.jsontag) = "keyspace,omitempty"];
   // BatchType is the type of batch.
-  string BatchType = 8 [(gogoproto.jsontag) = "type,omitempty"];
+  string BatchType = 8 [(gogoproto.jsontag) = "batch_type,omitempty"];
   // BatchSize is the batch children statements.
   message BatchChild {
+    // Value is a single value to bind to the query.
     message Value {
       // Type is the type of the value.
       uint32 Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
@@ -3979,7 +3980,7 @@ message CassandraBatch {
 }
 
 // CassandraRegister is emitted when a Cassandra client
-// request to register for the specified event types
+// request to register for the specified event types.
 message CassandraRegister {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [
@@ -4006,5 +4007,5 @@ message CassandraRegister {
     (gogoproto.jsontag) = ""
   ];
   // EventTypes is the list of event types to register for.
-  repeated string EventTypes = 5 [(gogoproto.jsontag) = "events_types,omitempty"];
+  repeated string EventTypes = 5 [(gogoproto.jsontag) = "event_types,omitempty"];
 }

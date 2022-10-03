@@ -59,7 +59,7 @@ type Engine struct {
 	// handshakeTriggered is set to true if handshake was triggered and
 	// used to indicated that custom errors should be sent to the client.
 	// Cassandra wire protocol relies on streamID to that needs to match the request value
-	// so sending a custom error to the client requires to read a first message send by the client.
+	// so sending a custom error to the client requires reading the first message sent by the client.
 	handshakeTriggered bool
 }
 
@@ -240,7 +240,7 @@ func (e *Engine) processPacket(packet *protocol.Packet) error {
 			EventTypes:       eventTypesToString(msg.EventTypes),
 		})
 	case *message.Revise:
-		// Revise message is support by DES (DataStax Enterprise) only.
+		// Revise message is support by DSE (DataStax Enterprise) only.
 		// Skip audit for this message.
 	default:
 		return trace.BadParameter("received a message with unexpected type %T", body.Message)

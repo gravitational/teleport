@@ -53,7 +53,6 @@ func convBatchChildValues(values []*primitive.Value) []*events.CassandraBatch_Ba
 			Type:     uint32(v.Type),
 			Contents: fmt.Sprintf("%+v", v.Contents),
 		})
-
 	}
 	return out
 }

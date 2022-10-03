@@ -169,7 +169,7 @@ func handleAuthResponse(clientConn *protocol.Conn, ses *common.Session, pkt *pro
 	if !ok {
 		return trace.BadParameter("got unexpected packet %T", pkt.FrameBody().Message)
 	}
-	vErr := validateCassandraUsername(ses, msg)
+	vErr := validateUsername(ses, msg)
 	if vErr == nil {
 		return nil
 	}
