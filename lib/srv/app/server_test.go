@@ -31,7 +31,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,6 +51,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 func TestMain(m *testing.M) {
@@ -471,12 +471,12 @@ func TestRequestAuditEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var requestEventsReceived atomic.Uint64
+	requestEventsReceived := atomic.NewUint64(0)
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: events.NewDiscardEmitter(),
 		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
 			if event.GetType() == events.AppSessionRequestEvent {
-				requestEventsReceived.Add(1)
+				requestEventsReceived.Inc()
 
 				expectedEvent := &apievents.AppSessionRequest{
 					Metadata: apievents.Metadata{

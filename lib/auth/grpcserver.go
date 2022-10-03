@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -4653,17 +4654,22 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
+		switch {
 		// propagate connection problem error so we can differentiate
 		// between connection failed and access denied
-		if trace.IsConnectionProblem(err) {
+		case trace.IsConnectionProblem(err):
 			return nil, trace.ConnectionProblem(err, "[10] failed to connect to the database")
-		} else if trace.IsNotFound(err) {
+		case trace.IsNotFound(err):
 			// user not found, wrap error with access denied
 			return nil, trace.Wrap(err, "[10] access denied")
-		} else if trace.IsAccessDenied(err) {
+		case trace.IsAccessDenied(err):
 			// don't print stack trace, just log the warning
 			log.Warn(err)
-		} else {
+		case keys.IsPrivateKeyPolicyError(err):
+			// private key policy errors should be returned to the client
+			// unaltered so that they know to reauthenticate with a valid key.
+			return nil, trace.Unwrap(err)
+		default:
 			log.Warn(trace.DebugReport(err))
 		}
 		return nil, trace.AccessDenied("[10] access denied")

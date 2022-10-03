@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,6 +44,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -308,9 +308,9 @@ func TestProxySSHConfig(t *testing.T) {
 	clientConfig, err := key.ProxyClientSSHConfig(s.store, firsthost)
 	require.NoError(t, err)
 
-	var called atomic.Int32
+	called := atomic.NewInt32(0)
 	handler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
-		called.Add(1)
+		called.Inc()
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 
