@@ -133,7 +133,10 @@ func TestWatcher(t *testing.T) {
 	azPostgresServerDisabledState, _ := makeAzurePostgresServer(t, "server-8", subscription1, group1, eastus, nil, withAzurePostgresState(string(armpostgresql.ServerStateDisabled)))
 	azPostgresServerUnknownState, azPostgresDBUnknownState := makeAzurePostgresServer(t, "server-9", subscription1, group1, eastus, nil, withAzurePostgresState("unknown"))
 
-	azRedisServer, azRedisDB := makeAzureRedisServer(t, "redis", subscription1, group1, eastus, map[string]string{"env": "prod"})
+	// Note that the Azure Redis APIs may return location in their display
+	// names (eg. "East US"). The Azure fetcher should normalize location names
+	// so region matcher "eastus" will match "East US".
+	azRedisServer, azRedisDB := makeAzureRedisServer(t, "redis", subscription1, group1, "East US", map[string]string{"env": "prod"})
 	azRedisEnterpriseCluster, azRedisEnterpriseDatabase, azRedisEnterpriseDB := makeAzureRedisEnterpriseCluster(t, "redis-enterprise", subscription1, group1, eastus, map[string]string{"env": "prod"})
 
 	tests := []struct {
@@ -539,6 +542,7 @@ func TestWatcher(t *testing.T) {
 				{
 					Types:        []string{services.AzureMatcherRedis},
 					ResourceTags: types.Labels{"env": []string{"prod"}},
+					Regions:      []string{eastus},
 				},
 			},
 			clients: &clients.TestCloudClients{
@@ -745,6 +749,7 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 func makeAzureSubscription(t *testing.T, subID string) *armsubscription.Subscription {
 	return &armsubscription.Subscription{
 		SubscriptionID: &subID,
+		State:          to.Ptr(armsubscription.SubscriptionStateEnabled),
 	}
 }
 
