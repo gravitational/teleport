@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/sirupsen/logrus"
 
@@ -30,6 +31,8 @@ import (
 // armRedisClient is an interface defines a subset of functions of armredis.Client.
 type armRedisClient interface {
 	ListKeys(ctx context.Context, resourceGroupName string, name string, options *armredis.ClientListKeysOptions) (armredis.ClientListKeysResponse, error)
+	NewListBySubscriptionPager(options *armredis.ClientListBySubscriptionOptions) *runtime.Pager[armredis.ClientListBySubscriptionResponse]
+	NewListByResourceGroupPager(resourceGroupName string, options *armredis.ClientListByResourceGroupOptions) *runtime.Pager[armredis.ClientListByResourceGroupResponse]
 }
 
 // redisClient is an Azure Redis client.
@@ -38,7 +41,7 @@ type redisClient struct {
 }
 
 // NewRedisClient creates a new Azure Redis client by subscription and credentials.
-func NewRedisClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
+func NewRedisClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RedisClient, error) {
 	logrus.Debug("Initializing Azure Redis client.")
 	api, err := armredis.NewClient(subscription, cred, options)
 	if err != nil {
@@ -49,7 +52,7 @@ func NewRedisClient(subscription string, cred azcore.TokenCredential, options *a
 }
 
 // NewRedisClientByAPI creates a new Azure Redis client by ARM API client.
-func NewRedisClientByAPI(api armRedisClient) CacheForRedisClient {
+func NewRedisClientByAPI(api armRedisClient) RedisClient {
 	return &redisClient{
 		api: api,
 	}
@@ -76,4 +79,32 @@ func (c *redisClient) GetToken(ctx context.Context, resourceID string) (string, 
 		return *resp.SecondaryKey, nil
 	}
 	return "", trace.NotFound("missing keys")
+}
+
+// ListAll returns all Azure Redis servers within an Azure subscription.
+func (c *redisClient) ListAll(ctx context.Context) ([]*armredis.ResourceInfo, error) {
+	var servers []*armredis.ResourceInfo
+	pager := c.api.NewListBySubscriptionPager(&armredis.ClientListBySubscriptionOptions{})
+	for pageNum := 0; pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+		servers = append(servers, page.Value...)
+	}
+	return servers, nil
+}
+
+// ListWithinGroup returns all Azure Redis servers within an Azure resource group.
+func (c *redisClient) ListWithinGroup(ctx context.Context, group string) ([]*armredis.ResourceInfo, error) {
+	var servers []*armredis.ResourceInfo
+	pager := c.api.NewListByResourceGroupPager(group, &armredis.ClientListByResourceGroupOptions{})
+	for pageNum := 0; pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+		servers = append(servers, page.Value...)
+	}
+	return servers, nil
 }
