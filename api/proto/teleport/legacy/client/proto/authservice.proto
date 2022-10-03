@@ -724,6 +724,8 @@ message CreateAppSessionRequest {
   string AppName = 6 [(gogoproto.jsontag) = "app_name"];
   // AppURI is the URI of the application.
   string AppURI = 7 [(gogoproto.jsontag) = "app_uri"];
+  // ClientAddr is the address of the original requester.
+  string ClientAddr = 8 [(gogoproto.jsontag) = "client_addr"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.

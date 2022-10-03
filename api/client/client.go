@@ -1373,6 +1373,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		PublicAddr:  req.PublicAddr,
 		AppName:     req.AppName,
 		AppURI:      req.AppURI,
+		ClientAddr:  req.ClientAddr,
 		ClusterName: req.ClusterName,
 		AWSRoleARN:  req.AWSRoleARN,
 	}, c.callOpts...)

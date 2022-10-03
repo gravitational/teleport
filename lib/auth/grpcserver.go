@@ -1503,6 +1503,7 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 		PublicAddr:  req.GetPublicAddr(),
 		AppName:     req.GetAppName(),
 		AppURI:      req.GetAppURI(),
+		ClientAddr:  req.GetClientAddr(),
 		ClusterName: req.GetClusterName(),
 		AWSRoleARN:  req.GetAWSRoleARN(),
 	})

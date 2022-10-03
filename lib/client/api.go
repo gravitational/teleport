@@ -2611,6 +2611,7 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
+	req.ClientAddr = proxyClient.Client.LocalAddr().String()
 	return proxyClient.CreateAppSession(ctx, req)
 }
 

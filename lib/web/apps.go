@@ -174,6 +174,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		PublicAddr:  result.App.GetPublicAddr(),
 		AppName:     result.App.GetName(),
 		AppURI:      result.App.GetURI(),
+		ClientAddr:  r.RemoteAddr,
 		ClusterName: result.ClusterName,
 		AWSRoleARN:  req.AWSRole,
 	})

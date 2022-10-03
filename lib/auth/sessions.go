@@ -18,10 +18,7 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"time"
-
-	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -117,12 +114,6 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	userMetadata.User = session.GetUser()
 	userMetadata.AWSRoleARN = req.AWSRoleARN
 
-	// Record peer for the address of the requesting connection.
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, trace.Wrap(errors.New("unable to get peer from context"))
-	}
-
 	// Now that the certificate has been issued, emit a "new session created"
 	// for all events associated with this certificate.
 	appSessionStartEvent := &apievents.AppSessionStart{
@@ -141,7 +132,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		},
 		UserMetadata: identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: p.Addr.String(),
+			RemoteAddr: req.ClientAddr,
 		},
 		PublicAddr: req.PublicAddr,
 		AppMetadata: apievents.AppMetadata{
