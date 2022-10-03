@@ -12,7 +12,8 @@ resource "aws_instance" "bastion" {
   subnet_id                   = element(aws_subnet.public.*.id, 0)
 
   metadata_options {
-    http_tokens = "required"
+    http_endpoint = "enabled"
+    http_tokens   = "required"
   }
 
   root_block_device {

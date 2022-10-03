@@ -242,21 +242,43 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if server.GetNamespace() == "" {
-		return nil, trace.BadParameter("missing node namespace")
+		server.SetNamespace(apidefaults.Namespace)
 	}
+
+	if n := server.GetNamespace(); n != apidefaults.Namespace {
+		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	}
+
 	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.Put(ctx, backend.Item{
-		Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
+
+	key := backend.Key(nodesPrefix, server.GetNamespace(), server.GetName())
+
+	item := backend.Item{
+		Key:     key,
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
-	})
+	}
+
+	prevItem, err := s.Get(ctx, key)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	var lease *backend.Lease
+	if err == nil {
+		lease, err = s.CompareAndSwap(ctx, *prevItem, item)
+	} else {
+		lease, err = s.Create(ctx, item)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if server.Expiry().IsZero() {
 		return &types.KeepAlive{}, nil
 	}

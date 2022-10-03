@@ -56,6 +56,10 @@ type Visitor struct {
 	// with semver prerelease versions.
 	PermitPrerelease bool
 
+	// NotNewerThan is an optional target represented a constraint for the *newest* version
+	// that we care about. Targets newer than NotNewerThan are ignored if it is supplied.
+	NotNewerThan Target
+
 	// Current is an optional target representing the current installation. If a valid
 	// target is supplied, then the Next* family of targets are selected relative to it.
 	Current Target
@@ -76,6 +80,10 @@ func (v *Visitor) Visit(t Target) (ok bool) {
 	}
 
 	if !v.PermitPrerelease && t.Prerelease() {
+		return false
+	}
+
+	if v.NotNewerThan.Ok() && t.NewerThan(v.NotNewerThan) {
 		return false
 	}
 

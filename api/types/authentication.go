@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	log "github.com/sirupsen/logrus"
@@ -90,6 +91,8 @@ type AuthPreference interface {
 
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
+	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -341,6 +344,18 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
 	return c.Spec.RequireMFAType
+}
+
+// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	switch c.Spec.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return keys.PrivateKeyPolicyHardwareKey
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
