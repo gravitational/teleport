@@ -126,11 +126,7 @@ func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]*RedisEnterprise
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 
-		databases, err := c.listDatabasesByClusters(ctx, page.Value)
-		if err != nil {
-			return nil, trace.Wrap(ConvertResponseError(err))
-		}
-		allDatabases = append(allDatabases, databases...)
+		allDatabases = append(allDatabases, c.listDatabasesByClusters(ctx, page.Value)...)
 	}
 	return allDatabases, nil
 }
@@ -145,17 +141,13 @@ func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group strin
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 
-		databases, err := c.listDatabasesByClusters(ctx, page.Value)
-		if err != nil {
-			return nil, trace.Wrap(ConvertResponseError(err))
-		}
-		allDatabases = append(allDatabases, databases...)
+		allDatabases = append(allDatabases, c.listDatabasesByClusters(ctx, page.Value)...)
 	}
 	return allDatabases, nil
 }
 
 // listDatabasesByClusters fetches databases for the provided clusters.
-func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clusters []*armredisenterprise.Cluster) ([]*RedisEnterpriseDatabase, error) {
+func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clusters []*armredisenterprise.Cluster) []*RedisEnterpriseDatabase {
 	var allDatabases []*RedisEnterpriseDatabase
 	for _, cluster := range clusters {
 		if cluster == nil { // should never happen, but checking just in case.
@@ -176,7 +168,7 @@ func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clu
 
 		allDatabases = append(allDatabases, databases...)
 	}
-	return allDatabases, nil
+	return allDatabases
 }
 
 // listDatabasesByCluster fetches databases for the provided cluster.
