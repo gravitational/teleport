@@ -7039,14 +7039,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "quay.io/gravitational/teleport:$(cat
+    /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "quay.io/gravitational/teleport:$(cat
     /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "quay.io/gravitational/teleport:$(cat
     /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "quay.io/gravitational/teleport:$(cat
-    /go/var/canonical-version)-amd64"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7064,14 +7064,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "quay.io/gravitational/teleport:$(cat
+    /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "quay.io/gravitational/teleport:$(cat
     /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "quay.io/gravitational/teleport:$(cat
     /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "quay.io/gravitational/teleport:$(cat
-    /go/var/canonical-version)-arm"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7089,14 +7089,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/gravitational/teleport:$(cat
-    /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/gravitational/teleport:$(cat
     /go/var/canonical-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/gravitational/teleport:$(cat
     /go/var/major-version)-arm64"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "quay.io/gravitational/teleport:$(cat
+    /go/var/minor-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm64"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7183,17 +7183,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7214,11 +7214,11 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
@@ -7245,17 +7245,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7385,14 +7385,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/gravitational/teleport:$(cat
-    /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/gravitational/teleport:$(cat
     /go/var/canonical-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/gravitational/teleport:$(cat
     /go/var/major-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$DRONE_TAG-arm" "public.ecr.aws/gravitational/teleport:$(cat
+    /go/var/minor-version)-arm"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7432,31 +7432,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport:v10-arm64"
-- name: Create manifest and push "teleport:canonical" to ECR - production
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
-    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
-  - docker logout "public.ecr.aws"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport:v10-amd64" to ECR - production
-  - Tag and push image "teleport:v10-arm" to ECR - production
-  - Tag and push image "teleport:v10-arm64" to ECR - production
 - name: Create manifest and push "teleport:major" to ECR - production
   image: docker
   commands:
@@ -7494,6 +7469,31 @@ steps:
     --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm"
     --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
   - docker manifest push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)"
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v10-amd64" to ECR - production
+  - Tag and push image "teleport:v10-arm" to ECR - production
+  - Tag and push image "teleport:v10-arm64" to ECR - production
+- name: Create manifest and push "teleport:canonical" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
+    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7663,14 +7663,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7688,14 +7688,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "quay.io/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "quay.io/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-arm"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7713,14 +7713,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "quay.io/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "quay.io/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7807,11 +7807,11 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
@@ -7838,17 +7838,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7869,17 +7869,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7891,6 +7891,33 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
+- name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/major-version)-$TIMESTAMP"
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v10-arm" to ECR - staging
+  - Tag and push image "teleport-ent:v10-arm64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP" to ECR - staging
   image: docker
   commands:
@@ -7932,33 +7959,6 @@ steps:
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP"
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
-  - Tag and push image "teleport-ent:v10-arm" to ECR - staging
-  - Tag and push image "teleport-ent:v10-arm64" to ECR - staging
-- name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/major-version)-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8037,14 +8037,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "public.ecr.aws/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "public.ecr.aws/gravitational/teleport-ent:$(cat
     /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "public.ecr.aws/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$DRONE_TAG-arm64" "public.ecr.aws/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-arm64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8056,31 +8056,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
-- name: Create manifest and push "teleport-ent:canonical" to ECR - production
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)"
-    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)"
-  - docker logout "public.ecr.aws"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-ent:v10-amd64" to ECR - production
-  - Tag and push image "teleport-ent:v10-arm" to ECR - production
-  - Tag and push image "teleport-ent:v10-arm64" to ECR - production
 - name: Create manifest and push "teleport-ent:major" to ECR - production
   image: docker
   commands:
@@ -8118,6 +8093,31 @@ steps:
     --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
     --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
   - docker manifest push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)"
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v10-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v10-arm" to ECR - production
+  - Tag and push image "teleport-ent:v10-arm64" to ECR - production
+- name: Create manifest and push "teleport-ent:canonical" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)"
+    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
+    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8215,11 +8215,11 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
     /go/var/major-version)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "quay.io/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
@@ -8297,17 +8297,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-fips-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-fips-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8398,14 +8398,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/gravitational/teleport-ent:$(cat
     /go/var/major-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$DRONE_TAG-amd64" "public.ecr.aws/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8731,14 +8731,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
+    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8756,14 +8756,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
+    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8781,14 +8781,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
+    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
-    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8875,11 +8875,11 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/major-version)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
@@ -8906,17 +8906,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/major-version)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8943,11 +8943,11 @@ steps:
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/minor-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9049,14 +9049,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
+    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9077,14 +9077,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
+    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9105,14 +9105,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
+    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v10')-arm64"
-    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9361,9 +9361,9 @@ steps:
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9381,14 +9381,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9406,14 +9406,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9501,19 +9501,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9535,19 +9535,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9569,19 +9569,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9683,14 +9683,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-amd64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9711,14 +9711,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9739,14 +9739,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v10')-arm64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9758,6 +9758,31 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
+- name: Create manifest and push "teleport-ent:major" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)"
+    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
+    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
+    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)"
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent:v10-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v10-arm" to ECR - production
+  - Tag and push image "teleport-ent:v10-arm64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor" to ECR - production
   image: docker
   commands:
@@ -9795,31 +9820,6 @@ steps:
     --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
     --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker manifest push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)"
-  - docker logout "public.ecr.aws"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-ent:v10-amd64" to ECR - production
-  - Tag and push image "teleport-ent:v10-arm" to ECR - production
-  - Tag and push image "teleport-ent:v10-arm64" to ECR - production
-- name: Create manifest and push "teleport-ent:major" to ECR - production
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)"
-    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9922,9 +9922,9 @@ steps:
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10024,30 +10024,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
-- name: Create manifest and push "teleport-ent:canonical-$TIMESTAMP-fips" to ECR -
-    staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips"
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -10094,6 +10070,30 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
+- name: Create manifest and push "teleport-ent:canonical-$TIMESTAMP-fips" to ECR -
+    staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips"
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent-fips:v10-amd64" to ECR - production
   image: docker
   commands:
@@ -10103,14 +10103,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10435,11 +10435,11 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
-    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
+    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
@@ -10460,11 +10460,11 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
-    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
+    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
@@ -10485,14 +10485,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
+    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
     "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
-    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm64"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10504,6 +10504,28 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport:v9-arm64"
+- name: Create manifest and push "teleport:major" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create "quay.io/gravitational/teleport:$(cat /go/var/major-version)"
+    --amend "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64" --amend
+    "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm" --amend "quay.io/gravitational/teleport:$(cat
+    /go/var/major-version)-arm64"
+  - docker manifest push "quay.io/gravitational/teleport:$(cat /go/var/major-version)"
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v9-amd64" to Quay
+  - Tag and push image "teleport:v9-arm" to Quay
+  - Tag and push image "teleport:v9-arm64" to Quay
 - name: Create manifest and push "teleport:minor" to Quay
   image: docker
   commands:
@@ -10548,28 +10570,6 @@ steps:
   - Tag and push image "teleport:v9-amd64" to Quay
   - Tag and push image "teleport:v9-arm" to Quay
   - Tag and push image "teleport:v9-arm64" to Quay
-- name: Create manifest and push "teleport:major" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/gravitational/teleport:$(cat /go/var/major-version)"
-    --amend "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64" --amend
-    "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm" --amend "quay.io/gravitational/teleport:$(cat
-    /go/var/major-version)-arm64"
-  - docker manifest push "quay.io/gravitational/teleport:$(cat /go/var/major-version)"
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport:v9-amd64" to Quay
-  - Tag and push image "teleport:v9-arm" to Quay
-  - Tag and push image "teleport:v9-arm64" to Quay
 - name: Tag and push image "teleport:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -10579,17 +10579,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/major-version)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10610,17 +10610,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/major-version)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10641,17 +10641,17 @@ steps:
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/major-version)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/var/canonical-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10753,14 +10753,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10781,14 +10781,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
+    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm"
-    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10809,14 +10809,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
+    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v9')-arm64"
-    "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11058,14 +11058,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11083,14 +11083,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11113,9 +11113,9 @@ steps:
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11203,13 +11203,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
@@ -11237,19 +11237,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11271,19 +11271,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11385,14 +11385,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11413,14 +11413,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11441,14 +11441,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v9')-arm64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11618,14 +11618,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11637,6 +11637,24 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
+- name: Create manifest and push "teleport-ent:major-fips" to Quay
+  image: docker
+  commands:
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker manifest create "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips"
+    --amend "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
+  - docker manifest push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips"
+  - docker logout "quay.io"
+  environment:
+    QUAY_PASSWORD:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent-fips:v9-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
@@ -11673,24 +11691,6 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push image "teleport-ent-fips:v9-amd64" to Quay
-- name: Create manifest and push "teleport-ent:major-fips" to Quay
-  image: docker
-  commands:
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips"
-    --amend "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
-  - docker manifest push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips"
-  - docker logout "quay.io"
-  environment:
-    QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to Quay
 - name: Tag and push image "teleport-ent-fips:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -11701,19 +11701,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-fips-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-fips-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11804,14 +11804,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12136,11 +12136,11 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
-    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
+    "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
@@ -12161,14 +12161,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm"
+    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm"
     "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm"
-    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -12186,14 +12186,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm64"
+    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-arm64"
-    "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -12364,33 +12364,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport:v8-arm64"
-- name: Create manifest and push "teleport:canonical-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
-    /go/var/canonical-version)-$TIMESTAMP"
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport:v8-amd64" to ECR - staging
-  - Tag and push image "teleport:v8-arm" to ECR - staging
-  - Tag and push image "teleport:v8-arm64" to ECR - staging
 - name: Create manifest and push "teleport:major-$TIMESTAMP" to ECR - staging
   image: docker
   commands:
@@ -12445,6 +12418,33 @@ steps:
   - Tag and push image "teleport:v8-amd64" to ECR - staging
   - Tag and push image "teleport:v8-arm" to ECR - staging
   - Tag and push image "teleport:v8-arm64" to ECR - staging
+- name: Create manifest and push "teleport:canonical-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat
+    /go/var/canonical-version)-$TIMESTAMP"
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v8-amd64" to ECR - staging
+  - Tag and push image "teleport:v8-arm" to ECR - staging
+  - Tag and push image "teleport:v8-arm64" to ECR - staging
 - name: Tag and push image "teleport:v8-amd64" to ECR - production
   image: docker
   commands:
@@ -12459,9 +12459,9 @@ steps:
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport:$(cat '/go/vars/full-version/v8')-amd64"
     "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/major-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12529,31 +12529,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport:v8-arm64"
-- name: Create manifest and push "teleport:canonical" to ECR - production
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
-    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
-  - docker logout "public.ecr.aws"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport:v8-amd64" to ECR - production
-  - Tag and push image "teleport:v8-arm" to ECR - production
-  - Tag and push image "teleport:v8-arm64" to ECR - production
 - name: Create manifest and push "teleport:major" to ECR - production
   image: docker
   commands:
@@ -12591,6 +12566,31 @@ steps:
     --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm"
     --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)-arm64"
   - docker manifest push "public.ecr.aws/gravitational/teleport:$(cat /go/var/minor-version)"
+  - docker logout "public.ecr.aws"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport:v8-amd64" to ECR - production
+  - Tag and push image "teleport:v8-arm" to ECR - production
+  - Tag and push image "teleport:v8-arm64" to ECR - production
+- name: Create manifest and push "teleport:canonical" to ECR - production
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker manifest create "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
+    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-amd64"
+    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm"
+    --amend "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)-arm64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport:$(cat /go/var/canonical-version)"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12759,14 +12759,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -12784,14 +12784,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -12809,14 +12809,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -12904,19 +12904,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12938,19 +12938,19 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -12972,13 +12972,13 @@ steps:
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/major-version)-$TIMESTAMP-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64"
   - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
@@ -13086,14 +13086,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-amd64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13119,9 +13119,9 @@ steps:
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13142,14 +13142,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-ent:$(cat '/go/vars/full-version/v8')-arm64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-arm64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13319,14 +13319,14 @@ steps:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
+    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
-    "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker push "quay.io/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -13426,30 +13426,6 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips:v8-amd64"
-- name: Create manifest and push "teleport-ent:canonical-$TIMESTAMP-fips" to ECR -
-    staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-fips"
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-ent-fips:v8-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -13496,6 +13472,30 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push image "teleport-ent-fips:v8-amd64" to ECR - staging
+- name: Create manifest and push "teleport-ent:canonical-$TIMESTAMP-fips" to ECR -
+    staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips-amd64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-fips"
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-ent-fips:v8-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent-fips:v8-amd64" to ECR - production
   image: docker
   commands:
@@ -13505,14 +13505,14 @@ steps:
     public.ecr.aws
   - docker pull "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
+    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
+  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
     "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-ent-fips:$(cat '/go/vars/full-version/v8')-amd64"
-    "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/major-version)-fips-amd64"
   - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/minor-version)-fips-amd64"
-  - docker push "public.ecr.aws/gravitational/teleport-ent:$(cat /go/var/canonical-version)-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -13603,6 +13603,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 9ffe60c7982b5fd0340c6e3f6db220a68862b556db66f511503c8ba59854d54a
+hmac: 33c799b6398799092d524b48da035797fd949d792755e43b4fc9eb6d457b0a3f
 
 ...

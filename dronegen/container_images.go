@@ -36,8 +36,11 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/maps"
 )
 
 // If you are working on a PR/testing changes to this file you should configure the following for Drone testing:
@@ -102,10 +105,11 @@ func buildContainerImagePipelines() []pipeline {
 }
 
 type TriggerInfo struct {
-	Trigger           trigger
-	Name              string
-	SupportedVersions []*releaseVersion
-	SetupSteps        []step
+	Trigger                      trigger
+	Name                         string
+	ShouldAffectProductionImages bool
+	SupportedVersions            []*releaseVersion
+	SetupSteps                   []step
 }
 
 func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
@@ -125,8 +129,9 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
 
 	return &TriggerInfo{
-		Trigger: promoteTrigger,
-		Name:    "promote",
+		Trigger:                      promoteTrigger,
+		Name:                         "promote",
+		ShouldAffectProductionImages: true,
 		SupportedVersions: []*releaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
@@ -168,9 +173,10 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 	}
 
 	return &TriggerInfo{
-		Trigger:           cronTrigger([]string{"teleport-container-images-cron"}),
-		Name:              "cron",
-		SupportedVersions: supportedVersions,
+		Trigger:                      cronTrigger([]string{"teleport-container-images-cron"}),
+		Name:                         "cron",
+		ShouldAffectProductionImages: true,
+		SupportedVersions:            supportedVersions,
 	}
 }
 
@@ -202,7 +208,7 @@ func readCronShellVersionCommand(majorVersionDirectory, majorVersion string) str
 func (ti *TriggerInfo) buildPipelines() []pipeline {
 	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
 	for _, teleportVersion := range ti.SupportedVersions {
-		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps)
+		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.ShouldAffectProductionImages)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
 
@@ -219,7 +225,7 @@ type releaseVersion struct {
 	SetupSteps          []step // Version-specific steps that must be ran before executing build and push steps
 }
 
-func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step) pipeline {
+func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, shouldAffectProductionRepos bool) pipeline {
 	pipelineName := fmt.Sprintf("teleport-container-images-%s", rv.RelativeVersionName)
 
 	setupSteps, dependentStepNames := rv.getSetupStepInformation(triggerSetupSteps)
@@ -236,7 +242,7 @@ func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step) pipelin
 			raw: "noninteractive",
 		},
 	}
-	pipeline.Steps = append(setupSteps, rv.buildSteps(dependentStepNames)...)
+	pipeline.Steps = append(setupSteps, rv.buildSteps(dependentStepNames, shouldAffectProductionRepos)...)
 
 	return pipeline
 }
@@ -263,7 +269,7 @@ func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 	return setupSteps, nextStageSetupStepNames
 }
 
-func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
+func (rv *releaseVersion) buildSteps(setupStepNames []string, shouldAffectProductionRepos bool) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 	steps := make([]step, 0)
 
@@ -280,7 +286,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 	}
 
 	for _, product := range rv.getProducts(clonedRepoPath) {
-		steps = append(steps, product.buildSteps(rv, setupStepNames)...)
+		steps = append(steps, product.buildSteps(rv, setupStepNames, shouldAffectProductionRepos)...)
 	}
 
 	return steps
@@ -294,24 +300,23 @@ type semver struct {
 
 func (rv *releaseVersion) getSemvers() []*semver {
 	varDirectory := "/go/var"
-	semverFieldCounts := map[string]int{
-		"major":     1,
-		"minor":     2,
-		"canonical": 3,
+	return []*semver{
+		{
+			Name:       "major",
+			FilePath:   path.Join(varDirectory, "major-version"),
+			FieldCount: 1,
+		},
+		{
+			Name:       "minor",
+			FilePath:   path.Join(varDirectory, "minor-version"),
+			FieldCount: 2,
+		},
+		{
+			Name:       "canonical",
+			FilePath:   path.Join(varDirectory, "canonical-version"),
+			FieldCount: 3,
+		},
 	}
-
-	semvers := make([]*semver, 0, len(semverFieldCounts))
-	for semverName, cutFieldCount := range semverFieldCounts {
-		semverFileName := fmt.Sprintf("%s-version", semverName)
-		semverFilePath := path.Join(varDirectory, semverFileName)
-		semvers = append(semvers, &semver{
-			Name:       semverName,
-			FilePath:   semverFilePath,
-			FieldCount: cutFieldCount,
-		})
-	}
-
-	return semvers
 }
 
 func (rv *releaseVersion) buildSplitSemverSteps() step {
@@ -560,7 +565,7 @@ func (p *Product) GetlocalRegistryImage(arch string, version *releaseVersion) *I
 	}
 }
 
-func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string) []step {
+func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, shouldAffectProductionRepos bool) []step {
 	containerRepos := GetContainerRepos()
 
 	steps := make([]step, 0)
@@ -585,6 +590,11 @@ func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string) [
 	}
 
 	for _, containerRepo := range containerRepos {
+		// Skip production repos on non-production events
+		if !shouldAffectProductionRepos && containerRepo.IsProductionRepo {
+			continue
+		}
+
 		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails)...)
 	}
 
@@ -671,22 +681,23 @@ type buildStepOutput struct {
 }
 
 type ContainerRepo struct {
-	Name           string
-	Environment    map[string]value
-	RegistryDomain string
-	RegistryOrg    string
-	LoginCommands  []string
-	TagBuilder     func(baseTag *ImageTag) *ImageTag // Postprocessor for tags that append CR-specific suffixes
+	Name             string
+	IsProductionRepo bool
+	Environment      map[string]value
+	RegistryDomain   string
+	RegistryOrg      string
+	LoginCommands    []string
+	TagBuilder       func(baseTag *ImageTag) *ImageTag // Postprocessor for tags that append CR-specific suffixes
 }
 
-func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isStaging bool) *ContainerRepo {
-	nameSuffix := "production"
-	ecrRegion := PublicEcrRegion
-	loginSubcommand := "ecr-public"
-	if isStaging {
-		nameSuffix = "staging"
-		ecrRegion = StagingEcrRegion
-		loginSubcommand = "ecr"
+func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isProduction bool) *ContainerRepo {
+	nameSuffix := "staging"
+	ecrRegion := StagingEcrRegion
+	loginSubcommand := "ecr"
+	if isProduction {
+		nameSuffix = "production"
+		ecrRegion = PublicEcrRegion
+		loginSubcommand = "ecr-public"
 	}
 
 	registryOrg := ProductionRegistryOrg
@@ -695,14 +706,15 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		secretAccessKeySecret = testingSecretPrefix + secretAccessKeySecret
 		registryOrg = testingECRRegistryOrg
 
-		if isStaging {
+		if !isProduction {
 			domain = testingECRDomain
 			ecrRegion = testingECRRegion
 		}
 	}
 
 	return &ContainerRepo{
-		Name: fmt.Sprintf("ECR - %s", nameSuffix),
+		Name:             fmt.Sprintf("ECR - %s", nameSuffix),
+		IsProductionRepo: isProduction,
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID": {
 				fromSecret: accessKeyIDSecret,
@@ -719,7 +731,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 			fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 		},
 		TagBuilder: func(tag *ImageTag) *ImageTag {
-			if isStaging {
+			if !isProduction {
 				tag.AppendString("$TIMESTAMP")
 			}
 
@@ -757,8 +769,8 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 func GetContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
-		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
+		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, false),
+		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, true),
 	}
 }
 
@@ -864,12 +876,20 @@ func (cr *ContainerRepo) BuildImageTags(version *releaseVersion) []*ImageTag {
 func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []*ImageTag) (step, map[*ImageTag]*Image) {
 	imageRepo := cr.BuildImageRepo()
 
-	archImages := make(map[*ImageTag]*Image, len(imageTags))
+	archImageMaps := make(map[*ImageTag]*Image, len(imageTags))
 	for _, imageTag := range imageTags {
 		archTag := *imageTag
 		archTag.Arch = buildStepDetails.BuiltImage.Tag.Arch
-		archImages[imageTag] = buildStepDetails.Product.ImageBuilder(imageRepo, &archTag)
+		archImage := buildStepDetails.Product.ImageBuilder(imageRepo, &archTag)
+		archImageMaps[imageTag] = archImage
 	}
+
+	// This is tracked separately as maps in golang have a non-deterministic order when iterated over.
+	// As a result, .drone.yml will be updated every time `make dronegen` is ran regardless of if there
+	// is a change to the map or not
+	// The order/comparator does not matter here as long as it is deterministic between dronegen runs
+	archImages := maps.Values(archImageMaps)
+	sort.SliceStable(archImages, func(i, j int) bool { return archImages[i].GetDisplayName() < archImages[j].GetDisplayName() })
 
 	commands := []string{
 		fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImage.GetShellName()), // This will pull from the local registry
@@ -892,7 +912,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		},
 	}
 
-	return step, archImages
+	return step, archImageMaps
 }
 
 func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushStepNames []string, pushedImages []*Image) step {
