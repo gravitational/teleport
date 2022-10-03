@@ -3710,3 +3710,109 @@ func TestGenerateHostCert(t *testing.T) {
 		})
 	}
 }
+
+type getActiveSessionsTestCase struct {
+	name      string
+	tracker   types.SessionTracker
+	role      types.Role
+	hasAccess bool
+}
+
+func TestGetActiveSessionTrackers(t *testing.T) {
+	t.Parallel()
+
+	testCases := []getActiveSessionsTestCase{func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"with access simple", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"with no access rule", tracker, role, false}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(session_tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"access with match expression", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "2",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(session_tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"no access with match expression", tracker, role, false}
+	}()}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+			err := srv.Auth().CreateRole(ctx, testCase.role)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)
+			require.NoError(t, err)
+
+			user, err := types.NewUser(uuid.NewString())
+			require.NoError(t, err)
+
+			user.AddRole(testCase.role.GetName())
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			clt, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			found, err := clt.GetActiveSessionTrackers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, testCase.hasAccess, len(found) != 0)
+		})
+	}
+}
