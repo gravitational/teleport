@@ -603,24 +603,6 @@ message DeleteAllApplicationServersRequest {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
-// DeleteAppServerRequest are the parameters used to remove an application.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServerRequest.
-message DeleteAppServerRequest {
-  // Namespace is the namespace for application.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-  // Name is the name of the application to delete.
-  string Name = 2 [(gogoproto.jsontag) = "name"];
-}
-
-// DeleteAllAppServersRequest are the parameters used to remove all applications.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServersRequest.
-message DeleteAllAppServersRequest {
-  // Namespace is the namespace for application.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-}
-
 // GenerateAppTokenRequest are the parameters used to request an application
 // token.
 message GenerateAppTokenRequest {
@@ -2113,20 +2095,6 @@ service AuthService {
   rpc DeleteApplicationServer(DeleteApplicationServerRequest) returns (google.protobuf.Empty);
   // DeleteAllApplicationServers removes all application servers.
   rpc DeleteAllApplicationServers(DeleteAllApplicationServersRequest) returns (google.protobuf.Empty);
-
-  // DeleteAppServer removes an application server.
-  //
-  // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-  rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
-
-  // DeleteAllAppServers removes all application servers.
-  //
-  // DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-  rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
 
   // GenerateAppToken will generate a JWT token for application access.
   rpc GenerateAppToken(GenerateAppTokenRequest) returns (GenerateAppTokenResponse);

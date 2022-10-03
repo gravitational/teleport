@@ -3963,34 +3963,6 @@ func (a *ServerWithRoles) DeleteAllApplicationServers(ctx context.Context, names
 	return a.authServer.DeleteAllApplicationServers(ctx, namespace)
 }
 
-// DeleteAppServer removes an application server.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-func (a *ServerWithRoles) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	if err := a.action(namespace, types.KindAppServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAppServer(ctx, namespace, name); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteAllAppServers removes all application servers.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAllAppServers(ctx, namespace); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // GetAppSession gets an application web session.
 func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
 	session, err := a.authServer.GetAppSession(ctx, req)

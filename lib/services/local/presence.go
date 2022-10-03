@@ -1355,22 +1355,6 @@ func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, names
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
-// DeleteAppServer removes an application server.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	key := backend.Key(appsPrefix, serversPrefix, namespace, name)
-	return s.Delete(ctx, key)
-}
-
-// DeleteAllAppServers removes all application servers.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-}
-
 // KeepAliveServer updates expiry time of a server resource.
 func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {

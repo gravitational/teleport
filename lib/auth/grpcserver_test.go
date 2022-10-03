@@ -1752,8 +1752,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	server2, err := types.NewAppServerV3FromApp(app2, "server-2", "server-2")
 	require.NoError(t, err)
-
-	// Create a legacy app server.
 	app3, err := types.NewAppV3(types.Metadata{Name: "app-3"},
 		types.AppSpecV3{URI: "localhost"})
 	require.NoError(t, err)
@@ -1801,8 +1799,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 
 	// Delete all app servers.
 	err = clt.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	err = clt.DeleteAllAppServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)

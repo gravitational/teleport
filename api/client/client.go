@@ -1177,27 +1177,6 @@ func (c *Client) DeleteAllApplicationServers(ctx context.Context, namespace stri
 	return trail.FromGRPC(err)
 }
 
-// DeleteAppServer removes an application server.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	_, err := c.grpc.DeleteAppServer(ctx, &proto.DeleteAppServerRequest{
-		Namespace: namespace,
-		Name:      name,
-	}, c.callOpts...)
-	return trail.FromGRPC(err)
-}
-
-// DeleteAllAppServers removes all application servers.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	_, err := c.grpc.DeleteAllAppServers(ctx, &proto.DeleteAllAppServersRequest{
-		Namespace: namespace,
-	}, c.callOpts...)
-	return trail.FromGRPC(err)
-}
-
 // GetAppSession gets an application web session.
 func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.GetAppSession(ctx, &proto.GetAppSessionRequest{
