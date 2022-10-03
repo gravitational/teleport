@@ -106,7 +106,7 @@ func BenchmarkEncodePNG(b *testing.B) {
 	}
 }
 
-func loadBitmaps(b *testing.B) []PNGFrame {
+func loadBitmaps(b *testing.B) []PNG2Frame {
 	b.Helper()
 
 	f, err := os.Open(filepath.Join("testdata", "png_frames.json"))
@@ -115,7 +115,7 @@ func loadBitmaps(b *testing.B) []PNGFrame {
 
 	enc := PNGEncoder()
 
-	var result []PNGFrame
+	var result []PNG2Frame
 	type record struct {
 		Top, Left, Right, Bottom int
 		Pix                      []byte
