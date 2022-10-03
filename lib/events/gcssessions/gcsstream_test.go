@@ -132,7 +132,7 @@ func TestStreams(t *testing.T) {
 				return err
 			}
 			// delete the object, but still simulate failure
-			if deleteFailed.CAS(0, 1) == true {
+			if deleteFailed.CompareAndSwap(0, 1) == true {
 				return trace.ConnectionProblem(nil, "simulate delete failure %v", deleteFailed.Load())
 			}
 			return nil
