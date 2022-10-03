@@ -180,11 +180,11 @@ func (h *Handler) createDesktopConnection(
 	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
-	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
 		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
-	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
 		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
@@ -331,9 +331,8 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// we don't care about the content of the message, we just
 		// need to split the stream into individual messages and
 		// write them to the websocket
-		tc.ParseOnly = true
 		for {
-			msg, err := tc.InputMessage()
+			raw, err := tc.ReadRaw()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -343,13 +342,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				return
 			}
 
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
+			err = ws.WriteMessage(websocket.BinaryMessage, raw)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return

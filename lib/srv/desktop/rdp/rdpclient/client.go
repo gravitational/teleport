@@ -41,9 +41,9 @@ package rdpclient
 //           *output streaming continues...*
 //
 //              *user input messages*
-//  InputMessage(MouseMove) ------> write_rdp_pointer
-//  InputMessage(MouseButton) ----> write_rdp_pointer
-//  InputMessage(KeyboardButton) -> write_rdp_keyboard
+//  ReadMessage(MouseMove) ------> write_rdp_pointer
+//  ReadMessage(MouseButton) ----> write_rdp_pointer
+//  ReadMessage(KeyboardButton) -> write_rdp_keyboard
 //            *user input continues...*
 //
 //        *connection closed (client or server side)*
@@ -190,7 +190,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 func (c *Client) readClientUsername() error {
 	for {
-		msg, err := c.cfg.Conn.InputMessage()
+		msg, err := c.cfg.Conn.ReadMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -207,7 +207,7 @@ func (c *Client) readClientUsername() error {
 
 func (c *Client) readClientSize() error {
 	for {
-		msg, err := c.cfg.Conn.InputMessage()
+		msg, err := c.cfg.Conn.ReadMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -292,7 +292,7 @@ func (c *Client) start() {
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
-			msg, err := c.cfg.Conn.InputMessage()
+			msg, err := c.cfg.Conn.ReadMessage()
 			if errors.Is(err, io.EOF) {
 				return
 			} else if err != nil {
@@ -596,7 +596,7 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 
 	copy(img.Pix, data)
 
-	if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
 		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
 		return C.ErrCodeFailure
 	}
@@ -614,7 +614,7 @@ func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) 
 func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 	c.cfg.Log.Debugf("Received %d bytes of clipboard data from Windows desktop", len(data))
 
-	if err := c.cfg.Conn.OutputMessage(tdp.ClipboardData(data)); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(data)); err != nil {
 		c.cfg.Log.Errorf("failed handling remote copy: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -636,7 +636,7 @@ func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(ack); err != nil {
+	if err := c.cfg.Conn.WriteMessage(ack); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -659,7 +659,7 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -683,7 +683,7 @@ func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateReque
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryCreateRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -706,7 +706,7 @@ func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteReque
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryDeleteRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -729,7 +729,7 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryListRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -754,7 +754,7 @@ func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryReadRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -780,7 +780,7 @@ func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
 		return C.ErrCodeFailure
 	}
@@ -802,7 +802,7 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send SharedDirectoryMoveRequest: %v", err)
 		return C.ErrCodeFailure
 	}

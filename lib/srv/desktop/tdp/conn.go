@@ -34,10 +34,6 @@ type Conn struct {
 	bufr      *bufio.Reader
 	closeOnce sync.Once
 
-	// ParseOnly can be used to configure the conn to read messages from
-	// a stream without fully decoding them.
-	ParseOnly bool
-
 	// OnSend is an optional callback that is invoked when a TDP message
 	// is sent on the wire. It is passed both the raw bytes and the encoded
 	// message.
@@ -81,17 +77,21 @@ func (c *Conn) Close() error {
 	return err
 }
 
-// InputMessage reads the next incoming message from the connection.
-func (c *Conn) InputMessage() (Message, error) {
-	m, err := decode(c.bufr, c.ParseOnly)
+func (c *Conn) ReadRaw() ([]byte, error) {
+	return readRaw(c.bufr)
+}
+
+// ReadMessage reads the next incoming message from the connection.
+func (c *Conn) ReadMessage() (Message, error) {
+	m, err := decode(c.bufr)
 	if c.OnRecv != nil {
 		c.OnRecv(m)
 	}
 	return m, trace.Wrap(err)
 }
 
-// OutputMessage sends a message to the connection.
-func (c *Conn) OutputMessage(m Message) error {
+// WriteMessage sends a message to the connection.
+func (c *Conn) WriteMessage(m Message) error {
 	buf, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
@@ -106,7 +106,7 @@ func (c *Conn) OutputMessage(m Message) error {
 
 // SendError is a convenience function for sending an error message.
 func (c *Conn) SendError(message string) error {
-	return c.OutputMessage(Error{Message: message})
+	return c.WriteMessage(Error{Message: message})
 }
 
 // LocalAddr returns local address

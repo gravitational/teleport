@@ -84,7 +84,7 @@ func Decode(buf []byte) (Message, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
-	return decode(bytes.NewReader(buf), false)
+	return decode(bytes.NewReader(buf))
 }
 
 // peekReader is an io.Reader which lets us peek at the first byte
@@ -94,7 +94,7 @@ type peekReader interface {
 	io.ByteReader
 }
 
-func decode(in peekReader, wantRaw bool) (Message, error) {
+func readRaw(in peekReader) ([]byte, error) {
 	// Peek at the first byte to figure out message type.
 	t, err := in.ReadByte()
 	if err != nil {
@@ -102,48 +102,42 @@ func decode(in peekReader, wantRaw bool) (Message, error) {
 	}
 
 	switch mt := MessageType(t); mt {
-	case TypeClientScreenSpec:
-		if wantRaw {
-			return decodeFixedSizeMessage(in, mt, 8)
+	case TypePNG2Frame:
+		return readRawPNG2Frame(t, in)
+	default:
+		message, err := decodeMessage(t, in)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		return message.Encode()
+	}
+}
+
+func decode(in peekReader) (Message, error) {
+	// Peek at the first byte to figure out message type.
+	t, err := in.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return decodeMessage(t, in)
+}
+
+func decodeMessage(firstByte byte, in peekReader) (Message, error) {
+	switch mt := MessageType(firstByte); mt {
+	case TypeClientScreenSpec:
 		return decodeClientScreenSpec(in)
 	case TypePNGFrame:
 		return decodePNGFrame(in)
 	case TypePNG2Frame:
-		if wantRaw {
-			var pngLength uint32
-			if err := binary.Read(in, binary.BigEndian, &pngLength); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			b := make([]byte, 1+4+pngLength+16)
-			b[0] = t
-			binary.BigEndian.PutUint32(b[1:5], pngLength)
-			if _, err := io.ReadFull(in, b[5:]); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return rawMsg(b), nil
-		}
 		return decodePNG2Frame(in)
 	case TypeMouseMove:
-		if wantRaw {
-			return decodeFixedSizeMessage(in, mt, 8)
-		}
 		return decodeMouseMove(in)
 	case TypeMouseButton:
-		if wantRaw {
-			return decodeFixedSizeMessage(in, mt, 2)
-		}
 		return decodeMouseButton(in)
 	case TypeMouseWheel:
-		if wantRaw {
-			return decodeFixedSizeMessage(in, mt, 3)
-		}
 		return decodeMouseWheel(in)
 	case TypeKeyboardButton:
-		if wantRaw {
-			return decodeFixedSizeMessage(in, mt, 5)
-		}
 		return decodeKeyboardButton(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
@@ -186,7 +180,7 @@ func decode(in peekReader, wantRaw bool) (Message, error) {
 	case TypeSharedDirectoryMoveResponse:
 		return decodeSharedDirectoryMoveResponse(in)
 	default:
-		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
+		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
 }
 
@@ -206,12 +200,6 @@ func NewPNG(img image.Image, enc *png.Encoder) PNG2Frame {
 }
 
 func (f PNGFrame) Encode() ([]byte, error) {
-	type header struct {
-		Type          byte
-		Left, Top     uint32
-		Right, Bottom uint32
-	}
-
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypePNGFrame))
 	writeUint32(buf, uint32(f.Img.Bounds().Min.X))
@@ -281,6 +269,28 @@ func decodePNG2Frame(in peekReader) (PNG2Frame, error) {
 		img.Rect = image.Rect(int(header.Left), int(header.Top), int(header.Right), int(header.Bottom))
 	}
 	return PNG2Frame{Img: img}, nil
+}
+
+func readRawPNG2Frame(firstByte byte, in peekReader) ([]byte, error) {
+	if MessageType(firstByte) != TypePNG2Frame {
+		return nil, trace.Wrap(trace.BadParameter("incorrect first byte passed to readRawPNG2Frame, expected %v but got %v", TypePNG2Frame, firstByte))
+	}
+
+	var pngLength uint32
+	if err := binary.Read(in, binary.BigEndian, &pngLength); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	b := make([]byte, 1+4+pngLength+16)
+	b[0] = firstByte
+
+	binary.BigEndian.PutUint32(b[1:5], pngLength)
+
+	if _, err := io.ReadFull(in, b[5:]); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rawMsg(b), nil
 }
 
 func (f PNG2Frame) Encode() ([]byte, error) {

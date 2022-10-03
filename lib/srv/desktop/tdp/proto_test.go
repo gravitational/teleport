@@ -163,7 +163,7 @@ func TestMFA(t *testing.T) {
 			},
 		},
 	}
-	err := c.OutputMessage(mfaWant)
+	err := c.WriteMessage(mfaWant)
 	require.NoError(t, err)
 
 	mt, err := buff.ReadByte()
@@ -194,9 +194,9 @@ func TestMFA(t *testing.T) {
 			},
 		},
 	}
-	err = c.OutputMessage(respWant)
+	err = c.WriteMessage(respWant)
 	require.NoError(t, err)
-	respGot, err := c.InputMessage()
+	respGot, err := c.ReadMessage()
 	require.NoError(t, err)
 	require.Equal(t, respWant, respGot)
 }
