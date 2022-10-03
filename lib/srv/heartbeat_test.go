@@ -62,15 +62,14 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			name: "keep alive app server",
 			mode: HeartbeatModeApp,
 			makeServer: func() types.Resource {
-				return &types.ServerV2{
+				return &types.AppServerV3{
 					Kind:    types.KindAppServer,
-					Version: types.V2,
+					Version: types.V3,
 					Metadata: types.Metadata{
 						Namespace: apidefaults.Namespace,
 						Name:      "1",
 					},
-					Spec: types.ServerSpecV2{
-						Addr:     "127.0.0.1:1234",
+					Spec: types.AppServerSpecV3{
 						Hostname: "2",
 					},
 				}
