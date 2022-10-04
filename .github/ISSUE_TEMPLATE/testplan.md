@@ -241,6 +241,17 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
     * [ ] Azure AD
     * [ ] Azure RBAC
   * [ ] Verify that AWS EKS clusters are discovered and enrolled
+* [ ] Kubernetes Secret storage for Agent's Identity
+    * [ ] Install Teleport 11 agent with a short-lived token  
+      * [ ] Validate if the Teleport is installed as a Kubernetes `Statefulset`
+      * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
+    * [ ] Upgrade from Teleport 10 agent with storage
+      * [ ] Validate if agent identity was read from storage and stored in the secret without generating a new one
+      * [ ] Validate if the Teleport is still running as a `Statefulset` resource and if it contains the new ENV variables
+    * [ ] Upgrade from Teleport 10 agent without storage
+      * [ ] Validate if the agent identity is created and stored in the secret using the long-lived token.
+      * [ ] Validate if the Teleport Kubernetes `Deployment` was correctly converted into a Statefulset and if the old `Deployment` object was removed after a successful upgrade
+    * [ ] Force cluster CA rotation
 * [ ] Test Kubernetes exec via websockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
 
 ### Teleport with FIPS mode
