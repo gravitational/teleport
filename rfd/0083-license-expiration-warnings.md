@@ -150,7 +150,7 @@ On startup and every 1 hour afterwards the auth server will check the license an
 
 All requests to grab cluster alerts will be made with a timeout of 500ms.
 
-These license warning alerts will need to be auth server specific so the host id will need to be added to the cluster alert spec to allow this. The cluster alert spec may also need to be modified to add a bool for whether an alert is allowed to be dismissed.
+These license warning alerts will need to need to know which instance the alert came from so this will need to be added to the cluster alert spec to allow this. The cluster alert spec may also need to be modified to add a bool for whether an alert is allowed to be dismissed.
 
 ```
 message ClusterAlertSpec {
