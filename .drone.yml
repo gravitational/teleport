@@ -576,7 +576,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
     print-version)
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
@@ -3823,7 +3823,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   environment:
     ARCH: amd64
     BUILDBOX_PASSWORD:
@@ -7202,6 +7202,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 707c836fc9c2d0b3ee8074d258b3723651a6e53dcada5b5fcf0417b10f455b45
+hmac: 5fa7776cf2eefa8e12b859e7fdde7e0b5ee14e2c61ead793c86f55d4ebab8a89
 
 ...
