@@ -994,6 +994,9 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
+  - [ ] Azure Redis.
+  - [ ] Elasticsearch.
+  - [ ] Cassandra/ScyllaDB.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -1011,6 +1014,9 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
+  - [ ] Azure Redis.
+  - [ ] Elasticsearch.
+  - [ ] Cassandra/ScyllaDB.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1029,11 +1035,15 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
-  - [ ] Can detect and register RDS instances.
-  - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
-  - [ ] Can detect and register Redshift clusters.
-  - [ ] Can detect and register ElastiCache Redis clusters.
-  - [ ] Can detect and register MemoryDB clusters.
+    - [ ] AWS
+      - [ ] Can detect and register RDS instances.
+      - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
+      - [ ] Can detect and register Redshift clusters.
+      - [ ] Can detect and register ElastiCache Redis clusters.
+      - [ ] Can detect and register MemoryDB clusters.
+    - [ ] Azure
+      - [ ] Can detect and register MySQL and Postgres instances.
+      - [ ] Can detect and register Azure Redis instances.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users 
@@ -1077,7 +1087,10 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Redis
     - [ ] MSSQL
     - [ ] Snowflake
+    - [ ] Elasticsearch.
+    - [ ] Cassandra/ScyllaDB.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+  - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
