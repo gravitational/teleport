@@ -418,6 +418,11 @@
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
               "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Proxy Peering Migration",
+              "slug": "/management/operations/proxy-peering/",
+              "forScopes": ["enterprise"]
             }
           ]
         },
@@ -771,6 +776,10 @@
         {
           "title": "FAQ",
           "slug": "/database-access/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/database-access/troubleshooting/"
         }
       ]
     },
@@ -1036,6 +1045,10 @@
         {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
+        },
+        {
+          "title": "Proxy Peering",
+          "slug": "/architecture/proxy-peering/"
         }
       ]
     },
@@ -1088,7 +1101,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.1.2",
+      "version": "10.2.2",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1778,6 +1791,11 @@
     {
       "source": "/setup/operations/ca-rotation/",
       "destination": "/management/operations/ca-rotation/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/proxy-peering/",
+      "destination": "/management/operations/proxy-peering/",
       "permanent": true
     },
     {

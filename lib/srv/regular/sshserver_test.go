@@ -413,41 +413,80 @@ func TestInactivityTimeout(t *testing.T) {
 
 		cfg.Auth.ClusterNetworkingConfig = networkCfg
 	}
-	f := newCustomFixture(t, mutateCfg)
 
-	// If all goes well, the client will be closed by the time cleanup happens,
-	// so change the assertion on closing the client to expect it to fail
-	f.ssh.assertCltClose = require.Error
+	waitForTimeout := func(t *testing.T, f *sshTestFixture, se *tracessh.Session) {
+		stderr, err := se.StderrPipe()
+		require.NoError(t, err)
+		stdErrCh := startReadAll(stderr)
 
-	se, err := f.ssh.clt.NewSession(context.Background())
-	require.NoError(t, err)
-	defer se.Close()
+		endCh := make(chan error)
+		go func() { endCh <- f.ssh.clt.Wait() }()
+		t.Cleanup(func() { f.ssh.clt.Close() })
 
-	stderr, err := se.StderrPipe()
-	require.NoError(t, err)
-	stdErrCh := startReadAll(stderr)
+		// When I let the session idle (with the clock running at approx 10x speed)...
+		sessionHasFinished := func() bool {
+			f.clock.Advance(1 * time.Second)
+			select {
+			case <-endCh:
+				return true
 
-	endCh := make(chan error)
-	go func() { endCh <- f.ssh.clt.Wait() }()
+			default:
+				return false
+			}
+		}
+		require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
+			"Timed out waiting for session to finish")
 
-	// When I let the session idle (with the clock running at approx 10x speed)...
-	sessionHasFinished := func() bool {
-		f.clock.Advance(1 * time.Second)
+		// Expect that the idle timeout has been delivered via stderr
+		text, err := waitForBytes(stdErrCh)
+		require.NoError(t, err)
+		require.Equal(t, timeoutMessage, string(text))
+	}
+
+	t.Run("Normal timeout", func(t *testing.T) {
+		f := newCustomFixture(t, mutateCfg)
+
+		// If all goes well, the client will be closed by the time cleanup happens,
+		// so change the assertion on closing the client to expect it to fail
+		f.ssh.assertCltClose = require.Error
+		se, err := f.ssh.clt.NewSession(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, err) })
+		waitForTimeout(t, f, se)
+	})
+
+	t.Run("Reset timeout on input", func(t *testing.T) {
+		f := newCustomFixture(t, mutateCfg)
+
+		// If all goes well, the client will be closed by the time cleanup happens,
+		// so change the assertion on closing the client to expect it to fail
+		f.ssh.assertCltClose = require.Error
+		se, err := f.ssh.clt.NewSession(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, err) })
+
+		stdin, err := se.StdinPipe()
+		require.NoError(t, err)
+		t.Cleanup(func() { require.ErrorIs(t, stdin.Close(), io.EOF) })
+
+		endCh := make(chan error)
+		go func() { endCh <- f.ssh.clt.Wait() }()
+		t.Cleanup(func() { f.ssh.clt.Close() })
+
+		f.clock.Advance(3 * time.Second)
+		// Input should reset idle timeout.
+		_, err = stdin.Write([]byte("echo hello\n"))
+		require.NoError(t, err)
+		f.clock.Advance(3 * time.Second)
+
 		select {
 		case <-endCh:
-			return true
-
+			require.Fail(t, "Session timed out too early")
 		default:
-			return false
 		}
-	}
-	require.Eventually(t, sessionHasFinished, 6*time.Second, 100*time.Millisecond,
-		"Timed out waiting for session to finish")
 
-	// Expect that the idle timeout has been delivered via stderr
-	text, err := waitForBytes(stdErrCh)
-	require.NoError(t, err)
-	require.Equal(t, timeoutMessage, string(text))
+		waitForTimeout(t, f, se)
+	})
 }
 
 func TestLockInForce(t *testing.T) {
@@ -468,6 +507,7 @@ func TestLockInForce(t *testing.T) {
 
 	endCh := make(chan error)
 	go func() { endCh <- f.ssh.clt.Wait() }()
+	t.Cleanup(func() { f.ssh.clt.Close() })
 
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{Login: f.user},

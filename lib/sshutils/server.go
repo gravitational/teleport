@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -96,6 +97,9 @@ type Server struct {
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
+
+	// clock is used to control time.
+	clock clockwork.Clock
 }
 
 const (
@@ -153,6 +157,14 @@ func SetInsecureSkipHostValidation() ServerOption {
 func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	return func(s *Server) error {
 		s.tracerProvider = provider
+		return nil
+	}
+}
+
+// SetClock sets the server's clock.
+func SetClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
 		return nil
 	}
 }
@@ -488,7 +500,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// closeContext field is used to trigger starvation on cancellation by halting
 	// the acceptance of new connections; it is not intended to halt in-progress
 	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
-	ctx, ccx := NewConnectionContext(ctx, wconn, sconn)
+	ctx, ccx := NewConnectionContext(ctx, wconn, sconn, SetConnectionContextClock(s.clock))
 	defer ccx.Close()
 
 	if s.newConnHandler != nil {
