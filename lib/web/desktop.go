@@ -75,6 +75,12 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
+const (
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
+	maxRDPScreenWidth  = 8192
+	maxRDPScreenHeight = 8192
+)
+
 func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -83,7 +89,6 @@ func (h *Handler) createDesktopConnection(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
-
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
@@ -96,6 +101,12 @@ func (h *Handler) createDesktopConnection(
 	height, err := strconv.Atoi(q.Get("height"))
 	if err != nil {
 		return trace.BadParameter("height missing or invalid")
+	}
+
+	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
+		return trace.BadParameter("screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
+		)
 	}
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
