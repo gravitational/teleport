@@ -367,7 +367,7 @@ func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session
 		return nil, trace.ConnectionProblem(err, "failed to connect to the target database")
 	default:
 		// Return value and the error. If the error is not nil we will close the connection.
-		return value, err
+		return value, common.ConvertConnectError(err, sessionCtx)
 	}
 }
 
