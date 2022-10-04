@@ -15,15 +15,17 @@
 package clusters
 
 import (
+	"io"
+	"os"
+	"time"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+
 	"github.com/gravitational/trace"
-	"io"
-	"os"
-	"time"
 )
 
 func (c *Cluster) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
@@ -69,7 +71,6 @@ func (c *Cluster) TransferFile(request *api.FileTransferRequest, server api.Term
 			break
 		}
 	}
-
 	if foundServer == nil {
 		return trace.BadParameter("Requested server does not exist")
 	}
