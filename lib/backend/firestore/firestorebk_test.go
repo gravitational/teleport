@@ -271,10 +271,12 @@ func TestDeleteDocuments(t *testing.T) {
 			lis, err := net.Listen("tcp", "localhost:0")
 			require.NoError(t, err)
 
-			errCh := make(chan error)
+			errCh := make(chan error, 1)
 			go func() { errCh <- srv.Serve(lis) }()
-			t.Cleanup(func() { require.NoError(t, <-errCh) })
-			t.Cleanup(srv.Stop)
+			t.Cleanup(func() {
+				srv.Stop()
+				require.NoError(t, <-errCh)
+			})
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
