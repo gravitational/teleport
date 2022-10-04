@@ -31,6 +31,8 @@ var (
 	}
 )
 
+const deleteBatchSize = 1000
+
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	connString, _ := params["conn_string"].(string)
 
@@ -403,16 +405,32 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 
 // DeleteRange implements backend.Backend
 func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx,
-			"DELETE FROM kv WHERE key BETWEEN $1 AND $2",
-			startKey, endKey)
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
+	// logical decoding (before Postgres 13?) can become esponentially slow the
+	// bigger the transaction; thankfully, we can just limit our transactions to
+	// a small-ish number of affected rows (1000 seems to work ok) as we don't
+	// need atomicity here or in backgroundExpiry, which are the only two places
+	// in which we do transactions that affect more than one row
+	for i := 0; i < backend.DefaultRangeLimit/deleteBatchSize; i++ {
+		var r int64
+		if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
+			tag, err := tx.Exec(ctx,
+				"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE key BETWEEN $1 AND $2 LIMIT $3))",
+				startKey, endKey, deleteBatchSize)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			r = tag.RowsAffected()
+			return nil
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if r < deleteBatchSize {
+			return nil
+		}
 	}
 
-	return nil
+	return trace.LimitExceeded("too many iterations")
 }
 
 // KeepAlive implements backend.Backend
