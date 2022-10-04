@@ -74,6 +74,8 @@ type LocalProxyConfig struct {
 	RootCAs *x509.CertPool
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
+	// Middleware provides callback functions to the local proxy.
+	Middleware LocalProxyMiddleware
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -117,6 +119,12 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
+	if l.cfg.Middleware != nil {
+		err := l.cfg.Middleware.OnStart(ctx, l)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -132,7 +140,14 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			log.WithError(err).Errorf("Failed to accept client connection.")
 			return trace.Wrap(err)
 		}
+
 		go func() {
+			if l.cfg.Middleware != nil {
+				if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
+					log.WithError(err).Errorf("Failed to handle connection.")
+					return
+				}
+			}
 			if err := l.handleDownstreamConnection(ctx, conn); err != nil {
 				if utils.IsOKNetworkError(err) {
 					return
