@@ -769,10 +769,6 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
 
 	// When accessing AWS management console, check permissions to assume
 	// requested IAM role as well.
@@ -783,6 +779,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 		})
 	}
 
+	mfaParams := authContext.MFAParams(ap.GetRequireMFAType())
 	err = authContext.Checker.CheckAccess(
 		app,
 		mfaParams,

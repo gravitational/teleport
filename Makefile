@@ -35,33 +35,6 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
-CGOFLAG_TSH ?= CGO_ENABLED=1
-# Windows requires extra parameters to cross-compile with CGO.
-ifeq ("$(OS)","windows")
-ARCH ?= amd64
-ifneq ("$(ARCH)","amd64")
-$(error "Building for windows requires ARCH=amd64")
-endif
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
-CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-CGOFLAG_TSH = $(CGOFLAG)
-endif
-
-ifeq ("$(OS)","linux")
-# Link static version of libgcc to reduce system dependencies.
-CGOFLAG ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
-CGOFLAG_TSH ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
-# ARM builds need to specify the correct C compiler
-ifeq ("$(ARCH)","arm")
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
-CGOFLAG_TSH = $(CGOFLAG)
-endif
-# ARM64 builds need to specify the correct C compiler
-ifeq ("$(ARCH)","arm64")
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
-CGOFLAG_TSH = $(CGOFLAG)
-endif
-endif
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -69,29 +42,29 @@ FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # FIPS support must be requested at build time.
-FIPS_MESSAGE := "without FIPS support"
+FIPS_MESSAGE := without-FIPS-support
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
-FIPS_MESSAGE := "with FIPS support"
+FIPS_MESSAGE := "with-FIPS-support"
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
-PAM_MESSAGE := "without PAM support"
+PAM_MESSAGE := without-PAM-support
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with PAM support"
+PAM_MESSAGE := "with-PAM-support"
 else
 # PAM headers for Darwin live under /usr/local/include/security instead, as SIP
 # prevents us from modifying/creating /usr/include/security on newer versions of MacOS
 ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with PAM support"
+PAM_MESSAGE := "with-PAM-support"
 endif
 endif
 
 # BPF support will only be built into Teleport if headers exist at build time.
-BPF_MESSAGE := "without BPF support"
+BPF_MESSAGE := without-BPF-support
 
 # We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
 # have compilation issues that require fixing.
@@ -101,7 +74,7 @@ ifeq ("$(ARCH)","amd64")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
-BPF_MESSAGE := "with BPF support"
+BPF_MESSAGE := "with-BPF-support"
 CLANG ?= $(shell which clang || which clang-10)
 CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
@@ -121,8 +94,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic -Wl,--as-needed"
-CGOFLAG_TSH = CGO_ENABLED=1
+STATIC_LIBS += -lbpf -lelf -lz
 endif
 endif
 endif
@@ -130,9 +102,9 @@ endif
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
-
+ 
 with_rdpclient := no
-RDPCLIENT_MESSAGE := "without Windows RDP client"
+RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
@@ -149,7 +121,7 @@ ifneq ($(CHECK_CARGO),)
 ifneq ("$(ARCH)","arm")
 # Do not build RDP client on ARM.
 with_rdpclient := yes
-RDPCLIENT_MESSAGE := "with Windows RDP client"
+RDPCLIENT_MESSAGE := "with-Windows-RDP-client"
 RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
@@ -164,22 +136,48 @@ endif
 # Build tsh against libfido2?
 # FIDO2=yes and FIDO2=static enable static libfido2 builds.
 # FIDO2=dynamic enables dynamic libfido2 builds.
-LIBFIDO2_MESSAGE := without libfido2
+LIBFIDO2_MESSAGE := without-libfido2
 ifneq (, $(filter $(FIDO2), yes static))
-LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_MESSAGE := with-libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
 else ifeq ("$(FIDO2)", "dynamic")
-LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_MESSAGE := with-libfido2
 LIBFIDO2_BUILD_TAG := libfido2
 endif
 
 # Enable Touch ID builds?
 # Only build if TOUCHID=yes to avoid issues when cross-compiling to 'darwin'
 # from other systems.
-TOUCHID_MESSAGE := without Touch ID
+TOUCHID_MESSAGE := without-Touch-ID
 ifeq ("$(TOUCHID)", "yes")
-TOUCHID_MESSAGE := with Touch ID
+TOUCHID_MESSAGE := with-Touch-ID
 TOUCHID_TAG := touchid
+endif
+
+# Enable libpcsclite for testing?
+# Eargerly enable if we detect the dynamic library, we want to test as much as possible.
+ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
+# This test tag should not be used for builds/releases, only tests.
+LIBPCSCLITE_TEST_TAG := libpcsclite
+endif
+
+# Build teleport/api against libpcsclite? This is used for PIV functionality.
+#
+# LIBPCSCLITE=yes and LIBPCSCLITE=static enable static libpcsclite builds. This is used
+# by the build process to link a static library of libpcsclite for piv-go to connect to.
+#
+# LIBPCSCLITE=dynamic enables dynamic libpcsclite builds. This can be used for local
+# builds and runs utilizing a dynamic libpcsclite library - `apt get install libpcsclite-dev`
+LIBPCSCLITE_MESSAGE := without-PIV-support
+ifneq (, $(filter $(LIBPCSCLITE), yes static dynamic))
+LIBPCSCLITE_MESSAGE := with-PIV-support
+LIBPCSCLITE_BUILD_TAG := libpcsclite
+ifneq ("$(LIBPCSCLITE)", "dynamic")
+# Link static pcsc libary. By default, piv-go will look for the dynamic library.
+# https://github.com/go-piv/piv-go/blob/master/piv/pcsc_unix.go#L23
+STATIC_LIBS += -lpcsclite
+STATIC_LIBS_TSH += -lpcsclite
+endif
 endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
@@ -191,10 +189,24 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE) and $(TOUCHID_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
+
+# Joins elements of the list in arg 2 with the given separator.
+#   1. Element separator.
+#   2. The list.
+EMPTY :=
+SPACE := $(EMPTY) $(EMPTY)
+join-with = $(subst $(SPACE),$1,$(strip $2))
+
+# Separate TAG messages into comma-separated WITH and WITHOUT lists for readability.
+
+COMMA := ,
+MESSAGES := $(PAM_MESSAGE) $(FIPS_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(LIBPCSCLITE_MESSAGE)
+WITH := $(subst -," ",$(call join-with,$(COMMA) ,$(subst with-,,$(filter with-%,$(MESSAGES)))))
+WITHOUT := $(subst -," ",$(call join-with,$(COMMA) ,$(subst without-,,$(filter without-%,$(MESSAGES)))))
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and with $(WITH) and without $(WITHOUT)."
 
 # On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
 TAR_FLAGS ?=
@@ -211,6 +223,35 @@ export
 TEST_LOG_DIR = ${abspath ./test-logs}
 
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+
+# Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+# Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
+else ifeq ("$(ARCH)","arm")
+# ARM builds need to specify the correct C compiler
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+# Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
+else ifeq ("$(ARCH)","arm64")
+# ARM64 builds need to specify the correct C compiler
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
+
+# Windows requires extra parameters to cross-compile with CGO.
+ifeq ("$(OS)","windows")
+ARCH ?= amd64
+ifneq ("$(ARCH)","amd64")
+$(error "Building for windows requires ARCH=amd64")
+endif
+CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
+endif
+
+CGOFLAG_TSH ?= $(CGOFLAG)
 
 #
 # 'make all' builds all 3 executables and places them in the current directory.
@@ -231,17 +272,17 @@ all: version
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBPCSCLITE_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(LIBPCSCLITE_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(LIBPCSCLITE_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
@@ -511,7 +552,7 @@ test-go: FLAGS ?= -race -shuffle on
 test-go: PACKAGES = $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(LIBPCSCLITE_TEST_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
@@ -529,7 +570,7 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 endif
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(LIBPCSCLITE_TEST_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
@@ -661,7 +702,7 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)' $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(LIBPCSCLITE_TEST_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
