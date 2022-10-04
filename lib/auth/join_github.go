@@ -1,9 +1,12 @@
 /*
 Copyright 2022 Gravitational, Inc.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
+
     http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -57,7 +60,7 @@ func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDToke
 	// If a single rule passes, accept the IDToken
 	for _, rule := range token.Spec.GitHub.Allow {
 		// Please consider keeping these field validators in the same order they
-		// are defined within the ProvisionTokenSpecV3Github proto spec.
+		// are defined within the ProvisionTokenSpecV2Github proto spec.
 		if rule.Sub != "" && claims.Sub != rule.Sub {
 			continue
 		}

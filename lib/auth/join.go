@@ -153,6 +153,7 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 			shouldDeleteToken = true
 			renewable = true
 		case types.JoinMethodIAM, types.JoinMethodGitHub:
+			shouldDeleteToken = false
 			renewable = false
 		default:
 			return nil, trace.BadParameter(

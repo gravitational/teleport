@@ -395,7 +395,7 @@ func (p ProvisionTokenV1) String() string {
 
 func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
-		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodGitHub)
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodGitHub)
 	}
 	for _, rule := range a.Allow {
 		repoSet := rule.Repository != ""
