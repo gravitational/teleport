@@ -22,10 +22,14 @@ import (
 	"context"
 	"net/http"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -172,8 +176,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	ws, err := authClient.CreateAppSession(r.Context(), types.CreateAppSessionRequest{
 		Username:    ctx.GetUser(),
 		PublicAddr:  result.App.GetPublicAddr(),
-		AppName:     result.App.GetName(),
-		AppURI:      result.App.GetURI(),
 		ClusterName: result.ClusterName,
 		AWSRoleARN:  req.AWSRole,
 	})
@@ -186,6 +188,51 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// racy session creation loop.
 	err = h.waitForAppSession(r.Context(), ws.GetName(), ctx.GetUser())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract the identity of the user.
+	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userMetadata := identity.GetUserMetadata()
+	userMetadata.User = ws.GetUser()
+	userMetadata.AWSRoleARN = req.AWSRole
+
+	// Now that the certificate has been issued, emit a "new session created"
+	// for all events associated with this certificate.
+	appSessionStartEvent := &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionStartEvent,
+			Code:        events.AppSessionStartCode,
+			ClusterName: identity.RouteToApp.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        h.cfg.HostUUID,
+			ServerNamespace: apidefaults.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: identity.RouteToApp.SessionID,
+			WithMFA:   identity.MFAVerified,
+		},
+		UserMetadata: userMetadata,
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: r.RemoteAddr,
+		},
+		PublicAddr: identity.RouteToApp.PublicAddr,
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        result.App.GetURI(),
+			AppPublicAddr: result.App.GetPublicAddr(),
+			AppName:       result.App.GetName(),
+		},
+	}
+	if err := h.cfg.Emitter.EmitAuditEvent(h.cfg.Context, appSessionStartEvent); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
