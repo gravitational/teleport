@@ -80,6 +80,10 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		rootTCPPublicAddr: "tcp-01.example.com",
 		rootTCPMessage:    uuid.New().String(),
 
+		rootTCPTwoWayAppName:    "tcp-twoway",
+		rootTCPTwoWayPublicAddr: "tcp-twoway.example.com",
+		rootTCPTwoWayMessage:    uuid.New().String(),
+
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
 		leafAppClusterName: "leaf.example.com",
@@ -146,6 +150,20 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	// Plain TCP application in root cluster (tcp://).
 	rootTCPServer := newTCPServer(t, func(c net.Conn) {
 		c.Write([]byte(p.rootTCPMessage))
+		c.Close()
+	})
+	t.Cleanup(func() { rootTCPServer.Close() })
+	// TCP application that reads after every write in the root cluster (tcp://).
+	rootTCPTwoWayServer := newTCPServer(t, func(c net.Conn) {
+		buf := make([]byte, 64)
+		for {
+			if _, err := c.Write([]byte(p.rootTCPTwoWayMessage)); err != nil {
+				break
+			}
+			if _, err := c.Read(buf); err != nil {
+				break
+			}
+		}
 		c.Close()
 	})
 	t.Cleanup(func() { rootTCPServer.Close() })
@@ -222,6 +240,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.rootWSAppURI = rootWSServer.URL
 	p.rootWSSAppURI = rootWSSServer.URL
 	p.rootTCPAppURI = fmt.Sprintf("tcp://%v", rootTCPServer.Addr().String())
+	p.rootTCPTwoWayAppURI = fmt.Sprintf("tcp://%v", rootTCPTwoWayServer.Addr().String())
 	p.leafAppURI = leafServer.URL
 	p.leafWSAppURI = leafWSServer.URL
 	p.leafWSSAppURI = leafWSSServer.URL

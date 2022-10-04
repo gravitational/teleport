@@ -92,6 +92,11 @@ type Pack struct {
 	rootTCPMessage    string
 	rootTCPAppURI     string
 
+	rootTCPTwoWayAppName    string
+	rootTCPTwoWayPublicAddr string
+	rootTCPTwoWayMessage    string
+	rootTCPTwoWayAppURI     string
+
 	jwtAppName        string
 	jwtAppPublicAddr  string
 	jwtAppClusterName string
@@ -274,6 +279,20 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) st
 	require.NoError(t, err)
 
 	return casResp.CookieValue
+}
+
+func (p *Pack) Lock(t *testing.T) {
+	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
+		Spec: types.LockSpecV2{
+			Target: types.LockTarget{
+				User: p.username,
+			},
+		},
+		Metadata: types.Metadata{
+			Name: "test-lock",
+		},
+	})
+	require.NoError(t, err)
 }
 
 // makeWebapiRequest makes a request to the root cluster Web API.
@@ -586,6 +605,11 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.rootTCPAppName,
 				URI:        p.rootTCPAppURI,
 				PublicAddr: p.rootTCPPublicAddr,
+			},
+			{
+				Name:       p.rootTCPTwoWayAppName,
+				URI:        p.rootTCPTwoWayAppURI,
+				PublicAddr: p.rootTCPTwoWayPublicAddr,
 			},
 			{
 				Name:       p.jwtAppName,

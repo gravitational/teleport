@@ -20,9 +20,11 @@ limitations under the License.
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -105,6 +108,12 @@ type Config struct {
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+
+	// LockWatcher is the lock watcher for app access targets.
+	LockWatcher *services.LockWatcher
+
+	// Emitter is an event emitter.
+	Emitter events.Emitter
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -591,9 +600,51 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) error {
+	// Make sure everything here is wrapped in the tracking read connection for monitoring.
+	ctx, cancel := context.WithCancel(s.closeContext)
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.c.Clock,
+		Context: ctx,
+		Cancel:  cancel,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
+	tlsConn, user, app, err := s.getConnectionInfo(ctx, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authCtx, _, err := s.authorizeContext(context.WithValue(ctx, auth.ContextUser, user))
+	if err != nil {
+		// If the app is not TCP, write an HTTP error response and return nil instead of the error.
+		// This will ensure that HTTP clients will see a "403 Forbidden" code and message and not a 500.
+		if !app.IsTCP() {
+			code := trace.ErrorToCode(err)
+			resp := http.Response{
+				StatusCode: code,
+				Body:       io.NopCloser(bytes.NewReader([]byte(http.StatusText(code)))),
+			}
+			if writeErr := resp.Write(tlsConn); writeErr != nil {
+				s.log.Warnf("error writing HTTP response: %v", writeErr)
+			}
+
+			// Since we're not passing this connection to the http server, we should close
+			// the connection explicitly here.
+			if closeErr := conn.Close(); closeErr != nil {
+				s.log.Warnf("error closing connection: %v", closeErr)
+			}
+
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+
+	err = s.monitorConn(ctx, tc, authCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -601,19 +652,60 @@ func (s *Server) handleConnection(conn net.Conn) error {
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
 	if app.IsTCP() {
-		return s.handleTCPApp(s.closeContext, tlsConn, user, app)
+		identity := authCtx.Identity.GetIdentity()
+		return s.handleTCPApp(ctx, tlsConn, &identity, app)
 	}
 
-	return s.handleHTTPApp(s.closeContext, tlsConn)
+	return s.handleHTTPApp(ctx, tlsConn)
 }
 
-// handleTCPApp handles connection for a TCP application.
-func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, user auth.IdentityGetter, app types.Application) error {
-	id, _, err := s.authorizeContext(context.WithValue(ctx, auth.ContextUser, user))
+// monitorConn takes a TrackingReadConn and starts a connection monitor. The tracking connection will be
+// auto-terminated if disconnect_expired_cert or idle timeout is configured, and unmodified client connection
+// otherwise.
+func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, authCtx *auth.Context) error {
+	authPref, err := s.c.AuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.tcpServer.handleConnection(s.closeContext, conn, id, app)
+	netConfig, err := s.c.AuthClient.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	identity := authCtx.Identity.GetIdentity()
+	checker := authCtx.Checker
+
+	certExpires := identity.Expires
+	var disconnectCertExpired time.Time
+	if !certExpires.IsZero() && checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		disconnectCertExpired = certExpires
+	}
+	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+
+	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
+	err = srv.StartMonitor(srv.MonitorConfig{
+		LockWatcher:           s.c.LockWatcher,
+		LockTargets:           authCtx.LockTargets(),
+		DisconnectExpiredCert: disconnectCertExpired,
+		ClientIdleTimeout:     idleTimeout,
+		Conn:                  tc,
+		Tracker:               tc,
+		Context:               ctx,
+		Clock:                 s.c.Clock,
+		ServerID:              s.c.HostID,
+		TeleportUser:          identity.Username,
+		Emitter:               s.c.Emitter,
+		Entry:                 s.log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// handleTCPApp handles connection for a TCP application.
+func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
+	err := s.tcpServer.handleConnection(s.closeContext, conn, identity, app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -651,11 +743,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	identity, app, err := s.authorizeContext(r.Context())
+	authCtx, app, err := s.authorizeContext(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	identity := authCtx.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
 		//  Requests from AWS applications are singed by AWS Signature Version
@@ -663,15 +756,15 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
 		if aws.IsSignedByAWSSigV4(r) {
-			return s.serveSession(w, r, identity, app, s.withAWSForwarder)
+			return s.serveSession(w, r, &identity, app, s.withAWSForwarder)
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
 		// is not signed by SigV4.
-		return s.serveAWSWebConsole(w, r, identity, app)
+		return s.serveAWSWebConsole(w, r, &identity, app)
 
 	default:
-		return s.serveSession(w, r, identity, app, s.withJWTTokenForwarder)
+		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
 	}
 
 }
@@ -743,7 +836,7 @@ func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Con
 
 // authorizeContext will check if the context carries identity information and
 // runs authorization checks on it.
-func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.Application, error) {
+func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType := ctx.Value(auth.ContextUser)
 	switch userType.(type) {
@@ -787,7 +880,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return &identity, app, nil
+	return authContext, app, nil
 }
 
 // getSession returns a request session used to proxy the request to the
