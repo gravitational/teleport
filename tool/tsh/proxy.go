@@ -488,6 +488,7 @@ type localProxyOpts struct {
 	keyFile                 string
 	rootCAs                 *x509.CertPool
 	alpnConnUpgradeRequired bool
+	middleware              alpnproxy.LocalProxyMiddleware
 }
 
 // protocol returns the first protocol or string if configuration doesn't contain any protocols.
@@ -527,6 +528,7 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		Certs:                   certs,
 		RootCAs:                 opts.rootCAs,
 		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
+		Middleware:              opts.middleware,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

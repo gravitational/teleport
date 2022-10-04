@@ -640,12 +640,13 @@ type localProxyConfig struct {
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
 func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
-	// If user requested no client auth, open an authenticated tunnel using
-	// client cert/key of the database.
 	certFile := arg.cliConf.LocalProxyCertFile
 	keyFile := arg.cliConf.LocalProxyKeyFile
-	if certFile == "" && arg.localProxyTunnel {
-		certFile = arg.profile.DatabaseCertPathForCluster(arg.cliConf.SiteName, arg.routeToDatabase.ServiceName)
+	// For SQL Server connections, local proxy must be configured with the
+	// client certificate that will be used to route connections.
+	// If opening an authenticated tunnel, the local proxy will fetch certs in-memory instead.
+	if !arg.localProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer {
+		certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
 		keyFile = arg.profile.KeyPath()
 	}
 
@@ -669,11 +670,12 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		opts.rootCAs = profileCAs
 	}
 
-	// For SQL Server connections, local proxy must be configured with the
-	// client certificate that will be used to route connections.
-	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer {
-		opts.certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
-		opts.keyFile = arg.profile.KeyPath()
+	if arg.localProxyTunnel {
+		certChecker, err := alpnproxy.NewDBCertChecker(arg.teleportClient, *arg.routeToDatabase, nil)
+		if err != nil {
+			return localProxyOpts{}, trace.Wrap(err)
+		}
+		opts.middleware = certChecker
 	}
 
 	// To set correct MySQL server version DB proxy needs additional protocol.
