@@ -1482,7 +1482,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
-			require.IsType(t, tdp.PNGFrame{}, msg)
+			require.IsType(t, tdp.PNG2Frame{}, msg)
 		})
 	}
 }
