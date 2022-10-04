@@ -338,7 +338,7 @@ var forwardedHeaderNames = []string{
 	"X-Forwarded-Host",
 	"X-Forwarded-Server",
 	"X-Forwarded-For",
-	"X-Forwarded-SSL",
+	"X-Forwarded-Ssl",
 	"X-Forwarded-Port",
 }
 
