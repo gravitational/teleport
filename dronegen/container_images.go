@@ -315,28 +315,32 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string, shouldAffectProduc
 }
 
 type semver struct {
-	Name       string // Human-readable name for the information contained in the semver, i.e. "major"
-	FilePath   string // The path under the working dir where the information can be read from
-	FieldCount int    // The number of significant version fields available in the semver i.e. "v10" -> 1
+	Name        string // Human-readable name for the information contained in the semver, i.e. "major"
+	FilePath    string // The path under the working dir where the information can be read from
+	FieldCount  int    // The number of significant version fields available in the semver i.e. "v10" -> 1
+	IsImmutable bool
 }
 
 func (rv *releaseVersion) getSemvers() []*semver {
 	varDirectory := "/go/var"
 	return []*semver{
 		{
-			Name:       "major",
-			FilePath:   path.Join(varDirectory, "major-version"),
-			FieldCount: 1,
+			Name:        "major",
+			FilePath:    path.Join(varDirectory, "major-version"),
+			FieldCount:  1,
+			IsImmutable: false,
 		},
 		{
-			Name:       "minor",
-			FilePath:   path.Join(varDirectory, "minor-version"),
-			FieldCount: 2,
+			Name:        "minor",
+			FilePath:    path.Join(varDirectory, "minor-version"),
+			FieldCount:  2,
+			IsImmutable: false,
 		},
 		{
-			Name:       "canonical",
-			FilePath:   path.Join(varDirectory, "canonical-version"),
-			FieldCount: 3,
+			Name:        "canonical",
+			FilePath:    path.Join(varDirectory, "canonical-version"),
+			FieldCount:  3,
+			IsImmutable: true,
 		},
 	}
 }
@@ -381,6 +385,7 @@ func (rv *releaseVersion) getTagsForVersion() []*ImageTag {
 		imageTags = append(imageTags, &ImageTag{
 			ShellBaseValue:   fmt.Sprintf("$(cat %s)", semver.FilePath),
 			DisplayBaseValue: semver.Name,
+			IsImmutable:      semver.IsImmutable,
 		})
 	}
 
@@ -787,6 +792,7 @@ type ImageTag struct {
 	ShellBaseValue   string // Should evaluate in a shell context to the tag's value
 	DisplayBaseValue string // Should be set to a human-readable version of ShellTag
 	Arch             string
+	IsImmutable      bool
 }
 
 func NewLatestTag() *ImageTag {
@@ -836,29 +842,37 @@ func (cr *ContainerRepo) BuildImageTags(version *releaseVersion) []*ImageTag {
 func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []*ImageTag) (step, map[*ImageTag]*Image) {
 	imageRepo := cr.BuildImageRepo()
 
-	archImageMaps := make(map[*ImageTag]*Image, len(imageTags))
+	archImageMap := make(map[*ImageTag]*Image, len(imageTags))
 	for _, imageTag := range imageTags {
 		archTag := *imageTag
 		archTag.Arch = buildStepDetails.BuiltImage.Tag.Arch
 		archImage := buildStepDetails.Product.ImageBuilder(imageRepo, &archTag)
-		archImageMaps[imageTag] = archImage
+		archImageMap[imageTag] = archImage
 	}
 
 	// This is tracked separately as maps in golang have a non-deterministic order when iterated over.
 	// As a result, .drone.yml will be updated every time `make dronegen` is ran regardless of if there
 	// is a change to the map or not
 	// The order/comparator does not matter here as long as it is deterministic between dronegen runs
-	archImages := maps.Values(archImageMaps)
-	sort.SliceStable(archImages, func(i, j int) bool { return archImages[i].GetDisplayName() < archImages[j].GetDisplayName() })
+	archImageKeys := maps.Keys(archImageMap)
+	sort.SliceStable(archImageKeys, func(i, j int) bool { return archImageKeys[i].GetDisplayValue() < archImageKeys[j].GetDisplayValue() })
 
 	commands := []string{
 		fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImage.GetShellName()), // This will pull from the local registry
 	}
-	for _, archImage := range archImages {
-		commands = append(commands, fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImage.GetShellName(), archImage.GetShellName()))
-	}
-	for _, archImage := range archImages {
-		commands = append(commands, fmt.Sprintf("docker push %q", archImage.GetShellName()))
+	for _, archImageKey := range archImageKeys {
+		archImage := archImageMap[archImageKey]
+		tagCommand := fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImage.GetShellName(), archImage.GetShellName())
+		pushCommand := fmt.Sprintf("docker push %q", archImage.GetShellName())
+
+		if archImageKey.IsImmutable {
+			conditionalCommand := fmt.Sprintf("docker manifest inspect %q > /dev/null 2>&1", archImage.GetShellName())
+			fullCommand := fmt.Sprintf("%s && echo 'Found existing image, skipping' || (%s && %s)", conditionalCommand, tagCommand, pushCommand)
+			commands = append(commands, fullCommand)
+			continue
+		}
+
+		commands = append(commands, tagCommand, pushCommand)
 	}
 
 	dependencySteps := []string{}
@@ -875,7 +889,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		DependsOn:   dependencySteps,
 	}
 
-	return step, archImageMaps
+	return step, archImageMap
 }
 
 func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushStepNames []string, pushedImages []*Image) step {
