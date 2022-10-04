@@ -34,7 +34,7 @@ type AccessRequest struct {
 	types.AccessRequest
 }
 
-// Returns all access requests available to the user
+// Returns all access requests available to the user.
 func (c *Cluster) GetAccessRequests(ctx context.Context, req types.AccessRequestFilter) ([]AccessRequest, error) {
 	var (
 		requests []types.AccessRequest
@@ -59,7 +59,7 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, req types.AccessRequest
 	return results, nil
 }
 
-// Creates an access request
+// Creates an access request.
 func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*AccessRequest, error) {
 	var (
 		err     error

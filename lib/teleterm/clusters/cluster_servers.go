@@ -72,7 +72,7 @@ func (c *Cluster) GetAllServers(ctx context.Context) ([]Server, error) {
 	return results, nil
 }
 
-// GetServers returns a pagniated list of servers
+// GetServers returns a paginated list of servers.
 func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*GetServersResponse, error) {
 	var (
 		resp        *types.ListResourcesResponse

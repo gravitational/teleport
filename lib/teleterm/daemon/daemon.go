@@ -339,7 +339,7 @@ func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clust
 	return servers, nil
 }
 
-// GetServers accepts parameterized input to enable searching, sorting, and pagination
+// GetServers accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
 	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
