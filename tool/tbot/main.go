@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/gravitational/teleport"
@@ -57,7 +58,10 @@ func Run(args []string, stdout io.Writer) error {
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.HelpFlag.Short('h')
 
-	joinMethodList := fmt.Sprintf("%s", config.SupportedJoinMethods)
+	joinMethodList := fmt.Sprintf(
+		"(%s)",
+		strings.Join(config.SupportedJoinMethods, ", "),
+	)
 
 	versionCmd := app.Command("version", "Print the version of your tbot binary")
 

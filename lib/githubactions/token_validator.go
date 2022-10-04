@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package githubactions
 
 import (
@@ -39,11 +40,13 @@ type IDTokenValidatorConfig struct {
 type IDTokenValidator struct {
 	IDTokenValidatorConfig
 
-	mu    sync.Mutex
-	_oidc *oidc.Provider
+	mu sync.Mutex
+	// oidc is protected by mu and should only be accessed via the getProvider
+	// method.
+	oidc *oidc.Provider
 }
 
-func NewIDTokenValidator(cfg IDTokenValidatorConfig) (*IDTokenValidator, error) {
+func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 	if cfg.IssuerURL == "" {
 		cfg.IssuerURL = IssuerURL
 	}
@@ -53,15 +56,15 @@ func NewIDTokenValidator(cfg IDTokenValidatorConfig) (*IDTokenValidator, error) 
 
 	return &IDTokenValidator{
 		IDTokenValidatorConfig: cfg,
-	}, nil
+	}
 }
 
 // getProvider allows the lazy initialisation of the oidc provider.
 func (id *IDTokenValidator) getProvider() (*oidc.Provider, error) {
 	id.mu.Lock()
 	defer id.mu.Unlock()
-	if id._oidc != nil {
-		return id._oidc, nil
+	if id.oidc != nil {
+		return id.oidc, nil
 	}
 	// Intentionally use context.Background() here since this actually controls
 	// cache functionality.
@@ -73,7 +76,7 @@ func (id *IDTokenValidator) getProvider() (*oidc.Provider, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	id._oidc = p
+	id.oidc = p
 	return p, nil
 }
 
