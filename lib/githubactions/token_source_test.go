@@ -19,10 +19,11 @@ package githubactions
 import (
 	"context"
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestIDTokenSource_GetIDToken(t *testing.T) {

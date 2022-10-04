@@ -403,7 +403,7 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 		subSet := rule.Sub != ""
 		if !(subSet || ownerSet || repoSet) {
 			return trace.BadParameter(
-				`allow rule for %q must abide by secure guidelines. check documentation.`,
+				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
 				JoinMethodGitHub,
 			)
 		}
