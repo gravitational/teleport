@@ -19,25 +19,19 @@ package githubactions
 import (
 	"context"
 	"encoding/json"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestIDTokenSource_GetIDToken(t *testing.T) {
-	// TODO: Make this table driven & add more cases
+	t.Parallel()
 	requestToken := "foo-bar-biz"
 	idToken := "iam.a.jwt"
+	reqChan := make(chan *http.Request, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// mimics the internal API accessible by Github Actions
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/example/github/api", r.URL.Path)
-		require.Equal(t, "bravo", r.URL.Query().Get("alpha"))
-		require.Equal(t, "teleport.cluster.local", r.URL.Query().Get("audience"))
-
-		require.Equal(t, "Bearer "+requestToken, r.Header.Get("Authorization"))
+		reqChan <- r
 
 		response := tokenResponse{
 			Value: idToken,
@@ -61,4 +55,16 @@ func TestIDTokenSource_GetIDToken(t *testing.T) {
 	got, err := source.GetIDToken(ctx)
 	require.NoError(t, err)
 	require.Equal(t, idToken, got)
+
+	select {
+	// ensure the request includes expected headers/path
+	case r := <-reqChan:
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/example/github/api", r.URL.Path)
+		require.Equal(t, "bravo", r.URL.Query().Get("alpha"))
+		require.Equal(t, "teleport.cluster.local", r.URL.Query().Get("audience"))
+		require.Equal(t, "Bearer "+requestToken, r.Header.Get("Authorization"))
+	default:
+		require.FailNow(t, "missing request value from channel")
+	}
 }

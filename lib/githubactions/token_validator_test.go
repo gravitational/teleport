@@ -130,6 +130,7 @@ func makeToken(t *testing.T, jwtSigner jose.Signer, issuer, audience, actor, sub
 }
 
 func TestIDTokenValidator_Validate(t *testing.T) {
+	t.Parallel()
 	providerServer, jwtSigner := fakeGithubIDP(t)
 	t.Cleanup(providerServer.Close)
 
