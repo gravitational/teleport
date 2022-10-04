@@ -90,7 +90,7 @@ func (s *Suite) TearDown(t *testing.T) {
 
 	s.testhttp.Close()
 
-	err = s.tlsServer.Auth().DeleteAllAppServers(s.closeContext, defaults.Namespace)
+	err = s.tlsServer.Auth().DeleteAllApplicationServers(s.closeContext, defaults.Namespace)
 	require.NoError(t, err)
 
 	s.closeFunc()
