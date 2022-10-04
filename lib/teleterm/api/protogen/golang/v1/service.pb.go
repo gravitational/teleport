@@ -3164,7 +3164,7 @@ type TerminalServiceClient interface {
 	LoginPasswordless(ctx context.Context, opts ...grpc.CallOption) (TerminalService_LoginPasswordlessClient, error)
 	// ClusterLogin logs out a user from cluster
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// TransferFile downloads/uploads a file
+	// TransferFile sends a request to download/upload a file
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (TerminalService_TransferFileClient, error)
 }
 
@@ -3473,7 +3473,7 @@ type TerminalServiceServer interface {
 	LoginPasswordless(TerminalService_LoginPasswordlessServer) error
 	// ClusterLogin logs out a user from cluster
 	Logout(context.Context, *LogoutRequest) (*EmptyResponse, error)
-	// TransferFile downloads/uploads a file
+	// TransferFile sends a request to download/upload a file
 	TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error
 }
 
