@@ -24,7 +24,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/schollz/progressbar/v3"
 	"io"
 	"net"
 	"net/url"
@@ -77,6 +76,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/schollz/progressbar/v3"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
