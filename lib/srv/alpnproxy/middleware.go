@@ -19,8 +19,6 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"errors"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -90,7 +88,7 @@ func (c *DBCertChecker) needCertRenewal(lp *LocalProxy) (bool, error) {
 		return true, nil
 	}
 	err := utils.VerifyTLSCertificateExpiry(certs[0], c.clock)
-	if err != nil && errors.As(err, &x509.CertificateInvalidError{}) {
+	if err != nil {
 		log.WithError(err).Debug("need cert renewal")
 		return true, nil
 	}
