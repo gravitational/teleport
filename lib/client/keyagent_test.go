@@ -363,10 +363,10 @@ func TestHostCertVerification(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.loadAllCAs {
-				lka.site = ""
+				lka.siteName = ""
 				lka.loadAllCAs = true
 			} else {
-				lka.site = "example.com"
+				lka.siteName = "example.com"
 				lka.loadAllCAs = false
 			}
 			err = lka.CheckHostSignature(tt.inAddr, nil, tt.hostPublicKey)

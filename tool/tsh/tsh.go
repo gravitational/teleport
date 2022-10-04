@@ -1488,7 +1488,7 @@ func onLogin(cf *CLIConf) error {
 			Format:               cf.IdentityFormat,
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
-			KubeStoreAllHostCAs:  tc.LoadAllHostCAs,
+			KubeStoreAllCAs:      tc.LoadAllCAs,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1512,7 +1512,7 @@ func onLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.LoadAllHostCAs = pingResp.Auth.LoadAllHostCAs
+	tc.LoadAllCAs = pingResp.Auth.LoadAllHostCAs
 
 	// Regular login without -i flag.
 	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
@@ -3140,10 +3140,10 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tc.LoadAllHostCAs = pr.Auth.LoadAllHostCAs
+		tc.LoadAllCAs = pr.Auth.LoadAllHostCAs
 
-		if tc.LoadAllHostCAs {
-			sites, err := tc.LocalAgent().GetClusterNames()
+		if tc.LoadAllCAs {
+			sites, err := key.GetClusterNames()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3160,8 +3160,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			}
 		}
 	}
-
-	tc.LocalAgent().UpdateLoadAllCAs(tc.LoadAllHostCAs)
 
 	tc.Config.Stderr = cf.Stderr()
 	tc.Config.Stdout = cf.Stdout()

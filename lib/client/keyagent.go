@@ -72,8 +72,8 @@ type LocalKeyAgent struct {
 	// insecure allows to accept public host keys.
 	insecure bool
 
-	// site specifies the site to execute operation.
-	site string
+	// siteName specifies the site to execute operation.
+	siteName string
 
 	// loadAllCAs allows the agent to load all host CAs when checking a host
 	// signature.
@@ -164,7 +164,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		username:   conf.Username,
 		proxyHost:  conf.ProxyHost,
 		insecure:   conf.Insecure,
-		site:       conf.Site,
+		siteName:   conf.Site,
 		loadAllCAs: conf.LoadAllCAs,
 	}
 
@@ -194,7 +194,7 @@ func (a *LocalKeyAgent) UpdateUsername(username string) {
 
 // UpdateCluster changes the cluster that the local agent operates on.
 func (a *LocalKeyAgent) UpdateCluster(cluster string) {
-	a.site = cluster
+	a.siteName = cluster
 }
 
 // UpdateLoadAllCAs changes whether or not the local agent should load all
@@ -395,10 +395,10 @@ func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, hostKey
 	}
 
 	clusters := []string{rootCluster}
-	if a.site != "" && a.site != rootCluster {
+	if rootCluster != a.siteName {
 		// In case of establishing connection to leaf cluster the client validate ssh cert against root
 		// cluster proxy cert and leaf cluster cert.
-		clusters = append(clusters, a.site)
+		clusters = append(clusters, a.siteName)
 	} else if a.loadAllCAs {
 		clusters, err = a.GetClusterNames()
 		if err != nil {

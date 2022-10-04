@@ -400,9 +400,9 @@ type Config struct {
 	// PrivateKeyPolicy is a key policy that this client will try to follow during login.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
-	// LoadAllHostCAs indicates that tsh should load the host CAs of all clusters
+	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
-	LoadAllHostCAs bool
+	LoadAllCAs bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1134,7 +1134,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
-	c.LoadAllHostCAs = cp.LoadAllHostCAs
+	c.LoadAllCAs = cp.LoadAllHostCAs
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1170,7 +1170,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
-	cp.LoadAllHostCAs = c.LoadAllHostCAs
+	cp.LoadAllHostCAs = c.LoadAllCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -1531,6 +1531,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tc.localAgent.UpdateLoadAllCAs(tc.LoadAllCAs)
 
 	if tc.HostKeyCallback == nil {
 		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
