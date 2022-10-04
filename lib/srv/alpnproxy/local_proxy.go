@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
@@ -37,6 +38,7 @@ import (
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
 // updated connection is forwarded to remote ALPN SNI teleport proxy service.
 type LocalProxy struct {
+	*sync.Mutex
 	cfg     LocalProxyConfig
 	context context.Context
 	cancel  context.CancelFunc
@@ -109,6 +111,7 @@ func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 		cfg:     cfg,
 		context: ctx,
 		cancel:  cancel,
+		Mutex:   &sync.Mutex{},
 	}, nil
 }
 
@@ -156,7 +159,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
-			Certificates:       l.cfg.Certs,
+			Certificates:       l.GetCerts(),
 			RootCAs:            l.cfg.RootCAs,
 		},
 	})
@@ -191,7 +194,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
-			Certificates:       l.cfg.Certs,
+			Certificates:       l.GetCerts(),
 		},
 	}
 	proxy := &httputil.ReverseProxy{
@@ -220,4 +223,16 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (l *LocalProxy) GetCerts() []tls.Certificate {
+	l.Lock()
+	defer l.Unlock()
+	return l.cfg.Certs
+}
+
+func (l *LocalProxy) SetCerts(certs []tls.Certificate) {
+	l.Lock()
+	defer l.Unlock()
+	l.cfg.Certs = certs
 }
