@@ -16,10 +16,10 @@ package daemon
 
 import (
 	"context"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
