@@ -46,18 +46,6 @@ The warnings are to be displayed 90 days prior to the license expiring.
 The license warning portion of the outputs should be coloured red and yellow respectively for the expired and unexpired warnings.
 This can be determined by the severity of the cluster alert, 5-9 for yellow and 10+ for red.
 
-```
-$ build/tsh status
-Profile URL:        https://localhost:9876
-Logged in as:       someUser
-Cluster:            someCluster
-Roles:              access, editor
-Logins:             someUser
-Valid until:        2022-08-12 21:57:19 +0100 IST [valid for 4h44m0s]
-Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-
-Your Teleport Enterprise Edition license will expire in 10 days on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
-```
 
 ```
 $ build/tsh login --proxy=localhost:9876 --user someUser
