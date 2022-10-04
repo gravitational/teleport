@@ -271,7 +271,7 @@ This must be a subdomain of the domain you chose for [`route53_zone`](#route53\_
 
 ### add\_wildcard\_route53\_record
   
-Setting `export TF_VAR_add_wildcard_route53_record"`
+Setting `export TF_VAR_add_wildcard_route53_record="true"`
 
 Used to enable Application Access for subdomains of the Teleport Proxy Service's public web address. A wildcard entry for the public-facing 
 domain will be set in Route 53, e.g., `*.teleport.example.com`, to point to the Teleport load balancer. For ACM a wildcard 
