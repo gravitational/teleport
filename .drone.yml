@@ -576,7 +576,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
     print-version)
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
@@ -3823,7 +3823,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   environment:
     ARCH: amd64
     BUILDBOX_PASSWORD:
@@ -6104,16 +6104,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -6241,16 +6246,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -7202,6 +7212,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 707c836fc9c2d0b3ee8074d258b3723651a6e53dcada5b5fcf0417b10f455b45
+hmac: 65e2f6af8da82eac69c036051504edb6a9e175e2175bfe4ac40631c6dbf58a79
 
 ...
