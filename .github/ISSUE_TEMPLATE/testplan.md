@@ -235,6 +235,13 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   * [ ] Verify searching for `name` or `labels` in the search bar works
   * [ ] Verify you can sort by `name` colum
+* [ ] Test Kubernetes auto-discovery:
+  * [ ] Verify that Azure AKS clusters are discovered and enrolled for different Azure Auth configs:
+    * [ ] Local Accounts only
+    * [ ] Azure AD
+    * [ ] Azure RBAC
+  * [ ] Verify that AWS EKS clusters are discovered and enrolled
+* [ ] Test Kubernetes exec via websockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
 
 ### Teleport with FIPS mode
 
