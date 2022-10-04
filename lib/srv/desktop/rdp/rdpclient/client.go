@@ -137,6 +137,8 @@ type Client struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 
+	// since most RDP bitmaps are full 64x64 pixel bitmaps,
+	// we reuse the same image to avoid allocating on each bitmap
 	img *image.RGBA
 
 	clientActivityMu sync.RWMutex
