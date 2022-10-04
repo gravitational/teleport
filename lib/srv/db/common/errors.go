@@ -113,6 +113,10 @@ type pgError interface {
 // ConvertConnectError converts common connection errors to trace errors with
 // extra information/recommendations if necessary.
 func ConvertConnectError(err error, sessionCtx *Session) error {
+	if err == nil {
+		return nil
+	}
+
 	errString := err.Error()
 	switch {
 	case strings.Contains(errString, "x509: certificate signed by unknown authority"):
