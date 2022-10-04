@@ -52,7 +52,7 @@ func (hr *headerRewriter) Rewrite(req *http.Request) {
 		if req.Header.Get(forward.XForwardedProto) == "https" {
 			port = "443"
 		}
-		
+
 		req.Header.Set(common.XForwardedPort, port)
 	}
 }
