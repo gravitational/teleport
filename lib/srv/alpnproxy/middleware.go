@@ -82,9 +82,7 @@ func (c *DBCertChecker) OnStart(ctx context.Context, lp *LocalProxy) error {
 	return trace.Wrap(c.checkCerts(ctx, lp))
 }
 
-// needCertRenewal checks if the local proxy TLS certs are:
-// 1. configured
-// 2. not expired.
+// needCertRenewal checks if the local proxy TLS certs are configured and not expired.
 func (c *DBCertChecker) needCertRenewal(lp *LocalProxy) (bool, error) {
 	certs := lp.GetCerts()
 	if len(certs) == 0 {
