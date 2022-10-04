@@ -667,61 +667,76 @@ impl<S: Read + Write> RdpClient<S> {
         }
     }
 
+    fn write_rdpdr(&mut self, messages: Messages) -> RdpResult<()> {
+        let chan = &rdpdr::CHANNEL_NAME.to_string();
+        for message in messages {
+            self.mcs.write(chan, message)?;
+        }
+        Ok(())
+    }
+
     pub fn write_client_device_list_announce(
         &mut self,
         req: rdpdr::ClientDeviceListAnnounce,
     ) -> RdpResult<()> {
-        self.rdpdr
-            .write_client_device_list_announce(req, &mut self.mcs)
+        let messages = self.rdpdr.write_client_device_list_announce(req)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_info_response(
         &mut self,
         res: SharedDirectoryInfoResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_info_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_info_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_create_response(
         &mut self,
         res: SharedDirectoryCreateResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_create_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_create_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_delete_response(
         &mut self,
         res: SharedDirectoryDeleteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_delete_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_delete_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_list_response(
         &mut self,
         res: SharedDirectoryListResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_list_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_list_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_read_response(
         &mut self,
         res: SharedDirectoryReadResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_read_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_read_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_write_response(
         &mut self,
         res: SharedDirectoryWriteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_write_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_write_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_move_response(
         &mut self,
         res: SharedDirectoryMoveResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_move_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_move_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
