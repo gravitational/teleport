@@ -159,10 +159,8 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
+
+	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	// Only the username is checked upon initial connection. MongoDB sends
 	// database name with each protocol message (for query, update, etc.)
 	// so it is checked when we receive a message from client.

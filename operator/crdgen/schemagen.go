@@ -139,7 +139,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	generator.memo[name] = schema
 
 	for _, field := range message.Fields {
-		if ignoredFields[message.Name()].Contains(field.Name()) {
+		if _, ok := ignoredFields[message.Name()][field.Name()]; ok {
 			continue
 		}
 
@@ -199,7 +199,7 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.IsTime():
 		prop.Type = "string"
 		prop.Format = "date-time"
-	case field.IsInt32() || field.IsUint32():
+	case field.IsInt32() || field.IsUint32() || field.desc.IsEnum():
 		prop.Type = "integer"
 		prop.Format = "int32"
 	case field.IsInt64() || field.IsUint64():

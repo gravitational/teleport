@@ -468,6 +468,11 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// Teleport
 	h.GET("/webapi/scripts/installer/:name", httplib.MakeHandler(h.installer))
 
+	// desktop access configuration scripts
+	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", httplib.MakeHandler(h.desktopAccessScriptInstallADDSHandle))
+	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", httplib.MakeHandler(h.desktopAccessScriptInstallADCSHandle))
+	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", httplib.MakeHandler(h.desktopAccessScriptConfigureHandle))
+
 	// DELETE IN: 5.1.0
 	//
 	// Migrated this endpoint to /webapi/sessions/web below.
@@ -609,6 +614,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
+	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
@@ -750,6 +756,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 		AllowPasswordless: cap.GetAllowPasswordless(),
 		Local:             &webclient.LocalSettings{},
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -788,6 +795,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -801,6 +809,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -814,6 +823,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -1247,13 +1257,14 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		ClientRedirectURL: req.RedirectURL,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
+		ConnectorID:          req.ConnectorID,
+		PublicKey:            req.PublicKey,
+		CertTTL:              req.CertTTL,
+		ClientRedirectURL:    req.RedirectURL,
+		Compatibility:        req.Compatibility,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		AttestationStatement: req.AttestationStatement.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
@@ -1350,15 +1361,16 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		ClientRedirectURL: req.RedirectURL,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		CheckUser:         true,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
-		ProxyAddress:      r.Host,
+		ConnectorID:          req.ConnectorID,
+		ClientRedirectURL:    req.RedirectURL,
+		PublicKey:            req.PublicKey,
+		CertTTL:              req.CertTTL,
+		CheckUser:            true,
+		Compatibility:        req.Compatibility,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		ProxyAddress:         r.Host,
+		AttestationStatement: req.AttestationStatement.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
@@ -2703,7 +2715,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.CreateSSHCertReq
+	var req client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2720,13 +2732,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), *req, clientMeta)
+		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), req, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
-		if req.HOTPToken != "" {
-			req.OTPToken = req.HOTPToken
-		}
-		cert, err = h.auth.GetCertificateWithOTP(r.Context(), *req, clientMeta)
+		cert, err = h.auth.GetCertificateWithOTP(r.Context(), req, clientMeta)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
@@ -2817,19 +2825,77 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			clusterName = res.GetClusterName()
 		}
 
-		proxy, err := h.ProxyWithRoles(ctx)
+		site, err := h.getSite(ctx, clusterName)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to get proxy with roles.")
-			return nil, trace.Wrap(err)
-		}
-
-		site, err := proxy.GetSite(clusterName)
-		if err != nil {
-			h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
 			return nil, trace.Wrap(err)
 		}
 
 		return fn(w, r, p, ctx, site)
+	})
+}
+
+func (h *Handler) getSite(ctx *SessionContext, clusterName string) (reversetunnel.RemoteSite, error) {
+	proxy, err := h.ProxyWithRoles(ctx)
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to get proxy with roles.")
+		return nil, trace.Wrap(err)
+	}
+
+	site, err := proxy.GetSite(clusterName)
+	if err != nil {
+		h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
+		return nil, trace.Wrap(err)
+	}
+
+	return site, nil
+}
+
+// ClusterClientProvider is an interface for a type which can provide
+// authenticated clients to remote clusters.
+type ClusterClientProvider interface {
+	// UserClientForCluster returns a client to the local or remote cluster
+	// identified by clusterName and is authenticated with the identity of the
+	// user.
+	UserClientForCluster(clusterName string) (auth.ClientI, error)
+}
+
+type clusterClientProvider struct {
+	h   *Handler
+	ctx *SessionContext
+}
+
+// UserClientForCluster returns a client to the local or remote cluster
+// identified by clusterName and is authenticated with the identity of the user.
+func (r clusterClientProvider) UserClientForCluster(clusterName string) (auth.ClientI, error) {
+	site, err := r.h.getSite(r.ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := r.ctx.GetUserClient(site)
+	return clt, trace.Wrap(err)
+}
+
+// ClusterClientHandler is an authenticated handler which can get a client for
+// any remote cluster.
+type ClusterClientHandler func(http.ResponseWriter, *http.Request, httprouter.Params, *SessionContext, ClusterClientProvider) (interface{}, error)
+
+// WithClusterClientProvider wraps a ClusterClientHandler to ensure that a
+// request is authenticated to this proxy (the same as WithAuth), and passes a
+// ClusterClientProvider so that the handler can access remote clusters. Use
+// this instead of WithClusterAuth when the remote cluster cannot be encoded in
+// the path or multiple clusters may need to be accessed from a single handler.
+func (h *Handler) WithClusterClientProvider(fn ClusterClientHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		ctx, err := h.AuthenticateRequest(w, r, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		g := clusterClientProvider{
+			h:   h,
+			ctx: ctx,
+		}
+		return fn(w, r, p, ctx, g)
 	})
 }
 

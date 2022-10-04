@@ -118,7 +118,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindKubernetesCluster:
+	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -284,4 +284,6 @@ const (
 	AzureMatcherMySQL = "mysql"
 	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
 	AzureMatcherPostgres = "postgres"
+	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
+	AzureMatcherRedis = "redis"
 )
