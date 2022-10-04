@@ -96,8 +96,8 @@ type ConnectionTesterConfig struct {
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
 
-	// KubernetesProxyHostPort is the kubernetes proxy.
-	KubernetesProxyHostPort string
+	// KubernetesPublicProxyAddr is the kubernetes proxy.
+	KubernetesPublicProxyAddr string
 
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
@@ -120,10 +120,10 @@ func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, erro
 	case types.KindKubernetesCluster:
 		tester, err := NewKubeConnectionTester(
 			KubeConnectionTesterConfig{
-				UserClient:                    cfg.UserClient,
-				ProxyHostPort:                 cfg.ProxyHostPort,
-				TLSRoutingEnabled:             cfg.TLSRoutingEnabled,
-				KubernetesPublicProxyHostPort: cfg.KubernetesProxyHostPort,
+				UserClient:                cfg.UserClient,
+				ProxyHostPort:             cfg.ProxyHostPort,
+				TLSRoutingEnabled:         cfg.TLSRoutingEnabled,
+				KubernetesPublicProxyAddr: cfg.KubernetesPublicProxyAddr,
 			},
 		)
 		return tester, trace.Wrap(err)

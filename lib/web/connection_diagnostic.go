@@ -70,11 +70,11 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	connectionTesterConfig := conntest.ConnectionTesterConfig{
-		ResourceKind:            req.ResourceKind,
-		UserClient:              userClt,
-		ProxyHostPort:           h.ProxyHostPort(),
-		KubernetesProxyHostPort: h.kubeProxyHostPort(),
-		TLSRoutingEnabled:       proxySettings.TLSRoutingEnabled,
+		ResourceKind:              req.ResourceKind,
+		UserClient:                userClt,
+		ProxyHostPort:             h.ProxyHostPort(),
+		KubernetesPublicProxyAddr: h.kubeProxyHostPort(),
+		TLSRoutingEnabled:         proxySettings.TLSRoutingEnabled,
 	}
 
 	tester, err := conntest.ConnectionTesterForKind(connectionTesterConfig)

@@ -43,8 +43,8 @@ type KubeConnectionTesterConfig struct {
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
 
-	// KubernetesPublicProxyHostPort is the kubernetes proxy.
-	KubernetesPublicProxyHostPort string
+	// KubernetesPublicProxyAddr is the kubernetes proxy address.
+	KubernetesPublicProxyAddr string
 
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
@@ -89,8 +89,10 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 	connectionDiagnosticID := uuid.NewString()
 	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(connectionDiagnosticID, map[string]string{},
 		types.ConnectionDiagnosticSpecV1{
-			// We start with a failed state so that we don't need an extra update when returning non-happy paths.
-			// For the happy path, we do update the Message to Success.
+			// We start with a failed state so that we don't need to set it to each return statement once an error is returned.
+			// if the test reaches the end, we force the test to be a success by calling
+			// 	connectionDiagnostic.SetMessage(types.DiagnosticMessageSuccess)
+			//	connectionDiagnostic.SetSuccess(true)
 			Message: types.DiagnosticMessageFailed,
 		})
 	if err != nil {
@@ -140,7 +142,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 	defer cancelFunc()
 
 	restConfig := &rest.Config{
-		Host: "https://" + s.cfg.KubernetesPublicProxyHostPort,
+		Host: "https://" + s.cfg.KubernetesPublicProxyAddr,
 		TLSClientConfig: rest.TLSClientConfig{
 			CAData:   ca.TLSCA,
 			CertData: key.TLSCert,
@@ -211,22 +213,26 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionD
 		return nil, trace.Wrap(err)
 	}
 
-	if kubeErr != nil && (strings.Contains(kubeErr.ErrStatus.Message, "not found") || strings.Contains(kubeErr.ErrStatus.Message, "[00] access denied")) {
-		message := "You are not authorized to access this Kubernetes Cluster. Ensure your role grants access by adding it to the 'kubernetes_labels' property."
-		traceType := types.ConnectionDiagnosticTrace_RBAC_KUBE
-		connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
-		return connDiag, trace.Wrap(err)
-	}
-
-	if kubeErr != nil && strings.Contains(kubeErr.ErrStatus.Message, "cannot list resource \"pods\"") {
-		message := fmt.Sprintf("You are not allowed to list pods in the %q namespace. "+
-			"Make sure your \"kubernetes_groups\" or \"kubernetes_users\" exist in the cluster and grant you access to list pods.", namespace)
-		traceType := types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL
-		connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
-		return connDiag, trace.Wrap(err)
-	}
-
 	if kubeErr != nil {
+		notFound := strings.Contains(kubeErr.ErrStatus.Message, "not found")
+		accessDenied := strings.Contains(kubeErr.ErrStatus.Message, "[00] access denied")
+		if notFound || accessDenied {
+			message := "You are not authorized to access this Kubernetes Cluster. Ensure your role grants access by adding it to the 'kubernetes_labels' property."
+			traceType := types.ConnectionDiagnosticTrace_RBAC_KUBE
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
+		cannotListPods := strings.Contains(kubeErr.ErrStatus.Message, "cannot list resource \"pods\"")
+		if cannotListPods {
+			message := fmt.Sprintf("You are not allowed to list pods in the %q namespace. "+
+				"Make sure your \"kubernetes_groups\" or \"kubernetes_users\" exist in the cluster and grant you access to list pods.", namespace)
+			traceType := types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
+		// return unknown error if an error is still present.
 		traceType := types.ConnectionDiagnosticTrace_UNKNOWN_ERROR
 		message := fmt.Sprintf("Unknown error. %v", actionErr)
 		connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
