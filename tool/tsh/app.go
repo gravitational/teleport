@@ -126,7 +126,7 @@ var appLoginTpl = template.Must(template.New("").Parse(
 
 {{.curlCmd}}{{ if .insecure }}
 
-WARNING: tsh was called with --insecure, so this curl command will be unable to validate the cert presented by teleport.
+WARNING: tsh was called with --insecure, so this curl command will be unable to validate the certificate presented by Teleport.
 {{- end }}
 `))
 
