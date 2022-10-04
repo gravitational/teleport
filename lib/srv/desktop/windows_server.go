@@ -93,19 +93,6 @@ const (
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
 )
 
-// sharedDirectoryNameMap keeps a mapping of sessionId
-// to a shared directory's name, for use by the audit log.
-type sharedDirectoryNameMap struct {
-	m map[string]string
-	sync.Mutex
-}
-
-func newSharedDirectoryNameMap() *sharedDirectoryNameMap {
-	return &sharedDirectoryNameMap{
-		m: make(map[string]string),
-	}
-}
-
 // WindowsService implements the RDP-based Windows desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
@@ -378,7 +365,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
-		sdMap:       newSharedDirectoryNameMap(),
+		sdMap:       newSharedDirectoryNameMap(cfg.Log),
 	}
 
 	// initialize LDAP - if this fails it will automatically schedule a retry.

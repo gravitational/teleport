@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
@@ -26,7 +27,50 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
+
+const (
+	unknownName = "unknown"
+)
+
+// sharedDirectoryNameMap keeps a mapping of sessionId
+// to a shared directory's name, for use by the audit log.
+type sharedDirectoryNameMap struct {
+	m   map[string]string
+	log logrus.FieldLogger
+	sync.Mutex
+}
+
+func newSharedDirectoryNameMap(log logrus.FieldLogger) *sharedDirectoryNameMap {
+	return &sharedDirectoryNameMap{
+		m:   make(map[string]string),
+		log: log,
+	}
+}
+
+func (n *sharedDirectoryNameMap) set(sessionID, name string) {
+	n.Lock()
+	defer n.Unlock()
+
+	n.m[sessionID] = name
+}
+
+func (n *sharedDirectoryNameMap) get(sessionID string) string {
+	n.Lock()
+	defer n.Unlock()
+
+	var directoryName string
+	if name, ok := n.m[sessionID]; ok {
+		directoryName = name
+
+	} else {
+		directoryName = unknownName
+		n.log.Warnf("received a SharedDirectoryAcknowledge event for unknown directory in session: %v", sessionID)
+	}
+
+	return directoryName
+}
 
 func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
 	userMetadata := id.GetUserMetadata()
@@ -155,10 +199,7 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.
 // name in the sharedDirectoryNameMap, which will be used to add audit log entries corresponding
 // to later Shared Directory TDP messages.
 func (s *WindowsService) onSharedDirectoryAnnounce(sessionID string, m tdp.SharedDirectoryAnnounce) {
-	s.sdMap.Lock()
-	defer s.sdMap.Unlock()
-
-	s.sdMap.m[sessionID] = m.Name
+	s.sdMap.set(sessionID, m.Name)
 }
 
 func (s *WindowsService) onSharedDirectoryAcknowledge(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, ack tdp.SharedDirectoryAcknowledge) {
@@ -167,16 +208,7 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(ctx context.Context, emitt
 		succeeded = false
 	}
 
-	var directoryName string
-	s.sdMap.Lock()
-	if n, ok := s.sdMap.m[sessionID]; ok {
-		directoryName = n
-
-	} else {
-		directoryName = "unknown"
-		s.cfg.Log.Errorf("received a SharedDirectoryAcknowledge event for unknown directory in session: %v", sessionID)
-	}
-	s.sdMap.Unlock()
+	directoryName := s.sdMap.get(sessionID)
 
 	event := &events.DesktopSharedDirectoryStart{
 		Metadata: events.Metadata{

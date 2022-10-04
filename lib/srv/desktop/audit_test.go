@@ -63,7 +63,7 @@ func setup() testSetup {
 			},
 			Clock: clockwork.NewFakeClockAt(time.Now()),
 		},
-		sdMap: newSharedDirectoryNameMap(),
+		sdMap: newSharedDirectoryNameMap(log),
 	}
 
 	id := &tlsca.Identity{
@@ -400,7 +400,7 @@ func TestEmitsDesktopSharedDirectoryStartEvents(t *testing.T) {
 			if test.initialized {
 				require.Equal(t, su.dirName, sds.DirectoryName)
 			} else {
-				require.Equal(t, "unknown", sds.DirectoryName)
+				require.Equal(t, unknownName, sds.DirectoryName)
 			}
 			require.Equal(t, su.dirID, sds.DirectoryID)
 
