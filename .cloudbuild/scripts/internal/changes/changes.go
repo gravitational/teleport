@@ -107,8 +107,8 @@ func isOperatorChange(path string) bool {
 	return path == "go.mod" ||
 		path == "go.sum" ||
 		strings.HasPrefix(path, "operator/") ||
-		strings.HasPrefix(path, "api/types") ||  // the operator uses directly Teleport types
-		strings.HasPrefix(path, "lib/tbot")      // the operator embeds a tbot instance
+		strings.HasPrefix(path, "api/types") || // the operator uses directly Teleport types
+		strings.HasPrefix(path, "lib/tbot") // the operator embeds a tbot instance
 }
 
 func isDocChange(path string) bool {
