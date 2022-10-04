@@ -44,15 +44,15 @@ func (hr *headerRewriter) Rewrite(req *http.Request) {
 		req.Header.Set(common.XForwardedSSL, sslOff)
 	}
 
-	// Guess some default ports if the port is not explicitly set in the request.
-	port := "80"
-	if req.Header.Get(forward.XForwardedProto) == "https" {
-		port = "443"
-	}
-
 	if req.URL.Port() != "" {
 		req.Header.Set(common.XForwardedPort, req.URL.Port())
 	} else {
+		// Guess some default ports as the port is not explicitly set in the request.
+		port := "80"
+		if req.Header.Get(forward.XForwardedProto) == "https" {
+			port = "443"
+		}
+		
 		req.Header.Set(common.XForwardedPort, port)
 	}
 }
