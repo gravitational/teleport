@@ -163,7 +163,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 
 	signer, ok := privateKey.(crypto.Signer)
 	if !ok {
-		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer")
+		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", privateKey)
 	}
 
 	signature, err := signer.Sign(rand, digest, opts)
@@ -218,8 +218,8 @@ func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, er
 }
 
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this YubiKeyPrivateKey.
-func (k *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
-	switch k.pivSlot {
+func (y *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
+	switch y.pivSlot {
 	case pivSlotNoTouch:
 		return PrivateKeyPolicyHardwareKey
 	case pivSlotWithTouch:
@@ -329,7 +329,7 @@ func (y *yubiKey) open() (yk *piv.YubiKey, err error) {
 		First: time.Millisecond * 10,
 		Step:  time.Millisecond * 10,
 		// Since PIV modules only allow a single connection, it is a bottleneck
-		// resource. To maximise usage, we use a short 50ms retry to catch the
+		// resource. To maximize usage, we use a short 50ms retry to catch the
 		// connection opening up as soon as possible.
 		Max: time.Millisecond * 50,
 	})
@@ -349,7 +349,7 @@ func (y *yubiKey) open() (yk *piv.YubiKey, err error) {
 		return trace.Wrap(err)
 	})
 	if trace.IsLimitExceeded(err) {
-		// Using PIV syncronously causes issues since only one connection is allowed at a time.
+		// Using PIV synchronously causes issues since only one connection is allowed at a time.
 		// This shouldn't be an issue for `tsh` which primarily runs consecutively, but Teleport
 		// Connect works through callbacks, etc. and may try to open multiple connections at a time.
 		// If this error is being emitted more than rarely, the 1 second timeout may need to be increased.
