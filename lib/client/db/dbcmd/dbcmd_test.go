@@ -514,6 +514,24 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd:          []string{"curl", "http://localhost:12345/"},
 			wantErr:      false,
 		},
+		{
+			name:         "cassandra",
+			dbProtocol:   defaults.ProtocolCassandra,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "cassandra01",
+			cmd:          []string{"cqlsh", "-u", "myUser", "localhost", "12345"},
+			wantErr:      false,
+		},
+		{
+			name:         "cassandra with password",
+			dbProtocol:   defaults.ProtocolCassandra,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, ""), WithPassword("password")},
+			execer:       &fakeExec{},
+			databaseName: "cassandra01",
+			cmd:          []string{"cqlsh", "-u", "myUser", "localhost", "12345", "-p", "password"},
+			wantErr:      false,
+		},
 	}
 
 	for _, tt := range tests {

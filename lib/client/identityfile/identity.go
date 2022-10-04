@@ -365,7 +365,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 
 func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	if cfg.JKSPassword == "" {
-		pass, err := utils.CryptoRandomHex(8)
+		pass, err := utils.CryptoRandomHex(16)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -740,9 +740,13 @@ func onDatabaseConnect(cf *CLIConf) error {
 
 	if database.GetProtocol() == defaults.ProtocolCassandra && database.IsAWSHosted() {
 		// Cassandra client always prompt for password, so we need to provide it
-		// and provide an auto generated random password to skip the prompt in case of
+		// Provide an auto generated random password to skip the prompt in case of
 		// connection to AWS hosted cassandra.
-		opts = append(opts, dbcmd.WithRandomPassword())
+		password, err := utils.CryptoRandomHex(16)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		opts = append(opts, dbcmd.WithPassword(password))
 	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, routeToDatabase, rootClusterName, opts...)

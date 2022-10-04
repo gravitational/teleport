@@ -27,7 +27,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
@@ -598,12 +597,6 @@ func WithNoTLS() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.noTLS = true
 	}
-}
-
-// WithRandomPassword is the connect command option that makes the command
-// generate a random password for the database user.
-func WithRandomPassword() ConnectCommandFunc {
-	return WithPassword(uuid.New().String())
 }
 
 // WithPassword is the command option that allows to set the database password

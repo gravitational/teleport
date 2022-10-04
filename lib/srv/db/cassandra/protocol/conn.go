@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/datastax/go-cassandra-native-protocol/client"
 	"github.com/datastax/go-cassandra-native-protocol/frame"
@@ -48,10 +49,18 @@ type Conn struct {
 	frameCodec        frame.RawCodec
 	modernLayoutRead  bool
 	modernLayoutWrite bool
+
+	// selfContained is used to store frames that are self-contained.
+	// allowing to read them before reading from the connection.
+	selfContained []*frame.Frame
+	mtx           sync.Mutex
 }
 
 // ReadPacket is used to read packet from the connection.
 func (c *Conn) ReadPacket() (*Packet, error) {
+	if fr := c.checkSelfContained(); fr != nil {
+		return &Packet{frame: fr}, nil
+	}
 	var buff bytes.Buffer
 	tr := io.TeeReader(c.Conn, &buff)
 
@@ -119,6 +128,17 @@ func (c *Conn) readFrame(r io.Reader) (*frame.Frame, error) {
 	return fr, nil
 }
 
+func (c *Conn) checkSelfContained() *frame.Frame {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if len(c.selfContained) == 0 {
+		return nil
+	}
+	out := c.selfContained[0]
+	c.selfContained = c.selfContained[1:]
+	return out
+}
+
 // readSegment is used to read segments from the connection.
 // If frame is not self-contained, segments are split into multiple frames.
 // Read the segments till received bodyLength bytes.
@@ -131,13 +151,15 @@ func (c *Conn) readSegment(r io.Reader) (*frame.Frame, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		if seg.Header.IsSelfContained {
-			fr, err := c.readFrame(bytes.NewReader(seg.Payload.UncompressedData))
+			fr, err := c.readSelfContainedSegment(seg)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return fr, nil
 		}
+
 		// Otherwise read the frame size and keep reading until we read all data.
 		// Segments are always delivered in order.
 		if expectedSegmentSize == 0 {
@@ -160,6 +182,25 @@ func (c *Conn) readSegment(r io.Reader) (*frame.Frame, error) {
 			return fr, nil
 		}
 	}
+}
+
+func (c *Conn) readSelfContainedSegment(incoming *segment.Segment) (*frame.Frame, error) {
+	var out []*frame.Frame
+	payloadReader := bytes.NewReader(incoming.Payload.UncompressedData)
+	for payloadReader.Len() > 0 {
+		fr, err := c.readFrame(payloadReader)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, fr)
+	}
+	if len(out) == 0 {
+		return nil, trace.BadParameter("no frames in self-contained segment")
+	}
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.selfContained = append(c.selfContained, out[1:]...)
+	return out[0], nil
 }
 
 // writeFrameWithModernLayout is used to write frame to the connection.
