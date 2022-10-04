@@ -693,7 +693,7 @@ func (gcp GCPCloudSQL) GetServerName() string {
 	return fmt.Sprintf("%s:%s", gcp.ProjectID, gcp.InstanceID)
 }
 
-// HasValidID returns true if any of the identifer exists.
+// HasValidID returns true if any of the identifier exists.
 func (rds RDS) HasValidID() bool {
 	return rds.ClusterID != "" || rds.InstanceID != "" || rds.ProxyName != "" || rds.ProxyCustomEndpointName != ""
 }
