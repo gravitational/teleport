@@ -184,17 +184,17 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	})
 	require.NoError(t, err)
 
-	testCtx.startKubeService(t)
-
 	// Waits for len(clusters) heartbeats to start
 	waitForHeartbeats := len(cfg.clusters)
 	// we must also wait for the legacy heartbeat.
 	// FIXME (tigrato): his check was added to force
 	// the person that removes the legacy heartbeat to adapt this code as well
 	// in order to wait just for len(cfg.clusters).
-	if testCtx.kubeServer.legacyHeartbeat != nil {
-		waitForHeartbeats++
-	}
+	_ = testCtx.kubeServer.legacyHeartbeat
+	waitForHeartbeats++
+
+	testCtx.startKubeService(t)
+
 	for i := 0; i < waitForHeartbeats; i++ {
 		<-heartbeatsWaitChannel
 	}
