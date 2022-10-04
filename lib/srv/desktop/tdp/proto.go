@@ -1400,12 +1400,6 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	return string(s), nil
 }
 
-// writeUint16 writes v to b in big endian order
-func writeUint16(b *bytes.Buffer, v uint16) {
-	b.WriteByte(byte(v >> 8))
-	b.WriteByte(byte(v))
-}
-
 // writeUint32 writes v to b in big endian order
 func writeUint32(b *bytes.Buffer, v uint32) {
 	b.WriteByte(byte(v >> 24))
