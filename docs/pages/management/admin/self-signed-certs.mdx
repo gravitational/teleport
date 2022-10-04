@@ -102,9 +102,9 @@ When running a Teleport service with `teleport`, if the service you are starting
 the Teleport Proxy Service endpoint and the Proxy Service is using self-signed certificates, then `teleport` will need
 to be run with the `--insecure` flag to disable verification of the
 Proxy Service TLS certificate. This is the case when:
-- The Teleport config file `auth_servers` setting is set to the Proxy Service endpoint:
-  - `auth_servers: ["tele.example.com:443"]` or
-  - `auth_servers: ["tele.example.com:3080"]`
+- The Teleport config file `proxy_server` setting is set to the Proxy Service endpoint:
+  - `proxy_server: ["tele.example.com:443"]` or
+  - `proxy_server: ["tele.example.com:3080"]`
 - Teleport is started with the `--auth-server` flag pointing to the Proxy Service endpoint:
   - `teleport [app | db] start --auth-server=tele.example.com:443` or
   - `teleport [app | db] start --auth-server=tele.example.com:3080`
