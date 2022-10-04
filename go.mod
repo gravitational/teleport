@@ -347,6 +347,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 )
 
+// Update also `ignore` in .github/dependabot.yml.
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20220509084309-3d41480ef74f
