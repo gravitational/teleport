@@ -40,9 +40,8 @@ var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(
 Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
     UserKnownHostsFile "{{ $dot.KnownHostsPath }}"
     IdentityFile "{{ $dot.IdentityFilePath }}"
-    CertificateFile "{{ $dot.CertificateFilePath }}"{{- if $dot.NewerHostKeyAlgorithmsSupported }}
-    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com{{- else }}
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{- end }}
+    CertificateFile "{{ $dot.CertificateFilePath }}"
+    HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
 
 # Flags for all {{ $clusterName }} hosts except the proxy
 Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
@@ -154,9 +153,9 @@ func (c *sshConfigOptions) String() string {
 	sb.WriteString("sshConfigOptions:")
 
 	if c.NewerHostKeyAlgorithmsSupported {
-		sb.WriteString("HostKeyAlgorithms will include SHA-1")
+		sb.WriteString("HostKeyAlgorithms will include SHA-256, SHA-512 and SHA-1")
 	} else {
-		sb.WriteString("HostKeyAlgorithms will include SHA-256 and SHA-512")
+		sb.WriteString("HostKeyAlgorithms will include SHA-1")
 	}
 
 	return sb.String()
