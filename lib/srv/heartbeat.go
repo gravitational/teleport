@@ -450,13 +450,22 @@ func (h *Heartbeat) announce() error {
 			)
 
 			switch current := h.current.(type) {
+			case types.Server:
+				kubeService, ok := h.current.(types.Server)
+				if !ok {
+					return trace.BadParameter("expected services.Server, got %#v", h.current)
+				}
+				keepAlive, err = h.Announcer.UpsertKubeServiceV2(h.cancelCtx, kubeService)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			case types.KubeServer:
 				keepAlive, err = h.Announcer.UpsertKubernetesServer(h.cancelCtx, current)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 			default:
-				return trace.BadParameter("expected types.KubeServer, got %#v", h.current)
+				return trace.BadParameter("expected types.KubeServer or types.Server, got %#v", h.current)
 			}
 
 			h.notifySend()
