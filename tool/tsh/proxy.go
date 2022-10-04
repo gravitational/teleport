@@ -690,10 +690,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 
 // getTLSCertExpireTime returns the certificate NotAfter time.
 func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	if len(cert.Certificate) < 1 {
-		return time.Time{}, trace.NotFound("invalid certificate length")
-	}
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	x509cert, err := utils.TLSCertToX509(cert)
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
