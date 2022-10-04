@@ -53,7 +53,7 @@ Logins:             someUser
 Valid until:        2022-08-12 21:57:19 +0100 IST [valid for 4h44m0s]
 Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 
-Your Teleport Enterprise Edition license will expire in 10 days. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
+Your Teleport Enterprise Edition license will expire in 10 days on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 ```
@@ -66,7 +66,7 @@ Logins:             someUser
 Valid until:        2022-08-16 03:38:07 +0100 IST [valid for 12h0m0s]
 Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 
-Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
+Your Teleport Enterprise Edition license has expired on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 ```
@@ -79,7 +79,7 @@ db CA    never updated
 jwt CA   never updated                                                           
 CA pin   sha256:3d72102f020146d09ff400810f59f70b8163ebfe6ec1ecfb0b3b2a0c151592
 
-Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
+Your Teleport Enterprise Edition license has expired on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 
@@ -112,7 +112,7 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
       },
       "spec": {
         "severity": 5,
-        "message": "Your Teleport Enterprise Edition license will expire in 10 days. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.",
+        "message": "Your Teleport Enterprise Edition license will expire in 10 days on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.",
         "created": "2022-08-30T17:26:05.728149Z"
       }
     }
@@ -137,7 +137,7 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
       },
       "spec": {
         "severity": 5,
-        "message": "Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.",
+        "message": "Your Teleport Enterprise Edition license has expired on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.",
         "created": "2022-08-30T17:26:05.728149Z"
       }
     }
@@ -164,8 +164,8 @@ message ClusterAlertSpec {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // HostID is the id of the auth server that generated the alert.
-  string HostID = 4 [(gogoproto.jsontag) = "host_id"];
+  // InstanceName is the name of the instance that generated the alert.
+  string InstanceName = 4 [(gogoproto.jsontag) = "instance_name"];
   // Dismissible is set if the alert is unable to be dismissed in the webui.
   bool Dismissible = 5 [(gogoproto.jsontag) = "dismissible"];
 }
