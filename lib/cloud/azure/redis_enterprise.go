@@ -18,9 +18,11 @@ package azure
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/sirupsen/logrus"
 
@@ -31,30 +33,42 @@ import (
 // functions of armredisenterprise.DatabaseClient
 type armRedisEnterpriseDatabaseClient interface {
 	ListKeys(ctx context.Context, resourceGroupName string, clusterName string, databaseName string, options *armredisenterprise.DatabasesClientListKeysOptions) (armredisenterprise.DatabasesClientListKeysResponse, error)
+	NewListByClusterPager(resourceGroupName string, clusterName string, options *armredisenterprise.DatabasesClientListByClusterOptions) *runtime.Pager[armredisenterprise.DatabasesClientListByClusterResponse]
+}
+
+// armRedisEnterpriseClusterClient is an interface defines a subset of
+// functions of armredisenterprise.Client
+type armRedisEnterpriseClusterClient interface {
+	NewListPager(options *armredisenterprise.ClientListOptions) *runtime.Pager[armredisenterprise.ClientListResponse]
+	NewListByResourceGroupPager(resourceGroupName string, options *armredisenterprise.ClientListByResourceGroupOptions) *runtime.Pager[armredisenterprise.ClientListByResourceGroupResponse]
 }
 
 // redisEnterpriseClient is an Azure Redis Enterprise client.
 type redisEnterpriseClient struct {
+	clusterAPI  armRedisEnterpriseClusterClient
 	databaseAPI armRedisEnterpriseDatabaseClient
 }
 
 // NewRedisEnterpriseClient creates a new Azure Redis Enterprise client by
 // subscription and credentials.
-func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (CacheForRedisClient, error) {
+func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RedisEnterpriseClient, error) {
 	logrus.Debug("Initializing Azure Redis Enterprise client.")
+	clusterAPI, err := armredisenterprise.NewClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	databaseAPI, err := armredisenterprise.NewDatabasesClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(greedy52) Redis Enterprise requires a different API client
-	// (armredisenterprise.Client) for auto-discovery.
-	return NewRedisEnterpriseClientByAPI(databaseAPI), nil
+	return NewRedisEnterpriseClientByAPI(clusterAPI, databaseAPI), nil
 }
 
 // NewRedisEnterpriseClientByAPI creates a new Azure Redis Enterprise client by
 // ARM API client(s).
-func NewRedisEnterpriseClientByAPI(databaseAPI armRedisEnterpriseDatabaseClient) CacheForRedisClient {
+func NewRedisEnterpriseClientByAPI(clusterAPI armRedisEnterpriseClusterClient, databaseAPI armRedisEnterpriseDatabaseClient) RedisEnterpriseClient {
 	return &redisEnterpriseClient{
+		clusterAPI:  clusterAPI,
 		databaseAPI: databaseAPI,
 	}
 }
@@ -102,6 +116,108 @@ func (c *redisEnterpriseClient) getClusterAndDatabaseName(id *arm.ResourceID) (s
 	}
 }
 
-// RedisEnterpriseClusterDefaultDatabase is the default database name for a
-// Redis Enterprise cluster.
-const RedisEnterpriseClusterDefaultDatabase = "default"
+// ListAll returns all Azure Redis Enterprise databases within an Azure subscription.
+func (c *redisEnterpriseClient) ListAll(ctx context.Context) ([]*RedisEnterpriseDatabase, error) {
+	var allDatabases []*RedisEnterpriseDatabase
+	pager := c.clusterAPI.NewListPager(&armredisenterprise.ClientListOptions{})
+	for pageNum := 0; pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+
+		allDatabases = append(allDatabases, c.listDatabasesByClusters(ctx, page.Value)...)
+	}
+	return allDatabases, nil
+}
+
+// ListWithinGroup returns all Azure Redis Enterprise databases within an Azure resource group.
+func (c *redisEnterpriseClient) ListWithinGroup(ctx context.Context, group string) ([]*RedisEnterpriseDatabase, error) {
+	var allDatabases []*RedisEnterpriseDatabase
+	pager := c.clusterAPI.NewListByResourceGroupPager(group, &armredisenterprise.ClientListByResourceGroupOptions{})
+	for pageNum := 0; pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+
+		allDatabases = append(allDatabases, c.listDatabasesByClusters(ctx, page.Value)...)
+	}
+	return allDatabases, nil
+}
+
+// listDatabasesByClusters fetches databases for the provided clusters.
+func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clusters []*armredisenterprise.Cluster) []*RedisEnterpriseDatabase {
+	var allDatabases []*RedisEnterpriseDatabase
+	for _, cluster := range clusters {
+		if cluster == nil { // should never happen, but checking just in case.
+			continue
+		}
+
+		// If listDatabasesByCluster fails for any reason, make a log and continue to
+		// other clusters.
+		databases, err := c.listDatabasesByCluster(ctx, cluster)
+		if err != nil {
+			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
+				logrus.Debugf("Failed to listDatabasesByCluster on Redis Enterprise cluster %v: %v.", StringVal(cluster.Name), err.Error())
+			} else {
+				logrus.Warnf("Failed to listDatabasesByCluster on Redis Enterprise cluster %v: %v.", StringVal(cluster.Name), err.Error())
+			}
+			continue
+		}
+
+		allDatabases = append(allDatabases, databases...)
+	}
+	return allDatabases
+}
+
+// listDatabasesByCluster fetches databases for the provided cluster.
+func (c *redisEnterpriseClient) listDatabasesByCluster(ctx context.Context, cluster *armredisenterprise.Cluster) ([]*RedisEnterpriseDatabase, error) {
+	resourceID, err := arm.ParseResourceID(StringVal(cluster.ID))
+	if err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	var databases []*RedisEnterpriseDatabase
+	pager := c.databaseAPI.NewListByClusterPager(resourceID.ResourceGroupName, StringVal(cluster.Name), &armredisenterprise.DatabasesClientListByClusterOptions{})
+	for pageNum := 0; pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+
+		for _, database := range page.Value {
+			databases = append(databases, &RedisEnterpriseDatabase{
+				Database: database,
+				Cluster:  cluster,
+			})
+		}
+	}
+	return databases, nil
+}
+
+// RedisEnterpriseDatabase is a wrapper of a armredisenterprise.Database and
+// its parent cluster.
+type RedisEnterpriseDatabase struct {
+	*armredisenterprise.Database
+
+	// Cluster is the parent cluster.
+	Cluster *armredisenterprise.Cluster
+}
+
+// String returns the description of the database.
+func (d *RedisEnterpriseDatabase) String() string {
+	if StringVal(d.Name) == RedisEnterpriseClusterDefaultDatabase {
+		return fmt.Sprintf("cluster %v", StringVal(d.Cluster.Name))
+	}
+	return fmt.Sprintf("cluster %v (database %v)", StringVal(d.Cluster.Name), StringVal(d.Database.Name))
+}
+
+const (
+	// RedisEnterpriseClusterDefaultDatabase is the default database name for a
+	// Redis Enterprise cluster.
+	RedisEnterpriseClusterDefaultDatabase = "default"
+	// RedisEnterpriseClusterPolicyOSS indicates the Redis Enterprise cluster
+	// is running in OSS mode.
+	RedisEnterpriseClusterPolicyOSS = string(armredisenterprise.ClusteringPolicyOSSCluster)
+)
