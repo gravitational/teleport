@@ -801,6 +801,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
+	switch cfg.Auth.Preference.GetRequireMFAType() {
+	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		}
+	}
+
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
@@ -1649,10 +1656,6 @@ func (process *TeleportProcess) initAuthService() error {
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
 			ClusterName:    clusterName,
-			// DELETE IN 11.0.0
-			// Provide a grace period so that Auth does not prematurely upload
-			// sessions which don't have a session tracker (v9.2 and earlier)
-			GracePeriod: defaults.UploadGracePeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2247,7 +2250,11 @@ func (process *TeleportProcess) initSSH() error {
 		}
 		// TODO: are we missing rm.Close()
 
-		// make sure the namespace exists
+		// make sure the default namespace is used
+		if ns := cfg.SSH.Namespace; ns != "" && ns != apidefaults.Namespace {
+			return trace.BadParameter("cannot start with custom namespace %q, custom namespaces are deprecated. "+
+				"use builtin namespace %q, or omit the 'namespace' config option.", ns, apidefaults.Namespace)
+		}
 		namespace := types.ProcessNamespace(cfg.SSH.Namespace)
 		_, err = authClient.GetNamespace(namespace)
 		if err != nil {
@@ -2555,10 +2562,6 @@ func (process *TeleportProcess) initUploaderService() error {
 		AuditLog:       conn.Client,
 		SessionTracker: conn.Client,
 		ClusterName:    conn.ServerIdentity.ClusterName,
-		// DELETE IN 11.0.0
-		// Provide a grace period so that Auth does not prematurely upload
-		// sessions which don't have a session tracker (v9.2 and earlier)
-		GracePeriod: defaults.UploadGracePeriod,
 	})
 	if err != nil {
 		return trace.Wrap(err)

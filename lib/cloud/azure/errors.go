@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/gravitational/trace"
 )
@@ -29,20 +30,21 @@ import (
 // to trace error. If the provided error is not a `ResponseError` it returns.
 // the error without modifying it.
 func ConvertResponseError(err error) error {
-	responseErr, ok := err.(*azcore.ResponseError)
-	if !ok {
-		return err
-	}
+	switch v := err.(type) {
+	case *azcore.ResponseError:
+		switch v.StatusCode {
+		case http.StatusForbidden:
+			return trace.AccessDenied(v.Error())
+		case http.StatusConflict:
+			return trace.AlreadyExists(v.Error())
+		case http.StatusNotFound:
+			return trace.NotFound(v.Error())
+		}
 
-	switch responseErr.StatusCode {
-	case http.StatusForbidden:
-		return trace.AccessDenied(responseErr.Error())
-	case http.StatusConflict:
-		return trace.AlreadyExists(responseErr.Error())
-	case http.StatusNotFound:
-		return trace.NotFound(responseErr.Error())
-	}
+	case *azidentity.AuthenticationFailedError:
+		return trace.AccessDenied(v.Error())
 
+	}
 	return err // Return unmodified.
 }
 

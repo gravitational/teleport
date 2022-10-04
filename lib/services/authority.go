@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -303,6 +304,8 @@ type UserCertParams struct {
 	AllowedResourceIDs string
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
 	ConnectionDiagnosticID string
+	// PrivateKeyPolicy is the private key policy supported by this certificate.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
 }
 
 // CheckAndSetDefaults checks the user certificate parameters
