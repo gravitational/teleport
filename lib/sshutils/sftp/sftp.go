@@ -61,7 +61,7 @@ type Config struct {
 	// SSH session
 	getHomeDir homeDirRetriever
 
-	// ProgressWriter is a callback to return writer for printing the progress
+	// ProgressWriter is a callback to return a writer for printing the progress
 	// (used only on the client)
 	ProgressWriter func(fileInfo os.FileInfo) io.Writer
 	// Log optionally specifies the logger
