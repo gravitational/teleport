@@ -4287,8 +4287,8 @@ message ClusterAlertSpec {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // HostID is id of the node the alert applies to.
-  string HostID = 4 [(gogoproto.jsontag) = "host_id"];
+  // InstanceName is the name of the instance that generated the alert.
+  string InstanceName = 4 [(gogoproto.jsontag) = "instance_name"];
 }
 
 // GetClusterAlertsRequest matches cluster alerts.

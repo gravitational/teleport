@@ -103,9 +103,10 @@ func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error 
 }
 
 // ShowClusterAlerts shows cluster alerts with the given label.
-func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w io.Writer, labels map[string]string, ignore map[string]string) error {
+func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w io.Writer, labels, ignore map[string]string) error {
 	// get any "on login" alerts
-	alertCtx, _ := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	alertCtx, cancelAlertCtx := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
+	defer cancelAlertCtx()
 	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
 		Labels: labels,
 	})
@@ -115,7 +116,7 @@ func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w i
 
 	types.SortClusterAlerts(alerts)
 	var errs []error
-outer:
+Outer:
 	for _, alert := range alerts {
 		if err := alert.CheckMessage(); err != nil {
 			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
@@ -123,7 +124,7 @@ outer:
 		}
 		for k, v := range ignore {
 			if labelValue, ok := alert.Metadata.Labels[k]; ok && labelValue == v {
-				continue outer
+				continue Outer
 			}
 		}
 		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
