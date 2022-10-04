@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
@@ -14,10 +15,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -55,7 +53,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	log.Info("Setting up backend.")
 
-	ensureDatabase(ctx, poolConfig, log)
+	tryEnsureDatabase(ctx, poolConfig, log)
 
 	pool, err := pgxpool.ConnectConfig(ctx, poolConfig)
 	if err != nil {
@@ -80,7 +78,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	go b.backgroundExpiry(ctx)
 
 	b.wg.Add(1)
-	go b.backgroundChangefeed(ctx)
+	go b.backgroundChangeFeed(ctx)
 
 	return b, nil
 }
@@ -105,10 +103,11 @@ func (b *Backend) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f fu
 	retrySerialization := func() error {
 		for i := 0; i < 20; i++ {
 			err := b.pool.BeginTxFunc(ctx, txOptions, f)
-			if err == nil || !isCode(err, pgerrcode.SerializationFailure) || !isCode(err, pgerrcode.DeadlockDetected) {
+			if err == nil || (!isCode(err, pgerrcode.SerializationFailure) && !isCode(err, pgerrcode.DeadlockDetected)) {
 				return trace.Wrap(err)
 			}
 			b.log.WithError(err).WithField("attempt", i).Debug("Serialization failure.")
+			time.Sleep(50 * time.Millisecond)
 		}
 		return trace.LimitExceeded("too many serialization failures")
 	}
@@ -144,8 +143,8 @@ func (b *Backend) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f fu
 
 func (b *Backend) setupAndMigrate(ctx context.Context) error {
 	const (
-		legacyVersion  = 1
-		currentVersion = 2
+		legacyVersion = 1
+		latestVersion = 2
 	)
 	var version int
 	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
@@ -178,8 +177,27 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 				return trace.Wrap(err)
 			}
 		case legacyVersion:
-			return trace.NotImplemented("migration not currently supported")
-		case currentVersion:
+			// this will fail with an error if somehow we ended up with a row in
+			// lease that's referencing a missing item
+			if _, err := tx.Exec(ctx, `
+				CREATE TABLE kv (
+					key bytea PRIMARY KEY,
+					value bytea NOT NULL,
+					expires timestamp
+				);
+				CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
+				INSERT INTO kv (key, value, expires)
+					SELECT key, value, expires
+					FROM
+						lease
+						LEFT JOIN item USING (key, id);
+				DROP TABLE item, lease, event;
+				INSERT INTO migrate (version) VALUES (2);`,
+			); err != nil {
+				return trace.Wrap(err)
+			}
+		case latestVersion:
+			// nothing to do
 		default:
 			return trace.BadParameter("unsupported schema version %v", version)
 		}
@@ -189,10 +207,10 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if version != currentVersion {
+	if version != latestVersion {
 		b.log.WithFields(logrus.Fields{
 			"prev_version": version,
-			"cur_version":  currentVersion,
+			"cur_version":  latestVersion,
 		}).Info("Migrated database schema.")
 	}
 
