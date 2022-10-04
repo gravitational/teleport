@@ -639,6 +639,7 @@ type buildStepOutput struct {
 type ContainerRepo struct {
 	Name             string
 	IsProductionRepo bool
+	IsImmutable      bool
 	Environment      map[string]value
 	RegistryDomain   string
 	RegistryOrg      string
@@ -646,7 +647,7 @@ type ContainerRepo struct {
 	TagBuilder       func(baseTag *ImageTag) *ImageTag // Postprocessor for tags that append CR-specific suffixes
 }
 
-func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isProduction bool) *ContainerRepo {
+func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isProduction, isImmutable bool) *ContainerRepo {
 	nameSuffix := "staging"
 	ecrRegion := StagingEcrRegion
 	loginSubcommand := "ecr"
@@ -671,6 +672,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 	return &ContainerRepo{
 		Name:             fmt.Sprintf("ECR - %s", nameSuffix),
 		IsProductionRepo: isProduction,
+		IsImmutable:      isImmutable,
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID": {
 				fromSecret: accessKeyIDSecret,
@@ -707,6 +709,7 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 	return &ContainerRepo{
 		Name:             "Quay",
 		IsProductionRepo: true,
+		IsImmutable:      false,
 		Environment: map[string]value{
 			"QUAY_USERNAME": {
 				fromSecret: dockerUsername,
@@ -724,14 +727,14 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 }
 
 func GetStagingContainerRepo() *ContainerRepo {
-	return NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, false)
+	return NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, false, true)
 
 }
 
 func GetProductionContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, true),
+		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, true, false),
 	}
 }
 
@@ -865,7 +868,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		tagCommand := fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImage.GetShellName(), archImage.GetShellName())
 		pushCommand := fmt.Sprintf("docker push %q", archImage.GetShellName())
 
-		if archImageKey.IsImmutable {
+		if archImageKey.IsImmutable || cr.IsImmutable {
 			conditionalCommand := fmt.Sprintf("docker manifest inspect %q > /dev/null 2>&1", archImage.GetShellName())
 			fullCommand := fmt.Sprintf("%s && echo 'Found existing image, skipping' || (%s && %s)", conditionalCommand, tagCommand, pushCommand)
 			commands = append(commands, fullCommand)

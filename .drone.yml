@@ -7346,14 +7346,18 @@ steps:
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-amd64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7379,14 +7383,18 @@ steps:
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7412,14 +7420,18 @@ steps:
     "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$DRONE_TAG-arm64"
+    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8422,16 +8434,18 @@ steps:
     '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8457,16 +8471,18 @@ steps:
     '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8492,16 +8508,18 @@ steps:
     '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9100,16 +9118,18 @@ steps:
     '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9135,16 +9155,18 @@ steps:
     '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9170,16 +9192,18 @@ steps:
     '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9778,16 +9802,18 @@ steps:
     '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-amd64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9813,16 +9839,18 @@ steps:
     '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9848,16 +9876,18 @@ steps:
     '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
-    "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9967,6 +9997,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 633e27faf7f4a670a347923673cc21211441685253699a0ae74e70689ceabafa
+hmac: 86285b95af02d90fe404d2a9733886e9f3d13535087a4626e5cc78393b3fafe1
 
 ...
