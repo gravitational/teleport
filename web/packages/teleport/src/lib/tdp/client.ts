@@ -113,6 +113,9 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.PNG_FRAME:
           this.handlePngFrame(buffer);
           break;
+        case MessageType.PNG2_FRAME:
+          this.handlePng2Frame(buffer);
+          break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
           break;
@@ -206,6 +209,12 @@ export default class Client extends EventEmitterWebAuthnSender {
   // bounds and png bitmap and emit a render event.
   handlePngFrame(buffer: ArrayBuffer) {
     this.codec.decodePngFrame(buffer, (pngFrame: PngFrame) =>
+      this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+    );
+  }
+
+  handlePng2Frame(buffer: ArrayBuffer) {
+    this.codec.decodePng2Frame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
     );
   }
