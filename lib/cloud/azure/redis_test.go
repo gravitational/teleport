@@ -18,8 +18,11 @@ package azure
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,4 +66,52 @@ func TestRedisClient(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("List", func(t *testing.T) {
+		mockAPI := &ARMRedisMock{
+			Token: "some-token",
+			Servers: []*armredis.ResourceInfo{
+				makeRedisResourceInfo("redis-prod-1", "group-prod"),
+				makeRedisResourceInfo("redis-prod-2", "group-prod"),
+				makeRedisResourceInfo("redis-dev", "group-dev"),
+			},
+		}
+
+		t.Run("ListAll", func(t *testing.T) {
+			t.Parallel()
+
+			expectServers := []string{"redis-prod-1", "redis-prod-2", "redis-dev"}
+
+			c := NewRedisClientByAPI(mockAPI)
+			resources, err := c.ListAll(context.TODO())
+			require.NoError(t, err)
+			requireRedisServers(t, expectServers, resources)
+		})
+		t.Run("ListWithinGroup", func(t *testing.T) {
+			t.Parallel()
+
+			expectServers := []string{"redis-prod-1", "redis-prod-2"}
+
+			c := NewRedisClientByAPI(mockAPI)
+			resources, err := c.ListWithinGroup(context.TODO(), "group-prod")
+			require.NoError(t, err)
+			requireRedisServers(t, expectServers, resources)
+		})
+	})
+}
+
+func requireRedisServers(t *testing.T, expectServers []string, servers []*armredis.ResourceInfo) {
+	require.Len(t, servers, len(expectServers))
+	for i, server := range servers {
+		require.Equal(t, expectServers[i], StringVal(server.Name))
+	}
+}
+
+func makeRedisResourceInfo(name, group string) *armredis.ResourceInfo {
+	return &armredis.ResourceInfo{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", group, name)),
+		Type:     to.Ptr("Microsoft.Cache/Redis"),
+		Location: to.Ptr("local"),
+	}
 }

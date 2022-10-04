@@ -194,22 +194,35 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 }
 
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
+	type makeFetcherFunc func(azureFetcherConfig) (Fetcher, error)
+	makeFetcherFuncs := map[string][]makeFetcherFunc{
+		services.AzureMatcherMySQL:    {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres: {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+	}
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {
-			for _, sub := range matcher.Subscriptions {
-				for _, group := range matcher.ResourceGroups {
-					fetcher, err := newAzureFetcher(azureFetcherConfig{
-						AzureClients:  clients,
-						Type:          matcherType,
-						Subscription:  sub,
-						ResourceGroup: group,
-						Labels:        matcher.ResourceTags,
-						Regions:       matcher.Regions,
-					})
-					if err != nil {
-						return nil, trace.Wrap(err)
+			makeFetchers, found := makeFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown matcher type %q", matcherType)
+			}
+
+			for _, makeFetcher := range makeFetchers {
+				for _, sub := range matcher.Subscriptions {
+					for _, group := range matcher.ResourceGroups {
+						fetcher, err := makeFetcher(azureFetcherConfig{
+							AzureClients:  clients,
+							Type:          matcherType,
+							Subscription:  sub,
+							ResourceGroup: group,
+							Labels:        matcher.ResourceTags,
+							Regions:       matcher.Regions,
+						})
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						result = append(result, fetcher)
 					}
-					result = append(result, fetcher)
 				}
 			}
 		}

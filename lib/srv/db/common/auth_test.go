@@ -44,7 +44,7 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 			AzureRedis: libcloudazure.NewRedisClientByAPI(&libcloudazure.ARMRedisMock{
 				Token: "azure-redis-token",
 			}),
-			AzureRedisEnterprise: libcloudazure.NewRedisEnterpriseClientByAPI(&libcloudazure.ARMRedisEnterpriseDatabaseMock{
+			AzureRedisEnterprise: libcloudazure.NewRedisEnterpriseClientByAPI(nil, &libcloudazure.ARMRedisEnterpriseDatabaseMock{
 				Token: "azure-redis-enterprise-token",
 			}),
 		},

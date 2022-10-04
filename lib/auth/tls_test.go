@@ -1318,11 +1318,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 
 func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Can not use t.Parallel() when changing modules
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			ResourceAccessRequests: true,
-		},
-	})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -3354,7 +3350,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	require.NoError(t, err)
 	suite.ExpectDeleteResource(t, w, 3*time.Second, &types.ResourceHeader{
 		Kind:    types.KindToken,
-		Version: types.VDeleted,
+		Version: types.V2,
 		Metadata: types.Metadata{
 			Namespace: apidefaults.Namespace,
 			Name:      token.GetName(),
