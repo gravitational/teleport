@@ -331,7 +331,6 @@ impl Client {
         warn!("unimplemented IOCTL: {:?}", code);
         let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
         debug!("sending {:?}", resp);
-        // Ok(Some(resp.encode()?));
         Ok(Some(Box::new(resp)))
     }
 }
