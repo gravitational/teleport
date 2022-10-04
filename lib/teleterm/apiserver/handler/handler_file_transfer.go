@@ -21,8 +21,5 @@ import (
 
 func (s *Handler) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
 	err := s.DaemonService.TransferFile(request, server)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }
