@@ -801,6 +801,13 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 }
 
 func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+	if cf.LocalProxyTunnel {
+		// Don't login to database here if local proxy tunnel is enabled.
+		// When local proxy tunnel is enabled, the local proxy will check if DB login is needed when
+		// it starts and on each new connection.
+		return false, nil
+	}
+
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -836,7 +843,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca
 }
 
 // maybeDatabaseLogin checks if cert is still valid or DB connection requires
-// MFA. If yes trigger db login logic.
+// MFA, and that client is not requesting an authenticated local proxy tunnel. If yes trigger db login logic.
 func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase) error {
 	reloginNeeded, err := needDatabaseRelogin(cf, tc, db, profile)
 	if err != nil {
