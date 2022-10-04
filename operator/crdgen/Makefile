@@ -23,6 +23,7 @@ test: build
 	exit $$EXIT_CODE
 
 # Updates CRD snapshots used for `protoc-gen-crd` tests, they are stored in `testdata/golden`
+.PHONY: update-snapshot
 update-snapshot: build
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
 	$(eval CUSTOM_IMPORTS_TMP_DIR := $(shell mktemp -d))
