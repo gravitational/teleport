@@ -414,15 +414,6 @@ func (s ClientScreenSpec) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeFixedSizeMessage(in peekReader, mt MessageType, n int) ([]byte, error) {
-	b := make([]byte, n+1)
-	b[0] = byte(mt)
-	if _, err := io.ReadFull(in, b[1:]); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return b, nil
-}
-
 func decodeClientScreenSpec(in peekReader) (ClientScreenSpec, error) {
 	var s ClientScreenSpec
 	err := binary.Read(in, binary.BigEndian, &s)
