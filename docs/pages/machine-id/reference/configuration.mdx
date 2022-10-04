@@ -67,6 +67,7 @@ destinations:
           # artifacts.
           path: /opt/machine-id
 
+
           # Configure symlink attack prevention. Requires Linux 5.6+.
           # Possible values:
           #   * try-secure (default): Attempt to securely read and write certificates
@@ -76,7 +77,6 @@ destinations:
           #     if unsupported.
           #   * insecure: Quietly allow symlinks in paths.
           symlinks: try-secure
-        
           # Configure ACL use. Requires Linux with a file system that supports ACLs.
           # Possible values:
           #   * try (default on Linux): Attempt to use ACLs, warn at runtime if ACLs
@@ -85,7 +85,12 @@ destinations:
           #   * required: Always use ACLs, produce a hard error at runtime if ACLs
           #     are invalid.
           acls: try
-        
+      configs:
+        # Enables the creation of an SSH Host Certificate for OpenSSL with short-lived machine ID credentials.
+        # The principal should be the hostname of the domain be accessed, ensuring that it meets the limits of
+        # any limiting predicates defined by the associated role configuration.
+        -ssh_host_cert:
+           principlals [my.machineid.domain.com]
       # One or more roles to request for this destination directory from among
       # the roles granted by `tctl bots add --roles=...`
       # By default, all roles specified during `tctl bots add ...` are
@@ -105,7 +110,7 @@ destinations:
 
           # The database on the database server to use.
           database: example
-        
+
       # A list of configuration templates to generate and write to this
       # destination.
       configs:
