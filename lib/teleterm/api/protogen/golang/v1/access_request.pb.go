@@ -185,7 +185,7 @@ type AccessRequestReview struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// author is the creator of the AccessRequestReiew.
+	// author is the creator of the AccessRequestReview.
 	Author string `protobuf:"bytes,1,opt,name=author,proto3" json:"author,omitempty"`
 	// list of roles approved
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`

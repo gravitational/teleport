@@ -77,18 +77,34 @@ export namespace LogoutRequest {
     }
 }
 
+export class GetAccessRequestRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetAccessRequestRequest;
+
+    getId(): string;
+    setId(value: string): GetAccessRequestRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAccessRequestRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAccessRequestRequest): GetAccessRequestRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAccessRequestRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAccessRequestRequest;
+    static deserializeBinaryFromReader(message: GetAccessRequestRequest, reader: jspb.BinaryReader): GetAccessRequestRequest;
+}
+
+export namespace GetAccessRequestRequest {
+    export type AsObject = {
+        clusterUri: string,
+        id: string,
+    }
+}
+
 export class GetAccessRequestsRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetAccessRequestsRequest;
-
-    getId(): string;
-    setId(value: string): GetAccessRequestsRequest;
-
-    getUser(): string;
-    setUser(value: string): GetAccessRequestsRequest;
-
-    getState(): RequestState;
-    setState(value: RequestState): GetAccessRequestsRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -104,9 +120,6 @@ export class GetAccessRequestsRequest extends jspb.Message {
 export namespace GetAccessRequestsRequest {
     export type AsObject = {
         clusterUri: string,
-        id: string,
-        user: string,
-        state: RequestState,
     }
 }
 
@@ -158,8 +171,8 @@ export namespace GetAccessRequestsResponse {
 }
 
 export class DeleteAccessRequestRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): DeleteAccessRequestRequest;
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): DeleteAccessRequestRequest;
 
     getRequestId(): string;
     setRequestId(value: string): DeleteAccessRequestRequest;
@@ -177,35 +190,14 @@ export class DeleteAccessRequestRequest extends jspb.Message {
 
 export namespace DeleteAccessRequestRequest {
     export type AsObject = {
-        clusterUri: string,
+        rootClusterUri: string,
         requestId: string,
     }
 }
 
-export class DeleteAccessRequestResponse extends jspb.Message { 
-    getSuccess(): string;
-    setSuccess(value: string): DeleteAccessRequestResponse;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): DeleteAccessRequestResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: DeleteAccessRequestResponse): DeleteAccessRequestResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: DeleteAccessRequestResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): DeleteAccessRequestResponse;
-    static deserializeBinaryFromReader(message: DeleteAccessRequestResponse, reader: jspb.BinaryReader): DeleteAccessRequestResponse;
-}
-
-export namespace DeleteAccessRequestResponse {
-    export type AsObject = {
-        success: string,
-    }
-}
-
 export class CreateAccessRequestRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): CreateAccessRequestRequest;
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): CreateAccessRequestRequest;
 
     getReason(): string;
     setReason(value: string): CreateAccessRequestRequest;
@@ -238,7 +230,7 @@ export class CreateAccessRequestRequest extends jspb.Message {
 
 export namespace CreateAccessRequestRequest {
     export type AsObject = {
-        clusterUri: string,
+        rootClusterUri: string,
         reason: string,
         rolesList: Array<string>,
         suggestedReviewersList: Array<string>,
@@ -271,8 +263,8 @@ export namespace CreateAccessRequestResponse {
 }
 
 export class AssumeRoleRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): AssumeRoleRequest;
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): AssumeRoleRequest;
 
     clearAccessRequestIdsList(): void;
     getAccessRequestIdsList(): Array<string>;
@@ -297,30 +289,9 @@ export class AssumeRoleRequest extends jspb.Message {
 
 export namespace AssumeRoleRequest {
     export type AsObject = {
-        clusterUri: string,
+        rootClusterUri: string,
         accessRequestIdsList: Array<string>,
         dropRequestIdsList: Array<string>,
-    }
-}
-
-export class AssumeRoleResponse extends jspb.Message { 
-    getSuccess(): string;
-    setSuccess(value: string): AssumeRoleResponse;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): AssumeRoleResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: AssumeRoleResponse): AssumeRoleResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: AssumeRoleResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): AssumeRoleResponse;
-    static deserializeBinaryFromReader(message: AssumeRoleResponse, reader: jspb.BinaryReader): AssumeRoleResponse;
-}
-
-export namespace AssumeRoleResponse {
-    export type AsObject = {
-        success: string,
     }
 }
 
@@ -369,8 +340,8 @@ export namespace GetRequestableRolesResponse {
 }
 
 export class ReviewAccessRequestRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): ReviewAccessRequestRequest;
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): ReviewAccessRequestRequest;
 
     getState(): string;
     setState(value: string): ReviewAccessRequestRequest;
@@ -399,7 +370,7 @@ export class ReviewAccessRequestRequest extends jspb.Message {
 
 export namespace ReviewAccessRequestRequest {
     export type AsObject = {
-        clusterUri: string,
+        rootClusterUri: string,
         state: string,
         reason: string,
         rolesList: Array<string>,
@@ -1367,11 +1338,4 @@ export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_PIN = 1,
     PASSWORDLESS_PROMPT_TAP = 2,
     PASSWORDLESS_PROMPT_CREDENTIAL = 3,
-}
-
-export enum RequestState {
-    REQUEST_STATE_UNSPECIFIED = 0,
-    REQUEST_STATE_PENDING = 1,
-    REQUEST_STATE_APPROVED = 2,
-    REQUEST_STATE_DENIED = 3,
 }
