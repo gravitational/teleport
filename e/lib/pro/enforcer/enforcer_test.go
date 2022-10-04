@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
@@ -46,7 +47,7 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 	presence := local.NewPresenceService(backend)
 
 	namespace := &types.Namespace{}
-	namespace.SetName(clusterID)
+	namespace.SetName(apidefaults.Namespace)
 	err = presence.UpsertNamespace(*namespace)
 	c.Assert(err, check.IsNil)
 
@@ -55,7 +56,6 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 		Kind:     types.KindNode,
 		Version:  types.V2,
 	}
-	server.SetNamespace(clusterID)
 	_, err = presence.UpsertNode(ctx, server)
 	c.Assert(err, check.IsNil)
 

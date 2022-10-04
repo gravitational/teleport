@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
@@ -63,10 +64,9 @@ func (s *IntSuite) init(c *check.C) {
 		Kind:    types.KindNode,
 		Version: types.V2,
 	}
-	server.SetNamespace(ClusterID)
 
 	namespace := &types.Namespace{}
-	namespace.SetName(ClusterID)
+	namespace.SetName(apidefaults.Namespace)
 
 	presence := local.NewPresenceService(backend)
 	err = presence.UpsertNamespace(*namespace)
