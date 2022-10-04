@@ -7450,13 +7450,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP"
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7477,13 +7478,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP"
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7505,13 +7507,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP"
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7751,11 +7754,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    && docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7910,11 +7915,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" > /dev/null 2>&1 && echo 'Found existing image, skipping'
+    || (docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-amd64" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm64" && docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8237,11 +8245,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    && docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8402,11 +8412,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" > /dev/null 2>&1 && echo 'Found existing image, skipping'
+    || (docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-amd64" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm64" && docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8538,13 +8551,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP"
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8565,13 +8579,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP"
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8593,13 +8608,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP"
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8921,11 +8937,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    && docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9086,11 +9104,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" > /dev/null 2>&1 && echo 'Found existing image, skipping'
+    || (docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-amd64" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm64" && docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9222,13 +9243,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP"
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9249,13 +9271,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP"
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9277,13 +9300,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP"
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9605,11 +9629,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
+    create "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
     --amend "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+    && docker manifest push "quay.io/gravitational/teleport-operator:$(cat /go/var/canonical-version)")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9770,11 +9796,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    --amend "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-  - docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat /go/var/canonical-version)"
+  - docker manifest inspect "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" > /dev/null 2>&1 && echo 'Found existing image, skipping'
+    || (docker manifest create "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-amd64" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm" --amend "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-arm64" && docker manifest push "public.ecr.aws/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9906,13 +9935,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP"
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9933,13 +9963,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP"
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9961,13 +9992,14 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
     /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64"
-  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP"
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP")
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9997,6 +10029,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 86285b95af02d90fe404d2a9733886e9f3d13535087a4626e5cc78393b3fafe1
+hmac: b29ed1066d3b11f0743d7f2e2148f9b96c930a6d4ebc68b3ca6d5b4e111fb4a5
 
 ...
