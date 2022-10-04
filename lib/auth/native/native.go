@@ -83,11 +83,17 @@ func GeneratePrivateKey() (*keys.PrivateKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rsaSigner, err := keys.NewStandardSigner(rsaKey)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(rsaKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys.NewPrivateKey(rsaSigner)
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    keys.PKCS8PrivateKeyType,
+		Headers: nil,
+		Bytes:   keyDER,
+	})
+	return keys.NewPrivateKey(rsaKey, keyPEM)
 }
 
 func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
@@ -301,6 +307,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	}
 	if c.ConnectionDiagnosticID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = c.ConnectionDiagnosticID
+	}
+	if c.PrivateKeyPolicy != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionPrivateKeyPolicy] = string(c.PrivateKeyPolicy)
 	}
 
 	if c.SourceIP != "" {

@@ -994,7 +994,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
-  - [ ] Azure Redis.
+  - [ ] Azure Cache for Redis..
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
@@ -1014,7 +1014,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
-  - [ ] Azure Redis.
+  - [ ] Azure Cache for Redis.
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
 - [ ] Verify audit events.
@@ -1043,7 +1043,7 @@ tsh bench sessions --max=5000 --web user ls
       - [ ] Can detect and register MemoryDB clusters.
     - [ ] Azure
       - [ ] Can detect and register MySQL and Postgres instances.
-      - [ ] Can detect and register Azure Redis instances.
+      - [ ] Can detect and register Azure Cache for Redis servers.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users 

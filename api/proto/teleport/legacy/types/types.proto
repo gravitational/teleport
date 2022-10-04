@@ -18,6 +18,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -454,6 +455,17 @@ message Azure {
   string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
   // ResourceID is the Azure fully qualified ID for the resource.
   string ResourceID = 2 [(gogoproto.jsontag) = "resource_id,omitempty"];
+  // Redis contains Azure Cache for Redis specific database metadata.
+  AzureRedis Redis = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "redis,omitempty"
+  ];
+}
+
+// AzureRedis contains Azure Cache for Redis specific database metadata.
+message AzureRedis {
+  // ClusteringPolicy is the clustering policy for Redis Enterprise.
+  string ClusteringPolicy = 1 [(gogoproto.jsontag) = "clustering_policy,omitempty"];
 }
 
 // AD contains Active Directory specific database configuration.
@@ -792,6 +804,7 @@ message CertAuthorityV2 {
 // CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 message CertAuthoritySpecV2 {
+  reserved 3, 4, 7, 10;
   // Type is either user or host certificate authority
   string Type = 1 [
     (gogoproto.jsontag) = "type",
@@ -804,35 +817,12 @@ message CertAuthoritySpecV2 {
   // for host authorities that means base hostname of all servers,
   // for user authorities that means organization name
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // Checkers is a list of SSH public keys that can be used to check
-  // certificate signatures
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated bytes CheckingKeys = 3 [
-    (gogoproto.jsontag) = "checking_keys,omitempty",
-    deprecated = true
-  ];
-  // SigningKeys is a list of private keys used for signing
-  //
-  // DEPRECATED: use ActiveKeys instead.
-  repeated bytes SigningKeys = 4 [
-    (gogoproto.jsontag) = "signing_keys,omitempty",
-    deprecated = true
-  ];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
   // RoleMap specifies role mappings to remote roles
   repeated RoleMapping RoleMap = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "role_map,omitempty"
-  ];
-  // TLS is a list of TLS key pairs
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated TLSKeyPair TLSKeyPairs = 7 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "tls_key_pairs,omitempty",
-    deprecated = true
   ];
   // Rotation is a status of the certificate authority rotation
   Rotation Rotation = 8 [
@@ -848,15 +838,6 @@ message CertAuthoritySpecV2 {
     RSA_SHA2_512 = 3;
   }
   SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
-  // JWTKeyPair is a list of JWT key pairs.
-  //
-  // DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
-  repeated JWTKeyPair JWTKeyPairs = 10 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "jwt_key_pairs,omitempty",
-    deprecated = true
-  ];
-
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,
@@ -2915,6 +2896,9 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "dynamic_labels,omitempty"
   ];
+  // Kubeconfig is the kubeconfig file payload that grants access to the cluster.
+  // If multiple contexts are specified, the first will be selected.
+  bytes Kubeconfig = 2 [(gogoproto.jsontag) = "kubeconfig,omitempty"];
 }
 
 // KubernetesClusterV3List represents a list of kubernetes clusters.
@@ -3208,6 +3192,9 @@ message OIDCAuthRequest {
   // the address. If there is no match, the default redirect
   // url will be used.
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
+
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -3338,6 +3325,9 @@ message SAMLAuthRequest {
 
   // ConnectorSpec is embedded connector spec for use in test flow.
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
+
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3451,6 +3441,8 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
