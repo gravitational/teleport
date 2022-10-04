@@ -77,7 +77,8 @@ type RDSEndpointDetails struct {
 
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
 // endpoint.
-func ParseRDSEndpoint(endpoint string) (d *RDSEndpointDetails, err error) {
+func ParseRDSEndpoint(endpoint string) (*RDSEndpointDetails, error) {
+	var err error
 	if strings.ContainsRune(endpoint, ':') {
 		endpoint, _, err = net.SplitHostPort(endpoint)
 		if err != nil {

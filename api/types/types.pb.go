@@ -1306,9 +1306,9 @@ type RDS struct {
 	ResourceID string `protobuf:"bytes,3,opt,name=ResourceID,proto3" json:"resource_id,omitempty"`
 	// IAMAuth indicates whether database IAM authentication is enabled.
 	IAMAuth bool `protobuf:"varint,4,opt,name=IAMAuth,proto3" json:"iam_auth"`
-	// ProxyName is the identifier of an RDS proxy.
+	// ProxyName is the identifier of an RDS Proxy.
 	ProxyName string `protobuf:"bytes,5,opt,name=ProxyName,proto3" json:"proxy_name,omitempty"`
-	// ProxyCustomEndpointName is the identifier of an RDS proxy custom endpoint.
+	// ProxyCustomEndpointName is the identifier of an RDS Proxy custom endpoint.
 	ProxyCustomEndpointName string   `protobuf:"bytes,6,opt,name=ProxyCustomEndpointName,proto3" json:"proxy_custom_endpoint_name,omitempty"`
 	XXX_NoUnkeyedLiteral    struct{} `json:"-"`
 	XXX_unrecognized        []byte   `json:"-"`
