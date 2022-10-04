@@ -102,7 +102,7 @@ func cloneRepoCommands(cloneDirectory, commit string) []string {
 		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
 		fmt.Sprintf("cd %q", cloneDirectory),
 		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
-		`git fetch origin`,
+		`git fetch origin --tags`,
 		fmt.Sprintf("git checkout -qf %q", commit),
 	}
 }

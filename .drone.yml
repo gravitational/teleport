@@ -6107,7 +6107,7 @@ steps:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
   - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin
+  - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
   depends_on:
   - Verify build is tagged
@@ -6249,7 +6249,7 @@ steps:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
   - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin
+  - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
   depends_on:
   - Verify build is tagged
@@ -7212,6 +7212,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 998e75dfe42adc26bf6ff61dc6fec6bd5f87b5c2de3de952b061192d87e40893
+hmac: 65e2f6af8da82eac69c036051504edb6a9e175e2175bfe4ac40631c6dbf58a79
 
 ...
