@@ -771,6 +771,10 @@
         {
           "title": "FAQ",
           "slug": "/database-access/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/database-access/troubleshooting/"
         }
       ]
     },
