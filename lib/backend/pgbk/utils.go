@@ -44,7 +44,7 @@ func connectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn
 	return conn, nil
 }
 
-func ensureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logrus.FieldLogger) {
+func tryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logrus.FieldLogger) {
 	pgConn, err := connectPostgres(ctx, poolConfig)
 	if err != nil {
 		log.WithError(err).Warn("Failed to connect to the \"postgres\" database.")
