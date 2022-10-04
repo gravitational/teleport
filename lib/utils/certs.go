@@ -286,6 +286,7 @@ func NewCertPoolFromPath(path string) (*x509.CertPool, error) {
 	return pool, nil
 }
 
+// TLSCertToX509 is a helper function that converts a tls.Certificate into an *x509.Certificate
 func TLSCertToX509(cert tls.Certificate) (*x509.Certificate, error) {
 	if len(cert.Certificate) < 1 {
 		return nil, trace.NotFound("invalid certificate length")
