@@ -31,12 +31,15 @@ License warning should be displayed in both Web UI and CLI (tsh/tctl).
 ### CLI UX
 
 License warnings should be displayed in CLI (tsh/tctl) 
-TSH - on “tsh login”, in “tsh status”
-When the user uses either the “tsh login” or ‘tsh status” commands the appropriate license warning will be displayed. (see examples below)
-TCTL - “tctl status”
-When the user uses the “tctl status” command the appropriate license warning will be displayed.
+
+TSH - on “tsh login”
+When the user uses the “tsh login” command the appropriate license warning will be displayed. (see examples below)
+
+TCTL - on any "tctl" command when expired, or on "tctl status" when it is a warning.
+When the user uses any "tctl" command the appropriate license warning will be displayed if expired.
+The warnings will only be displyed on the "tctl status" command.
+
 The warnings are to be displayed 90 days prior to the license expiring.
-After expiration all tctl commands will display the license expiry warning.
 
 ### Example outputs
 
