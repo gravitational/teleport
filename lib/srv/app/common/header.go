@@ -24,6 +24,16 @@ import (
 	"github.com/gravitational/teleport"
 )
 
+const (
+	// XForwardedSSL is a non-standard X-Forwarded-* header that is set to "on" or "off" depending on
+	// whether SSL is enabled.
+	XForwardedSSL = "X-Forwarded-Ssl"
+
+	// XForwardedPort is a non-standard X-Forwarded-* header that specifies the original destination
+	// port of the URL being requested.
+	XForwardedPort = "X-Forwarded-Port"
+)
+
 // ReservedHeaders is a list of headers injected by Teleport.
 var ReservedHeaders = []string{
 	teleport.AppJWTHeader,
@@ -32,6 +42,8 @@ var ReservedHeaders = []string{
 	forward.XForwardedHost,
 	forward.XForwardedProto,
 	forward.XForwardedServer,
+	XForwardedSSL,
+	XForwardedPort,
 }
 
 // IsReservedHeader returns true if the provided header is one of headers
