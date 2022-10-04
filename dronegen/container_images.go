@@ -362,15 +362,10 @@ func (rv *releaseVersion) buildSplitSemverSteps() step {
 }
 
 func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
-	ossTeleport := NewTeleportProduct(false, false, rv)
-	teleportProducts := []*Product{
-		ossTeleport,                         // OSS
-		NewTeleportProduct(true, false, rv), // Enterprise
-		NewTeleportProduct(true, true, rv),  // Enterprise/FIPS
-	}
+	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
-	products := make([]*Product, 0, len(teleportProducts))
-	products = append(products, teleportProducts...)
+	products := make([]*Product, 0, 1)
+	products = append(products, teleportOperatorProduct)
 
 	return products
 }
@@ -425,150 +420,52 @@ type Product struct {
 	GetRequiredStepNames func(arch string) []string
 }
 
-func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *Product {
-	workingDirectory := "/go/build"
-	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-	name := "teleport"
-	dockerfileTarget := "teleport"
-	supportedArches := []string{"amd64"}
-
-	if isEnterprise {
-		name += "-ent"
-	}
-	if isFips {
-		dockerfileTarget += "-fips"
-		name += "-fips"
-	} else {
-		supportedArches = append(supportedArches, "arm", "arm64")
-	}
-
-	setupStep, debPaths, dockerfilePath := teleportSetupStep(version.ShellVersion, name, workingDirectory, downloadURL, supportedArches)
-
+func NewTeleportOperatorProduct(cloneDirectory string) *Product {
+	name := "teleport-operator"
 	return &Product{
 		Name:             name,
-		DockerfilePath:   dockerfilePath,
-		WorkingDirectory: workingDirectory,
-		DockerfileTarget: dockerfileTarget,
-		SupportedArchs:   supportedArches,
-		SetupSteps:       []step{setupStep},
-		DockerfileArgBuilder: func(arch string) []string {
-			return []string{
-				fmt.Sprintf("DEB_PATH=%s", debPaths[arch]),
-			}
-		},
+		DockerfilePath:   path.Join(cloneDirectory, "operator", "Dockerfile"),
+		WorkingDirectory: cloneDirectory,
+		SupportedArchs:   []string{"amd64", "arm", "arm64"},
 		ImageBuilder: func(repo string, tag *ImageTag) *Image {
-			imageProductName := "teleport"
-			if isEnterprise {
-				imageProductName += "-ent"
-			}
-
-			if isFips {
-				tag.AppendString("fips")
-			}
-
 			return &Image{
 				Repo: repo,
-				Name: imageProductName,
+				Name: name,
 				Tag:  tag,
 			}
 		},
+		DockerfileArgBuilder: func(arch string) []string {
+			gccPackage := ""
+			compilerName := ""
+			switch arch {
+			case "x86_64":
+				fallthrough
+			case "amd64":
+				gccPackage = "gcc-x86-64-linux-gnu"
+				compilerName = "x86_64-linux-gnu-gcc"
+			case "i686":
+				fallthrough
+			case "i386":
+				gccPackage = "gcc-multilib-i686-linux-gnu"
+				compilerName = "i686-linux-gnu-gcc"
+			case "aarch64":
+				fallthrough
+			case "arm64":
+				gccPackage = "gcc-aarch64-linux-gnu"
+				compilerName = "aarch64-linux-gnu-gcc"
+			// We may want to add additional arm ISAs in the future to support devices without hardware FPUs
+			case "armhf":
+			case "arm":
+				gccPackage = "gcc-arm-linux-gnueabihf"
+				compilerName = "arm-linux-gnueabihf-gcc"
+			}
+
+			return []string{
+				fmt.Sprintf("COMPILER_PACKAGE=%s", gccPackage),
+				fmt.Sprintf("COMPILER_NAME=%s", compilerName),
+			}
+		},
 	}
-}
-
-func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL string, archs []string) (step, map[string]string, string) {
-	keyPath := "/usr/share/keyrings/teleport-archive-keyring.asc"
-	downloadDirectory := "/tmp/apt-download"
-	timeout := 30 * 60 // 30 minutes in seconds
-	sleepTime := 15    // 15 seconds
-	dockerfilePath := path.Join(workingPath, "Dockerfile")
-
-	commands := []string{
-		// Setup the environment
-		fmt.Sprintf("PACKAGE_NAME=%q", packageName),
-		fmt.Sprintf("PACKAGE_VERSION=%q", shellVersion),
-		"apt update",
-		"apt install --no-install-recommends -y ca-certificates curl",
-		"update-ca-certificates",
-		// Download the dockerfile
-		fmt.Sprintf("mkdir -pv $(dirname %q)", dockerfilePath),
-		fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
-		// Add the Teleport APT repo
-		fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
-		". /etc/os-release",
-		// Per https://docs.drone.io/pipeline/environment/syntax/#common-problems I'm using '$$' here to ensure
-		// That the shell variable is not expanded until runtime, preventing drone from erroring on the
-		// drone-unsupported '?'
-		"MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)",
-		fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/$${ID?} $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}\""+
-			" > /etc/apt/sources.list.d/teleport.list", keyPath),
-		fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeout),
-		"TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)",
-		"TIMED_OUT=true",
-		// Poll APT until the timeout is reached or the package becomes available
-		"while [ $(date +%s) -lt $${END_TIME?} ]; do",
-		"echo 'Running apt update...'",
-		// This will error on new major versions where the "stable/$${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
-		"apt update > /dev/null || true",
-		"[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge 1 ] && TIMED_OUT=false && break;",
-		fmt.Sprintf("echo 'Package not found yet, waiting another %d seconds...'", sleepTime),
-		fmt.Sprintf("sleep %d", sleepTime),
-		"done",
-		// Log success or failure and record full version string
-		"[ $${TIMED_OUT?} = true ] && echo \"Timed out while looking for APT package \\\"$${PACKAGE_NAME}\\\" matching \\\"$${TRIMMED_VERSION}\\\"\" && exit 1",
-		"FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
-		fmt.Sprintf("echo \"Found APT package, downloading \\\"$${PACKAGE_NAME}=$${FULL_VERSION}\\\" for %q...\"", strings.Join(archs, "\", \"")),
-		fmt.Sprintf("mkdir -pv %q", downloadDirectory),
-		fmt.Sprintf("cd %q", downloadDirectory),
-	}
-
-	for _, arch := range archs {
-		// Our built debs are listed as ISA "armhf" not "arm", so we account for that here
-		if arch == "arm" {
-			arch = "armhf"
-		}
-
-		commands = append(commands, []string{
-			// This will allow APT to download other architectures
-			fmt.Sprintf("dpkg --add-architecture %q", arch),
-		}...)
-	}
-
-	// This will error due to Ubuntu's APT repo structure but it doesn't matter here
-	commands = append(commands, "apt update &> /dev/null || true")
-
-	archDestFileMap := make(map[string]string, len(archs))
-	for _, arch := range archs {
-		relArchDir := path.Join(".", "/artifacts/deb/", packageName, arch)
-		archDir := path.Join(workingPath, relArchDir)
-		// Example: `./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
-		relDestPath := path.Join(relArchDir, fmt.Sprintf("%s.deb", shellVersion))
-		// Example: `/go/./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
-		destPath := path.Join(workingPath, relDestPath)
-
-		archDestFileMap[arch] = relDestPath
-
-		// Our built debs are listed as ISA "armhf" not "arm", so we account for that here
-		if arch == "arm" {
-			arch = "armhf"
-		}
-
-		// This could probably be parallelized to slightly reduce runtime
-		fullPackageName := fmt.Sprintf("%s:%s=$${FULL_VERSION}", packageName, arch)
-		commands = append(commands, []string{
-			fmt.Sprintf("mkdir -pv %q", archDir),
-			fmt.Sprintf("apt download %q", fullPackageName),
-			"FILENAME=$(ls)", // This will only return the download file as it is the only file in that directory
-			"echo \"Downloaded file \\\"$${FILENAME}\\\"\"",
-			fmt.Sprintf("mv \"$${FILENAME}\" %q", path.Join(archDir, "$${PACKAGE_VERSION}.deb")),
-			fmt.Sprintf("echo Downloaded %q to %q", fullPackageName, destPath),
-		}...)
-	}
-
-	return step{
-		Name:     fmt.Sprintf("Download %q Dockerfile and DEB artifacts from APT", packageName),
-		Image:    "ubuntu:22.04",
-		Commands: commands,
-	}, archDestFileMap, dockerfilePath
 }
 
 func (p *Product) GetlocalRegistryImage(arch string, version *releaseVersion) *Image {

@@ -34,7 +34,7 @@ FROM ubuntu:20.04
 #   * nslookup
 #   * vi
 #   * wget
-
+#
 # Note that /var/lib/apt/lists/* is cleaned up in the same RUN command as
 # "apt-get update" to reduce the size of the image.
 RUN apt-get update && \
@@ -53,4 +53,4 @@ COPY tsh /usr/local/bin/tsh
 COPY tbot /usr/local/bin/tbot
 
 # By setting this entry point, we expose make target as command.
-ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]
