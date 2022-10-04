@@ -141,13 +141,14 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		go func() {
-			if l.cfg.Middleware != nil {
-				if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
-					log.WithError(err).Errorf("Failed to handle connection.")
-					return
-				}
+		if l.cfg.Middleware != nil {
+			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
+				log.WithError(err).Errorf("Middleware failed to handle new connection.")
+				continue
 			}
+		}
+
+		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn); err != nil {
 				if utils.IsOKNetworkError(err) {
 					return
