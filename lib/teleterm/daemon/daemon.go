@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -375,7 +376,28 @@ func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := cluster.GetAccessRequests(ctx, req)
+	response, err := cluster.GetAccessRequests(ctx, types.AccessRequestFilter{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
+}
+
+// GetAccessRequest returns AccessRequests filtered by ID
+func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) ([]clusters.AccessRequest, error) {
+	if req.Id == "" {
+		return nil, trace.BadParameter("missing request id")
+	}
+
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID: req.Id,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -49,8 +49,8 @@ func (s *Handler) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 }
 
 // GetAccessRequest returns a single access request by id.
-func (s *Handler) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestsRequest) (*api.GetAccessRequestResponse, error) {
-	requests, err := s.DaemonService.GetAccessRequests(ctx, req)
+func (s *Handler) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) (*api.GetAccessRequestResponse, error) {
+	requests, err := s.DaemonService.GetAccessRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

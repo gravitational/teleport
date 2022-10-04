@@ -46,7 +46,7 @@ service TerminalService {
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
-  rpc GetAccessRequest(GetAccessRequestsRequest) returns (GetAccessRequestResponse);
+  rpc GetAccessRequest(GetAccessRequestRequest) returns (GetAccessRequestResponse);
   // DeleteAccessRequest deletes the access request by id
   rpc DeleteAccessRequest(DeleteAccessRequestRequest) returns (EmptyResponse);
   // CreateAccessRequest creates an access request
@@ -143,39 +143,16 @@ enum PasswordlessPrompt {
   PASSWORDLESS_PROMPT_CREDENTIAL = 3;
 }
 
-// RequestState represents the state of a request for escalated privilege.
-enum RequestState {
-  // UNSPECIFIED variant exists to allow RequestState to be explicitly omitted
-  // in certain circumstances (e.g. in an AccessRequestFilter).
-  REQUEST_STATE_UNSPECIFIED = 0;
-  // PENDING variant is the default for newly created requests.
-  REQUEST_STATE_PENDING = 1;
-  // APPROVED variant indicates that a request has been accepted by
-  // an administrating party.
-  REQUEST_STATE_APPROVED = 2;
-  // DENIED variant indicates that a request has been rejected by
-  // an administrating party.
-  REQUEST_STATE_DENIED = 3;
-}
-
 message GetAccessRequestRequest {
   // cluster_uri is the cluster uri
   string cluster_uri = 1;
   // specifcies a specific request id
   string id = 2;
-  // specifies a username if set
-  string user = 3;
-  // filters for a specific request state
-  RequestState state = 4;
 }
 
 message GetAccessRequestsRequest {
   // cluster_uri is the cluster uri
   string cluster_uri = 1;
-  // specifies a username if set
-  string user = 3;
-  // filters for a specific request state
-  RequestState state = 4;
 }
 
 message GetAccessRequestResponse {

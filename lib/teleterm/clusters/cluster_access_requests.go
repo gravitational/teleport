@@ -35,16 +35,13 @@ type AccessRequest struct {
 }
 
 // Returns all access requests available to the user
-func (c *Cluster) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]AccessRequest, error) {
+func (c *Cluster) GetAccessRequests(ctx context.Context, req types.AccessRequestFilter) ([]AccessRequest, error) {
 	var (
 		requests []types.AccessRequest
 		err      error
 	)
 	err = addMetadataToRetryableError(ctx, func() error {
-		requests, err = c.clusterClient.GetAccessRequests(ctx, types.AccessRequestFilter{
-			State: types.RequestState(req.State),
-			User:  req.User,
-		})
+		requests, err = c.clusterClient.GetAccessRequests(ctx, req)
 		return err
 	})
 	if err != nil {
