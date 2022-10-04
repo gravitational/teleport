@@ -118,7 +118,7 @@ type TLSServer struct {
 	// reconcileCh triggers reconciliation of proxied kube_clusters.
 	reconcileCh chan struct{}
 	log         *logrus.Entry
-	// legacyHeartBeat is used to heartbeat clusters as KindKubeService in order to support older
+	// legacyHeartbeat is used to heartbeat clusters as KindKubeService in order to support older
 	// clients that do not support new KindKubeServer
 	// DELETE IN 12.0.0
 	legacyHeartbeat *srv.Heartbeat
