@@ -106,13 +106,18 @@ func buildContainerImagePipelines() []pipeline {
 }
 
 type TriggerInfo struct {
-	Trigger                      trigger
-	Name                         string
+	Trigger           trigger
+	Name              string
+	Flags             *TriggerFlags
+	SupportedVersions []*releaseVersion
+	SetupSteps        []step
+}
+
+// This is mainly used to make passing these vars around cleaner
+type TriggerFlags struct {
 	ShouldAffectProductionImages bool
 	ShouldBuildNewImages         bool
-	UniqueStagingTag             bool
-	SupportedVersions            []*releaseVersion
-	SetupSteps                   []step
+	UseUniqueStagingTag          bool
 }
 
 func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
@@ -131,11 +136,13 @@ func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
 	tagTrigger := triggerTag
 
 	return &TriggerInfo{
-		Trigger:                      tagTrigger,
-		Name:                         "tag",
-		ShouldAffectProductionImages: false,
-		ShouldBuildNewImages:         true,
-		UniqueStagingTag:             false,
+		Trigger: tagTrigger,
+		Name:    "tag",
+		Flags: &TriggerFlags{
+			ShouldAffectProductionImages: false,
+			ShouldBuildNewImages:         true,
+			UseUniqueStagingTag:          false,
+		},
 		SupportedVersions: []*releaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
@@ -151,11 +158,13 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
 
 	return &TriggerInfo{
-		Trigger:                      promoteTrigger,
-		Name:                         "promote",
-		ShouldAffectProductionImages: true,
-		ShouldBuildNewImages:         false,
-		UniqueStagingTag:             false,
+		Trigger: promoteTrigger,
+		Name:    "promote",
+		Flags: &TriggerFlags{
+			ShouldAffectProductionImages: true,
+			ShouldBuildNewImages:         false,
+			UseUniqueStagingTag:          false,
+		},
 		SupportedVersions: []*releaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
@@ -197,12 +206,14 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 	}
 
 	return &TriggerInfo{
-		Trigger:                      cronTrigger([]string{"teleport-container-images-cron"}),
-		Name:                         "cron",
-		ShouldAffectProductionImages: true,
-		ShouldBuildNewImages:         true,
-		UniqueStagingTag:             true,
-		SupportedVersions:            supportedVersions,
+		Trigger: cronTrigger([]string{"teleport-container-images-cron"}),
+		Name:    "cron",
+		Flags: &TriggerFlags{
+			ShouldAffectProductionImages: true,
+			ShouldBuildNewImages:         true,
+			UseUniqueStagingTag:          true,
+		},
+		SupportedVersions: supportedVersions,
 	}
 }
 
@@ -234,7 +245,7 @@ func readCronShellVersionCommand(majorVersionDirectory, majorVersion string) str
 func (ti *TriggerInfo) buildPipelines() []pipeline {
 	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
 	for _, teleportVersion := range ti.SupportedVersions {
-		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.ShouldAffectProductionImages, ti.ShouldBuildNewImages, ti.UniqueStagingTag)
+		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.Flags)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
 
@@ -251,7 +262,7 @@ type releaseVersion struct {
 	SetupSteps          []step // Version-specific steps that must be ran before executing build and push steps
 }
 
-func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, shouldAffectProductionRepos, shouldBuildNewImages, uniqueStagingTag bool) pipeline {
+func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, flags *TriggerFlags) pipeline {
 	pipelineName := fmt.Sprintf("teleport-container-images-%s", rv.RelativeVersionName)
 
 	setupSteps, dependentStepNames := rv.getSetupStepInformation(triggerSetupSteps)
@@ -268,7 +279,7 @@ func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, shouldA
 			raw: "noninteractive",
 		},
 	}
-	pipeline.Steps = append(setupSteps, rv.buildSteps(dependentStepNames, shouldAffectProductionRepos, shouldBuildNewImages, uniqueStagingTag)...)
+	pipeline.Steps = append(setupSteps, rv.buildSteps(dependentStepNames, flags)...)
 
 	return pipeline
 }
@@ -295,7 +306,7 @@ func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 	return setupSteps, nextStageSetupStepNames
 }
 
-func (rv *releaseVersion) buildSteps(setupStepNames []string, shouldAffectProductionRepos, shouldBuildNewImages, uniqueStagingTag bool) []step {
+func (rv *releaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlags) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 	steps := make([]step, 0)
 
@@ -312,7 +323,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string, shouldAffectProduc
 	}
 
 	for _, product := range rv.getProducts(clonedRepoPath) {
-		steps = append(steps, product.buildSteps(rv, setupStepNames, shouldAffectProductionRepos, shouldBuildNewImages, uniqueStagingTag)...)
+		steps = append(steps, product.buildSteps(rv, setupStepNames, flags)...)
 	}
 
 	return steps
@@ -499,15 +510,18 @@ func (p *Product) GetLocalRegistryImage(arch string, version *releaseVersion) *I
 	return image
 }
 
-func (p *Product) GetStagingRegistryImage(arch string, version *releaseVersion, uniqueStagingTag bool) *Image {
+func (p *Product) GetStagingRegistryImage(arch string, version *releaseVersion, stagingRepo *ContainerRepo) *Image {
 	image := p.getBaseImage(arch, version)
-	image.Repo = GetStagingContainerRepo(uniqueStagingTag).RegistryDomain
+	image.Repo = stagingRepo.RegistryDomain
 
 	return image
 }
 
-func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, shouldAffectProductionRepos, shouldBuildNewImages, uniqueStagingTag bool) []step {
+func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, flags *TriggerFlags) []step {
 	steps := make([]step, 0)
+
+	stagingRepo := GetStagingContainerRepo(flags.UseUniqueStagingTag)
+	productionRepos := GetProductionContainerRepos()
 
 	for _, setupStep := range p.SetupSteps {
 		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
@@ -519,7 +533,7 @@ func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, s
 
 	for _, supportedArch := range p.SupportedArchs {
 		// Include steps for building images from scratch
-		if shouldBuildNewImages {
+		if flags.ShouldBuildNewImages {
 			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version)
 
 			archBuildStep.DependsOn = append(archBuildStep.DependsOn, setupStepNames...)
@@ -533,32 +547,34 @@ func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, s
 			// Generate build details that point to staging images
 			archBuildStepDetails = append(archBuildStepDetails, &buildStepOutput{
 				StepName:   "",
-				BuiltImage: p.GetStagingRegistryImage(supportedArch, version, uniqueStagingTag),
+				BuiltImage: p.GetStagingRegistryImage(supportedArch, version, stagingRepo),
 				Version:    version,
 				Product:    p,
 			})
 		}
 	}
 
-	for _, containerRepo := range getReposToPublishTo(shouldAffectProductionRepos, shouldBuildNewImages, uniqueStagingTag) {
+	for _, containerRepo := range getReposToPublishTo(productionRepos, stagingRepo, flags) {
 		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails)...)
 	}
 
 	return steps
 }
 
-func getReposToPublishTo(shouldAffectProductionRepos, shouldBuildNewImages, uniqueStagingTag bool) []*ContainerRepo {
-	if shouldAffectProductionRepos {
-		if !shouldBuildNewImages {
+func getReposToPublishTo(productionRepos []*ContainerRepo, stagingRepo *ContainerRepo, flags *TriggerFlags) []*ContainerRepo {
+	stagingRepos := []*ContainerRepo{stagingRepo}
+
+	if flags.ShouldAffectProductionImages {
+		if !flags.ShouldBuildNewImages {
 			// In this case the images will be pulled from staging and therefor should not be re-published
 			// to staging
-			return GetProductionContainerRepos()
+			return productionRepos
 		}
 
-		return GetContainerRepos(uniqueStagingTag)
+		return append(stagingRepos, productionRepos...)
 	}
 
-	return []*ContainerRepo{GetStagingContainerRepo(uniqueStagingTag)}
+	return stagingRepos
 }
 
 func (p *Product) GetBuildStepName(arch string, version *releaseVersion) string {
@@ -739,10 +755,6 @@ func GetProductionContainerRepos() []*ContainerRepo {
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
 		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, true, false, false),
 	}
-}
-
-func GetContainerRepos(guaranteeUnique bool) []*ContainerRepo {
-	return append(GetProductionContainerRepos(), GetStagingContainerRepo(guaranteeUnique))
 }
 
 func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step {

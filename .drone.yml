@@ -8113,6 +8113,202 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and canonical semver
+- name: Tag and push image "teleport-operator:v10-amd64" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v10-amd64"
+- name: Tag and push image "teleport-operator:v10-arm" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v10-arm"
+- name: Tag and push image "teleport-operator:v10-arm64" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v10-arm64"
+- name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v10-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v10-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v10-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v10-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:canonical-$TIMESTAMP" to ECR -
+    staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v10-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v10-arm64" to ECR - staging
 - name: Tag and push image "teleport-operator:v10-amd64" to Quay
   image: docker
   commands:
@@ -8430,202 +8626,6 @@ steps:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - production
   - Tag and push image "teleport-operator:v10-arm" to ECR - production
   - Tag and push image "teleport-operator:v10-arm64" to ECR - production
-- name: Tag and push image "teleport-operator:v10-amd64" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v10-amd64"
-- name: Tag and push image "teleport-operator:v10-arm" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v10-arm"
-- name: Tag and push image "teleport-operator:v10-arm64" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v10-arm64"
-- name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v10-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v10-arm64" to ECR - staging
-- name: Create manifest and push "teleport-operator:minor-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v10-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v10-arm64" to ECR - staging
-- name: Create manifest and push "teleport-operator:canonical-$TIMESTAMP" to ECR -
-    staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v10-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v10-arm64" to ECR - staging
 services:
 - name: Start Docker
   image: docker:dind
@@ -8805,6 +8805,202 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and canonical semver
+- name: Tag and push image "teleport-operator:v9-amd64" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v9-amd64"
+- name: Tag and push image "teleport-operator:v9-arm" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v9-arm"
+- name: Tag and push image "teleport-operator:v9-arm64" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v9-arm64"
+- name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v9-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v9-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v9-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v9-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:canonical-$TIMESTAMP" to ECR -
+    staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v9-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v9-arm64" to ECR - staging
 - name: Tag and push image "teleport-operator:v9-amd64" to Quay
   image: docker
   commands:
@@ -9122,202 +9318,6 @@ steps:
   - Tag and push image "teleport-operator:v9-amd64" to ECR - production
   - Tag and push image "teleport-operator:v9-arm" to ECR - production
   - Tag and push image "teleport-operator:v9-arm64" to ECR - production
-- name: Tag and push image "teleport-operator:v9-amd64" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v9-amd64"
-- name: Tag and push image "teleport-operator:v9-arm" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v9-arm"
-- name: Tag and push image "teleport-operator:v9-arm64" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v9-arm64"
-- name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v9-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v9-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v9-arm64" to ECR - staging
-- name: Create manifest and push "teleport-operator:minor-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v9-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v9-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v9-arm64" to ECR - staging
-- name: Create manifest and push "teleport-operator:canonical-$TIMESTAMP" to ECR -
-    staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v9-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v9-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v9-arm64" to ECR - staging
 services:
 - name: Start Docker
   image: docker:dind
@@ -9497,6 +9497,202 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and canonical semver
+- name: Tag and push image "teleport-operator:v8-amd64" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-amd64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v8-amd64"
+- name: Tag and push image "teleport-operator:v8-arm" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v8-arm"
+- name: Tag and push image "teleport-operator:v8-arm64" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
+    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Build teleport-operator image "teleport-operator:v8-arm64"
+- name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/major-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v8-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v8-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v8-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/minor-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v8-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v8-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v8-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:canonical-$TIMESTAMP" to ECR -
+    staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
+    /go/var/canonical-version)-$TIMESTAMP")
+  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v8-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v8-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v8-arm64" to ECR - staging
 - name: Tag and push image "teleport-operator:v8-amd64" to Quay
   image: docker
   commands:
@@ -9814,202 +10010,6 @@ steps:
   - Tag and push image "teleport-operator:v8-amd64" to ECR - production
   - Tag and push image "teleport-operator:v8-arm" to ECR - production
   - Tag and push image "teleport-operator:v8-arm64" to ECR - production
-- name: Tag and push image "teleport-operator:v8-amd64" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-amd64"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v8-amd64"
-- name: Tag and push image "teleport-operator:v8-arm" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v8-arm"
-- name: Tag and push image "teleport-operator:v8-arm64" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v8')-arm64"
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v8')-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Build teleport-operator image "teleport-operator:v8-arm64"
-- name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v8-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v8-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v8-arm64" to ECR - staging
-- name: Create manifest and push "teleport-operator:minor-$TIMESTAMP" to ECR - staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v8-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v8-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v8-arm64" to ECR - staging
-- name: Create manifest and push "teleport-operator:canonical-$TIMESTAMP" to ECR -
-    staging
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest inspect "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-amd64" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm" --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP-arm64" && docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$(cat
-    /go/var/canonical-version)-$TIMESTAMP")
-  - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: dockersock
-    path: /var/run
-  depends_on:
-  - Tag and push image "teleport-operator:v8-amd64" to ECR - staging
-  - Tag and push image "teleport-operator:v8-arm" to ECR - staging
-  - Tag and push image "teleport-operator:v8-arm64" to ECR - staging
 services:
 - name: Start Docker
   image: docker:dind
@@ -10026,6 +10026,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 7d80356913a3dd5e1807184cc2e10c6f8b0fd5b23b3b4ee37ce0879f20308150
+hmac: 2d5f9fbd3d7a03db7a3b72554baedc9aca483b9bdd40e885dd7ea28868f08fce
 
 ...
