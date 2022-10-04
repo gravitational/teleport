@@ -3959,7 +3959,7 @@ message CassandraBatch {
   string Keyspace = 7 [(gogoproto.jsontag) = "keyspace,omitempty"];
   // BatchType is the type of batch.
   string BatchType = 8 [(gogoproto.jsontag) = "batch_type,omitempty"];
-  // BatchSize is the batch children statements.
+  // BatchChild represents a single child batch statement.
   message BatchChild {
     // Value is a single value to bind to the query.
     message Value {
