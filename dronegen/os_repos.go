@@ -90,9 +90,12 @@ func artifactMigrationPipeline() []pipeline {
 		// "v9.3.10",
 		// "v9.3.12",
 		// "v9.3.13",
+		// "v9.3.14",
 		// "v10.0.0",
 		// "v10.0.1",
 		// "v10.0.2",
+		// "v10.1.2",
+		// "v10.1.4",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
