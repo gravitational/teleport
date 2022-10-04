@@ -79,9 +79,6 @@ func TestUserUpdate(t *testing.T) {
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 
-	baseUser, err := types.NewUser("test-user")
-	require.NoError(t, err)
-
 	tests := []struct {
 		name         string
 		args         []string
@@ -156,19 +153,21 @@ func TestUserUpdate(t *testing.T) {
 
 	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err = types.NewUser("test-user-" + fmt.Sprint(i))
+			testUsername := fmt.Sprintf("test-user-%d", i)
+			user, err := types.NewUser(testUsername)
 
-			require.NoError(t, client.UpsertUser(baseUser))
+			require.NoError(t, err)
+			require.NoError(t, client.UpsertUser(user))
 			args := append([]string{"update"}, tc.args...)
-			args = append(args, "test-user")
-			err := runUserCommand(t, fileConfig, args)
+			args = append(args, testUsername)
+			err = runUserCommand(t, fileConfig, args)
 			if tc.errorChecker != nil {
 				require.True(t, tc.errorChecker(err), err)
 				return
 			}
 
 			require.NoError(t, err)
-			updatedUser, err := client.GetUser("test-user", false)
+			updatedUser, err := client.GetUser(testUsername, false)
 			require.NoError(t, err)
 
 			if len(tc.wantRoles) > 0 {
