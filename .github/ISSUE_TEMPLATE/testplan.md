@@ -344,11 +344,7 @@ connectors are accepted, invalid are rejected with sensible error messages.
 
 ### Passwordless
 
-Passwordless requires `tsh` compiled with libfido2 for most operations (apart
-from Touch ID). Ask for a statically-built `tsh` binary for realistic tests.
-
-Touch ID requires a properly built and signed `tsh` binary. Ask for a
-pre-release binary, so you may run the tests.
+This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 This sections complements "Users -> Managing MFA devices". Ideally both macOS
 and Linux `tsh` binaries are tested for FIDO2 items.
@@ -384,42 +380,38 @@ and Linux `tsh` binaries are tested for FIDO2 items.
 
 ### Hardware Key Login
 
-Hardware Key Login is an Enterprise feature and is not available for OSS.
+Hardware Key Login is a Enterprise feature and is not available for OSS.
 
-On Linux, hardware key support requires that `tsh` and `teleport` are both built with libpcsclite. Ask for a statically-built `tsh` and `teleport` binary for realistic tests.
+You will need a YubiKey 4.3+ to test this feature. 
 
-You will need a YubiKey 4.3+ for each test. `tsh logout` between each section.
+This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
-- [ ] `auth_service.authentication.require_session_mfa: hardware_key`
-  - [ ] `tsh login`
-    - [ ] Requires yubikey to be connected
-    - [ ] Prompts for credentials (password/mfa/etc.) once
+These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
+
+1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login and no hardware key requirement.
+2. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key` - `tsh login --request-roles=hardware_key_required`
+  - [ ] Assuming the role should force automatic re-login with yubikey
   - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected
+    - [ ] Requires yubikey to be connected for re-login
     - [ ] Prompts for per-session MFA
-- [ ] `auth_service.authentication.require_session_mfa: hardware_key_touch`
-  - [ ] `tsh login`
-    - [ ] Requires yubikey to be connected
-    - [ ] Prompts for credentials (password/mfa/etc.) once
-    - [ ] Prompts for touch (maximum of once per 15 seconds)
+3. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key_touch` - `tsh login --request-roles=hardware_key_touch_required`
+  - [ ] Assuming the role should force automatic re-login with yubikey
+    - [ ] Prompts for touch if not cached (last touch within 15 seconds)
   - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected
-    - [ ] Prompts for touch (maximum of once per 15 seconds)
-- [ ] `role.role_options.require_session_mfa: hardware_key`
-  - [ ] `tsh login`
-      - [ ] Prompts for credentials (password/mfa/etc.) twice
-      - [ ] Requires yubikey to be connected
-    - [ ] `tsh ssh`
-      - [ ] Requires yubikey to be connected
-      - [ ] Prompts for per-session MFA
-- [ ] `role.role_options.require_session_mfa: hardware_key_touch`
-  - [ ] `tsh login`
-    - [ ] Prompts for credentials (password/mfa/etc.) twice
-    - [ ] Requires yubikey to be connected
-    - [ ] Prompts for touch (maximum of once per 15 seconds)
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for touch if not cached
+4. [ ] `tsh logout` and `tsh login` as the user with no hardware key requirement.
+5. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key`
+  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
   - [ ] `tsh ssh`
-    - [ ] Requires yubikey to be connected
-    - [ ] Prompts for touch (maximum of once per 15 seconds)
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for per-session MFA
+6. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key_touch`
+  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
+    - [ ] Prompts for touch if not cached
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for touch if not cached
 
 ## WEB UI
 
