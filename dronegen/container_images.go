@@ -109,6 +109,7 @@ type TriggerInfo struct {
 	Trigger                      trigger
 	Name                         string
 	ShouldAffectProductionImages bool
+	ShouldBuildNewImages         bool
 	SupportedVersions            []*releaseVersion
 	SetupSteps                   []step
 }
@@ -132,6 +133,7 @@ func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
 		Trigger:                      tagTrigger,
 		Name:                         "tag",
 		ShouldAffectProductionImages: false,
+		ShouldBuildNewImages:         true,
 		SupportedVersions: []*releaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
@@ -150,6 +152,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 		Trigger:                      promoteTrigger,
 		Name:                         "promote",
 		ShouldAffectProductionImages: true,
+		ShouldBuildNewImages:         false,
 		SupportedVersions: []*releaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
@@ -194,6 +197,7 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 		Trigger:                      cronTrigger([]string{"teleport-container-images-cron"}),
 		Name:                         "cron",
 		ShouldAffectProductionImages: true,
+		ShouldBuildNewImages:         true,
 		SupportedVersions:            supportedVersions,
 	}
 }
@@ -226,7 +230,7 @@ func readCronShellVersionCommand(majorVersionDirectory, majorVersion string) str
 func (ti *TriggerInfo) buildPipelines() []pipeline {
 	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
 	for _, teleportVersion := range ti.SupportedVersions {
-		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.ShouldAffectProductionImages)
+		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.ShouldAffectProductionImages, ti.ShouldBuildNewImages)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
 
@@ -243,7 +247,7 @@ type releaseVersion struct {
 	SetupSteps          []step // Version-specific steps that must be ran before executing build and push steps
 }
 
-func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, shouldAffectProductionRepos bool) pipeline {
+func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, shouldAffectProductionRepos, shouldBuildNewImages bool) pipeline {
 	pipelineName := fmt.Sprintf("teleport-container-images-%s", rv.RelativeVersionName)
 
 	setupSteps, dependentStepNames := rv.getSetupStepInformation(triggerSetupSteps)
@@ -260,7 +264,7 @@ func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, shouldA
 			raw: "noninteractive",
 		},
 	}
-	pipeline.Steps = append(setupSteps, rv.buildSteps(dependentStepNames, shouldAffectProductionRepos)...)
+	pipeline.Steps = append(setupSteps, rv.buildSteps(dependentStepNames, shouldAffectProductionRepos, shouldBuildNewImages)...)
 
 	return pipeline
 }
@@ -287,7 +291,7 @@ func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 	return setupSteps, nextStageSetupStepNames
 }
 
-func (rv *releaseVersion) buildSteps(setupStepNames []string, shouldAffectProductionRepos bool) []step {
+func (rv *releaseVersion) buildSteps(setupStepNames []string, shouldAffectProductionRepos, shouldBuildNewImages bool) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 	steps := make([]step, 0)
 
@@ -304,7 +308,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string, shouldAffectProduc
 	}
 
 	for _, product := range rv.getProducts(clonedRepoPath) {
-		steps = append(steps, product.buildSteps(rv, setupStepNames, shouldAffectProductionRepos)...)
+		steps = append(steps, product.buildSteps(rv, setupStepNames, shouldAffectProductionRepos, shouldBuildNewImages)...)
 	}
 
 	return steps
@@ -468,9 +472,8 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	}
 }
 
-func (p *Product) GetlocalRegistryImage(arch string, version *releaseVersion) *Image {
+func (p *Product) getBaseImage(arch string, version *releaseVersion) *Image {
 	return &Image{
-		Repo: localRegistry,
 		Name: p.Name,
 		Tag: &ImageTag{
 			ShellBaseValue:   version.ShellVersion,
@@ -480,9 +483,21 @@ func (p *Product) GetlocalRegistryImage(arch string, version *releaseVersion) *I
 	}
 }
 
-func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, shouldAffectProductionRepos bool) []step {
-	containerRepos := GetContainerRepos()
+func (p *Product) GetLocalRegistryImage(arch string, version *releaseVersion) *Image {
+	image := p.getBaseImage(arch, version)
+	image.Repo = localRegistry
 
+	return image
+}
+
+func (p *Product) GetStagingRegistryImage(arch string, version *releaseVersion) *Image {
+	image := p.getBaseImage(arch, version)
+	image.Repo = GetStagingContainerRepo().RegistryDomain
+
+	return image
+}
+
+func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, shouldAffectProductionRepos, shouldBuildNewImages bool) []step {
 	steps := make([]step, 0)
 
 	for _, setupStep := range p.SetupSteps {
@@ -492,32 +507,53 @@ func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, s
 	}
 
 	archBuildStepDetails := make([]*buildStepOutput, 0, len(p.SupportedArchs))
+
 	for _, supportedArch := range p.SupportedArchs {
-		archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version)
+		// Include steps for building images from scratch
+		if shouldBuildNewImages {
+			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version)
 
-		archBuildStep.DependsOn = append(archBuildStep.DependsOn, setupStepNames...)
-		if p.GetRequiredStepNames != nil {
-			archBuildStep.DependsOn = append(archBuildStep.DependsOn, p.GetRequiredStepNames(supportedArch)...)
+			archBuildStep.DependsOn = append(archBuildStep.DependsOn, setupStepNames...)
+			if p.GetRequiredStepNames != nil {
+				archBuildStep.DependsOn = append(archBuildStep.DependsOn, p.GetRequiredStepNames(supportedArch)...)
+			}
+
+			steps = append(steps, archBuildStep)
+			archBuildStepDetails = append(archBuildStepDetails, archBuildStepDetail)
+		} else {
+			// Generate build details that point to staging images
+			archBuildStepDetails = append(archBuildStepDetails, &buildStepOutput{
+				StepName:   "",
+				BuiltImage: p.GetStagingRegistryImage(supportedArch, version),
+				Version:    version,
+				Product:    p,
+			})
 		}
-
-		steps = append(steps, archBuildStep)
-		archBuildStepDetails = append(archBuildStepDetails, archBuildStepDetail)
 	}
 
-	for _, containerRepo := range containerRepos {
-		// Skip production repos on non-production events
-		if !shouldAffectProductionRepos && containerRepo.IsProductionRepo {
-			continue
-		}
-
+	for _, containerRepo := range getReposToPublishTo(shouldAffectProductionRepos, shouldBuildNewImages) {
 		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails)...)
 	}
 
 	return steps
 }
 
+func getReposToPublishTo(shouldAffectProductionRepos, shouldBuildNewImages bool) []*ContainerRepo {
+	if shouldAffectProductionRepos {
+		if !shouldBuildNewImages {
+			// In this case the images will be pulled from staging and therefor should not be re-published
+			// to staging
+			return GetProductionContainerRepos()
+		}
+
+		return GetContainerRepos()
+	}
+
+	return []*ContainerRepo{GetStagingContainerRepo()}
+}
+
 func (p *Product) GetBuildStepName(arch string, version *releaseVersion) string {
-	telportImageName := p.GetlocalRegistryImage(arch, version)
+	telportImageName := p.GetLocalRegistryImage(arch, version)
 	return fmt.Sprintf("Build %s image %q", p.Name, telportImageName.GetDisplayName())
 }
 
@@ -527,7 +563,7 @@ func cleanBuilderName(builderName string) string {
 }
 
 func (p *Product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
-	localRegistryImage := p.GetlocalRegistryImage(arch, version)
+	localRegistryImage := p.GetLocalRegistryImage(arch, version)
 	builderName := cleanBuilderName(fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName()))
 
 	buildxConfigFileDir := path.Join("/tmp", builderName)
@@ -682,12 +718,20 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 	}
 }
 
-func GetContainerRepos() []*ContainerRepo {
+func GetStagingContainerRepo() *ContainerRepo {
+	return NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, false)
+
+}
+
+func GetProductionContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, false),
 		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, true),
 	}
+}
+
+func GetContainerRepos() []*ContainerRepo {
+	return append(GetProductionContainerRepos(), GetStagingContainerRepo())
 }
 
 func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step {
@@ -817,15 +861,18 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		commands = append(commands, fmt.Sprintf("docker push %q", archImage.GetShellName()))
 	}
 
+	dependencySteps := []string{}
+	if buildStepDetails.StepName != "" {
+		dependencySteps = append(dependencySteps, buildStepDetails.StepName)
+	}
+
 	step := step{
 		Name:        fmt.Sprintf("Tag and push image %q to %s", buildStepDetails.BuiltImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
 		Commands:    cr.buildCommandsWithLogin(commands),
-		DependsOn: []string{
-			buildStepDetails.StepName,
-		},
+		DependsOn:   dependencySteps,
 	}
 
 	return step, archImageMaps
