@@ -216,8 +216,8 @@ github.com/aws/aws-sdk-go v1.20.6/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN
 github.com/aws/aws-sdk-go v1.23.20/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.25.11/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.27.0/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
-github.com/aws/aws-sdk-go v1.44.108 h1:L8N9GmP9UYDNqBtJO6OC4zSuEkQxAR770VkbRXAUmRk=
-github.com/aws/aws-sdk-go v1.44.108/go.mod h1:y4AeaBuwd2Lk+GepC1E9v0qOiTws0MIWAX4oIKwKHZo=
+github.com/aws/aws-sdk-go v1.44.111 h1:AcWfOgeedSQ4gQVwcIe6aLxpQNJMloZQyqnr7Dzki+s=
+github.com/aws/aws-sdk-go v1.44.111/go.mod h1:y4AeaBuwd2Lk+GepC1E9v0qOiTws0MIWAX4oIKwKHZo=
 github.com/aws/aws-sdk-go-v2 v0.18.0/go.mod h1:JWVYvqSMppoMJC0x5wdwiImzgXTI9FuZwxzkQq9wy+g=
 github.com/aws/aws-sdk-go-v2 v1.16.16 h1:M1fj4FE2lB4NzRb9Y0xdWsn2P0+2UHVxwKyOa4YJNjk=
 github.com/aws/aws-sdk-go-v2 v1.16.16/go.mod h1:SwiyXi/1zTUZ6KIAmLK5V5ll8SiURNUYOqTerZPaF9k=
@@ -706,8 +706,6 @@ github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8F
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/gravitational/kingpin v2.1.11-0.20220901134012-2a1956e29525+incompatible h1:TEGeCHqyhYjjYs1YatUJfZ8GgOhZGVfnJeC+BfdxoLQ=
 github.com/gravitational/kingpin v2.1.11-0.20220901134012-2a1956e29525+incompatible/go.mod h1:LWxG30M3FcrjhOn3T4zz7JmBoQJ45MWZmOXgy9Ganoc=
-github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a h1:PN5vAN1ZA0zqdpM6wNdx6+bkdlQ5fImd75oaIHSbOhY=
-github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a/go.mod h1:jaxS7X2ouXfNd2Pxpybd01qNQK15UmkixKj4vtpp7f8=
 github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621 h1:ivU//THqy3/TMz7Bx6VbLbcVebBJLSOpvfcASbLlT1s=
 github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621/go.mod h1:IIxugQsS57BiOTe+8zDv3sfnvM2BQ3smcF1xJdj3Has=
 github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9 h1:7NyppZS8QFt28nn2QjDI44vDTJs0kTRdUS7po/AxWOY=
