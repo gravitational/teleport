@@ -74,7 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/azsessions"
@@ -88,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/labels/ec2"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -391,13 +390,13 @@ type keyPairKey struct {
 
 // newTeleportConfig provides extra options to NewTeleport().
 type newTeleportConfig struct {
-	imdsClient aws.InstanceMetadata
+	imdsClient cloud.InstanceMetadata
 }
 
 type NewTeleportOption func(*newTeleportConfig)
 
 // WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
-func WithIMDSClient(client aws.InstanceMetadata) NewTeleportOption {
+func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
 	return func(c *newTeleportConfig) {
 		c.imdsClient = client
 	}
@@ -802,6 +801,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
+	switch cfg.Auth.Preference.GetRequireMFAType() {
+	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		}
+	}
+
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
@@ -895,39 +901,38 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	var cloudLabels labels.Importer
 
-	// Check if we're on an EC2 instance, and if we should override the node's hostname.
+	// Check if we're on a cloud instance, and if we should override the node's hostname.
 	imClient := newTeleportConf.imdsClient
 	if imClient == nil {
-		imClient, err = utils.NewInstanceMetadataClient(supervisor.ExitContext())
-		if err != nil {
+		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if imClient.IsAvailable(supervisor.ExitContext()) {
-		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
+	if imClient != nil {
+		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
-			ec2Hostname = strings.ReplaceAll(ec2Hostname, " ", "_")
-			if utils.IsValidHostname(ec2Hostname) {
-				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
-				cfg.Hostname = ec2Hostname
+			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")
+			if utils.IsValidHostname(cloudHostname) {
+				cfg.Log.Infof("Found %q tag in cloud instance. Using %q as hostname.", types.CloudHostnameTag, cloudHostname)
+				cfg.Hostname = cloudHostname
 
-				// ec2Hostname exists but is not a valid hostname.
-			} else if ec2Hostname != "" {
-				cfg.Log.Infof("Found %q tag in EC2 instance, but %q is not a valid hostname.", types.EC2HostnameTag, ec2Hostname)
+				// cloudHostname exists but is not a valid hostname.
+			} else if cloudHostname != "" {
+				cfg.Log.Infof("Found %q tag in cloud instance, but %q is not a valid hostname.", types.CloudHostnameTag, cloudHostname)
 			}
 		} else if !trace.IsNotFound(err) {
-			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
+			return nil, trace.Wrap(err)
 		}
 
-		ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.Config{
+		cloudLabels, err = labels.NewCloudImporter(supervisor.ExitContext(), &labels.CloudConfig{
 			Client: imClient,
 			Clock:  cfg.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cloudLabels = ec2Labels
 	}
 
 	if cloudLabels != nil {
@@ -1651,10 +1656,6 @@ func (process *TeleportProcess) initAuthService() error {
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
 			ClusterName:    clusterName,
-			// DELETE IN 11.0.0
-			// Provide a grace period so that Auth does not prematurely upload
-			// sessions which don't have a session tracker (v9.2 and earlier)
-			GracePeriod: defaults.UploadGracePeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2249,7 +2250,11 @@ func (process *TeleportProcess) initSSH() error {
 		}
 		// TODO: are we missing rm.Close()
 
-		// make sure the namespace exists
+		// make sure the default namespace is used
+		if ns := cfg.SSH.Namespace; ns != "" && ns != apidefaults.Namespace {
+			return trace.BadParameter("cannot start with custom namespace %q, custom namespaces are deprecated. "+
+				"use builtin namespace %q, or omit the 'namespace' config option.", ns, apidefaults.Namespace)
+		}
 		namespace := types.ProcessNamespace(cfg.SSH.Namespace)
 		_, err = authClient.GetNamespace(namespace)
 		if err != nil {
@@ -2557,10 +2562,6 @@ func (process *TeleportProcess) initUploaderService() error {
 		AuditLog:       conn.Client,
 		SessionTracker: conn.Client,
 		ClusterName:    conn.ServerIdentity.ClusterName,
-		// DELETE IN 11.0.0
-		// Provide a grace period so that Auth does not prematurely upload
-		// sessions which don't have a session tracker (v9.2 and earlier)
-		GracePeriod: defaults.UploadGracePeriod,
 	})
 	if err != nil {
 		return trace.Wrap(err)

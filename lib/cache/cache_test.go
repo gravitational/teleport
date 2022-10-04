@@ -2674,7 +2674,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
 		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
 		types.KindStaticTokens:            &types.StaticTokensV2{},
-		types.KindToken:                   &types.ProvisionTokenV3{},
+		types.KindToken:                   &types.ProvisionTokenV2{},
 		types.KindUser:                    &types.UserV2{},
 		types.KindRole:                    &types.RoleV5{Version: types.V4},
 		types.KindNamespace:               &types.Namespace{},

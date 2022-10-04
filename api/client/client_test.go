@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -38,6 +37,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // mockServer mocks an Auth Server.
@@ -677,9 +677,9 @@ func (m *mockOIDCConnectorServer) GetOIDCConnectors(ctx context.Context, req *ty
 	}, nil
 }
 
-func (m *mockOIDCConnectorServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*empty.Empty, error) {
+func (m *mockOIDCConnectorServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
 	m.connectors[oidcConnector.Metadata.Name] = oidcConnector
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // Test that client will perform properly with an old server
@@ -812,7 +812,7 @@ func (m *mockRoleServer) GetRole(ctx context.Context, req *proto.GetRoleRequest)
 	return conn, nil
 }
 
-func (m *mockRoleServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.GetRolesResponse, error) {
+func (m *mockRoleServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*proto.GetRolesResponse, error) {
 	var connectors []*types.RoleV5
 	for _, conn := range m.roles {
 		connectors = append(connectors, conn)
@@ -822,12 +822,12 @@ func (m *mockRoleServer) GetRoles(ctx context.Context, _ *empty.Empty) (*proto.G
 	}, nil
 }
 
-func (m *mockRoleServer) UpsertRole(ctx context.Context, role *types.RoleV5) (*empty.Empty, error) {
+func (m *mockRoleServer) UpsertRole(ctx context.Context, role *types.RoleV5) (*emptypb.Empty, error) {
 	m.roles[role.Metadata.Name] = role
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (m *mockRoleServer) GetCurrentUserRoles(_ *empty.Empty, stream proto.AuthService_GetCurrentUserRolesServer) error {
+func (m *mockRoleServer) GetCurrentUserRoles(_ *emptypb.Empty, stream proto.AuthService_GetCurrentUserRolesServer) error {
 	for _, role := range m.roles {
 		if err := stream.Send(role); err != nil {
 			return trace.Wrap(err)
@@ -924,16 +924,16 @@ func startMockAuthPreferenceServer(t *testing.T) string {
 	return l.Addr().String()
 }
 
-func (m *mockAuthPreferenceServer) GetAuthPreference(ctx context.Context, _ *empty.Empty) (*types.AuthPreferenceV2, error) {
+func (m *mockAuthPreferenceServer) GetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*types.AuthPreferenceV2, error) {
 	if m.pref == nil {
 		return nil, trace.NotFound("not found")
 	}
 	return m.pref, nil
 }
 
-func (m *mockAuthPreferenceServer) SetAuthPreference(ctx context.Context, pref *types.AuthPreferenceV2) (*empty.Empty, error) {
+func (m *mockAuthPreferenceServer) SetAuthPreference(ctx context.Context, pref *types.AuthPreferenceV2) (*emptypb.Empty, error) {
 	m.pref = pref
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // Test that client will perform properly with an old server
