@@ -28,6 +28,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -182,9 +183,13 @@ type SSHConfig struct {
 	log           logrus.FieldLogger
 }
 
+// NewSSHConfig creates a SSHConfig initialized with provided values or defaults otherwise.
 func NewSSHConfig(getSSHVersion func() (*semver.Version, error), log logrus.FieldLogger) *SSHConfig {
 	if getSSHVersion == nil {
 		getSSHVersion = GetSystemSSHVersion
+	}
+	if log == nil {
+		log = utils.NewLogger()
 	}
 	return &SSHConfig{getSSHVersion: getSSHVersion, log: log}
 }
