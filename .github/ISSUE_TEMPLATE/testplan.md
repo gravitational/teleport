@@ -388,21 +388,38 @@ Hardware Key Login is an Enterprise feature and is not available for OSS.
 
 On Linux, hardware key support requires that `tsh` and `teleport` are both built with libpcsclite. Ask for a statically-built `tsh` and `teleport` binary for realistic tests.
 
-You will need a YubiKey 4.3+ for each test.
+You will need a YubiKey 4.3+ for each test. `tsh logout` between each section.
 
 - [ ] `auth_service.authentication.require_session_mfa: hardware_key`
   - [ ] `tsh login`
-    - [ ] requires yubikey to be connected
+    - [ ] Requires yubikey to be connected
+    - [ ] Prompts for credentials (password/mfa/etc.) once
   - [ ] `tsh ssh`
-    - [ ] requires yubikey to be connected
-    - [ ] prompts for per-session MFA
+    - [ ] Requires yubikey to be connected
+    - [ ] Prompts for per-session MFA
 - [ ] `auth_service.authentication.require_session_mfa: hardware_key_touch`
   - [ ] `tsh login`
-    - [ ] requires yubikey to be connected
-    - [ ] prompts for touch (maximum of once per 15 seconds)
+    - [ ] Requires yubikey to be connected
+    - [ ] Prompts for credentials (password/mfa/etc.) once
+    - [ ] Prompts for touch (maximum of once per 15 seconds)
   - [ ] `tsh ssh`
-    - [ ] requires yubikey to be connected
-    - [ ] prompts for touch (maximum of once per 15 seconds)
+    - [ ] Requires yubikey to be connected
+    - [ ] Prompts for touch (maximum of once per 15 seconds)
+- [ ] `role.role_options.require_session_mfa: hardware_key`
+  - [ ] `tsh login`
+      - [ ] Prompts for credentials (password/mfa/etc.) twice
+      - [ ] Requires yubikey to be connected
+    - [ ] `tsh ssh`
+      - [ ] Requires yubikey to be connected
+      - [ ] Prompts for per-session MFA
+- [ ] `role.role_options.require_session_mfa: hardware_key_touch`
+  - [ ] `tsh login`
+    - [ ] Prompts for credentials (password/mfa/etc.) twice
+    - [ ] Requires yubikey to be connected
+    - [ ] Prompts for touch (maximum of once per 15 seconds)
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected
+    - [ ] Prompts for touch (maximum of once per 15 seconds)
 
 ## WEB UI
 
