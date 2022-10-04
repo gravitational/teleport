@@ -22,33 +22,42 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 	defer b.log.Info("Exited expiry loop.")
 
 	for {
+		// see DeleteRange; we run a tight loop here because it could be
+		// possible to have more than 1k new items expire over 30 seconds, so we
+		// could end up not ever catching up
+		for i := 0; i < backend.DefaultRangeLimit/deleteBatchSize; i++ {
+			t0 := time.Now()
+			var n int64
+			if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
+				tag, err := tx.Exec(ctx,
+					"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= $1 LIMIT $2))",
+					time.Now().UTC(), deleteBatchSize,
+				)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				n = tag.RowsAffected()
+				return nil
+			}); err != nil {
+				b.log.WithError(err).Error("Failed to delete expired items.")
+				continue
+			}
+
+			if n > 0 {
+				b.log.WithFields(logrus.Fields{"deleted": n, "elapsed": time.Since(t0).String()}).Error("Deleted expired items.")
+			}
+
+			if n < deleteBatchSize {
+				break
+			}
+		}
+
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(30 * time.Second):
 		}
 
-		t0 := time.Now()
-
-		var n int64
-		if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-			tag, err := tx.Exec(ctx,
-				"DELETE FROM kv WHERE expires IS NOT NULL AND expires <= $1",
-				time.Now().UTC(),
-			)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			n = tag.RowsAffected()
-			return nil
-		}); err != nil {
-			b.log.WithError(err).Error("Failed to delete expired items.")
-			continue
-		}
-
-		if n > 0 {
-			b.log.WithFields(logrus.Fields{"deleted": n, "elapsed": time.Since(t0).String()}).Debug("Deleted expired items.")
-		}
 	}
 }
 
@@ -177,7 +186,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 			b.log.WithFields(logrus.Fields{
 				"events":  n,
 				"elapsed": time.Since(t0).String(),
-			}).Debug("Fetched change feed events.")
+			}).Error("Fetched change feed events.")
 		}
 
 		select {
