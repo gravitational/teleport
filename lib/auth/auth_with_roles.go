@@ -812,20 +812,55 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 		return alerts, nil
 	}
 
-	// filter alerts by teleport.internal labels to determine whether the alert
+	// filter alerts by teleport.internal 'permit' labels to determine whether the alert
 	// was intended to be visible to the calling user.
 	filtered := alerts[:0]
+Outer:
 	for _, alert := range alerts {
 		if alert.Metadata.Labels[types.AlertPermitAll] == "yes" {
 			// alert may be shown to all authenticated users
 			filtered = append(filtered, alert)
-			continue
+			continue Outer
 		}
 
-		// TODO(fspmarshall): Support additional internal labels to help customize alert targets.
-		// maybe we could use labels to specify that an alert should only be shown to users with a
-		// specific permission (e.g. `"teleport.internal/alert-permit-permission": "node:read"`).
-		// requires further consideration.
+		// the verb-permit label permits users to view an alert if they hold
+		// one of the specified <resource>:<verb> pairs (e.g. `node:list|token:create`
+		// would be satisfied by either a user that can list nodes *or* create tokens).
+	Verbs:
+		for _, s := range strings.Split(alert.Metadata.Labels[types.AlertVerbPermit], "|") {
+			rv := strings.Split(s, ":")
+			if len(rv) != 2 {
+				continue Verbs
+			}
+
+			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, rv[0], rv[1]) == nil {
+				// user holds at least one of the resource:verb pairs specified by
+				// the verb-permit label.
+				filtered = append(filtered, alert)
+				continue Outer
+			}
+		}
+	}
+
+	// aggregate supersede directives from the filtered alerts
+	sups := make(map[string]types.AlertSeverity)
+
+	for _, alert := range filtered {
+		for _, id := range strings.Split(alert.Metadata.Labels[types.AlertSupersedes], ",") {
+			if sups[id] < alert.Spec.Severity {
+				sups[id] = alert.Spec.Severity
+			}
+		}
+	}
+
+	// perform a second round of filtering, removing superseded alerts
+	alerts = filtered
+	filtered = alerts[:0]
+	for _, alert := range alerts {
+		if sups[alert.Metadata.Name] > alert.Spec.Severity {
+			continue
+		}
+		filtered = append(filtered, alert)
 	}
 
 	return filtered, nil
@@ -2611,11 +2646,6 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 	return a.authServer.getResetPasswordToken(ctx, tokenID)
 }
 
-func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
-}
-
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
@@ -3172,6 +3202,14 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		return trace.Wrap(err)
 	}
 
+	// check that the given RequireMFAType is supported in this build.
+	switch role.GetOptions().RequireMFAType {
+	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		}
+	}
+
 	return a.authServer.UpsertRole(ctx, role)
 }
 
@@ -3200,9 +3238,9 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
-	case !features.ResourceAccessRequests && len(allowReq.SearchAsRoles) != 0:
+	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
 		return trace.AccessDenied(
-			"role field allow.search_as_roles is only available in enterprise subscriptions licensed for resource access requests")
+			"role field allow.search_as_roles is only available in enterprise subscriptions")
 	default:
 		return nil
 	}
@@ -3350,6 +3388,14 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, verbsToReplaceResourceWithOrigin(storedAuthPref)...); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// check that the given RequireMFAType is supported in this build.
+	switch newAuthPref.GetRequireMFAType() {
+	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		}
 	}
 
 	return a.authServer.SetAuthPreference(ctx, newAuthPref)
@@ -3910,86 +3956,6 @@ func (a *ServerWithRoles) DeleteAllApplicationServers(ctx context.Context, names
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllApplicationServers(ctx, namespace)
-}
-
-// GetAppServers gets all application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := a.authServer.GetAppServers(ctx, namespace, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Loop over all servers, filter out applications on each server and only
-	// return the applications the caller has access to.
-	//
-	// MFA is not required to list the apps, but will be required to connect to
-	// them.
-	mfaParams := services.AccessMFAParams{Verified: true}
-	for _, server := range servers {
-		filteredApps := make([]*types.App, 0, len(server.GetApps()))
-		for _, app := range server.GetApps() {
-			appV3, err := types.NewAppV3FromLegacyApp(app)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			err = a.context.Checker.CheckAccess(appV3, mfaParams)
-			if err != nil {
-				if trace.IsAccessDenied(err) {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			filteredApps = append(filteredApps, app)
-		}
-		server.SetApps(filteredApps)
-	}
-
-	return servers, nil
-}
-
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	if err := a.action(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.UpsertAppServer(ctx, server)
-}
-
-// DeleteAppServer removes an application server.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-func (a *ServerWithRoles) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	if err := a.action(namespace, types.KindAppServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAppServer(ctx, namespace, name); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteAllAppServers removes all application servers.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAllAppServers(ctx, namespace); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // GetAppSession gets an application web session.

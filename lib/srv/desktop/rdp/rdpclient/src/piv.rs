@@ -37,7 +37,7 @@ const PIV_AID: Aid = Aid::new_truncatable(
 
 // Card implements a PIV-compatible smartcard, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Card<const S: usize> {
     // Card-holder user ID (CHUID). In federal agencies, this value would be unique per employee
     // and encodes some agency information. In our case it's static.

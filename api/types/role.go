@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -176,6 +177,9 @@ type Role interface {
 	GetHostSudoers(RoleConditionType) []string
 	// SetHostSudoers sets the list of sudoers entries for the role
 	SetHostSudoers(RoleConditionType, []string)
+
+	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 }
 
 // NewRole constructs new standard V5 role.
@@ -655,6 +659,18 @@ func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 		r.Spec.Allow.HostSudoers = ncopy
 	} else {
 		r.Spec.Deny.HostSudoers = ncopy
+	}
+}
+
+// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	switch r.Spec.Options.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return keys.PrivateKeyPolicyHardwareKey
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
 	}
 }
 

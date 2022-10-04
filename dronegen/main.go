@@ -37,6 +37,7 @@ func main() {
 	pipelines = append(pipelines, updateDocsPipeline())
 	pipelines = append(pipelines, buildboxPipeline())
 	pipelines = append(pipelines, buildContainerImagePipelines()...)
+	pipelines = append(pipelines, publishReleasePipeline())
 
 	if err := writePipelines(".drone.yml", pipelines); err != nil {
 		fmt.Println("failed writing drone pipelines:", err)
