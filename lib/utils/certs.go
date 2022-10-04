@@ -202,13 +202,12 @@ func VerifyCertificateChain(certificateChain []*x509.Certificate) error {
 //
 // From RFC5280: https://tools.ietf.org/html/rfc5280#section-4.2.1.1
 //
-//   The signature on a self-signed certificate is generated with the private
-//   key associated with the certificate's subject public key. (This
-//   proves that the issuer possesses both the public and private keys.)
-//   In this case, the subject and authority key identifiers would be
-//   identical, but only the subject key identifier is needed for
-//   certification path building.
-//
+//	The signature on a self-signed certificate is generated with the private
+//	key associated with the certificate's subject public key. (This
+//	proves that the issuer possesses both the public and private keys.)
+//	In this case, the subject and authority key identifiers would be
+//	identical, but only the subject key identifier is needed for
+//	certification path building.
 func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 	if len(certificateChain) != 1 {
 		return false

@@ -1,4 +1,5 @@
 # standalone proxy connected to
+version: v3
 teleport:
   auth_token: foo
   nodename: one-proxy
@@ -6,12 +7,11 @@ teleport:
   log:
     output: stdout
     severity: DEBUG
-  auth_servers:
-    - one:3025
+  auth_server: one:3025
   data_dir: /var/lib/teleport
   storage:
-      path: /var/lib/teleport/backend
-      type: dir
+    path: /var/lib/teleport/backend
+    type: dir
 
 auth_service:
   enabled: no

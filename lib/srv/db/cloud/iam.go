@@ -27,11 +27,11 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -241,10 +241,10 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		},
 
 		// Retry with some jitters up to twice of the semaphore expire time.
-		Retry: utils.LinearConfig{
+		Retry: retryutils.LinearConfig{
 			Step:   10 * time.Second,
 			Max:    2 * time.Minute,
-			Jitter: utils.NewHalfJitter(),
+			Jitter: retryutils.NewHalfJitter(),
 		},
 	})
 	if err != nil {

@@ -41,7 +41,7 @@ import (
 // the corresponding TeleportRole must be created/deleted in Teleport.
 func TestRoleCreation(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
+	setup := setupTestEnv(t)
 	roleName := validRandomResourceName("role-")
 
 	// End of setup, we create the role in Kubernetes
@@ -75,7 +75,7 @@ func TestRoleCreation(t *testing.T) {
 
 func TestRoleCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
+	setup := setupTestEnv(t)
 	tests := []struct {
 		name         string
 		roleSpecYAML string
@@ -155,6 +155,7 @@ allow:
 	}
 
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
@@ -233,9 +234,12 @@ func compareRoleSpecs(t *testing.T, expectedRole, actualRole types.Role) {
 	require.Equal(t, expected["spec"], actual["spec"])
 }
 
+// TestRoleDeletionDrift tests how the Kubernetes operator reacts when it is asked to delete a role that was
+// already deleted in Teleport
 func TestRoleDeletionDrift(t *testing.T) {
+	// Setup section: start the operator, and create a role
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
+	setup := setupTestEnv(t)
 	roleName := validRandomResourceName("role-")
 
 	// The role is created in K8S
@@ -255,6 +259,9 @@ func TestRoleDeletionDrift(t *testing.T) {
 
 		return true
 	})
+	// We cause a drift by altering the Teleport resource.
+	// To make sure the operator does not reconcile while we're finished we suspend the operator
+	setup.stopKubernetesOperator()
 
 	err := setup.tClient.DeleteRole(ctx, roleName)
 	require.NoError(t, err)
@@ -263,9 +270,13 @@ func TestRoleDeletionDrift(t *testing.T) {
 		return trace.IsNotFound(err)
 	})
 
-	// The role is deleted in K8S
+	// We flag the role for deletion in Kubernetes (it won't be fully remopved until the operator has processed it and removed the finalizer)
 	k8sDeleteRole(ctx, t, setup.k8sClient, roleName, setup.namespace.Name)
 
+	// Test section: We resume the operator, it should reconcile and recover from the drift
+	setup.startKubernetesOperator(t)
+
+	// The operator should handle the failed Teleport deletion gracefully and unlock the Kubernetes resource deletion
 	var k8sRole resourcesv5.TeleportRole
 	fastEventually(t, func() bool {
 		err = setup.k8sClient.Get(ctx, kclient.ObjectKey{
@@ -278,7 +289,7 @@ func TestRoleDeletionDrift(t *testing.T) {
 
 func TestRoleUpdate(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t)
+	setup := setupTestEnv(t)
 	roleName := validRandomResourceName("role-")
 
 	// The role does not exist in K8S

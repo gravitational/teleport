@@ -48,7 +48,7 @@ permissions to impersonate the roles that the user has configured.
 need access to resources protected by Teleport. It is typically ran in one of
 two modes. By default, it is a daemon-like long-running process. This is
 suitable for situations where your machine is long running and will need
-continous access to resources. `tbot` can also run in "oneshot" mode where it
+continuous access to resources. `tbot` can also run in "oneshot" mode where it
 will fetch credentials for your machine once before exiting. This is ideal for
 short-lived environments such as CI/CD workflows.
 
@@ -117,7 +117,7 @@ differences.
 - The certificates exchanged for the token are not renewable. When the bot wants
   to renew its certificates, it simply repeats the original join steps.
 
-Where possible, you should prefer to use a dynamic join token over an emphemeral
+Where possible, you should prefer to use a dynamic join token over an ephemeral
 token as this eliminates the need to handle a secret.
 
 ## Renewable certificates

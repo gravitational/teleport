@@ -30,13 +30,13 @@ import (
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_get_more
 //
-// struct {
-//     MsgHeader header;             // standard message header
-//     int32     ZERO;               // 0 - reserved for future use
-//     cstring   fullCollectionName; // "dbname.collectionname"
-//     int32     numberToReturn;     // number of documents to return
-//     int64     cursorID;           // cursorID from the OP_REPLY
-// }
+//	struct {
+//	    MsgHeader header;             // standard message header
+//	    int32     ZERO;               // 0 - reserved for future use
+//	    cstring   fullCollectionName; // "dbname.collectionname"
+//	    int32     numberToReturn;     // number of documents to return
+//	    int64     cursorID;           // cursorID from the OP_REPLY
+//	}
 //
 // OP_GET_MORE is deprecated starting MongoDB 5.0 in favor of OP_MSG.
 type MessageOpGetMore struct {

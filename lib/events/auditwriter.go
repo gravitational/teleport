@@ -24,6 +24,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -399,10 +400,12 @@ func (a *AuditWriter) Close(ctx context.Context) error {
 	<-a.doneCh
 	stats := a.Stats()
 	if stats.LostEvents != 0 {
-		a.log.Errorf("Session has lost %v out of %v audit events because of disk or network issues. Check disk and network on this server.", stats.LostEvents, stats.AcceptedEvents)
+		a.log.Errorf("Session has lost %v out of %v audit events because of disk or network issues. "+
+			"Check disk and network on this server.", stats.LostEvents, stats.AcceptedEvents)
 	}
-	if stats.SlowWrites != 0 {
-		a.log.Debugf("Session has encountered %v slow writes out of %v. Check disk and network on this server.", stats.SlowWrites, stats.AcceptedEvents)
+	if float64(stats.SlowWrites)/float64(stats.AcceptedEvents) > 0.15 {
+		a.log.Debugf("Session has encountered %v slow writes out of %v. Check disk and network on this server.",
+			stats.SlowWrites, stats.AcceptedEvents)
 	}
 	return nil
 }
@@ -548,7 +551,7 @@ func (a *AuditWriter) completeStream(stream apievents.Stream) {
 }
 
 func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: defaults.NetworkRetryDuration,
 		Max:  defaults.NetworkBackoffDuration,
 	})

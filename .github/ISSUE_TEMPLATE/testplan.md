@@ -872,37 +872,61 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
 
-## Performance/Soak Test
+## Performance
 
-Using `tsh bench` tool, perform the soak tests and benchmark tests on the following configurations:
+Perform all tests on the following configurations:
 
-* Cluster with 10K nodes in normal (non-IOT) node mode with ETCD
-* Cluster with 10K nodes in normal (non-IOT) mode with DynamoDB
+- [ ] With default networking configuration
+- [ ] With Proxy Peering Enabled
+- [ ] With TLS Routing Enabled
 
-* Cluster with 1K IOT nodes with ETCD
-* Cluster with 1K IOT nodes with DynamoDB
+* Cluster with 10K direct dial nodes: 
+ - [ ] etcd
+ - [ ] DynamoDB
+ - [ ] Firestore
+ - [ ] Postgres
 
-* Cluster with 500 trusted clusters with ETCD
-* Cluster with 500 trusted clusters with DynamoDB
+* Cluster with 10K reverse tunnel nodes:
+ - [ ] etcd
+ - [ ] DynamoDB
+ - [ ] Firestore
+ - [ ] Postgres
 
-**Soak Tests**
+* Cluster with 500 trusted clusters:
+- [ ] etcd
+- [ ] DynamoDB
+- [ ] Firestore
+- [ ] Postgres
 
-Run 4hour soak test with a mix of interactive/non-interactive sessions:
+### Soak Test
 
-```
-tsh bench --duration=4h user@teleport-monster-6757d7b487-x226b ls
-tsh bench -i --duration=4h user@teleport-monster-6757d7b487-x226b ps uax
+Run 30 minute soak test with a mix of interactive/non-interactive sessions for both direct and reverse tunnel nodes:
+
+```shell
+tsh bench --duration=30m user@direct-dial-node ls
+tsh bench -i --duration=30m user@direct-dial-node ps uax
+
+tsh bench --duration=30m user@reverse-tunnel-node ls
+tsh bench -i --duration=30m user@reverse-tunnel-node ps uax
 ```
 
 Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
 
 - [ ] Verify that prometheus metrics are accurate.
 
-**Breaking load tests**
+### Concurrent Session Test
 
-Load system with tsh bench to the capacity and publish maximum numbers of concurrent sessions with interactive
-and non interactive tsh bench loads.
+* Cluster with 1k reverse tunnel nodes
 
+Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
+
+```shell
+tsh bench sessions --max=5000 user ls
+tsh bench sessions --max=5000 --web user ls 
+```
+
+- [ ] Verify that all 5000 sessions are able to be established.
+- [ ] Verify that tsh and the web UI are still functional.
 
 ## Teleport with Cloud Providers
 
@@ -970,6 +994,7 @@ and non interactive tsh bench loads.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
+  - [ ] Azure Cache for Redis.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -987,6 +1012,7 @@ and non interactive tsh bench loads.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
+  - [ ] Azure Cache for Redis.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1005,11 +1031,12 @@ and non interactive tsh bench loads.
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
-  - [ ] Can detect and register RDS instances.
-  - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
-  - [ ] Can detect and register Redshift clusters.
-  - [ ] Can detect and register ElastiCache Redis clusters.
-  - [ ] Can detect and register MemoryDB clusters.
+  - [ ] Can detect and register AWS RDS instances.
+  - [ ] Can detect and register AWS Aurora clusters, and their reader and custom endpoints.
+  - [ ] Can detect and register AWS Redshift clusters.
+  - [ ] Can detect and register AWS ElastiCache Redis clusters.
+  - [ ] Can detect and register AWS MemoryDB clusters.
+  - [ ] Can detect and register Azure Cache for Redis servers.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users 
