@@ -33,7 +33,7 @@ func (s *Handler) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	return roles, nil
 }
 
-// GetAccessRequests returns a list of all available access requests the user can view
+// GetAccessRequests returns a list of all available access requests the user can view.
 func (s *Handler) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) (*api.GetAccessRequestsResponse, error) {
 	requests, err := s.DaemonService.GetAccessRequests(ctx, req)
 	if err != nil {
@@ -48,7 +48,7 @@ func (s *Handler) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 	return response, nil
 }
 
-// GetAccessRequest returns a single access request by id
+// GetAccessRequest returns a single access request by id.
 func (s *Handler) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestsRequest) (*api.GetAccessRequestResponse, error) {
 	requests, err := s.DaemonService.GetAccessRequests(ctx, req)
 	if err != nil {
@@ -56,14 +56,12 @@ func (s *Handler) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 	}
 
 	response := &api.GetAccessRequestResponse{}
-	if len(requests) < 1 {
-		return nil, trace.NotFound("access request %q not found", req.Id)
-	}
 	response.Request = newApiAccessRequest(requests[0])
 
 	return response, nil
 }
 
+// CreateAccessRequest creates an Access Request.
 func (s *Handler) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*api.CreateAccessRequestResponse, error) {
 	request, err := s.DaemonService.CreateAccessRequest(ctx, req)
 	if err != nil {
@@ -76,27 +74,26 @@ func (s *Handler) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	return createdRequest, nil
 }
 
-func (s *Handler) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) (*api.DeleteAccessRequestResponse, error) {
+// DeleteAccessRequest deletes an Access Request.
+func (s *Handler) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) (*api.EmptyResponse, error) {
 	err := s.DaemonService.DeleteAccessRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &api.DeleteAccessRequestResponse{
-		Success: "true",
-	}, nil
+	return &api.EmptyResponse{}, nil
 }
 
-func (s *Handler) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) (*api.AssumeRoleResponse, error) {
+// AssumeRole reissues a certificate. This can include new RequestIds and RequestIds to drop from the cert at the same time.
+func (s *Handler) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) (*api.EmptyResponse, error) {
 	err := s.DaemonService.AssumeRole(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &api.AssumeRoleResponse{
-		Success: "true",
-	}, nil
 
+	return &api.EmptyResponse{}, nil
 }
 
+// ReviewAccessRequest creates a new AccessRequestReview for a given RequestId.
 func (s *Handler) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*api.ReviewAccessRequestResponse, error) {
 	request, err := s.DaemonService.ReviewAccessRequest(ctx, req)
 	if err != nil {

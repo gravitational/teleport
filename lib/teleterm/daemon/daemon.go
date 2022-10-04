@@ -385,7 +385,7 @@ func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 
 // CreateAccessRequest creates an access request
 func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -398,7 +398,7 @@ func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 }
 
 func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -407,9 +407,13 @@ func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 }
 
 func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) error {
-	cluster, err := s.ResolveCluster((req.ClusterUri))
+	cluster, err := s.ResolveCluster((req.RootClusterUri))
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if req.RequestId == "" {
+		return trace.BadParameter("missing request id")
 	}
 
 	err = cluster.DeleteAccessRequest(ctx, req)
@@ -421,7 +425,7 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 }
 
 func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return trace.Wrap(err)
 	}

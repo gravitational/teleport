@@ -44,7 +44,7 @@ func (s *Handler) GetAllDatabases(ctx context.Context, req *api.GetAllDatabasesR
 	return response, nil
 }
 
-// GetDatabases gets databses with filters and returns pagniated results
+// GetDatabases gets databses with filters and returns paginated results
 func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest) (*api.GetDatabasesResponse, error) {
 	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {

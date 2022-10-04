@@ -33,7 +33,7 @@ service TerminalService {
   rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
   // ListLeafClusters lists leaf clusters
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-  // ListDatabases lists all databases without pagination
+  // GetDatabases lists all databases without pagination
   rpc GetAllDatabases(GetAllDatabasesRequest) returns (GetAllDatabasesResponse);
   // GetDatabases returns a filtered and paginated list of databases
   rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
@@ -48,7 +48,7 @@ service TerminalService {
   // GetAccessRequest retreives a single Access Request
   rpc GetAccessRequest(GetAccessRequestsRequest) returns (GetAccessRequestResponse);
   // DeleteAccessRequest deletes the access request by id
-  rpc DeleteAccessRequest(DeleteAccessRequestRequest) returns (DeleteAccessRequestResponse);
+  rpc DeleteAccessRequest(DeleteAccessRequestRequest) returns (EmptyResponse);
   // CreateAccessRequest creates an access request
   rpc CreateAccessRequest(CreateAccessRequestRequest) returns (CreateAccessRequestResponse);
   // ReviewAccessRequest submits a review for an Access Request
@@ -56,7 +56,7 @@ service TerminalService {
   // GetRequestableRoles gets all requestable roles
   rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
   // AssumeRole assumes the role of the given access request
-  rpc AssumeRole(AssumeRoleRequest) returns (AssumeRoleResponse);
+  rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
   // ListKubes list kubes
   rpc ListKubes(ListKubesRequest) returns (ListKubesResponse);
   // ListApps list apps
@@ -158,11 +158,20 @@ enum RequestState {
   REQUEST_STATE_DENIED = 3;
 }
 
-message GetAccessRequestsRequest {
+message GetAccessRequestRequest {
   // cluster_uri is the cluster uri
   string cluster_uri = 1;
   // specifcies a specific request id
   string id = 2;
+  // specifies a username if set
+  string user = 3;
+  // filters for a specific request state
+  RequestState state = 4;
+}
+
+message GetAccessRequestsRequest {
+  // cluster_uri is the cluster uri
+  string cluster_uri = 1;
   // specifies a username if set
   string user = 3;
   // filters for a specific request state
@@ -178,16 +187,12 @@ message GetAccessRequestsResponse {
 }
 
 message DeleteAccessRequestRequest {
-  string cluster_uri = 1;
+  string root_cluster_uri = 1;
   string request_id = 2;
 }
 
-message DeleteAccessRequestResponse {
-  string success = 1;
-}
-
 message CreateAccessRequestRequest {
-  string cluster_uri = 1;
+  string root_cluster_uri = 1;
   string reason = 2;
   repeated string roles = 3;
   repeated string suggested_reviewers = 4;
@@ -199,13 +204,9 @@ message CreateAccessRequestResponse {
 }
 
 message AssumeRoleRequest {
-  string cluster_uri = 1;
+  string root_cluster_uri = 1;
   repeated string access_request_ids = 2;
   repeated string drop_request_ids = 3;
-}
-
-message AssumeRoleResponse {
-  string success = 1;
 }
 
 message GetRequestableRolesRequest {
@@ -217,7 +218,7 @@ message GetRequestableRolesResponse {
 }
 
 message ReviewAccessRequestRequest {
-  string cluster_uri = 1;
+  string root_cluster_uri = 1;
   string state = 2;
   string reason = 3;
   repeated string roles = 4;

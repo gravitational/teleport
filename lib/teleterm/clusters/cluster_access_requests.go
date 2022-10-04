@@ -37,41 +37,25 @@ type AccessRequest struct {
 // Returns all access requests available to the user
 func (c *Cluster) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]AccessRequest, error) {
 	var (
-		requests    []types.AccessRequest
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		requests []types.AccessRequest
+		err      error
 	)
 	err = addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		requests, err = authClient.GetAccessRequests(ctx, types.AccessRequestFilter{
-			ID:    req.Id,
+		requests, err = c.clusterClient.GetAccessRequests(ctx, types.AccessRequestFilter{
 			State: types.RequestState(req.State),
 			User:  req.User,
 		})
-
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	results := []AccessRequest{}
-	for _, req := range requests {
+	for _, request := range requests {
 		results = append(results, AccessRequest{
-			URI:           c.URI.AppendAccessRequest(req.GetName()),
-			AccessRequest: req,
+			URI:           c.URI.AppendAccessRequest(request.GetName()),
+			AccessRequest: request,
 		})
 	}
 
@@ -81,10 +65,8 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 // Creates an access request
 func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*AccessRequest, error) {
 	var (
-		err         error
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		request     types.AccessRequest
+		err     error
+		request types.AccessRequest
 	)
 
 	resourceIDs := make([]types.ResourceID, 0, len(req.ResourceIds))
@@ -96,36 +78,25 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 		})
 	}
 
+	// Role-based and Resource-based AccessRequests are mutually exclusive.
+	if len(req.Roles) > 0 {
+		request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
+	} else {
+		request, err = services.NewAccessRequestWithResources(c.status.Username, nil, resourceIDs)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	request.SetRequestReason(req.Reason)
+	request.SetSuggestedReviewers(req.SuggestedReviewers)
+
 	err = addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		if len(req.Roles) > 0 {
-			request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
-		} else {
-			request, err = services.NewAccessRequestWithResources(c.status.Username, nil, resourceIDs)
-		}
-		if err != nil {
+		if err := c.clusterClient.CreateAccessRequest(ctx, request); err != nil {
 			return trace.Wrap(err)
 		}
 
-		request.SetRequestReason(req.Reason)
-		request.SetSuggestedReviewers(req.SuggestedReviewers)
-
-		if err := authClient.CreateAccessRequest(ctx, request); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,11 +145,8 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		}
 
 		updatedRequest, err = authClient.SubmitAccessReview(ctx, reviewSubmission)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,10 +164,6 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		authClient  auth.ClientI
 		proxyClient *client.ProxyClient
 	)
-
-	if req.RequestId == "" {
-		return trace.BadParameter("missing request id")
-	}
 
 	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
@@ -242,17 +206,13 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 			}
 		}
 
-		err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := c.clusterClient.SaveProfile(c.dir, true); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, params)
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = c.clusterClient.SaveProfile(c.dir, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
