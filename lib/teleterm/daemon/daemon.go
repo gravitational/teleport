@@ -429,13 +429,13 @@ func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 }
 
 func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) error {
+	if req.RequestId == "" {
+		return trace.BadParameter("missing request id")
+	}
+
 	cluster, err := s.ResolveCluster((req.RootClusterUri))
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if req.RequestId == "" {
-		return trace.BadParameter("missing request id")
 	}
 
 	err = cluster.DeleteAccessRequest(ctx, req)
