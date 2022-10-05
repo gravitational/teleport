@@ -356,7 +356,7 @@ fn check_dir_sharing_methods_error_when_disabled() {
     let mut results = vec![];
 
     results.push(
-        c.write_client_device_list_announce(ClientDeviceListAnnounce::new_drive(
+        c.handle_client_device_list_announce(ClientDeviceListAnnounce::new_drive(
             2,
             "test".to_string(),
         )),
