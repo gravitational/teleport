@@ -230,6 +230,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence),
 		traceClient:     cfg.TraceClient,
+		loadAllCAs:      cfg.LoadAllCAs,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -410,6 +411,9 @@ type Server struct {
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
+
+	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
+	loadAllCAs bool
 }
 
 func (a *Server) CloseContext() context.Context {

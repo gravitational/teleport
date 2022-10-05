@@ -2067,6 +2067,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ServerFeatures:  modules.GetModules().Features().ToProto(),
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:      a.authServer.loadAllCAs,
 	}, nil
 }
 
