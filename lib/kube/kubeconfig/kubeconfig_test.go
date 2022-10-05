@@ -348,19 +348,19 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 	})
 
 	tests := []struct {
-		loadAllHostCAs bool
+		loadAllCAs     bool
 		expectedNumCAs int
 	}{
-		{loadAllHostCAs: false, expectedNumCAs: 1},
-		{loadAllHostCAs: true, expectedNumCAs: 2},
+		{loadAllCAs: false, expectedNumCAs: 1},
+		{loadAllCAs: true, expectedNumCAs: 2},
 	}
 	for _, tc := range tests {
-		t.Run(fmt.Sprintf("LoadAllHostCAs=%v", tc.loadAllHostCAs), func(t *testing.T) {
+		t.Run(fmt.Sprintf("LoadAllCAs=%v", tc.loadAllCAs), func(t *testing.T) {
 			require.NoError(t, Update(kubeconfigPath, Values{
 				TeleportClusterName: clusterName,
 				ClusterAddr:         clusterAddr,
 				Credentials:         creds,
-			}, tc.loadAllHostCAs))
+			}, tc.loadAllCAs))
 
 			config, err := Load(kubeconfigPath)
 			require.NoError(t, err)

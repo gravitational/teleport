@@ -1134,7 +1134,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
-	c.LoadAllCAs = cp.LoadAllHostCAs
+	c.LoadAllCAs = cp.LoadAllCAs
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1170,7 +1170,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
-	cp.LoadAllHostCAs = c.LoadAllCAs
+	cp.LoadAllCAs = c.LoadAllCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -3812,10 +3812,11 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		}
 	}
 
-	// Update tc with proxy settings specified in Ping response.
+	// Update tc with proxy and auth settings specified in Ping response.
 	if err := tc.applyProxySettings(pr.Proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tc.applyAuthSettings(pr.Auth)
 
 	tc.lastPing = pr
 
@@ -4101,6 +4102,12 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	}
 
 	return nil
+}
+
+// applyAuthSettings updates configuration changes based on the advertised
+// authentication settings, overriding existing fields in tc.
+func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
+	tc.LoadAllCAs = authSettings.LoadAllCAs
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests

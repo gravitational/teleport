@@ -249,7 +249,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		inventory:       inventory.NewController(cfg.Presence),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
-		loadAllHostCAs:  cfg.LoadAllHostCAs,
+		loadAllCAs:      cfg.LoadAllCAs,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -445,8 +445,8 @@ type Server struct {
 	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	fips bool
 
-	// loadAllHostCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
-	loadAllHostCAs bool
+	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
+	loadAllCAs bool
 }
 
 func (a *Server) CloseContext() context.Context {

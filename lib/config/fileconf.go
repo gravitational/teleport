@@ -786,9 +786,9 @@ type Auth struct {
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 
-	// LoadAllHostCAs tells tsh to load the host CAs for all clusters when trying
-	// to ssh into a node, instead of just the host CA for the current cluster.
-	LoadAllHostCAs bool `yaml:"load_all_host_cas,omitempty"`
+	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
+	// to ssh into a node, instead of just the CA for the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.

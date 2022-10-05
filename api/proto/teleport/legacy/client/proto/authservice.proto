@@ -493,9 +493,9 @@ message PingResponse {
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
-  // LoadAllHostCAs signals whether or not tsh should load all host CAs when trying
+  // LoadAllCAs signals whether or not tsh should load all CAs when trying
   // to ssh into a node.
-  bool LoadAllHostCAs = 8 [(gogoproto.jsontag) = "load_all_host_cas"];
+  bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
 }
 
 // Features are auth server features.

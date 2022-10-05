@@ -2013,7 +2013,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LicenseWarnings: warnings,
-		LoadAllHostCAs:  a.authServer.loadAllHostCAs,
+		LoadAllCAs:      a.authServer.loadAllCAs,
 	}, nil
 }
 

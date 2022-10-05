@@ -1512,7 +1512,6 @@ func onLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.LoadAllCAs = pingResp.Auth.LoadAllHostCAs
 
 	// Regular login without -i flag.
 	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
@@ -3136,22 +3135,22 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// addresses from the proxy (this is what Ping does).
 	if cf.IdentityFileIn != "" {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-		pr, err := tc.Ping(cf.Context)
+		_, err := tc.Ping(cf.Context)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tc.LoadAllCAs = pr.Auth.LoadAllHostCAs
 
+		// If, after pinging the proxy, we've determined that the client should load
+		// all CAs, update the host key callback and TLS config.
 		if tc.LoadAllCAs {
 			sites, err := key.GetClusterNames()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			hostAuthFunc, err := key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, sites)
+			tc.Config.HostKeyCallback, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, sites)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			tc.Config.HostKeyCallback = hostAuthFunc
 			if len(key.TLSCert) > 0 {
 				tc.Config.TLS, err = key.TeleportClientTLSConfig(nil, sites)
 				if err != nil {
