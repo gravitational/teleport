@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -149,7 +148,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/trustedclusters/validate", srv.withAuth(srv.validateTrustedCluster))
 
 	// Tokens
-	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
 
 	// Active sessions
@@ -668,19 +666,6 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	return string(cert), nil
-}
-
-// DELETE IN 11.0.0
-func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req proto.GenerateTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := auth.GenerateToken(r.Context(), &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return token, nil
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
