@@ -131,7 +131,7 @@ func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string
 	// create a (unstarted) agent and add the agent key(s) to it
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 	if !ok {
-		return nil, "", "", trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring")
+		return nil, "", "", trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
 	}
 
 	if err := keyring.Add(agentKey); err != nil {

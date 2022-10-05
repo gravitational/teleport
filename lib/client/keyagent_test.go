@@ -121,7 +121,7 @@ func TestAddKey(t *testing.T) {
 	}
 
 	// get all agent keys from teleport agent and system agent
-	teleportAgentKeys, err := lka.Agent.List()
+	teleportAgentKeys, err := lka.ExtendedAgent.List()
 	require.NoError(t, err)
 	systemAgentKeys, err := lka.sshAgent.List()
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestLoadKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent
-	teleportAgentKeys, err := lka.Agent.List()
+	teleportAgentKeys, err := lka.ExtendedAgent.List()
 	require.NoError(t, err)
 	teleportAgentInitialKeyCount := len(teleportAgentKeys)
 	systemAgentKeys, err := lka.sshAgent.List()
@@ -197,7 +197,7 @@ func TestLoadKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent
-	teleportAgentKeys, err = lka.Agent.List()
+	teleportAgentKeys, err = lka.ExtendedAgent.List()
 	require.NoError(t, err)
 	systemAgentKeys, err = lka.sshAgent.List()
 	require.NoError(t, err)
@@ -207,7 +207,7 @@ func TestLoadKey(t *testing.T) {
 	require.Len(t, systemAgentKeys, systemAgentInitialKeyCount+2)
 
 	// now sign data using the teleport agent and system agent
-	teleportAgentSignature, err := lka.Agent.Sign(teleportAgentKeys[0], userdata)
+	teleportAgentSignature, err := lka.ExtendedAgent.Sign(teleportAgentKeys[0], userdata)
 	require.NoError(t, err)
 	systemAgentSignature, err := lka.sshAgent.Sign(systemAgentKeys[0], userdata)
 	require.NoError(t, err)
