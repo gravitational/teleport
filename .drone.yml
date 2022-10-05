@@ -1887,19 +1887,42 @@ steps:
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -2048,19 +2071,42 @@ steps:
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -2222,19 +2268,42 @@ steps:
     cd /go/artifacts && for FILE in teleport-connect*.deb teleport-connect*.rpm; do
       sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -2381,19 +2450,42 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -2569,18 +2661,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -2758,18 +2849,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -2947,18 +3037,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -3122,18 +3211,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -3280,19 +3368,42 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -3468,18 +3579,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -3651,18 +3761,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -4386,19 +4495,42 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -4545,19 +4677,42 @@ steps:
     \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -4724,18 +4879,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -4902,18 +5056,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -5089,18 +5242,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -5281,18 +5433,17 @@ steps:
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
 - name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
-      from_secret: AWS_ACCESS_KEY_ID
-    bucket:
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -5447,19 +5598,42 @@ steps:
   - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
   - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -7212,6 +7386,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: cc1ad56f5d547cfcce1fab8987fcc9426fafdb15adb0cd76e47636361d4be836
+hmac: 09e54f0b11577a438df6a0a992e9c33631c05bb949ed9f8c8b0d5644f08a6c5b
 
 ...

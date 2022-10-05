@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -191,26 +192,73 @@ done && ls -l`)
 	return commands
 }
 
-type s3Settings struct {
-	region      string
-	source      string
-	target      string
-	stripPrefix string
+type awsRoleSettings struct {
+	awsAccessKeyId     value
+	awsSecretAccessKey value
+	role               value
 }
 
-// uploadToS3Step generates an S3 upload step
-func uploadToS3Step(s s3Settings) step {
+type kubernetesRoleSettings struct {
+	awsRoleSettings
+	configVolume volumeRef
+}
+
+type macRoleSettings struct {
+	awsRoleSettings
+	configPath string
+}
+
+func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
+	configFile := filepath.Join(s.configVolume.Path, "credentials")
+	assumeRoleCmd := `printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+  $(aws sts assume-role \
+    --role-arn "$AWS_ROLE" \
+    --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
+    --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+    --output text) \
+  > ` + configFile
+	return step{
+		Name:  "Assume AWS Role",
+		Image: "amazon/aws-cli",
+		Environment: map[string]value{
+			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyId,
+			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
+			"AWS_ROLE":              s.role,
+		},
+		Volumes: []volumeRef{s.configVolume},
+		Commands: []string{
+			`aws sts get-caller-identity`, // check the original identity
+			assumeRoleCmd,
+			`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`, // remove original identity from environment
+			`aws sts get-caller-identity`,                   // check the new assumed identity
+		},
+	}
+}
+
+func macAssumeAwsRoleStep(s macRoleSettings) {
+
+}
+
+type kubernetesS3Settings struct {
+	region       string
+	source       string
+	target       string
+	configVolume volumeRef
+}
+
+// kubernetesUploadToS3Step generates an S3 upload step
+func kubernetesUploadToS3Step(s kubernetesS3Settings) step {
 	return step{
 		Name:  "Upload to S3",
-		Image: "plugins/s3",
-		Settings: map[string]value{
-			"bucket":       {fromSecret: "AWS_S3_BUCKET"},
-			"access_key":   {fromSecret: "AWS_ACCESS_KEY_ID"},
-			"secret_key":   {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			"region":       {raw: s.region},
-			"source":       {raw: s.source},
-			"target":       {raw: s.target},
-			"strip_prefix": {raw: s.stripPrefix},
+		Image: "amazon/aws-cli",
+		Environment: map[string]value{
+			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
+			"AWS_REGION":    {raw: s.region},
+		},
+		Volumes: []volumeRef{s.configVolume},
+		Commands: []string{
+			`cd ` + s.source,
+			`aws s3 sync . s3://$AWS_S3_BUCKET/` + s.target,
 		},
 	}
 }
@@ -322,11 +370,19 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(b),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",
@@ -549,11 +605,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",
