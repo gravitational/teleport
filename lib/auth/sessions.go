@@ -18,18 +18,12 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	"google.golang.org/grpc/peer"
-
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,7 +67,6 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	appSessionID := uuid.New().String()
 	certs, err := s.generateUserCert(certRequest{
 		user:           user,
 		publicKey:      publicKey,
@@ -84,7 +77,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   appSessionID,
+		appSessionID:   uuid.New().String(),
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
@@ -111,49 +104,6 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err = s.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// User metadata from the audit event
-	userMetadata := identity.GetUserMetadata()
-	userMetadata.User = session.GetUser()
-	userMetadata.AWSRoleARN = req.AWSRoleARN
-
-	// Record peer for the address of the requesting connection.
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, trace.Wrap(errors.New("unable to get peer from context"))
-	}
-
-	// Now that the certificate has been issued, emit a "new session created"
-	// for all events associated with this certificate.
-	appSessionStartEvent := &apievents.AppSessionStart{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionStartEvent,
-			Code:        events.AppSessionStartCode,
-			ClusterName: identity.RouteToApp.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.ServerID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: appSessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-		UserMetadata: identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: p.Addr.String(),
-		},
-		PublicAddr: req.PublicAddr,
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        req.AppURI,
-			AppPublicAddr: req.PublicAddr,
-			AppName:       req.AppName,
-		},
-	}
-	if err := s.emitter.EmitAuditEvent(ctx, appSessionStartEvent); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
 	UserLoginCount.Inc()
 	return session, nil

@@ -967,9 +967,8 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
-	// Disabled has no effect, it is kept solely to not break existing
+	// Deprecated: Disabled has no effect, it is kept solely to not break existing
 	// configurations.
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
 	Disabled bool `yaml:"disabled,omitempty"`
 }
 

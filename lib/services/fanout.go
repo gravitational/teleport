@@ -19,12 +19,11 @@ package services
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
-
-	"go.uber.org/atomic"
 )
 
 const defaultQueueSize = 64
@@ -402,7 +401,7 @@ type FanoutSet struct {
 	// necessarily a problem, but it might confuse attempts to debug other event-system
 	// issues, so we choose to avoid it.
 	rw      sync.RWMutex
-	counter *atomic.Uint64
+	counter atomic.Uint64
 	members []*Fanout
 }
 
@@ -415,7 +414,6 @@ func NewFanoutSet() *FanoutSet {
 		members = append(members, NewFanout())
 	}
 	return &FanoutSet{
-		counter: atomic.NewUint64(0),
 		members: members,
 	}
 }
@@ -424,7 +422,7 @@ func NewFanoutSet() *FanoutSet {
 func (s *FanoutSet) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	s.rw.RLock() // see field-level docks for locking model
 	defer s.rw.RUnlock()
-	fi := int(s.counter.Inc() % uint64(len(s.members)))
+	fi := int(s.counter.Add(1) % uint64(len(s.members)))
 	return s.members[fi].NewWatcher(ctx, watch)
 }
 

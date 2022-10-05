@@ -284,4 +284,6 @@ const (
 	AzureMatcherMySQL = "mysql"
 	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
 	AzureMatcherPostgres = "postgres"
+	// AzureMatcherRedis is the Azure matcher type for Azure Cache for Redis databases.
+	AzureMatcherRedis = "redis"
 )
