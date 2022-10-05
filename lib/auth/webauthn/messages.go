@@ -63,12 +63,12 @@ func (cc *CredentialCreation) RequireResidentKey() (bool, error) {
 	switch as.ResidentKey {
 	case protocol.ResidentKeyRequirementRequired:
 		if as.RequireResidentKey != nil && !*as.RequireResidentKey {
-			return false, trace.BadParameter("invalid combinantion of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
+			return false, trace.BadParameter("invalid combination of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
 		}
 		return true, nil
 	case protocol.ResidentKeyRequirementDiscouraged:
 		if as.RequireResidentKey != nil && *as.RequireResidentKey {
-			return false, trace.BadParameter("invalid combinantion of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
+			return false, trace.BadParameter("invalid combination of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
 		}
 		return false, nil
 	case protocol.ResidentKeyRequirementPreferred:
@@ -76,8 +76,7 @@ func (cc *CredentialCreation) RequireResidentKey() (bool, error) {
 	}
 	// If ResidentKey is not set, then fallback to the legacy RequireResidentKey
 	// field.
-	return as.RequireResidentKey != nil &&
-		*as.RequireResidentKey, nil
+	return as.RequireResidentKey != nil && *as.RequireResidentKey, nil
 }
 
 // Validate performs client-side validation of CredentialCreation.
