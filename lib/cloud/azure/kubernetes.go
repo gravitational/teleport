@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/rbac/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -173,7 +174,8 @@ func (c *aksClient) get(ctx context.Context, group, name string) (*AKSCluster, e
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
-	return AKSClusterFromManagedCluster(&res.ManagedCluster), nil
+	cluster, err := AKSClusterFromManagedCluster(&res.ManagedCluster)
+	return cluster, trace.Wrap(err)
 }
 
 func (c *aksClient) ListAll(ctx context.Context) ([]*AKSCluster, error) {
@@ -187,7 +189,13 @@ func (c *aksClient) ListAll(ctx context.Context) ([]*AKSCluster, error) {
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, s := range page.Value {
-			servers = append(servers, AKSClusterFromManagedCluster(s))
+			cluster, err := AKSClusterFromManagedCluster(s)
+			if err != nil {
+				logrus.WithError(err).Debugf("cluster %s not discovered", StringVal(s.Name))
+				continue
+			}
+			servers = append(servers, cluster)
+
 		}
 	}
 	return servers, nil
@@ -203,7 +211,12 @@ func (c *aksClient) ListWithinGroup(ctx context.Context, group string) ([]*AKSCl
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, s := range page.Value {
-			servers = append(servers, AKSClusterFromManagedCluster(s))
+			cluster, err := AKSClusterFromManagedCluster(s)
+			if err != nil {
+				logrus.WithError(err).Debugf("cluster %s not discovered", StringVal(s.Name))
+				continue
+			}
+			servers = append(servers, cluster)
 		}
 	}
 	return servers, nil
@@ -547,7 +560,7 @@ func checkIfAuthMethodIsUnSupported(cfg *rest.Config) (*rest.Config, error) {
 }
 
 // AKSClusterFromManagedCluster converts an Azure armcontainerservice.ManagedCluster into AKSCluster.
-func AKSClusterFromManagedCluster(cluster *armcontainerservice.ManagedCluster) *AKSCluster {
+func AKSClusterFromManagedCluster(cluster *armcontainerservice.ManagedCluster) (*AKSCluster, error) {
 	result := &AKSCluster{
 		Name:     StringVal(cluster.Name),
 		Location: StringVal(cluster.Location),
@@ -560,25 +573,31 @@ func AKSClusterFromManagedCluster(cluster *armcontainerservice.ManagedCluster) *
 		result.GroupName, result.SubscriptionID = groupName, subID
 	}
 
-	if cluster.Properties != nil {
-		if cluster.Properties.AADProfile != nil && ptrToVal(cluster.Properties.AADProfile.EnableAzureRBAC) {
-			result.Properties = AKSClusterProperties{
-				AccessConfig: AzureRBAC,
-			}
-		} else if cluster.Properties.AADProfile != nil {
-			result.Properties = AKSClusterProperties{
-				AccessConfig:  AzureAD,
-				LocalAccounts: !ptrToVal(cluster.Properties.DisableLocalAccounts),
-			}
-		} else {
-			result.Properties = AKSClusterProperties{
-				AccessConfig:  LocalAccounts,
-				LocalAccounts: true,
-			}
-		}
-
+	if cluster.Properties == nil {
+		return nil, trace.BadParameter("invalid AKS Cluster Properties")
 	}
-	return result
+
+	if !isAKSClusterRunning(cluster.Properties) {
+		return nil, trace.BadParameter("AKS cluster not running")
+	}
+
+	if cluster.Properties.AADProfile != nil && ptrToVal(cluster.Properties.AADProfile.EnableAzureRBAC) {
+		result.Properties = AKSClusterProperties{
+			AccessConfig: AzureRBAC,
+		}
+	} else if cluster.Properties.AADProfile != nil {
+		result.Properties = AKSClusterProperties{
+			AccessConfig:  AzureAD,
+			LocalAccounts: !ptrToVal(cluster.Properties.DisableLocalAccounts),
+		}
+	} else {
+		result.Properties = AKSClusterProperties{
+			AccessConfig:  LocalAccounts,
+			LocalAccounts: true,
+		}
+	}
+
+	return result, nil
 }
 
 func ptrToVal[T any](ptr *T) T {
@@ -614,6 +633,14 @@ func (c *azureGroupClaims) Valid() error {
 		return trace.BadParameter("invalid claims received")
 	}
 	return nil
+}
+
+func isAKSClusterRunning(properties *armcontainerservice.ManagedClusterProperties) bool {
+	if properties.PowerState != nil && properties.PowerState.Code != nil &&
+		*properties.PowerState.Code == armcontainerservice.CodeRunning {
+		return true
+	}
+	return false
 }
 
 const (

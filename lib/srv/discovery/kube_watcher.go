@@ -78,26 +78,10 @@ func (s *Server) startKubeWatchers() error {
 
 	go func() {
 		for {
-			group, groupCtx := errgroup.WithContext(s.ctx)
-			group.SetLimit(concurrencyLimit)
-			for _, fetcher := range s.kubeFetchers {
-				lFetcher := fetcher
-
-				group.Go(func() error {
-					resources, err := lFetcher.Get(groupCtx)
-					if err != nil {
-						s.Log.WithError(err).Warnf("unable to fetch resources for %s at %s", lFetcher.ResourceType(), lFetcher.Cloud())
-						// never return the error otherwise it will impact other watchers.
-						return nil
-					}
-					mu.Lock()
-					kubeResources = append(kubeResources, resources...)
-					mu.Unlock()
-					return nil
-				})
-			}
-			// error is discarded because we must run all fetchers until the end.
-			_ = group.Wait()
+			newFetcherResources := s.fetchFetchersResources()
+			mu.Lock()
+			kubeResources = newFetcherResources
+			mu.Unlock()
 
 			if err := watcher.Reconcile(s.ctx); err != nil {
 				s.Log.WithError(err).Warnf("unable to reconcile resources")
@@ -111,6 +95,34 @@ func (s *Server) startKubeWatchers() error {
 		}
 	}()
 	return nil
+}
+
+func (s *Server) fetchFetchersResources() types.ResourcesWithLabels {
+	var (
+		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)
+		fetchersLock        sync.Mutex
+		group, groupCtx     = errgroup.WithContext(s.ctx)
+	)
+	group.SetLimit(concurrencyLimit)
+	for _, fetcher := range s.kubeFetchers {
+		lFetcher := fetcher
+
+		group.Go(func() error {
+			resources, err := lFetcher.Get(groupCtx)
+			if err != nil {
+				s.Log.WithError(err).Warnf("unable to fetch resources for %s at %s", lFetcher.ResourceType(), lFetcher.Cloud())
+				// never return the error otherwise it will impact other watchers.
+				return nil
+			}
+			fetchersLock.Lock()
+			newFetcherResources = append(newFetcherResources, resources...)
+			fetchersLock.Unlock()
+			return nil
+		})
+	}
+	// error is discarded because we must run all fetchers until the end.
+	_ = group.Wait()
+	return newFetcherResources
 }
 
 func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels) error {

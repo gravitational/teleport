@@ -196,6 +196,9 @@ func aksClusterToManagedCluster(cluster AKSCluster) *armcontainerservice.Managed
 		},
 		Properties: &armcontainerservice.ManagedClusterProperties{
 			ProvisioningState: to.Ptr("Succeeded"),
+			PowerState: &armcontainerservice.PowerState{
+				Code: to.Ptr(armcontainerservice.CodeRunning),
+			},
 		},
 		ID: to.Ptr(id),
 	}
