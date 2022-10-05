@@ -3,18 +3,20 @@ title: Configure Teleport to Automatically Enroll EC2 instances
 description: How to configure Teleport to automatically enroll EC2 instances.
 ---
 
-Teleport can run as a Discovery Node by configuring the discovery
-service. This will connect to EC2 and automatically discover and
-enroll EC2 instances matching configured labels. It will then execute
-an install script on these discovered instances using AWS Systems
-Manager that will install Teleport, start it and join the cluster.
+The Teleport Discovery Service can connect to Amazon EC2 and
+automatically discover and enroll EC2 instances matching configured
+labels. It will then execute an install script on these discovered
+instances using AWS Systems Manager that will install Teleport, start
+it and join the cluster.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - AWS account with EC2 instances and permissions to create and attach IAM policies as well as permission to create Systems Manager documents.
-- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2 if making use of the default Teleport install script. 
+- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2 if making use of the default Teleport install script. (For other Linux distributions, you can install Teleport manually.) 
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create an EC2 invite token
 
@@ -41,7 +43,7 @@ spec:
   join_method: iam
 
   allow:
-  # specify the AWS account which nodes may join from
+  # specify the AWS account which Nodes may join from
   - aws_account: "123456789"
 ```
 
@@ -139,8 +141,8 @@ execute Systems Manager commands and retrieve EC2 instances:
 ```
 
 All EC2 instances that are to be added to the Teleport cluster by the
-Discovery Node must include the `AmazonSSMManagedInstanceCore` IAM policy
-in order to receive commands from the Discovery Node. 
+Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
+in order to receive commands from the Discovery Service. 
 
 This policy includes the following permissions:
 ```js
@@ -196,7 +198,10 @@ This policy includes the following permissions:
 
 ## Step 4/5. Configure Teleport to discover EC2 instances
 
-The discovery service requires a valid auth token to connect to the cluster. Generate one by running the following command against your Teleport Auth Service and save it in `/tmp/token` on the node that will run the discovery service:
+The Teleport Discovery Service requires a valid auth token to connect
+to the cluster. Generate one by running the following command against
+your Teleport Auth Service and save it in `/tmp/token` on the Node
+that will run the Discovery Service:
 
 ```code
 $ tctl tokens add --type=discovery
@@ -234,7 +239,7 @@ be added to the Teleport cluster automatically.
 
 ## Step 5/5. [Optional] Customize the default installer script
 
-To customize the default installer script, execute the following command:
+To customize the default installer script, execute the following command on your workstation:
 ```code
 $ tctl get installer/default-installer > teleport-default-installer.yaml
 ```
@@ -303,6 +308,6 @@ Information on IAM best practices on EC2 instances managed by Systems
 Manager can be found for IAM best practices on EC2 instances managed
 by Systems Manager can be found in the [AWS Cloud Operations & Migrations Blog](https://aws.amazon.com/blogs/mt/applying-managed-instance-policy-best-practices/).
 
-Full documentation on EC2 discovery configuration can be found through the [config file reference documentation ](../../reference/config.mdx).
+Full documentation on EC2 discovery configuration can be found through the [config file reference documentation](../../reference/config.mdx).
 
 The complete default installer can be found [with the Teleport source](https://github.com/gravitational/teleport/blob/master/api/types/installers/installer.sh.tmpl).
