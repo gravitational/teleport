@@ -1608,6 +1608,8 @@ message ListResourcesResponse {
 //
 // This is not specific to any session type. Relevant fields should be set for a given session type.
 message CreateSessionTrackerRequest {
+  reserved 1 to 14;
+
   // SessionTracker is the session tracker to be created.
   types.SessionTrackerV1 SessionTracker = 15 [(gogoproto.jsontag) = "session_tracker,omitempty"];
 }

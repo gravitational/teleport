@@ -3079,6 +3079,8 @@ message OIDCConnectorV3List {
 // It specifies configuration for Open ID Connect compatible external
 // identity provider: https://openid.net/specs/openid-connect-core-1_0.html
 message OIDCConnectorSpecV3 {
+  reserved 4;
+
   // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
   string IssuerURL = 1 [(gogoproto.jsontag) = "issuer_url"];
   // ClientID is the id of the authentication client (Teleport Auth server).
