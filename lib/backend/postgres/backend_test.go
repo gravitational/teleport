@@ -29,12 +29,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/sqlbk"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/sqlbk"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/require"
@@ -168,7 +169,7 @@ func TestDriverURL(t *testing.T) {
 	driver.cfg.TLS.ClientCertFile = "certfile"
 	driver.cfg.TLS.ClientKeyFile = "keyfile"
 
-	expect, err := url.Parse("postgres://host:123/database?sslmode=verify-full&sslrootcert=cafile&sslcert=certfile&sslkey=keyfile")
+	expect, err := url.Parse("postgres://host:123/database?user=&sslmode=verify-full&sslrootcert=cafile&sslcert=certfile&sslkey=keyfile")
 	require.NoError(t, err)
 	expectQuery := expect.Query()
 	expect.RawQuery = ""

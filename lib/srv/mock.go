@@ -36,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -82,7 +83,8 @@ func NewTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 		cancel:        cancel,
 	}
 
-	scx.ExecRequest = &localExec{Ctx: scx}
+	err = scx.SetExecRequest(&localExec{Ctx: scx})
+	require.NoError(t, err)
 
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
@@ -120,6 +122,9 @@ func NewMockServer(t *testing.T) *MockServer {
 		Authority:    testauthority.New(),
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))

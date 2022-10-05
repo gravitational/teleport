@@ -402,9 +402,9 @@ func (p *PAM) Close() error {
 // variables and it is the responsibility of the caller to free that memory.
 // From http://man7.org/linux/man-pages/man3/pam_getenvlist.3.html:
 //
-//   It should be noted that this memory will never be free()'d by libpam.
-//   Once obtained by a call to pam_getenvlist, it is the responsibility
-//   of the calling application to free() this memory.
+//	It should be noted that this memory will never be free()'d by libpam.
+//	Once obtained by a call to pam_getenvlist, it is the responsibility
+//	of the calling application to free() this memory.
 func (p *PAM) Environment() []string {
 	// Get list of additional environment variables requested from PAM.
 	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)

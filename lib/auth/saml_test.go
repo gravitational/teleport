@@ -34,6 +34,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,6 +66,9 @@ func TestCreateSAMLUser(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 
 	a, err := NewServer(authConfig)
@@ -188,6 +192,9 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 
 	a, err := NewServer(authConfig)
@@ -277,9 +284,15 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 
 	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, a, "baz", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -391,6 +404,9 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 
 	a, err := NewServer(authConfig)

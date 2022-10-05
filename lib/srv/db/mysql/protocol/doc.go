@@ -24,11 +24,14 @@ limitations under the License.
 // The following resources are helpful to understand protocol details.
 //
 // Packet structure:
-//   https://dev.mysql.com/doc/internals/en/mysql-packet.html
+//
+//	https://dev.mysql.com/doc/internals/en/mysql-packet.html
 //
 // Generic response packets:
-//   https://dev.mysql.com/doc/internals/en/generic-response-packets.html
+//
+//	https://dev.mysql.com/doc/internals/en/generic-response-packets.html
 //
 // Packets sent in the command phase:
-//   https://dev.mysql.com/doc/internals/en/command-phase.html
+//
+//	https://dev.mysql.com/doc/internals/en/command-phase.html
 package protocol

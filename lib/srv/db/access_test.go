@@ -2011,7 +2011,9 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 				Region: testAWSRegion,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2043,7 +2045,9 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 				Redshift: types.Redshift{ClusterID: "redshift-cluster-1"},
 			},
 			// Set CA cert, otherwise we will attempt to download Redshift roots.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2078,7 +2082,9 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2109,7 +2115,9 @@ func withAzurePostgres(name, authToken string) withDatabaseOption {
 				Name: name,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2357,6 +2365,38 @@ func withSQLServer(name string) withDatabaseOption {
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
 			db:       sqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withAzureRedis(name string, token string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			Azure: types.Azure{
+				Name:       name,
+				ResourceID: "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/Redis/example-teleport",
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
 			resource: database,
 		}
 		return database
