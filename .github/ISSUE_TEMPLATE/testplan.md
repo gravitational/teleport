@@ -994,7 +994,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
-  - [ ] Azure Cache for Redis..
+  - [ ] Azure Cache for Redis.
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
