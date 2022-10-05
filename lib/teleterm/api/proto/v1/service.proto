@@ -147,7 +147,7 @@ message GetAccessRequestRequest {
   // cluster_uri is the cluster uri
   string cluster_uri = 1;
   // specifcies a specific request id
-  string id = 2;
+  string access_request_id = 2;
 }
 
 message GetAccessRequestsRequest {
@@ -165,7 +165,7 @@ message GetAccessRequestsResponse {
 
 message DeleteAccessRequestRequest {
   string root_cluster_uri = 1;
-  string request_id = 2;
+  string access_request_id = 2;
 }
 
 message CreateAccessRequestRequest {
@@ -199,7 +199,7 @@ message ReviewAccessRequestRequest {
   string state = 2;
   string reason = 3;
   repeated string roles = 4;
-  string request_id = 5;
+  string access_request_id = 5;
 }
 
 message ReviewAccessRequestResponse {

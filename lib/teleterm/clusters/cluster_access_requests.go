@@ -89,11 +89,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
 	err = addMetadataToRetryableError(ctx, func() error {
-		if err := c.clusterClient.CreateAccessRequest(ctx, request); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return err
+		return c.clusterClient.CreateAccessRequest(ctx, request)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -143,7 +139,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 
 		updatedRequest, err = authClient.SubmitAccessReview(ctx, reviewSubmission)
 
-		return err
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
