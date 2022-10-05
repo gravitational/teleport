@@ -1637,8 +1637,8 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{nodesPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToServer(types.KindNode)
 	case types.KindWindowsDesktopService:
-		keyPrefix = []string{windowsDesktopServicesPrefix, req.Namespace}
-		unmarshalItemFunc = backendItemToServer(types.KindWindowsDesktopService)
+		keyPrefix = []string{windowsDesktopServicesPrefix}
+		unmarshalItemFunc = backendItemToWindowsDesktopService
 	case types.KindKubeService:
 		keyPrefix = []string{kubeServicesPrefix}
 		unmarshalItemFunc = backendItemToServer(types.KindKubeService)
@@ -1840,7 +1840,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 }
 
 // backendItemToDatabaseServer unmarshals `backend.Item` into a
-// `types.DatabaseServer`, returning it as a `types.Resource`.
+// `types.DatabaseServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalDatabaseServer(
 		item.Value,
@@ -1850,7 +1850,7 @@ func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, e
 }
 
 // backendItemToApplicationServer unmarshals `backend.Item` into a
-// `types.AppServer`, returning it as a `types.Resource`.
+// `types.AppServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalAppServer(
 		item.Value,
@@ -1860,7 +1860,7 @@ func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels
 }
 
 // backendItemToKubernetesServer unmarshals `backend.Item` into a
-// `types.KubeServer`, returning it as a `types.Resource`.
+// `types.KubeServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalKubeServer(
 		item.Value,
@@ -1871,7 +1871,7 @@ func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels,
 
 // backendItemToServer returns `backendItemToResourceFunc` to unmarshal a
 // `backend.Item` into a `types.ServerV2` with a specific `kind`, returning it
-// as a `types.Resource`.
+// as a `types.ResourceWithLabels`.
 func backendItemToServer(kind string) backendItemToResourceFunc {
 	return func(item backend.Item) (types.ResourceWithLabels, error) {
 		return services.UnmarshalServer(
@@ -1880,6 +1880,16 @@ func backendItemToServer(kind string) backendItemToResourceFunc {
 			services.WithExpires(item.Expires),
 		)
 	}
+}
+
+// backendItemToWindowsDesktopService unmarshals `backend.Item` into a
+// `types.WindowsDesktopService`, returning it as a `types.ResourceWithLabels`.
+func backendItemToWindowsDesktopService(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalWindowsDesktopService(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
 }
 
 const (
