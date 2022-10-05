@@ -295,13 +295,4 @@ func TLSCertToX509(cert tls.Certificate) (*x509.Certificate, error) {
 	return x509cert, trace.Wrap(err)
 }
 
-// VerifyTLSCertificateExpiry returns the certificate NotAfter time.
-func VerifyTLSCertificateExpiry(cert tls.Certificate, clock clockwork.Clock) error {
-	x509cert, err := TLSCertToX509(cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(VerifyCertificateExpiry(x509cert, clock))
-}
-
 const pemBlockCertificate = "CERTIFICATE"
