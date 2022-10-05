@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package githubactions
 
 // GitHub Workload Identity
@@ -82,6 +83,8 @@ type IDTokenClaims struct {
 	RunNumber string `json:"run_number"`
 	// The number of times this workflow run has been retried.
 	RunAttempt string `json:"run_attempt"`
+	// SHA is the commit SHA that triggered the workflow run.
+	SHA string `json:"sha"`
 	// The name of the workflow.
 	Workflow string `json:"workflow"`
 }
