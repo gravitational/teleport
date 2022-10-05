@@ -392,15 +392,7 @@ func (u *UserV2) ResetLocks() {
 
 // IsEmpty returns true if there's no info about who created this user
 func (c CreatedBy) IsEmpty() bool {
-	if c.User.Name != "" {
-		return false
-	}
-
-	if c.Connector != nil && c.Connector.ID != "" {
-		return false
-	}
-
-	return true
+	return c.User.Name == "" && c.Connector == nil
 }
 
 // String returns human readable information about the user
