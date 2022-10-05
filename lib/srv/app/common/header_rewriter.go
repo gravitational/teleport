@@ -29,8 +29,7 @@ const (
 
 // HeaderRewriter delegates to oxy's rewriter and then appends its own headers.
 type HeaderRewriter struct {
-	delegates    []forward.ReqRewriter
-	forWebsocket bool
+	delegates []forward.ReqRewriter
 }
 
 // NewHeaderRewriter will create a new header rewriter with a number of delegates.
