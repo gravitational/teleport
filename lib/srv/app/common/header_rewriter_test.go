@@ -69,8 +69,8 @@ func TestHeaderRewriter(t *testing.T) {
 				Header: http.Header{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:  []string{sslOff},
-				XForwardedPort: []string{"80"},
+				XForwardedSSL:          []string{sslOff},
+				forward.XForwardedPort: []string{"80"},
 			},
 		},
 		{
@@ -81,8 +81,8 @@ func TestHeaderRewriter(t *testing.T) {
 				Header: http.Header{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:  []string{sslOff},
-				XForwardedPort: []string{"12345"},
+				XForwardedSSL:          []string{sslOff},
+				forward.XForwardedPort: []string{"12345"},
 			},
 		},
 		{
@@ -94,8 +94,8 @@ func TestHeaderRewriter(t *testing.T) {
 				TLS:    &tls.ConnectionState{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:  []string{sslOn},
-				XForwardedPort: []string{"443"},
+				XForwardedSSL:          []string{sslOn},
+				forward.XForwardedPort: []string{"443"},
 			},
 		},
 		{
@@ -111,10 +111,10 @@ func TestHeaderRewriter(t *testing.T) {
 				newTestDelegate("test-2", "value-2"),
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:  []string{sslOn},
-				XForwardedPort: []string{"12345"},
-				"test-1":       []string{"value-1"},
-				"test-2":       []string{"value-2"},
+				XForwardedSSL:          []string{sslOn},
+				forward.XForwardedPort: []string{"12345"},
+				"test-1":               []string{"value-1"},
+				"test-2":               []string{"value-2"},
 			},
 		},
 	}
