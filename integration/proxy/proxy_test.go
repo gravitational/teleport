@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -758,62 +758,32 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("authenticated tunnel with cert renewal", func(t *testing.T) {
-		ctx := context.Background()
-		clt := pack.Root.Cluster.Process.GetAuthServer()
-
-		// setup a mock user with a custom role
-		dbUser := "root-db-user"
-		roleName := "session-ttl-limited-access"
-		userName := "alice-cert-tunnel-test"
-		user, err := types.NewUser(userName)
-		require.NoError(t, err)
-		user.AddRole(roleName)
-
-		sessionTTLLimitedRole, err := types.NewRoleV3(roleName, types.RoleSpecV5{
-			Allow: types.RoleConditions{
-				DatabaseLabels: types.Labels{
-					types.Wildcard: []string{types.Wildcard},
-				},
-				DatabaseNames: []string{types.Wildcard},
-				DatabaseUsers: []string{types.Wildcard},
-			},
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(5 * time.Second),
-			},
-		})
-		require.NoError(t, err)
-		now := time.Now()
-		require.NoError(t, clt.UpsertRole(ctx, sessionTTLLimitedRole))
-		require.NoError(t, clt.UpsertUser(user))
-		// wait for the user and role to be created
-		helpers.WaitForAuditEventTypeWithBackoff(t, clt, now, events.UserCreateEvent)
-		helpers.WaitForAuditEventTypeWithBackoff(t, clt, now, events.RoleCreatedEvent)
-
 		// get a teleport client
 		tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
-			Login:   userName,
+			Login:   pack.Root.User.GetName(),
 			Cluster: pack.Root.Cluster.Secrets.SiteName,
 		})
 		require.NoError(t, err)
-
 		routeToDatabase := tlsca.RouteToDatabase{
 			ServiceName: pack.Root.MysqlService.Name,
 			Protocol:    pack.Root.MysqlService.Protocol,
-			Username:    dbUser,
+			Username:    "root",
 		}
-		m, err := libclient.NewDBCertChecker(tc, routeToDatabase, nil)
+		// inject a fake clock into the middleware so we can control when it thinks certs have expired
+		fakeClock := clockwork.NewFakeClockAt(time.Now())
+		m, err := libclient.NewDBCertChecker(tc, routeToDatabase, fakeClock)
 		require.NoError(t, err)
 
 		// configure local proxy without certs but with cert checking/reissuing middleware
 		// local proxy middleware should fetch a DB cert when the local proxy starts
-		lp1 := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 			RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
 			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 			InsecureSkipVerify: true,
 			Middleware:         m,
 		})
 
-		client, err := mysql.MakeTestClientWithoutTLS(lp1.GetAddr(), routeToDatabase)
+		client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
 		require.NoError(t, err)
 
 		// Execute a query.
@@ -823,23 +793,22 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// Disconnect.
 		require.NoError(t, client.Close())
-		certs := lp1.GetCerts()
+		certs := lp.GetCerts()
 		require.NotEmpty(t, certs)
+		cert1, err := utils.TLSCertToX509(certs[0])
+		require.NoError(t, err)
+		// sanity check that cert equality check works
+		require.Equal(t, cert1, cert1, "cert should be equal to itself")
 
-		// wait for db cert to expire
+		// mock db cert expiration (as far as the middleware thinks anyway)
 		// Unfortunately, mocking cert expiration by advancing a fake clock
 		// does not cause an invalid certificate error even if no cert renewal is done by the middleware,
 		// because TLS handshakes are done with real system time.
-		// So in order to test cert renewal, we use a small max session ttl and just wait for it to expire.
-		<-time.After(time.Second + sessionTTLLimitedRole.GetOptions().MaxSessionTTL.Duration())
-		// refresh the SSH cert since it expired too, but tc expects an interactive terminal to renew it
-		pack.Root.Cluster.AddClientCredentials(tc, helpers.ClientConfig{
-			Login:   userName,
-			Cluster: pack.Root.Cluster.Secrets.SiteName,
-		})
+		require.Greater(t, cert1.NotAfter, fakeClock.Now())
+		fakeClock.Advance(cert1.NotAfter.Sub(fakeClock.Now()) + time.Second)
 
 		// Open a new connection
-		client, err = mysql.MakeTestClientWithoutTLS(lp1.GetAddr(), routeToDatabase)
+		client, err = mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
 		require.NoError(t, err)
 
 		// Execute a query.
@@ -849,6 +818,11 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// Disconnect.
 		require.NoError(t, client.Close())
+		certs = lp.GetCerts()
+		require.NotEmpty(t, certs)
+		cert2, err := utils.TLSCertToX509(certs[0])
+		require.NoError(t, err)
+		require.NotEqual(t, cert1, cert2, "cert should have been renewed by middleware")
 	})
 }
 
