@@ -19,9 +19,11 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -114,14 +116,14 @@ func (c *DBCertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.Loca
 
 // renewCerts attempts to renew the database certs for the local proxy.
 func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	fmt.Printf("\nLocal proxy tunnel requires credentials to access database %q\n", c.dbRoute.ServiceName)
-
 	var accessRequests []string
 	if profile, err := StatusCurrent(c.tc.HomePath, c.tc.WebProxyAddr, ""); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
+
+	msg := fmt.Sprintf("Local proxy tunnel requires credentials to access database %q", c.dbRoute.ServiceName)
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.tc, func() error {
 		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
@@ -133,6 +135,8 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 				Database:    c.dbRoute.Database,
 			},
 			AccessRequests: accessRequests,
+		}, func(opts *PromptMFAChallengeOpts) {
+			opts.BeforePrompt = msg
 		})
 		key = newKey
 		return trace.Wrap(err)
@@ -148,7 +152,13 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Println("Local proxy tunnel credentials successfully renewed")
+	x509cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certTTL := x509cert.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
+	fmt.Printf("Proxy credentials renewed. New cert valid until %s [valid for %v]\n",
+		x509cert.NotAfter.Format(time.RFC3339), certTTL)
 	lp.SetCerts([]tls.Certificate{tlsCert})
 	return nil
 }
