@@ -675,11 +675,11 @@ impl<S: Read + Write> RdpClient<S> {
         Ok(())
     }
 
-    pub fn write_client_device_list_announce(
+    pub fn handle_client_device_list_announce(
         &mut self,
         req: rdpdr::ClientDeviceListAnnounce,
     ) -> RdpResult<()> {
-        let messages = self.rdpdr.write_client_device_list_announce(req)?;
+        let messages = self.rdpdr.handle_client_device_list_announce(req)?;
         self.write_rdpdr(messages)
     }
 
@@ -893,7 +893,7 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
         rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, sd_announce.name);
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.write_client_device_list_announce(new_drive) {
+    match rdp_client.handle_client_device_list_announce(new_drive) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to announce new drive: {:?}", e);
