@@ -285,7 +285,7 @@ func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionR
 
 // GetAgent returns agent that can be used to answer challenges
 // for the web to ssh connection as well as certificate
-func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
+func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -298,7 +298,10 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
 
-	keyring := agent.NewKeyring()
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	if !ok {
+		return nil, nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring")
+	}
 	err = keyring.Add(agent.AddedKey{
 		PrivateKey:  privateKey,
 		Certificate: cert,
