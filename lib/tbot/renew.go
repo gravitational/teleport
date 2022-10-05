@@ -496,7 +496,9 @@ func (b *Bot) renewIdentityViaAuth(
 		joinMethod = b.cfg.Onboarding.JoinMethod
 	}
 	switch joinMethod {
-	case types.JoinMethodIAM:
+	// When using join methods that are repeatable - renew fully rather than
+	// renewing using existing credentials.
+	case types.JoinMethodIAM, types.JoinMethodGitHub:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
