@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
@@ -213,7 +214,7 @@ func (c *testContext) startKubeService(t *testing.T) {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 }
 
