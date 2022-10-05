@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -408,7 +409,7 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, "443", r.Header.Get(common.XForwardedPort))
+			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
 		},
 	})
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
@@ -425,7 +426,7 @@ func TestHandleConnectionWS(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, "443", r.Header.Get(common.XForwardedPort))
+			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
 		},
 		UseWebsockets: true,
 	})
