@@ -308,10 +308,6 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if !k.IsAzure() && !k.IsAWS() && !k.IsKubeconfig() {
-		return trace.BadParameter("kubernetes cluster %q does not have any authentication methods. Please configure one of these options: (AWS, Azure, Kubeconfig)", k.GetName())
-	}
-
 	if err := k.Spec.Azure.CheckAndSetDefaults(); err != nil && k.IsAzure() {
 		return trace.Wrap(err)
 	}
