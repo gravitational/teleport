@@ -37,6 +37,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1107,6 +1108,14 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 			s.Logger.WithError(err).Warn("Failed to emit session reject event.")
 		}
 		return ctx, trace.Wrap(lockErr)
+	}
+
+	// Check that the required private key policy, defined by roles and auth pref,
+	// is met by this Identity's ssh certificate.
+	identityPolicy := identityContext.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
+	requiredPolicy := identityContext.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Don't apply the following checks in non-node contexts.

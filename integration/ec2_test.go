@@ -158,15 +158,12 @@ func TestEC2NodeJoin(t *testing.T) {
 	token, err := types.NewProvisionTokenFromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
-		types.ProvisionTokenSpecV3{
-			Roles:      []types.SystemRole{types.RoleNode},
-			JoinMethod: types.JoinMethodEC2,
-			EC2: &types.ProvisionTokenSpecV3AWSEC2{
-				Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-					{
-						Account: iid.AccountID,
-						Regions: []string{iid.Region},
-					},
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleNode},
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: iid.AccountID,
+					AWSRegions: []string{iid.Region},
 				},
 			},
 		})
@@ -236,16 +233,14 @@ func TestIAMNodeJoin(t *testing.T) {
 	token, err := types.NewProvisionTokenFromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
-		types.ProvisionTokenSpecV3{
-			Roles:      []types.SystemRole{types.RoleNode, types.RoleProxy},
-			JoinMethod: types.JoinMethodIAM,
-			IAM: &types.ProvisionTokenSpecV3AWSIAM{
-				Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
-					{
-						Account: *id.Account,
-					},
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleNode, types.RoleProxy},
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: *id.Account,
 				},
 			},
+			JoinMethod: types.JoinMethodIAM,
 		})
 	require.NoError(t, err)
 
