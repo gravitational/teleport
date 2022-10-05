@@ -379,9 +379,9 @@ func (s *Service) Stop() {
 }
 
 func (s *Service) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
-	cluster, err := s.ResolveCluster(request.ServerUri)
+	cluster, err := s.ResolveCluster(request.GetClusterUri())
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	return cluster.TransferFile(request, server)

@@ -168,13 +168,12 @@ message LoginPasswordlessRequest {
 }
 
 message FileTransferRequest {
-  string server_uri = 1;
+  string cluster_uri = 1;
   string login = 2;
-  string source = 3;
-  string destination = 4;
-  string server_id = 5;
-  string cluster_id = 6;
-  FileTransferDirection direction = 7;
+  string hostname = 3;
+  string source = 4;
+  string destination = 5;
+  FileTransferDirection direction = 6;
 }
 
 // FileTransferDirection describes directions of a file transfer
