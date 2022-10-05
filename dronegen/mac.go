@@ -101,11 +101,10 @@ func darwinConnectDmgPipeline() pipeline {
 			// Connect's artifact description is automatically generated based on the filename so we pass
 			// no packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
@@ -215,11 +214,10 @@ func darwinTagPipeline() pipeline {
 			// Binaries built by this pipeline don't require extra description, so we don't pass
 			// packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
@@ -522,7 +520,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			`build.assets/build-fido2-macos.sh build`,
 			`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
-			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes`,
+			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
 		)
 	}
 

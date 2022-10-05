@@ -18,12 +18,16 @@ package native
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -266,4 +269,20 @@ func TestUserCertCompatibility(t *testing.T) {
 		extVal := userCertificate.Extensions["login@github.com"]
 		require.Equal(t, extVal, "hello")
 	}
+}
+
+// TestGenerateRSAPKSC1Keypair tests that GeneratePrivateKey generates
+// a valid PKCS1 rsa key.
+func TestGeneratePKSC1RSAKey(t *testing.T) {
+	t.Parallel()
+
+	priv, err := GeneratePrivateKey()
+	require.NoError(t, err)
+
+	block, rest := pem.Decode(priv.PrivateKeyPEM())
+	require.NoError(t, err)
+	require.Empty(t, rest)
+
+	_, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	require.NoError(t, err)
 }

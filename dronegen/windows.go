@@ -24,7 +24,7 @@ const (
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 	webappsSrc        = `/go/src/github.com/gravitational/webapps`
 
-	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.70-beta.3-windows.exe`
+	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.70-windows.exe`
 	relcliSha256 = `1cd0e4e2912ded6c6b61a82018ac3d76eac091f9719b5a80795d79ff194788a7`
 )
 
@@ -246,8 +246,8 @@ func windowsRegisterArtifactsStep(workspace string) step {
 		Name: "Register artifacts",
 		Environment: map[string]value{
 			"WORKSPACE_DIR":   {raw: workspace},
-			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT_STAGING"},
-			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY_STAGING"},
+			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT"},
+			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY"},
 			"RELCLI_BASE_URL": {raw: releasesHost},
 		},
 		Commands: []string{
