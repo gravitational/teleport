@@ -145,9 +145,11 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.Eventually(t, func() bool {
 		err = Run(context.Background(), []string{
 			"ssh",
+			"--proxy", s.root.Config.Proxy.WebAddr.String(),
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		})
+		t.Logf("ssh to leaf failed %v", err)
 		return err == nil
 	}, 5*time.Second, time.Second)
 
