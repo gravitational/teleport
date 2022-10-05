@@ -25,13 +25,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -67,27 +67,25 @@ func TestChaosUpload(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(scanDir)
 
-	terminateConnection := atomic.NewUint64(0)
-	failCreateAuditStream := atomic.NewUint64(0)
-	failResumeAuditStream := atomic.NewUint64(0)
+	var terminateConnection, failCreateAuditStream, failResumeAuditStream atomic.Uint64
 
 	faultyStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: streamer,
 		OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-			if event.GetIndex() > 700 && terminateConnection.Inc() < 5 {
+			if event.GetIndex() > 700 && terminateConnection.Add(1) < 5 {
 				log.Debugf("Terminating connection at event %v", event.GetIndex())
 				return trace.ConnectionProblem(nil, "connection terminated")
 			}
 			return nil
 		},
 		OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
-			if failCreateAuditStream.Inc() < 5 {
+			if failCreateAuditStream.Add(1) < 5 {
 				return nil, trace.ConnectionProblem(nil, "failed to create stream")
 			}
 			return streamer.CreateAuditStream(ctx, sid)
 		},
 		OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
-			resumed := failResumeAuditStream.Inc()
+			resumed := failResumeAuditStream.Add(1)
 			if resumed < 5 {
 				// for the first 5 resume attempts, simulate nework failure
 				return nil, trace.ConnectionProblem(nil, "failed to resume stream")
