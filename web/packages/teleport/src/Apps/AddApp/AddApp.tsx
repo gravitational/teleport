@@ -22,7 +22,7 @@ import * as Icons from 'design/Icon';
 
 import useTeleport from 'teleport/useTeleport';
 
-import { TabIcon } from 'teleport/components/Tabs';
+import { TabIcon } from 'teleport/components/TabIcon';
 
 import Manually from './Manually';
 

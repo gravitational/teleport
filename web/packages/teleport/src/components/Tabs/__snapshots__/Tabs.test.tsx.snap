@@ -1,0 +1,187 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`clicking on other tabs renders correct content and style 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding: 8px;
+  background-color: rgba(255,255,255,0.05);
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  display: flex;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.c1::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background-color: rgba(255,255,255,0.05);
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  opacity: 1;
+  color: inherit;
+  border: none;
+}
+
+.c3:hover,
+.c3:focus {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background-color: transparent;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  opacity: 0.6;
+  color: inherit;
+  border: none;
+}
+
+.c2:hover,
+.c2:focus {
+  cursor: pointer;
+  opacity: 1;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <button
+        class="c2"
+      >
+        tab one
+      </button>
+      <button
+        class="c3"
+      >
+        tab two
+      </button>
+    </div>
+    <div
+      class="c4"
+    >
+      <div>
+        content 2
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`init tab highlight and content 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding: 8px;
+  background-color: rgba(255,255,255,0.05);
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  display: flex;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.c1::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background-color: rgba(255,255,255,0.05);
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  opacity: 1;
+  color: inherit;
+  border: none;
+}
+
+.c2:hover,
+.c2:focus {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background-color: transparent;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  opacity: 0.6;
+  color: inherit;
+  border: none;
+}
+
+.c3:hover,
+.c3:focus {
+  cursor: pointer;
+  opacity: 1;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <button
+        class="c2"
+      >
+        tab one
+      </button>
+      <button
+        class="c3"
+      >
+        tab two
+      </button>
+    </div>
+    <div
+      class="c4"
+    >
+      <div>
+        content 1
+      </div>
+    </div>
+  </div>
+</div>
+`;
