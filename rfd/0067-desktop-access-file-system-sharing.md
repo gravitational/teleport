@@ -609,14 +609,16 @@ just have been a user creating a brand new file within the shared directory and 
 we will instead simply log all events that could conceivably indicate security-relevant information, and document the expected sequence of events for such common scenarios such as those
 described above for our users to reference. `Shared Directory Announce/Acknowledge` is also included in the audit event log to make the sequence of events more easily comprehensible.
 
-**TDP Shared Directory Messages Logged**
+**TDP Shared Directory Messages Logged --> Proposed Event Name**
 
-- `Shared Directory Announce/Acknowledge`
-- `Shared Directory Create`
-- `Shared Directory Read`
-- `Shared Directory Write`
-- `Shared Directory Delete`
-- `Shared Directory Move`
+The following list includes the type of TDP messages that will be logged and their propsed corresponding event names.
+
+- `Shared Directory Announce/Acknowledge` --> "desktop.directory.start"
+- `Shared Directory Create` --> "desktop.directory.create"
+- `Shared Directory Read` --> "desktop.directory.read"
+- `Shared Directory Write` --> "desktop.directory.write"
+- `Shared Directory Delete` --> "desktop.directory.delete"
+- `Shared Directory Move` --> "desktop.directory.move"
 
 **TDP Shared Directory Messages Skipped**
 
@@ -657,8 +659,12 @@ message DesktopSharedDirectoryStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-  // Succeeded is true if the directory sharing initialization was successful.
-  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // Status indicates whether the directory sharing initialization was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = "status"
+  ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
@@ -678,8 +684,12 @@ a unique identifier.
 message DesktopSharedDirectoryCreate {
   // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata
 
-  // Succeeded is true if the process was successful.
-  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // Status indicates whether the process was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = "status"
+  ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
@@ -700,8 +710,12 @@ message DesktopSharedDirectoryCreate {
 message DesktopSharedDirectoryRead {
   // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
 
-  // Succeeded is true if the process was successful.
-  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // Status indicates whether the process was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = "status"
+  ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
@@ -724,8 +738,12 @@ message DesktopSharedDirectoryRead {
 message DesktopSharedDirectoryWrite {
   // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
 
-  // Succeeded is true if the process was successful.
-  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // Status indicates whether the process was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = "status"
+  ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
@@ -748,8 +766,12 @@ message DesktopSharedDirectoryWrite {
 message DesktopSharedDirectoryDelete {
   // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
 
-  // Succeeded is true if the process was successful.
-  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // Status indicates whether the process was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = "status"
+  ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
@@ -768,8 +790,12 @@ message DesktopSharedDirectoryDelete {
 message DesktopSharedDirectoryMove {
   // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
 
-  // Succeeded is true if the process was successful.
-  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // Status indicates whether the process was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = "status"
+  ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
