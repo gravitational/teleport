@@ -204,7 +204,7 @@ export const formatters: Formatters = {
     type: 'scp',
     desc: 'SCP Upload',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] uploaded a file [${path}] to node [${
+      `User [${user}] uploaded a file to [${path}] on node [${
         rest['server_hostname'] || rest['addr.local']
       }]`,
   },

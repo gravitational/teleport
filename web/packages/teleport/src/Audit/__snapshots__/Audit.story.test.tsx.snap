@@ -5123,7 +5123,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] uploaded a file [~/] to node [192.168.0.105:3022]
+          User [root] uploaded a file to [~/] on node [192.168.0.105:3022]
         </td>
         <td
           style="min-width: 120px;"
