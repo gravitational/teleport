@@ -317,10 +317,6 @@ type CreateAppSessionRequest struct {
 	Username string `json:"username"`
 	// PublicAddr is the public address of the application.
 	PublicAddr string `json:"public_addr"`
-	// AppName is the name of the application.
-	AppName string `json:"app_name"`
-	// AppURI is the URI of the application.
-	AppURI string `json:"app_uri"`
 	// ClusterName is the name of the cluster within which the application is running.
 	ClusterName string `json:"cluster_name"`
 	// AWSRoleARN is AWS role this the user wants to assume.
