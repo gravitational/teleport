@@ -40,6 +40,10 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeRefDocker = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run",
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
@@ -49,9 +53,13 @@ var (
 		Name: "tmpfs",
 		Path: "/tmpfs",
 	}
-	volumeRefDocker = volumeRef{
-		Name: "dockersock",
-		Path: "/var/run",
+	volumeAwsConfig = volume{
+		Name: "awsconfig",
+		Temp: &volumeTemp{},
+	}
+	volumeRefAwsConfig = volumeRef{
+		Name: "awsconfig",
+		Path: "/root/.aws",
 	}
 
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather

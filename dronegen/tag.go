@@ -230,7 +230,7 @@ func tagPipeline(b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes()
+	p.Volumes = dockerVolumes(volumeAwsConfig)
 	p.Services = []service{
 		dockerService(),
 	}
@@ -256,11 +256,19 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(b),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",
@@ -461,11 +469,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",
