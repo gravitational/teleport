@@ -22,6 +22,7 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,7 +34,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 // TestAuditWriter tests audit writer - a component used for
@@ -82,9 +82,8 @@ func TestAuditWriter(t *testing.T) {
 
 	// ResumeStart resumes stream after it was broken at the start of transmission
 	t.Run("ResumeStart", func(t *testing.T) {
-		streamCreated := atomic.NewUint64(0)
-		terminateConnection := atomic.NewUint64(1)
-		streamResumed := atomic.NewUint64(0)
+		var streamCreated, terminateConnection, streamResumed atomic.Uint64
+		terminateConnection.Store(1)
 
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
@@ -99,7 +98,7 @@ func TestAuditWriter(t *testing.T) {
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
-					if streamCreated.Inc() == 1 {
+					if streamCreated.Add(1) == 1 {
 						// simulate status update loss
 						select {
 						case <-stream.Status():
@@ -113,7 +112,7 @@ func TestAuditWriter(t *testing.T) {
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
-					streamResumed.Inc()
+					streamResumed.Add(1)
 					return stream, nil
 				},
 			})
@@ -145,9 +144,8 @@ func TestAuditWriter(t *testing.T) {
 
 	// ResumeMiddle resumes stream after it was broken in the middle of transmission
 	t.Run("ResumeMiddle", func(t *testing.T) {
-		streamCreated := atomic.NewUint64(0)
-		terminateConnection := atomic.NewUint64(1)
-		streamResumed := atomic.NewUint64(0)
+		var streamCreated, terminateConnection, streamResumed atomic.Uint64
+		terminateConnection.Store(1)
 
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
@@ -162,13 +160,13 @@ func TestAuditWriter(t *testing.T) {
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
-					streamCreated.Inc()
+					streamCreated.Add(1)
 					return stream, nil
 				},
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
-					streamResumed.Inc()
+					streamResumed.Add(1)
 					return stream, nil
 				},
 			})
@@ -200,9 +198,8 @@ func TestAuditWriter(t *testing.T) {
 
 	// Backoff loses the events on emitter hang, but does not lock
 	t.Run("Backoff", func(t *testing.T) {
-		streamCreated := atomic.NewUint64(0)
-		terminateConnection := atomic.NewUint64(1)
-		streamResumed := atomic.NewUint64(0)
+		var streamCreated, terminateConnection, streamResumed atomic.Uint64
+		terminateConnection.Store(1)
 
 		submitEvents := 600
 		hangCtx, hangCancel := context.WithCancel(context.TODO())
@@ -222,13 +219,13 @@ func TestAuditWriter(t *testing.T) {
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
-					streamCreated.Inc()
+					streamCreated.Add(1)
 					return stream, nil
 				},
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
-					streamResumed.Inc()
+					streamResumed.Add(1)
 					return stream, nil
 				},
 			})
