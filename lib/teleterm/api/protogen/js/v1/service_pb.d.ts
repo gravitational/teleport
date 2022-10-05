@@ -242,23 +242,20 @@ export namespace LoginPasswordlessRequest {
 }
 
 export class FileTransferRequest extends jspb.Message { 
-    getServerUri(): string;
-    setServerUri(value: string): FileTransferRequest;
+    getClusterUri(): string;
+    setClusterUri(value: string): FileTransferRequest;
 
     getLogin(): string;
     setLogin(value: string): FileTransferRequest;
+
+    getHostname(): string;
+    setHostname(value: string): FileTransferRequest;
 
     getSource(): string;
     setSource(value: string): FileTransferRequest;
 
     getDestination(): string;
     setDestination(value: string): FileTransferRequest;
-
-    getServerId(): string;
-    setServerId(value: string): FileTransferRequest;
-
-    getClusterId(): string;
-    setClusterId(value: string): FileTransferRequest;
 
     getDirection(): FileTransferDirection;
     setDirection(value: FileTransferDirection): FileTransferRequest;
@@ -276,12 +273,11 @@ export class FileTransferRequest extends jspb.Message {
 
 export namespace FileTransferRequest {
     export type AsObject = {
-        serverUri: string,
+        clusterUri: string,
         login: string,
+        hostname: string,
         source: string,
         destination: string,
-        serverId: string,
-        clusterId: string,
         direction: FileTransferDirection,
     }
 }
