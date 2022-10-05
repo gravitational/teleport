@@ -22,4 +22,14 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 // app about actions that happen outside of the app itself. For example, when the user tries to
 // connect to a gateway served by the daemon but the cert has since expired and needs to be
 // reissued.
-service TshdEventsService {}
+service TshdEventsService {
+  // Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
+  // from the beginning till the end.
+  // TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
+  rpc Test(TestRequest) returns (TestResponse);
+}
+
+message TestRequest {
+  string foo = 1;
+}
+message TestResponse {}

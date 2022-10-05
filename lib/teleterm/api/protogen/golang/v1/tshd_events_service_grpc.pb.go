@@ -7,7 +7,10 @@
 package v1
 
 import (
+	context "context"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,6 +22,10 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TshdEventsServiceClient interface {
+	// Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
+	// from the beginning till the end.
+	// TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
+	Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -29,10 +36,23 @@ func NewTshdEventsServiceClient(cc grpc.ClientConnInterface) TshdEventsServiceCl
 	return &tshdEventsServiceClient{cc}
 }
 
+func (c *tshdEventsServiceClient) Test(ctx context.Context, in *TestRequest, opts ...grpc.CallOption) (*TestResponse, error) {
+	out := new(TestResponse)
+	err := c.cc.Invoke(ctx, "/teleport.terminal.v1.TshdEventsService/Test", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
 type TshdEventsServiceServer interface {
+	// Test is an RPC that's used to demonstrate how the implementation of a tshd event may look like
+	// from the beginning till the end.
+	// TODO(ravicious): Remove this once we add an actual RPC to tshd events service.
+	Test(context.Context, *TestRequest) (*TestResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -40,6 +60,9 @@ type TshdEventsServiceServer interface {
 type UnimplementedTshdEventsServiceServer struct {
 }
 
+func (UnimplementedTshdEventsServiceServer) Test(context.Context, *TestRequest) (*TestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Test not implemented")
+}
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
 // UnsafeTshdEventsServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -53,13 +76,36 @@ func RegisterTshdEventsServiceServer(s grpc.ServiceRegistrar, srv TshdEventsServ
 	s.RegisterService(&TshdEventsService_ServiceDesc, srv)
 }
 
+func _TshdEventsService_Test_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).Test(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.terminal.v1.TshdEventsService/Test",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).Test(ctx, req.(*TestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.terminal.v1.TshdEventsService",
 	HandlerType: (*TshdEventsServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams:     []grpc.StreamDesc{},
-	Metadata:    "v1/tshd_events_service.proto",
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Test",
+			Handler:    _TshdEventsService_Test_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "v1/tshd_events_service.proto",
 }
