@@ -1399,16 +1399,16 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	require.NoError(t, err)
 	require.NotEmpty(t, identity.MFAVerified)
 
-	msg, err := tdpConn.InputMessage()
+	msg, err := tdpConn.ReadMessage()
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientUsername{}, msg)
 
-	msg, err = tdpConn.InputMessage()
+	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
 
 	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	err = tdpConn.OutputMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
+	err = tdpConn.WriteMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
 	require.NoError(t, err)
 }
 
@@ -1480,21 +1480,26 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
 
-			msg, err := tdpClient.InputMessage()
+			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
-			require.IsType(t, tdp.PNGFrame{}, msg)
+			require.IsType(t, tdp.PNG2Frame{}, msg)
 		})
 	}
 }
 
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
+	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+	mt, err := br.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
+
+	mfaChallange, err := tdp.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).OutputMessage(tdp.MFA{
+	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{

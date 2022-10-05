@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 func TestFnCache_New(t *testing.T) {
@@ -214,10 +214,10 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 	require.NoError(t, err)
 
 	// readCounter is incremented upon each cache miss.
-	readCounter := atomic.NewInt64(0)
+	var readCounter atomic.Int64
 
 	// getCounter is incremented upon each get made against the cache, hit or miss.
-	getCounter := atomic.NewInt64(0)
+	var getCounter atomic.Int64
 
 	readTime := make(chan time.Time, 1)
 
@@ -248,13 +248,13 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 					default:
 					}
 
-					val := readCounter.Inc()
+					val := readCounter.Add(1)
 					return val, nil
 				})
 				require.NoError(t, err)
 				require.GreaterOrEqual(t, vi, lastValue)
 				lastValue = vi
-				getCounter.Inc()
+				getCounter.Add(1)
 			}
 		}()
 	}
@@ -311,7 +311,7 @@ func TestFnCacheCancellation(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
-	loadFnWasRun := atomic.NewBool(false)
+	var loadFnWasRun atomic.Bool
 	v, err = FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
 		loadFnWasRun.Store(true)
 		return "", nil
@@ -356,19 +356,18 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	happy := atomic.NewInt64(0)
-	sad := atomic.NewInt64(0)
+	var happy, sad atomic.Int64
 
 	// test synchronous case, all sad path loads should result in
 	// calls to loadfn.
 	for i := 0; i < 100; i++ {
 		FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
-			happy.Inc()
+			happy.Add(1)
 			return "yay!", nil
 		})
 
 		FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
-			sad.Inc()
+			sad.Add(1)
 			return "", fmt.Errorf("uh-oh")
 		})
 	}
@@ -382,7 +381,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
-				happy.Inc()
+				happy.Add(1)
 				return "yay!", nil
 			})
 		}()
@@ -390,7 +389,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
-				sad.Inc()
+				sad.Add(1)
 				return "", fmt.Errorf("uh-oh")
 			})
 		}()
