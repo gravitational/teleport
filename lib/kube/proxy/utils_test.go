@@ -136,7 +136,7 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	keyGen := native.New(testCtx.ctx)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
-	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))
+	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters)+1)
 
 	// Create kubernetes service server.
 	testCtx.kubeServer, err = NewTLSServer(TLSServerConfig{
@@ -184,10 +184,18 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	})
 	require.NoError(t, err)
 
+	// Waits for len(clusters) heartbeats to start
+	waitForHeartbeats := len(cfg.clusters)
+	// we must also wait for the legacy heartbeat.
+	// FIXME (tigrato): his check was added to force
+	// the person that removes the legacy heartbeat to adapt this code as well
+	// in order to wait just for len(cfg.clusters).
+	_ = testCtx.kubeServer.legacyHeartbeat
+	waitForHeartbeats++
+
 	testCtx.startKubeService(t)
 
-	// Waits for len(clusters) heartbeats to start
-	for i := 0; i < len(cfg.clusters); i++ {
+	for i := 0; i < waitForHeartbeats; i++ {
 		<-heartbeatsWaitChannel
 	}
 
