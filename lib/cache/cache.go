@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +44,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -373,7 +373,7 @@ type Cache struct {
 	// state was never established.  Note that a generation of zero does
 	// not preclude `ok` being true in the case that we have loaded a
 	// previously healthy state from the backend.
-	generation *atomic.Uint64
+	generation atomic.Uint64
 
 	// initOnce protects initC and initErr.
 	initOnce sync.Once
@@ -416,7 +416,7 @@ type Cache struct {
 	eventsFanout          *services.FanoutSet
 
 	// closed indicates that the cache has been closed
-	closed *atomic.Bool
+	closed atomic.Bool
 }
 
 func (c *Cache) setInitError(err error) {
@@ -714,7 +714,6 @@ func New(config Config) (*Cache, error) {
 		ctx:                   ctx,
 		cancel:                cancel,
 		Config:                config,
-		generation:            atomic.NewUint64(0),
 		initC:                 make(chan struct{}),
 		fnCache:               fnCache,
 		trustCache:            local.NewCAService(config.Backend),
@@ -737,7 +736,6 @@ func New(config Config) (*Cache, error) {
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
-		closed: atomic.NewBool(false),
 	}
 	collections, err := setupCollections(cs, config.Watches)
 	if err != nil {
@@ -956,7 +954,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	}
 
 	// apply was successful; cache is now readable.
-	c.generation.Inc()
+	c.generation.Add(1)
 	c.setReadOK(true)
 	c.setInitError(nil)
 
@@ -1921,21 +1919,6 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	}
 	defer rg.Release()
 	return rg.apps.GetApp(ctx, name)
-}
-
-// GetAppServers gets all application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAppServers")
-	defer span.End()
-
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.presence.GetAppServers(ctx, namespace, opts...)
 }
 
 // GetAppSession gets an application web session.

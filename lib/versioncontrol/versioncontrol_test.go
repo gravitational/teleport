@@ -27,6 +27,7 @@ func TestVisitorBasics(t *testing.T) {
 		versions         []string
 		newest           string
 		oldest           string
+		notNewerThan     string
 		permitPrerelease bool
 		desc             string
 	}{
@@ -96,11 +97,25 @@ func TestVisitorBasics(t *testing.T) {
 			permitPrerelease: true,
 			desc:             "prerelease on (mixed)",
 		},
+		{
+			versions: []string{
+				"v1.2.3",
+				"v3.4.5",
+				"v1.1.1",
+				"v2.2.2",
+				"v2.1.0",
+			},
+			notNewerThan: "v2.1.1",
+			newest:       "v2.1.0",
+			oldest:       "v1.1.1",
+			desc:         "not newer than",
+		},
 	}
 
 	for _, tt := range tts {
 		visitor := Visitor{
 			PermitPrerelease: tt.permitPrerelease,
+			NotNewerThan:     NewTarget(tt.notNewerThan),
 		}
 
 		for _, v := range tt.versions {
@@ -119,6 +134,7 @@ func TestVisitorRelative(t *testing.T) {
 		nextMajor     Target
 		newestCurrent Target
 		newestSec     Target
+		notNewerThan  Target
 		desc          string
 	}{
 		{
@@ -190,11 +206,25 @@ func TestVisitorRelative(t *testing.T) {
 			newestSec:     NewTarget("v9", SecurityPatch(true)),
 			desc:          "carry the one",
 		},
+		{
+			current: NewTarget("v1.5.9"),
+			targets: []Target{
+				NewTarget("v2.2.2"),
+				NewTarget("v1.2.3"),
+				NewTarget("v2.4.8", SecurityPatch(true)),
+				NewTarget("v1", SecurityPatch(true)),
+			},
+			notNewerThan:  NewTarget("v1.3.5"),
+			newestCurrent: NewTarget("v1.2.3"),
+			newestSec:     NewTarget("v1", SecurityPatch(true)),
+			desc:          "not newer than",
+		},
 	}
 
 	for _, tt := range tts {
 		visitor := Visitor{
-			Current: tt.current,
+			Current:      tt.current,
+			NotNewerThan: tt.notNewerThan,
 		}
 
 		for _, target := range tt.targets {

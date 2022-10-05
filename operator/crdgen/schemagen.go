@@ -139,7 +139,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	generator.memo[name] = schema
 
 	for _, field := range message.Fields {
-		if ignoredFields[message.Name()].Contains(field.Name()) {
+		if _, ok := ignoredFields[message.Name()][field.Name()]; ok {
 			continue
 		}
 

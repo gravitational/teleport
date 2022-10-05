@@ -297,7 +297,7 @@ func TestSSODiagnostic(t *testing.T) {
 					ConnectorID: "-sso-test-okta",
 					Username:    "superuser@example.com",
 				},
-				Req: *request,
+				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
 
 			diagCtx := ssoDiagContext{}
@@ -311,7 +311,7 @@ func TestSSODiagnostic(t *testing.T) {
 					ConnectorID: "-sso-test-okta",
 					Username:    "superuser@example.com",
 				},
-				Req: *request,
+				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
 			require.Equal(t, types.SSODiagnosticInfo{
 				TestFlow: true,

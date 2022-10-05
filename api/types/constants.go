@@ -288,10 +288,6 @@ const (
 	// V1 is the first version of resources. Note: The first version was
 	// not explicitly versioned.
 	V1 = "v1"
-
-	// VDeleted indicates that the version information for this resource
-	// cannot be determined as it is being included as part of a delete Event.
-	VDeleted = "deleted"
 )
 
 // WebSessionSubKinds lists subkinds of web session resources

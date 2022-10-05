@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -150,7 +150,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -253,7 +253,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -360,7 +360,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -525,7 +525,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.1
+    RUNTIME: go1.19.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -576,7 +576,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
     print-version)
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
@@ -1073,7 +1073,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -1176,7 +1176,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -1807,7 +1807,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -1968,7 +1968,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -2128,7 +2128,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -2301,7 +2301,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -3195,7 +3195,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -3781,7 +3781,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.1
+    RUNTIME: go1.19.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3811,7 +3811,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   environment:
     ARCH: amd64
     BUILDBOX_PASSWORD:
@@ -4295,7 +4295,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -4453,7 +4453,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -5347,7 +5347,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -6082,16 +6082,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -6219,16 +6224,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -7178,6 +7188,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: a1797970186851c76a3e95e84409429384d2fcd36876cdab4a0f5f38d2deb4c2
+hmac: 995421dc7dd0788e81eeb49877cd3c7897482fe8b95da6bf08511380d6c7e25d
 
 ...

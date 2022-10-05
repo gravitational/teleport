@@ -16,11 +16,11 @@ package interval
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 // TestIntervalReset verifies the basic behavior of the interval reset functionality.
@@ -30,9 +30,7 @@ func TestIntervalReset(t *testing.T) {
 	const iterations = 1_000
 	const duration = time.Millisecond * 666
 
-	success := atomic.NewUint64(0)
-	failure := atomic.NewUint64(0)
-
+	var success, failure atomic.Uint64
 	var wg sync.WaitGroup
 
 	for i := 0; i < iterations; i++ {
@@ -53,7 +51,7 @@ func TestIntervalReset(t *testing.T) {
 			for i := 0; i < 6; i++ {
 				select {
 				case <-interval.Next():
-					failure.Inc()
+					failure.Add(1)
 					return
 				case <-resetTimer.C:
 					interval.Reset()
@@ -68,9 +66,9 @@ func TestIntervalReset(t *testing.T) {
 			// margin or error of +/- 1 duration in order to
 			// minimize flakiness.
 			if elapsed > duration*2 && elapsed < duration*4 {
-				success.Inc()
+				success.Add(1)
 			} else {
-				failure.Inc()
+				failure.Add(1)
 			}
 		}()
 	}

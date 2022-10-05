@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -1027,6 +1028,8 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1749,12 +1752,8 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	server2, err := types.NewAppServerV3FromApp(app2, "server-2", "server-2")
 	require.NoError(t, err)
-
-	// Create a legacy app server.
 	app3, err := types.NewAppV3(types.Metadata{Name: "app-3"},
 		types.AppSpecV3{URI: "localhost"})
-	require.NoError(t, err)
-	server3Legacy, err := types.NewLegacyAppServer(app3, "server-3", "server-3")
 	require.NoError(t, err)
 	server3, err := types.NewAppServerV3FromApp(app3, "server-3", "server-3")
 	require.NoError(t, err)
@@ -1769,7 +1768,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	_, err = clt.UpsertApplicationServer(ctx, server2)
 	require.NoError(t, err)
-	_, err = clt.UpsertAppServer(ctx, server3Legacy)
+	_, err = clt.UpsertApplicationServer(ctx, server3)
 	require.NoError(t, err)
 
 	// Fetch all app servers.
@@ -1800,8 +1799,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 
 	// Delete all app servers.
 	err = clt.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	err = clt.DeleteAllAppServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
