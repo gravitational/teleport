@@ -19,7 +19,6 @@ package app
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -173,25 +173,14 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		return trace.Wrap(err)
 	}
 
-	// Duplicate the default behavior for the header rewriter in oxy, as there
-	// is no getters/setters for this in the Forwarder so that we can grab it
-	// and re-set it there.
-	h, err := os.Hostname()
-	if err != nil {
-		h = "localhost"
-	}
-	delegate := &forward.HeaderRewriter{TrustForwardHeader: true, Hostname: h}
-
-	hr := &headerRewriter{
-		delegate: delegate,
-	}
+	delegate := forward.NewHeaderRewriter()
 	sess.fwd, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
-		forward.WebsocketRewriter(transport.ws),
+		forward.WebsocketRewriter(common.NewHeaderRewriter(delegate, transport.ws)),
 		forward.WebsocketDial(transport.ws.dialer),
-		forward.Rewriter(hr),
+		forward.Rewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
