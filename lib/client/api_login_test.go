@@ -264,6 +264,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	customizedOpts := &client.PromptMFAChallengeOpts{
+		BeforePrompt:            "some explanation for the imminent prompt",
 		PromptDevicePrefix:      "llama",
 		Quiet:                   true,
 		AllowStdinHijack:        true,
