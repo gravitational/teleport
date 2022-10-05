@@ -22,6 +22,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -646,7 +648,35 @@ func (b *Bot) renew(
 	// desired, since generally CAs don't change that often.
 	b.clearCertAuthorities()
 
+	if err := b.hackyGithubConfigPropagation(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	b.log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", b.cfg.RenewalInterval)
+	return nil
+}
+
+func (b *Bot) hackyGithubConfigPropagation() error {
+	// moderately hacky hack to demonstrate what pushing some information to env would look like on GHA
+	if ghEnvPath := os.Getenv("GITHUB_ENV"); ghEnvPath != "" && b.cfg.Oneshot && len(b.cfg.Destinations) == 1 {
+		f, err := os.OpenFile(ghEnvPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+
+		dest := b.cfg.Destinations[0]
+		identityFilePath := path.Join(dest.Directory.Path, "identity")
+		identityFileEnv := fmt.Sprintf("TELEPORT_IDENTITY_FILE=%s\n", identityFilePath)
+		if _, err := f.Write([]byte(identityFileEnv)); err != nil {
+			return trace.Wrap(err)
+		}
+
+		proxyAddrEnv := fmt.Sprintf("TELEPORT_PROXY=%s\n", b.cfg.AuthServer)
+		if _, err := f.Write([]byte(proxyAddrEnv)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 

@@ -142,10 +142,12 @@ func TryRun(commands []CLICommand, args []string) error {
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
 		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
+		Envar("TELEPORT_PROXY").
 		StringsVar(&ccf.AuthServerAddr)
 	app.Flag("identity",
 		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
 		Short('i').
+		Envar("TELEPORT_IDENTITY_FILE").
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)

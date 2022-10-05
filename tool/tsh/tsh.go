@@ -461,6 +461,7 @@ const (
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
+	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
 	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
@@ -527,7 +528,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	}).String()
 
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
-	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
+	app.Flag("identity", "Identity file").Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
@@ -3987,11 +3988,10 @@ type envGetter func(string) string
 
 // setEnvFlags sets flags that can be set via environment variables.
 func setEnvFlags(cf *CLIConf, fn envGetter) {
-	// prioritize CLI input
+	// prioritize CLI inputs
 	if cf.SiteName == "" {
 		setSiteNameFromEnv(cf, fn)
 	}
-	// prioritize CLI input
 	if cf.KubernetesCluster == "" {
 		setKubernetesClusterFromEnv(cf, fn)
 	}
@@ -4030,6 +4030,12 @@ func setKubernetesClusterFromEnv(cf *CLIConf, fn envGetter) {
 func setGlobalTshConfigPathFromEnv(cf *CLIConf, fn envGetter) {
 	if configPath := fn(globalTshConfigEnvVar); configPath != "" {
 		cf.GlobalTshConfigPath = path.Clean(configPath)
+	}
+}
+
+func setIdentityFileFromEnv(cf *CLIConf, fn envGetter) {
+	if identityFile := fn("TELEPORT_IDENTITY_FILE"); identityFile != "" {
+		cf.Proxy = identityFile
 	}
 }
 
