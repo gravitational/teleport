@@ -47,11 +47,12 @@ func TestWatcher(t *testing.T) {
 	rdsInstanceUnknownStatus, rdsDatabaseUnknownStatus := makeRDSInstance(t, "instance-5", "us-west-6", nil, withRDSInstanceStatus("status-does-not-exist"))
 
 	auroraCluster1, auroraDatabase1 := makeRDSCluster(t, "cluster-1", "us-east-1", map[string]string{"env": "prod"})
-	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"})
+	auroraCluster2, auroraDatabases2 := makeRDSClusterWithExtraEndpoints(t, "cluster-2", "us-east-2", map[string]string{"env": "dev"}, true)
 	auroraCluster3, _ := makeRDSCluster(t, "cluster-3", "us-east-2", map[string]string{"env": "prod"})
 	auroraClusterUnsupported, _ := makeRDSCluster(t, "serverless", "us-east-1", nil, withRDSClusterEngineMode("serverless"))
 	auroraClusterUnavailable, _ := makeRDSCluster(t, "cluster-4", "us-east-1", nil, withRDSClusterStatus("creating"))
 	auroraClusterUnknownStatus, auroraDatabaseUnknownStatus := makeRDSCluster(t, "cluster-5", "us-east-1", nil, withRDSClusterStatus("status-does-not-exist"))
+	auroraClusterNoWriter, auroraDatabasesNoWriter := makeRDSClusterWithExtraEndpoints(t, "cluster-6", "us-east-1", map[string]string{"env": "dev"}, false)
 
 	tests := []struct {
 		name              string
@@ -117,6 +118,20 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			expectedDatabases: types.Databases{rdsDatabase1, rdsDatabaseUnknownStatus, auroraDatabase1, auroraDatabaseUnknownStatus},
+		},
+		{
+			name: "RDS Aurora cluster no writer",
+			awsMatchers: []services.AWSMatcher{{
+				Types:   []string{services.AWSMatcherRDS},
+				Regions: []string{"us-east-1"},
+				Tags:    types.Labels{"*": []string{"*"}},
+			}},
+			clients: &common.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBClusters: []*rds.DBCluster{auroraClusterNoWriter},
+				},
+			},
+			expectedDatabases: auroraDatabasesNoWriter,
 		},
 		{
 			name: "skip access denied errors",
@@ -191,6 +206,9 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 		Endpoint:            aws.String("localhost"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
+		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(true), // Only one writer.
+		}},
 	}
 	for _, opt := range opts {
 		opt(cluster)
@@ -201,7 +219,7 @@ func makeRDSCluster(t *testing.T, name, region string, labels map[string]string,
 	return cluster, database
 }
 
-func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string) (*rds.DBCluster, types.Databases) {
+func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string, hasWriter bool) (*rds.DBCluster, types.Databases) {
 	cluster := &rds.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:1234567890:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
@@ -213,23 +231,36 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 		ReaderEndpoint:      aws.String("reader.host"),
 		Port:                aws.Int64(3306),
 		TagList:             labelsToTags(labels),
-		DBClusterMembers:    []*rds.DBClusterMember{&rds.DBClusterMember{}, &rds.DBClusterMember{}},
+		DBClusterMembers: []*rds.DBClusterMember{&rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(false), // Add reader by default. Writer is added below based on hasWriter.
+		}},
 		CustomEndpoints: []*string{
 			aws.String("custom1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 			aws.String("custom2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 		},
 	}
 
-	primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
-	require.NoError(t, err)
+	var databases types.Databases
+
+	if hasWriter {
+		cluster.DBClusterMembers = append(cluster.DBClusterMembers, &rds.DBClusterMember{
+			IsClusterWriter: aws.Bool(true), // Add writer.
+		})
+
+		primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster)
+		require.NoError(t, err)
+		databases = append(databases, primaryDatabase)
+	}
 
 	readerDatabase, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 	require.NoError(t, err)
+	databases = append(databases, readerDatabase)
 
 	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 	require.NoError(t, err)
+	databases = append(databases, customDatabases...)
 
-	return cluster, append(types.Databases{primaryDatabase, readerDatabase}, customDatabases...)
+	return cluster, databases
 }
 
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.

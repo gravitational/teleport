@@ -585,7 +585,100 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/relcli.go (main.relcliPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: clean-up-previous-build
+environment:
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+clone:
+  disable: true
+steps:
+- name: Check if commit is tagged
+  image: alpine
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Pull relcli
+  image: docker:cli
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull $RELCLI_IMAGE
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_DEFAULT_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Clean up previously built artifacts
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/creds
+  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+  - trap "rm -rf /tmpfs/creds" EXIT
+  - |-
+    docker run -i -v /tmpfs/creds:/tmpfs/creds \
+      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      $RELCLI_IMAGE relcli auto_destroy -f -v 6
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_CERT: /tmpfs/creds/releases.crt
+    RELCLI_KEY: /tmpfs/creds/releases.key
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: tmpfs
+  temp:
+    medium: memory
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -1291,6 +1384,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1450,6 +1545,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1608,6 +1705,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1764,6 +1863,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1920,6 +2021,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2075,6 +2178,7 @@ clone:
 depends_on:
 - build-linux-amd64
 - build-linux-amd64-centos7
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2273,6 +2377,7 @@ clone:
 depends_on:
 - build-linux-amd64-fips
 - build-linux-amd64-centos7-fips
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2465,6 +2570,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2642,6 +2748,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-amd64-fips
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2816,6 +2923,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -2972,6 +3081,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-386
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3163,6 +3273,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-386
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -3341,6 +3452,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 concurrency:
   limit: 1
 steps:
@@ -3905,6 +4018,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4061,6 +4176,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4217,6 +4334,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4394,6 +4512,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4571,6 +4690,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm64
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4762,6 +4882,7 @@ clone:
   disable: true
 depends_on:
 - build-linux-arm
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4953,6 +5074,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -6338,94 +6461,100 @@ volumes:
     claim:
       name: drone-s3-debrepo-pvc
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/relcli.go (main.relcliPipeline)
+################################################
+
 kind: pipeline
 type: kubernetes
 name: publish-rlz
-
 environment:
-  RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.65
-
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3
 trigger:
   event:
+    include:
     - promote
   target:
+    include:
     - production
   repo:
     include:
-      - gravitational/*
-
-workspace:
-  path: /go
-
+    - gravitational/*
 clone:
   disable: true
-
 steps:
-  - name: Check if commit is tagged
-    image: alpine
-    commands:
-      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
-
-  - name: Pull relcli
-    image: docker:git
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
-      AWS_DEFAULT_REGION: us-west-2
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache aws-cli
-      - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - docker pull $RELCLI_IMAGE
-
-  - name: Publish in Release API
-    image: docker:git
-    environment:
-      RELEASES_CERT:
-        from_secret: RELEASES_CERT_STAGING
-      RELEASES_KEY:
-        from_secret: RELEASES_KEY_STAGING
-      RELCLI_CERT: /tmpfs/creds/releases.crt
-      RELCLI_KEY: /tmpfs/creds/releases.key
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-    commands:
-    - mkdir -p /tmpfs/creds
-    - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
-    - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
-    - trap "rm -rf /tmpfs/creds" EXIT
-    - |
-      docker run -i -v /tmpfs/creds:/tmpfs/creds \
-        -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-        $RELCLI_IMAGE relcli auto_publish -f -v 6
-    failure: ignore
-
-services:
-  - name: Start Docker
-    image: docker:dind
-    privileged: true
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-
-volumes:
+- name: Check if commit is tagged
+  image: alpine
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
   - name: dockersock
-    temp: {}
+    path: /var/run
+- name: Pull relcli
+  image: docker:cli
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker pull $RELCLI_IMAGE
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_DEFAULT_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Publish in Release API
+  image: docker:git
+  commands:
+  - mkdir -p /tmpfs/creds
+  - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+  - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+  - trap "rm -rf /tmpfs/creds" EXIT
+  - |-
+    docker run -i -v /tmpfs/creds:/tmpfs/creds \
+      -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      $RELCLI_IMAGE relcli auto_publish -f -v 6
+  environment:
+    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_CERT: /tmpfs/creds/releases.crt
+    RELCLI_KEY: /tmpfs/creds/releases.key
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+  volumes:
   - name: tmpfs
-    temp:
-      medium: memory
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+  failure: ignore
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: tmpfs
+    path: /tmpfs
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: tmpfs
+  temp:
+    medium: memory
+- name: dockersock
+  temp: {}
+
 ---
 kind: signature
-hmac: 122d13c57fd07c1ea1baf781df66fe8f867338f089eb2a4636a7aef23a3dee30
+hmac: f63b495015d99750816c9ccfe1b6a54ab845639f6ee5166350aa49b4daf058b7
 
 ...
