@@ -154,7 +154,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	if conf.Agent == nil {
 		keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 		if !ok {
-			return nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring")
+			return nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
 		}
 		conf.Agent = keyring
 	}

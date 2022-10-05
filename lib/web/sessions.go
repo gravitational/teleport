@@ -300,7 +300,7 @@ func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, erro
 
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 	if !ok {
-		return nil, nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring")
+		return nil, nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
 	}
 	err = keyring.Add(agent.AddedKey{
 		PrivateKey:  privateKey,
