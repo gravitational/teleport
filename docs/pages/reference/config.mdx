@@ -523,6 +523,12 @@ auth_service:
       # 2 or more.
       agent_connection_count: 1
 
+    # Tells tsh to load the CAs of all clusters when trying to ssh into a Teleport Node,
+    # instead of just the CA for the current cluster. This may be useful for
+    # users that want to log in to a root cluster and then "tsh ssh" into a node
+    # in a leaf cluster. Defaults to false.
+    load_all_cas: false
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'
@@ -809,6 +815,37 @@ kubernetes_service:
     - name: cluster-name
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
+
+# This section configures the 'discovery service'
+discovery_service:
+    enabled: yes
+    aws:
+       # AWS resource types. Valid options are:
+       # ec2 - discovers and registers AWS EC2 instances
+     - types: ["ec2"]
+       # AWS regions to register EC2 instances from
+       regions: ["eu-central-1"]
+       # AWS resource tags to match when registering EC2 instances
+       # Optional section: Defaults to "*":"*"
+       tags:
+         "*": "*"
+       # Optional section: install is used to provide parameters to the AWS SSM document. 
+       # If the install section isn't provided, the below defaults are used.
+       install:
+         join_params:
+           # token_name is the name of the Teleport invite token to use.
+           # Optional, defaults to: "aws-discovery-iam-token".
+           token_name:  "aws-discovery-iam-token"
+         # script_name is the name of the Teleport install script to use.
+         # Optional, defaults to: "default-installer".
+         script_name: "default-installer"
+       # Optional section: ssm is used to configure which AWS SSM document to use
+       # If the ssm section isnt provided the below defaults are used.
+       ssm:
+         # document_name is the name of the SSM document that should be
+         # executed when installing teleport on matching nodes
+         # Optional, defaults to: "TeleportDiscoveryInstaller".
+         document_name: "TeleportDiscoveryInstaller"
 
 # This section configures the 'database service'.
 (!docs/pages/includes/database-access/database-config.yaml!)

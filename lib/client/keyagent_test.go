@@ -73,7 +73,7 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 
-	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes)
+	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes, "localhost")
 	require.NoError(t, err)
 
 	s.key, err = s.makeKey(s.username, []string{s.username}, 1*time.Minute)
@@ -249,26 +249,37 @@ func TestHostCertVerification(t *testing.T) {
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
-	caPriv, caPub, err := keygen.GenerateKeyPair()
-	require.NoError(t, err)
-	caSigner, err := ssh.ParsePrivateKey(caPriv)
-	require.NoError(t, err)
-	caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
-	require.NoError(t, err)
-	err = lka.keyStore.AddKnownHostKeys("example.com", s.hostname, []ssh.PublicKey{caPublicKey})
-	require.NoError(t, err)
+
+	generateCA := func(hostname string) (ssh.Signer, auth.TrustedCerts) {
+		caPriv, caPub, err := keygen.GenerateKeyPair()
+		require.NoError(t, err)
+		caSigner, err := ssh.ParsePrivateKey(caPriv)
+		require.NoError(t, err)
+		caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
+		require.NoError(t, err)
+		err = lka.keyStore.AddKnownHostKeys(hostname, s.hostname, []ssh.PublicKey{caPublicKey})
+		require.NoError(t, err)
+
+		_, trustedCerts, err := newSelfSignedCA(caPriv, hostname)
+		require.NoError(t, err)
+		trustedCerts.ClusterName = hostname
+		return caSigner, trustedCerts
+	}
+
+	rootCASigner, rootTrustedCerts := generateCA("example.com")
+	leafCASigner, leafTrustedCerts := generateCA("leaf.example.com")
 
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
-	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, []auth.TrustedCerts{rootTrustedCerts, leafTrustedCerts})
 	require.NoError(t, err)
 
 	// Generate a host certificate for node with role "node".
-	_, hostPub, err := keygen.GenerateKeyPair()
+	_, rootHostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
-	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
-		CASigner:      caSigner,
-		PublicHostKey: hostPub,
+	rootHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
+		CASigner:      rootCASigner,
+		PublicHostKey: rootHostPub,
 		HostID:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:      "server01",
 		Principals: []string{
@@ -279,43 +290,86 @@ func TestHostCertVerification(t *testing.T) {
 		TTL:         1 * time.Hour,
 	})
 	require.NoError(t, err)
-	hostPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(hostCertBytes)
+	rootHostPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(rootHostCertBytes)
+	require.NoError(t, err)
+
+	_, leafHostPub, err := keygen.GenerateKeyPair()
+	require.NoError(t, err)
+	leafHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
+		CASigner:      leafCASigner,
+		PublicHostKey: leafHostPub,
+		HostID:        "620bb71c-c9eb-4f6d-9823-f7d9125ebb1d",
+		NodeName:      "server02",
+		ClusterName:   "leaf.example.com",
+		Role:          types.RoleNode,
+		TTL:           1 * time.Hour,
+	})
+	require.NoError(t, err)
+	leafHostPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(leafHostCertBytes)
 	require.NoError(t, err)
 
 	tests := []struct {
-		inAddr string
-		assert require.ErrorAssertionFunc
+		name          string
+		inAddr        string
+		hostPublicKey ssh.PublicKey
+		loadAllCAs    bool
+		assert        require.ErrorAssertionFunc
 	}{
-		// Correct DNS is valid.
 		{
-			inAddr: "server01.example.com:3022",
-			assert: require.NoError,
+			name:          "Correct DNS is valid",
+			inAddr:        "server01.example.com:3022",
+			hostPublicKey: rootHostPublicKey,
+			assert:        require.NoError,
 		},
-		// Hostname only is valid.
 		{
-			inAddr: "server01:3022",
-			assert: require.NoError,
+			name:          "Hostname only is valid",
+			inAddr:        "server01:3022",
+			hostPublicKey: rootHostPublicKey,
+			assert:        require.NoError,
 		},
-		// IP is valid.
 		{
-			inAddr: "127.0.0.1:3022",
-			assert: require.NoError,
+			name:          "IP is valid",
+			inAddr:        "127.0.0.1:3022",
+			hostPublicKey: rootHostPublicKey,
+			assert:        require.NoError,
 		},
-		// UUID is valid.
 		{
-			inAddr: "5ff40d80-9007-4f28-8f49-7d4fda2f574d.example.com:3022",
-			assert: require.NoError,
+			name:          "UUID is valid",
+			inAddr:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d.example.com:3022",
+			hostPublicKey: rootHostPublicKey,
+			assert:        require.NoError,
 		},
-		// Wrong DNS name is invalid.
 		{
-			inAddr: "server02.example.com:3022",
-			assert: require.Error,
+			name:          "Wrong DNS name is invalid",
+			inAddr:        "server02.example.com:3022",
+			hostPublicKey: rootHostPublicKey,
+			assert:        require.Error,
+		},
+		{
+			name:          "Alt cluster rejected by default",
+			inAddr:        "server02.leaf.example.com:3022",
+			hostPublicKey: leafHostPublicKey,
+			assert:        require.Error,
+		},
+		{
+			name:          "Alt cluster accepted",
+			inAddr:        "server02.leaf.example.com:3022",
+			hostPublicKey: leafHostPublicKey,
+			loadAllCAs:    true,
+			assert:        require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.inAddr, func(t *testing.T) {
-			err = lka.CheckHostSignature(tt.inAddr, nil, hostPublicKey)
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.loadAllCAs {
+				lka.siteName = ""
+				lka.loadAllCAs = true
+			} else {
+				lka.siteName = "example.com"
+				lka.loadAllCAs = false
+			}
+			err = lka.CheckHostSignature(tt.inAddr, nil, tt.hostPublicKey)
 			tt.assert(t, err)
 		})
 	}
