@@ -199,10 +199,12 @@ func createRDSProxyAccessDeniedError(err error, sessionCtx *Session) error {
 
   %v
 
-Make sure credentials for %v user %q is added to the one of secrets
-associated with the RDS proxy and Teleport database agent's IAM policy has
-"rds-connect" permissions (note that IAM changes may take a few minutes to
-propagate):
+Make sure credentials for %v user %q is available in one of the Secrets Manager
+secrets associated with the RDS Proxy and the IAM Authentication is set to
+"required" for that secret.
+
+Also, make sure the Teleport database agent's IAM policy has "rds-connect"
+permissions (note that IAM changes may take a few minutes to propagate):
 
 %v
 `,

@@ -562,7 +562,7 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 		RDS: types.RDS{
 			ProxyName:  aws.StringValue(rdsProxy.DBProxyName),
 			ResourceID: resourceID,
-			IAMAuth:    true, // Always enabled.
+			IAMAuth:    true,
 		},
 	}, nil
 }
@@ -724,6 +724,8 @@ func rdsEngineFamilyToProtocol(engineFamily string) string {
 		return defaults.ProtocolMySQL
 	case rds.EngineFamilyPostgresql:
 		return defaults.ProtocolPostgres
+	case rds.EngineFamilySqlserver:
+		return defaults.ProtocolSQLServer
 	}
 	return ""
 }

@@ -133,6 +133,16 @@ func (r *awsClient) ensureIAMAuth(ctx context.Context) error {
 		// Redshift IAM auth is always enabled.
 		return nil
 	}
+	if r.cfg.database.GetAWS().RDS.IsRDSProxy() {
+		// At the database level, the IAM Auth for RDS Proxy is always enabled.
+		// However, IAM Auth can be "required" or "disabled" at a per database
+		// user level (where the database user is associated with a Secrets
+		// Manager secret that contains the password). The database process
+		// does not manage IAM Auth at the per user level as it may require
+		// access to Secrets Manager and it is also possible the users want to
+		// disable IAM Auth for some database users intentionally.
+		return nil
+	}
 	if r.cfg.database.GetAWS().RDS.IAMAuth {
 		r.log.Debug("IAM auth already enabled.")
 		return nil
