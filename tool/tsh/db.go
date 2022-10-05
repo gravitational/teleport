@@ -663,7 +663,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	}
 
 	if arg.localProxyTunnel {
-		certChecker, err := alpnproxy.NewDBCertChecker(arg.teleportClient, *arg.routeToDatabase, nil)
+		certChecker, err := client.NewDBCertChecker(arg.teleportClient, *arg.routeToDatabase, nil)
 		if err != nil {
 			return localProxyOpts{}, trace.Wrap(err)
 		}

@@ -78,6 +78,15 @@ type LocalProxyConfig struct {
 	Middleware LocalProxyMiddleware
 }
 
+// LocalProxyMiddleware provides callback functions for LocalProxy.
+type LocalProxyMiddleware interface {
+	// OnNewConnection is a callback triggered when a new downstream connection is
+	// accepted by the local proxy.
+	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
+	// OnStart is a callback triggered when the local proxy starts.
+	OnStart(ctx context.Context, lp *LocalProxy) error
+}
+
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
 func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	if cfg.RemoteProxyAddr == "" {

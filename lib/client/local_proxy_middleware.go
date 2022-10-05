@@ -14,37 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package alpnproxy
+package client
 
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// LocalProxyMiddleware provides callback functions for LocalProxy.
-type LocalProxyMiddleware interface {
-	// OnNewConnection is a callback triggered when a new downstream connection is
-	// accepted by the local proxy.
-	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
-	// OnStart is a callback triggered when the local proxy starts.
-	OnStart(ctx context.Context, lp *LocalProxy) error
-}
-
 // DBCertChecker is a middleware that ensures that the local proxy has valid TLS database certs.
 type DBCertChecker struct {
 	// tc is a TeleportClient used to reissue certificates when necessary.
-	tc *client.TeleportClient
+	tc *TeleportClient
 	// dbRoute contains database routing information.
 	dbRoute tlsca.RouteToDatabase
 	// Clock specifies the time provider. Will be used to override the time anchor
@@ -53,7 +45,7 @@ type DBCertChecker struct {
 	clock clockwork.Clock
 }
 
-func NewDBCertChecker(tc *client.TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) (LocalProxyMiddleware, error) {
+func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) (alpnproxy.LocalProxyMiddleware, error) {
 	if err := dbRoute.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,52 +59,72 @@ func NewDBCertChecker(tc *client.TeleportClient, dbRoute tlsca.RouteToDatabase, 
 	}, nil
 }
 
-var _ LocalProxyMiddleware = (*DBCertChecker)(nil)
+var _ alpnproxy.LocalProxyMiddleware = (*DBCertChecker)(nil)
 
 // OnNewConnection is a callback triggered when a new downstream connection is
 // accepted by the local proxy.
-func (c *DBCertChecker) OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error {
-	return trace.Wrap(c.checkCerts(ctx, lp))
+func (c *DBCertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+	return trace.Wrap(c.ensureValidCerts(ctx, lp))
 }
 
 // OnStart is a callback triggered when the local proxy starts.
-func (c *DBCertChecker) OnStart(ctx context.Context, lp *LocalProxy) error {
-	return trace.Wrap(c.checkCerts(ctx, lp))
+func (c *DBCertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	return trace.Wrap(c.ensureValidCerts(ctx, lp))
 }
 
-// needCertRenewal checks if the local proxy TLS certs are configured and not expired.
-func (c *DBCertChecker) needCertRenewal(lp *LocalProxy) (bool, error) {
+// checkCerts checks if the local proxy TLS certs are configured, not expired, and match the db route.
+func (c *DBCertChecker) checkCerts(lp *alpnproxy.LocalProxy) error {
+	log.Debug("checking local proxy database certs")
 	certs := lp.GetCerts()
 	if len(certs) == 0 {
-		log.Debug("local proxy has no TLS certificates configured, need cert renewal")
-		return true, nil
+		return trace.Wrap(trace.NotFound("local proxy has no TLS certificates configured"))
 	}
-	err := utils.VerifyTLSCertificateExpiry(certs[0], c.clock)
+	cert, err := utils.TLSCertToX509(certs[0])
 	if err != nil {
-		log.WithError(err).Debug("need cert renewal")
-		return true, nil
+		return trace.Wrap(err)
 	}
-	return false, trace.Wrap(err)
+	err = utils.VerifyCertificateExpiry(cert, c.clock)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if c.dbRoute.Username != "" && c.dbRoute.Username != identity.RouteToDatabase.Username {
+		msg := fmt.Sprintf("certificate subject is for user %s, but need %s", identity.RouteToDatabase.Username, c.dbRoute.Username)
+		return trace.Wrap(errors.New(msg))
+	}
+	if c.dbRoute.Database != "" && c.dbRoute.Database != identity.RouteToDatabase.Database {
+		msg := fmt.Sprintf("certificate subject is for database name %s, but need %s", identity.RouteToDatabase.Database, c.dbRoute.Database)
+		return trace.Wrap(errors.New(msg))
+	}
+	return nil
 }
 
-// checkCerts checks if the local proxy requires database TLS cert renewal.
-func (c *DBCertChecker) checkCerts(ctx context.Context, lp *LocalProxy) error {
-	log.Debug("checking local proxy database certs")
-	if needDBLogin, err := c.needCertRenewal(lp); err != nil {
-		return trace.Wrap(err)
-	} else if !needDBLogin {
+// ensureValidCerts ensures that the local proxy is configured with valid certs.
+func (c *DBCertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	if err := c.checkCerts(lp); err != nil {
+		log.WithError(err).Debug("need cert renewal")
+	} else {
 		return nil
 	}
+	return trace.Wrap(c.renewCerts(ctx, lp))
+}
+
+// renewCerts attempts to renew the database certs for the local proxy.
+func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	fmt.Printf("\nLocal proxy tunnel requires credentials to access database %q\n", c.dbRoute.ServiceName)
 
 	var accessRequests []string
-	if profile, err := client.StatusCurrent(c.tc.HomePath, c.tc.WebProxyAddr, ""); err != nil {
+	if profile, err := StatusCurrent(c.tc.HomePath, c.tc.WebProxyAddr, ""); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
-	var key *client.Key
-	if err := client.RetryWithRelogin(ctx, c.tc, func() error {
-		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	var key *Key
+	if err := RetryWithRelogin(ctx, c.tc, func() error {
+		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
 			RouteToCluster: c.tc.SiteName,
 			RouteToDatabase: proto.RouteToDatabase{
 				ServiceName: c.dbRoute.ServiceName,
@@ -136,6 +148,7 @@ func (c *DBCertChecker) checkCerts(ctx context.Context, lp *LocalProxy) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Println("Local proxy tunnel credentials successfully renewed")
 	lp.SetCerts([]tls.Certificate{tlsCert})
 	return nil
 }
