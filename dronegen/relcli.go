@@ -14,7 +14,7 @@
 
 package main
 
-const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3"
+const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70"
 
 func relcliPipeline(trigger trigger, name string, stepName string, command string) pipeline {
 	p := newKubePipeline(name)
@@ -67,8 +67,8 @@ func executeRelcliStep(name string, command string) step {
 		Image: "docker:git",
 		Environment: map[string]value{
 			"RELCLI_BASE_URL": {raw: releasesHost},
-			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT_STAGING"},
-			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY_STAGING"},
+			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT"},
+			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY"},
 			"RELCLI_CERT":     {raw: "/tmpfs/creds/releases.crt"},
 			"RELCLI_KEY":      {raw: "/tmpfs/creds/releases.key"},
 		},
@@ -85,6 +85,5 @@ func executeRelcliStep(name string, command string) step {
   -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
   $RELCLI_IMAGE ` + command,
 		},
-		Failure: "ignore",
 	}
 }
