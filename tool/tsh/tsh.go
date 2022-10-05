@@ -4033,12 +4033,6 @@ func setGlobalTshConfigPathFromEnv(cf *CLIConf, fn envGetter) {
 	}
 }
 
-func setIdentityFileFromEnv(cf *CLIConf, fn envGetter) {
-	if identityFile := fn("TELEPORT_IDENTITY_FILE"); identityFile != "" {
-		cf.Proxy = identityFile
-	}
-}
-
 func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {
 	const (
 		errMsgFormat         = "This server does not implement this feature yet. Likely the client version you are using is newer than the server. The server version: %v, the client version: %v. Please upgrade the server."
