@@ -50,6 +50,10 @@ func (p *mfaPrompt) PromptPIN() (string, error) {
 
 // PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
 type PromptMFAChallengeOpts struct {
+	// BeforePrompt is an optional method to print before the prompt.
+	// It is used to provide context about why the user is being prompted where it may
+	// not be obvious.
+	BeforePrompt string
 	// PromptDevicePrefix is an optional prefix printed before "security key" or
 	// "device". It is used to emphasize between different kinds of devices, like
 	// registered vs new.
@@ -104,6 +108,10 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	}
 	if opts == nil {
 		opts = &PromptMFAChallengeOpts{}
+	}
+	if opts.BeforePrompt != "" {
+		// print a message before any prompt or error message to provide context
+		fmt.Println(opts.BeforePrompt)
 	}
 	promptDevicePrefix := opts.PromptDevicePrefix
 	quiet := opts.Quiet

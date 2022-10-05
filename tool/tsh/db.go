@@ -302,7 +302,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 					Database:    db.Database,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
-			})
+			}, nil /*applyOpts*/)
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)
