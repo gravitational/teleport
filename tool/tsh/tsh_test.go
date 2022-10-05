@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -343,7 +343,7 @@ func TestOIDCLogin(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	didAutoRequest := atomic.NewBool(false)
+	var didAutoRequest atomic.Bool
 
 	errCh := make(chan error)
 	go func() {
