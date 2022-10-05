@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto/x509"
 
+	"github.com/gravitational/teleport/lib/githubactions"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -124,6 +126,9 @@ type RegisterParams struct {
 	CircuitBreakerConfig breaker.Config
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+	// IDToken is a token retrieved from a workload identity provider for
+	// certain join types e.g GitHub, Google.
+	IDToken string
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -163,6 +168,7 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
 func Register(params RegisterParams) (*proto.Certs, error) {
+	ctx := context.TODO()
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,6 +189,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 				params.ID.HostUUID)
 		}
 		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if params.JoinMethod == types.JoinMethodGitHub {
+		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -280,6 +291,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -334,6 +346,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
 			})
 	}
 	return certs, trace.Wrap(err)

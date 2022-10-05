@@ -972,6 +972,39 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+  // GitHub allows the configuration of options specific to the "github" join method.
+  ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
+}
+
+message ProvisionTokenSpecV2GitHub {
+  // Rule includes fields mapped from `lib/githubactions.IDToken`
+  // Not all fields should be included, only ones that we expect to be useful
+  // when trying to create rules around which workflows should be allowed to
+  // authenticate against a cluster.
+  message Rule {
+    // Sub also known as Subject is a string that roughly uniquely indentifies
+    // the workload. The format of this varies depending on the type of
+    // github action run.
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    // The repository from where the workflow is running.
+    // This includes the name of the owner e.g `gravitational/teleport`
+    string Repository = 2 [(gogoproto.jsontag) = "repository,omitempty"];
+    // The name of the organization in which the repository is stored.
+    string RepositoryOwner = 3 [(gogoproto.jsontag) = "repository_owner,omitempty"];
+    // The name of the workflow.
+    string Workflow = 4 [(gogoproto.jsontag) = "workflow,omitempty"];
+    // The name of the environment used by the job.
+    string Environment = 5 [(gogoproto.jsontag) = "environment,omitempty"];
+    // The personal account that initiated the workflow run.
+    string Actor = 6 [(gogoproto.jsontag) = "actor,omitempty"];
+    // The git ref that triggered the workflow run.
+    string Ref = 7 [(gogoproto.jsontag) = "ref,omitempty"];
+    // The type of ref, for example: "branch".
+    string RefType = 8 [(gogoproto.jsontag) = "ref_type,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1356,6 +1389,8 @@ message AuthPreferenceSpecV2 {
 }
 
 // U2F defines settings for U2F device.
+// Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer
+// using WebAuthn instead.
 message U2F {
   // AppID returns the application ID for universal second factor.
   string AppID = 1 [(gogoproto.jsontag) = "app_id,omitempty"];
@@ -1367,7 +1402,6 @@ message U2F {
 
   // DeviceAttestationCAs contains the trusted attestation CAs for U2F
   // devices.
-  // DELETE IN 11.0, time to sunset U2F (codingllama).
   repeated string DeviceAttestationCAs = 3 [(gogoproto.jsontag) = "device_attestation_cas,omitempty"];
 }
 
@@ -3892,6 +3926,9 @@ message RegisterUsingTokenRequest {
   // EC2IdentityDocument is used for the EC2 join method to prove the identity
   // of a joining EC2 instance.
   bytes EC2IdentityDocument = 10 [(gogoproto.jsontag) = "ec2_id"];
+  // IDToken is a token provided by a workload identity provider as part of
+  // OIDC join types such as GitHub.
+  string IDToken = 11 [(gogoproto.jsontag) = "id_token"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
