@@ -19,9 +19,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
@@ -29,54 +26,30 @@ import (
 )
 
 func (c *Cluster) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
+	var config *sftp.Config
+	var configErr error
+
+	direction := request.GetDirection()
+	if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UNSPECIFIED {
+		return trace.BadParameter("Unexpected file transfer direction: %q", direction)
+	}
+
+	if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD {
+		config, configErr = sftp.CreateDownloadConfig(request.GetSource(), request.GetDestination(), sftp.Options{})
+	}
+	if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD {
+		config, configErr = sftp.CreateUploadConfig([]string{request.GetSource()}, request.GetDestination(), sftp.Options{})
+	}
+	if configErr != nil {
+		return trace.Wrap(configErr)
+	}
+
+	config.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
+		return newGrpcFileTransferProgress(fileInfo.Size(), server)
+	}
+
 	err := addMetadataToRetryableError(server.Context(), func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(server.Context())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		var config *sftp.Config
-		var configErr error
-
-		direction := request.GetDirection()
-		if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UNSPECIFIED {
-			return trace.BadParameter("Unexpected file transfer direction: %q", direction)
-		}
-
-		if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD {
-			config, configErr = sftp.CreateDownloadConfig(request.GetSource(), request.GetDestination(), sftp.Options{})
-		}
-		if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD {
-			config, configErr = sftp.CreateUploadConfig([]string{request.GetSource()}, request.GetDestination(), sftp.Options{})
-		}
-		if configErr != nil {
-			return trace.Wrap(configErr)
-		}
-
-		config.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
-			return newGrpcFileTransferProgress(fileInfo.Size(), server)
-		}
-
-		clusterServers, err := proxyClient.FindNodesByFilters(server.Context(), proto.ListResourcesRequest{
-			Namespace: defaults.Namespace,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		var foundServer *types.Server
-		for _, clusterServer := range clusterServers {
-			if clusterServer.GetName() == request.GetServerId() {
-				foundServer = &clusterServer
-				break
-			}
-		}
-		if foundServer == nil {
-			return trace.BadParameter("Requested server does not exist")
-		}
-
-		err = c.clusterClient.TransferFiles(server.Context(), request.GetLogin(), (*foundServer).GetHostname()+":0", config)
+		err := c.clusterClient.TransferFiles(server.Context(), request.GetLogin(), request.GetHostname()+":0", config)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)
