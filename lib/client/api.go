@@ -1499,6 +1499,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		KeysOption: c.AddKeysToAgent,
 		Insecure:   c.InsecureSkipVerify,
 		Site:       tc.SiteName,
+		LoadAllCAs: tc.LoadAllCAs,
 	}
 
 	// sometimes we need to use external auth without using local auth
@@ -1531,7 +1532,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tc.localAgent.UpdateLoadAllCAs(tc.LoadAllCAs)
 
 	if tc.HostKeyCallback == nil {
 		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
