@@ -1389,6 +1389,8 @@ message AuthPreferenceSpecV2 {
 }
 
 // U2F defines settings for U2F device.
+// Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer
+// using WebAuthn instead.
 message U2F {
   // AppID returns the application ID for universal second factor.
   string AppID = 1 [(gogoproto.jsontag) = "app_id,omitempty"];
@@ -1400,7 +1402,6 @@ message U2F {
 
   // DeviceAttestationCAs contains the trusted attestation CAs for U2F
   // devices.
-  // DELETE IN 11.0, time to sunset U2F (codingllama).
   repeated string DeviceAttestationCAs = 3 [(gogoproto.jsontag) = "device_attestation_cas,omitempty"];
 }
 
