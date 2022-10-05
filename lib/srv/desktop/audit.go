@@ -18,12 +18,12 @@ package desktop
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/generics"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
@@ -37,33 +37,21 @@ const (
 // sharedDirectoryNameMap keeps a mapping of sessionId
 // to a shared directory's name, for use by the audit log.
 type sharedDirectoryNameMap struct {
-	m   map[string]string
+	generics.ThreadSafeMap[string, string]
 	log logrus.FieldLogger
-	sync.Mutex
 }
 
 func newSharedDirectoryNameMap(log logrus.FieldLogger) *sharedDirectoryNameMap {
 	return &sharedDirectoryNameMap{
-		m:   make(map[string]string),
-		log: log,
+		ThreadSafeMap: generics.NewThreadSafeMap[string, string](),
+		log:           log,
 	}
 }
 
-func (n *sharedDirectoryNameMap) set(sessionID, name string) {
-	n.Lock()
-	defer n.Unlock()
-
-	n.m[sessionID] = name
-}
-
 func (n *sharedDirectoryNameMap) get(sessionID string) string {
-	n.Lock()
-	defer n.Unlock()
-
 	var directoryName string
-	if name, ok := n.m[sessionID]; ok {
+	if name, ok := n.ThreadSafeMap.Get(sessionID); ok {
 		directoryName = name
-
 	} else {
 		directoryName = unknownName
 		n.log.Warnf("received a SharedDirectoryAcknowledge event for unknown directory in session: %v", sessionID)
@@ -113,9 +101,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emit
 
 func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
 	// Clean up the name map if applicable
-	s.sdMap.Lock()
-	delete(s.sdMap.m, sessionID)
-	s.sdMap.Unlock()
+	s.nameMap.Delete(sessionID)
 
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
@@ -199,7 +185,7 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.
 // name in the sharedDirectoryNameMap, which will be used to add audit log entries corresponding
 // to later Shared Directory TDP messages.
 func (s *WindowsService) onSharedDirectoryAnnounce(sessionID string, m tdp.SharedDirectoryAnnounce) {
-	s.sdMap.set(sessionID, m.Name)
+	s.nameMap.Set(sessionID, m.Name)
 }
 
 func (s *WindowsService) onSharedDirectoryAcknowledge(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, ack tdp.SharedDirectoryAcknowledge) {
@@ -208,7 +194,7 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(ctx context.Context, emitt
 		succeeded = false
 	}
 
-	directoryName := s.sdMap.get(sessionID)
+	directoryName := s.nameMap.get(sessionID)
 
 	event := &events.DesktopSharedDirectoryStart{
 		Metadata: events.Metadata{

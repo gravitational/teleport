@@ -125,9 +125,9 @@ type WindowsService struct {
 	// cfg.AccessPoint.GetClusterName multiple times.
 	clusterName string
 
-	// sdMap is required for keeping track of a shared directory's
+	// nameMap is required for keeping track of a shared directory's
 	// name, for use by the audit event logger.
-	sdMap *sharedDirectoryNameMap
+	nameMap *sharedDirectoryNameMap
 
 	closeCtx context.Context
 	close    func()
@@ -365,7 +365,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
-		sdMap:       newSharedDirectoryNameMap(cfg.Log),
+		nameMap:     newSharedDirectoryNameMap(cfg.Log),
 	}
 
 	// initialize LDAP - if this fails it will automatically schedule a retry.

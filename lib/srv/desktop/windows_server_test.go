@@ -194,23 +194,20 @@ func TestGenerateCredentials(t *testing.T) {
 	require.True(t, foundAltName)
 }
 
-// TestSharedDirectoryNameMap tests that the sdMap gets cleaned of session data
+// TestSharedDirectoryNameMap tests that the nameMap gets cleaned of session data
 // upon a session ending.
 func TestSharedDirectoryNameMap(t *testing.T) {
 	su := setup()
 
-	// Initialize the sdMap by simulating a SharedDirectoryAnnounce
+	// Initialize the nameMap by simulating a SharedDirectoryAnnounce
 	su.recvHandler(tdp.SharedDirectoryAnnounce{
 		DirectoryID: su.dirID,
 		Name:        su.dirName,
 	})
 
-	// Confirm that the sdMap has an entry for sessionID
-	if cachedName, ok := su.s.sdMap.m[su.sessionID]; ok {
-		require.Equal(t, su.dirName, cachedName)
-	} else {
-		panic("directory wasn't stored in sdMap")
-	}
+	// Confirm that the nameMap has an entry for sessionID
+	cachedName := su.s.nameMap.get(su.sessionID)
+	require.Equal(t, su.dirName, cachedName)
 
 	// Simulate a session end event
 	su.s.onSessionEnd(
@@ -224,8 +221,7 @@ func TestSharedDirectoryNameMap(t *testing.T) {
 		&types.WindowsDesktopV3{},
 	)
 
-	// Check that the entry was removed from the sdMap
-	if _, ok := su.s.sdMap.m[su.sessionID]; ok {
-		panic("directory wasn't removed from sdMap on session end")
-	}
+	// Check that the entry was removed from the nameMap
+	unknown := su.s.nameMap.get(su.sessionID)
+	require.Equal(t, unknownName, unknown)
 }

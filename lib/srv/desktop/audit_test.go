@@ -63,7 +63,7 @@ func setup() testSetup {
 			},
 			Clock: clockwork.NewFakeClockAt(time.Now()),
 		},
-		sdMap: newSharedDirectoryNameMap(log),
+		nameMap: newSharedDirectoryNameMap(log),
 	}
 
 	id := &tlsca.Identity{
@@ -373,7 +373,7 @@ func TestEmitsDesktopSharedDirectoryStartEvents(t *testing.T) {
 			su := setup()
 
 			if test.initialized {
-				// Initialize the sdMap by simulating a SharedDirectoryAnnounce
+				// Initialize the nameMap by simulating a SharedDirectoryAnnounce
 				su.recvHandler(tdp.SharedDirectoryAnnounce{
 					DirectoryID: su.dirID,
 					Name:        su.dirName,
