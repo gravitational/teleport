@@ -35,10 +35,11 @@ import (
 	"time"
 	"unicode"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -48,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -57,9 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -275,13 +272,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
-		// If the alternative name "cockroachdb" is given, update it to "postgres".
-		if fc.Storage.Type == postgres.AlternativeName {
-			fc.Storage.Type = postgres.GetName()
-		}
-
-		// Fix yamlv2 issue with nested storage sections.
-		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
