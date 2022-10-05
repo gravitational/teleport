@@ -53,10 +53,14 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 func SetupUser(process *service.TeleportProcess, username string, roles []types.Role) error {
 	ctx := context.TODO()
 	auth := process.GetAuthServer()
-	teleUser, err := types.NewUser(username)
+	teleUser, err := auth.GetUser(username, false /* withSecrets */)
 	if err != nil {
-		return trace.Wrap(err)
+		teleUser, err = types.NewUser(username)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	if len(roles) == 0 {
 		role := services.RoleForUser(teleUser)
 		role.SetLogins(types.Allow, []string{username})

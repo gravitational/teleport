@@ -968,7 +968,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			// Setup user and session recording mode.
-			username := "test-user"
+			username := suite.Me.Username
 			role, err := types.NewRoleV3("devs", types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Logins: []string{username},
