@@ -78,8 +78,10 @@ func RunOnU2FDevices(ctx context.Context, runCredentials ...func(Token) error) e
 		case errors.Is(err, errKeyMissingOrNotVerified):
 			// This is expected to happen a few times.
 		case err != nil:
+			errMsg := err.Error()
 			// suppress error spam, this error doesnt prevent u2f from working
-			if !strings.Contains(err.Error(), "hid: privilege violation") {
+			if !strings.Contains(errMsg, "hid: privilege violation") &&
+				!strings.Contains(errMsg, "hid: not permitted") {
 				log.WithError(err).Debug("Error interacting with U2F devices")
 			}
 		default: // OK, success.
