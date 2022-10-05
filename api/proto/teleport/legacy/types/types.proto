@@ -977,6 +977,10 @@ message ProvisionTokenSpecV2 {
 }
 
 message ProvisionTokenSpecV2GitHub {
+  // Rule includes fields mapped from `lib/githubactions.IDToken`
+  // Not all fields should be included, only ones that we expect to be useful
+  // when trying to create rules around which workflows should be allowed to
+  // authenticate against a cluster.
   message Rule {
     // Sub also known as Subject is a string that roughly uniquely indentifies
     // the workload. The format of this varies depending on the type of

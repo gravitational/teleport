@@ -2991,6 +2991,10 @@ func (m *ProvisionTokenSpecV2GitHub) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ProvisionTokenSpecV2GitHub proto.InternalMessageInfo
 
+// Rule includes fields mapped from `lib/githubactions.IDToken`
+// Not all fields should be included, only ones that we expect to be useful
+// when trying to create rules around which workflows should be allowed to
+// authenticate against a cluster.
 type ProvisionTokenSpecV2GitHub_Rule struct {
 	// Sub also known as Subject is a string that roughly uniquely indentifies
 	// the workload. The format of this varies depending on the type of
