@@ -844,7 +844,7 @@ impl Client {
         self.vchan.add_header_and_chunkify(None, vec![])
     }
 
-    pub fn write_client_device_list_announce(
+    pub fn handle_client_device_list_announce(
         &mut self,
         req: ClientDeviceListAnnounce,
     ) -> RdpResult<Messages> {
