@@ -41,6 +41,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/githubactions"
+
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -264,6 +266,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if as.ghaIDTokenValidator == nil {
+		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
+			githubactions.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
 
 	return &as, nil
 }
@@ -443,6 +452,10 @@ type Server struct {
 
 	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	fips bool
+
+	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
+	// by the auth server. It can be overridden for the purpose of tests.
+	ghaIDTokenValidator ghaIDTokenValidator
 }
 
 func (a *Server) CloseContext() context.Context {
