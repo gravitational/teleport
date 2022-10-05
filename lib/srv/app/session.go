@@ -178,7 +178,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
-		forward.WebsocketRewriter(common.NewHeaderRewriter(delegate, transport.ws)),
+		forward.WebsocketRewriter(common.NewHeaderRewriter(transport.ws, delegate)),
 		forward.WebsocketDial(transport.ws.dialer),
 		forward.Rewriter(common.NewHeaderRewriter(delegate)),
 	)

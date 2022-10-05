@@ -113,7 +113,7 @@ type suiteConfig struct {
 	// ServerStreamer is the auth server audit events streamer.
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
-	ValidateRequest func(*http.Request)
+	ValidateRequest func(*Suite, *http.Request)
 	// UseWebsockets will make the application server use a websocket for connection.
 	UseWebsockets bool
 }
@@ -194,7 +194,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		}
 
 		if config.ValidateRequest != nil {
-			config.ValidateRequest(r)
+			config.ValidateRequest(s, r)
 		}
 	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
@@ -207,6 +207,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	u, err := url.Parse(s.testhttp.URL)
 	require.NoError(t, err)
 	s.hostport = u.Host
+	s.serverPort = u.Port()
 
 	// Create apps that will be used for each test.
 	appFoo, err := types.NewAppV3(types.Metadata{
@@ -407,7 +408,7 @@ func TestWaitStop(t *testing.T) {
 // request had headers rewritten as expected.
 func TestHandleConnection(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ValidateRequest: func(r *http.Request) {
+		ValidateRequest: func(_ *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
 			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
 		},
@@ -424,9 +425,11 @@ func TestHandleConnection(t *testing.T) {
 // request had headers rewritten as expected.
 func TestHandleConnectionWS(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ValidateRequest: func(r *http.Request) {
+		ValidateRequest: func(s *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
+			// Websockets will pass on the server port at this level due to the
+			// websocket transport header rewriter delegate.
+			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
 		},
 		UseWebsockets: true,
 	})
