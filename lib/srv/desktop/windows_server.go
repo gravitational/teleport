@@ -744,14 +744,15 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
 		sendTDPError("RDP connection failed.")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+	log := s.cfg.Log
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -859,6 +860,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Tracker:           rdpc,
 		TeleportUser:      identity.Username,
 		ServerID:          s.cfg.Heartbeat.HostUUID,
+		MessageWriter: &monitorErrorSender{
+			log:     s.cfg.Log,
+			tdpConn: tdpConn,
+		},
 	}
 	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
@@ -1394,4 +1399,21 @@ type otherName struct {
 
 type upn struct {
 	Value string `asn1:"utf8"`
+}
+
+// monitorErrorSender implements the io.StringWriter
+// interface in order to allow us to pass connection
+// monitor disconnect messages back to the frontend
+// over the tdp.Conn
+type monitorErrorSender struct {
+	log     logrus.FieldLogger
+	tdpConn *tdp.Conn
+}
+
+func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
+	if err := m.tdpConn.SendError(s); err != nil {
+		m.log.Errorf("Failed to send TDP error message %v", err)
+	}
+
+	return 0, nil
 }
