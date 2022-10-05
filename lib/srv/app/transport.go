@@ -364,4 +364,8 @@ func (r *websocketTransport) Rewrite(req *http.Request) {
 	req.Host = r.uri.Host
 
 	rewriteHeaders(req, r.c)
+
+	// We need to do this to make sure the scheme isn't blown away by other
+	// oxy forwarders.
+	req.Header.Set(forward.XForwardedProto, req.URL.Scheme)
 }
