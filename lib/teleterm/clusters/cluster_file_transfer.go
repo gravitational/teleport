@@ -71,25 +71,25 @@ type GrpcFileTransferProgress struct {
 	lastSentAt         time.Time
 }
 
-func (progressWriter *GrpcFileTransferProgress) Write(bytes []byte) (n int, err error) {
+func (p *GrpcFileTransferProgress) Write(bytes []byte) (n int, err error) {
 	bytesLength := len(bytes)
-	progressWriter.sentSize += int64(bytesLength)
-	percentage := uint32(progressWriter.sentSize * 100 / progressWriter.fileSize)
+	p.sentSize += int64(bytesLength)
+	percentage := uint32(p.sentSize * 100 / p.fileSize)
 
-	if progressWriter.canSendProgress(percentage) {
-		writeErr := progressWriter.transferFileServer.Send(&api.FileTransferProgress{Percentage: percentage})
+	if p.canSendProgress(percentage) {
+		writeErr := p.transferFileServer.Send(&api.FileTransferProgress{Percentage: percentage})
 		if writeErr != nil {
 			return bytesLength, writeErr
 		}
-		progressWriter.lastSentAt = time.Now()
-		progressWriter.lastSentPercentage = percentage
+		p.lastSentAt = time.Now()
+		p.lastSentPercentage = percentage
 	}
 
 	return bytesLength, nil
 }
 
-func (progressWriter *GrpcFileTransferProgress) canSendProgress(percentage uint32) bool {
-	hasIntervalPassed := time.Since(progressWriter.lastSentAt).Milliseconds() > 100
-	hasPercentageChanged := percentage != progressWriter.lastSentPercentage
+func (p *GrpcFileTransferProgress) canSendProgress(percentage uint32) bool {
+	hasIntervalPassed := time.Since(p.lastSentAt).Milliseconds() > 100
+	hasPercentageChanged := percentage != p.lastSentPercentage
 	return hasIntervalPassed && hasPercentageChanged
 }
