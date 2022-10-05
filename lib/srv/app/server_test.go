@@ -112,7 +112,7 @@ type suiteConfig struct {
 	// ServerStreamer is the auth server audit events streamer.
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
-	ValidateRequest func(*Suite, *http.Request)
+	ValidateRequest func(*http.Request)
 	// UseWebsockets will make the application server use a websocket for connection.
 	UseWebsockets bool
 }
@@ -193,7 +193,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		}
 
 		if config.ValidateRequest != nil {
-			config.ValidateRequest(s, r)
+			config.ValidateRequest(r)
 		}
 	}))
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
@@ -206,7 +206,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	u, err := url.Parse(s.testhttp.URL)
 	require.NoError(t, err)
 	s.hostport = u.Host
-	s.serverPort = u.Port()
 
 	// Create apps that will be used for each test.
 	appFoo, err := types.NewAppV3(types.Metadata{
@@ -407,7 +406,7 @@ func TestWaitStop(t *testing.T) {
 // request had headers rewritten as expected.
 func TestHandleConnection(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ValidateRequest: func(s *Suite, r *http.Request) {
+		ValidateRequest: func(r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
 			require.Equal(t, "443", r.Header.Get(common.XForwardedPort))
 		},
@@ -424,9 +423,9 @@ func TestHandleConnection(t *testing.T) {
 // request had headers rewritten as expected.
 func TestHandleConnectionWS(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ValidateRequest: func(s *Suite, r *http.Request) {
+		ValidateRequest: func(r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, s.serverPort, r.Header.Get(common.XForwardedPort))
+			require.Equal(t, "443", r.Header.Get(common.XForwardedPort))
 		},
 		UseWebsockets: true,
 	})
