@@ -75,6 +75,12 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
+const (
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
+	maxRDPScreenWidth  = 8192
+	maxRDPScreenHeight = 8192
+)
+
 func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -83,7 +89,6 @@ func (h *Handler) createDesktopConnection(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
-
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
@@ -96,6 +101,12 @@ func (h *Handler) createDesktopConnection(
 	height, err := strconv.Atoi(q.Get("height"))
 	if err != nil {
 		return trace.BadParameter("height missing or invalid")
+	}
+
+	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
+		return trace.BadParameter("screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
+		)
 	}
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
@@ -180,11 +191,11 @@ func (h *Handler) createDesktopConnection(
 	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
-	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
 		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
-	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
 		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
@@ -327,11 +338,12 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// (io.Copy's internal buffer could split one message
 		// into multiple ws.WriteMessage calls)
 		tc := tdp.NewConn(wds)
+
+		// we don't care about the content of the message, we just
+		// need to split the stream into individual messages and
+		// write them to the websocket
 		for {
-			// TODO(zmb3): avoid the decode/encode loop here,
-			// and instead just build a tokenizer that reads
-			// the correct amount of bytes
-			msg, err := tc.InputMessage()
+			raw, err := tc.ReadRaw()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -341,13 +353,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				return
 			}
 
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
+			err = ws.WriteMessage(websocket.BinaryMessage, raw)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return

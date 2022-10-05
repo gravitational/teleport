@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -37,7 +38,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -263,7 +263,6 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 
 		completeCtx:      completeCtx,
 		complete:         complete,
-		completeType:     atomic.NewUint32(completeTypeComplete),
 		completeMtx:      &sync.RWMutex{},
 		uploadLoopDoneCh: make(chan struct{}),
 
@@ -337,7 +336,7 @@ type ProtoStream struct {
 	// completeCtx is used to signal completion of the operation
 	completeCtx    context.Context
 	complete       context.CancelFunc
-	completeType   *atomic.Uint32
+	completeType   atomic.Uint32
 	completeResult error
 	completeMtx    *sync.RWMutex
 

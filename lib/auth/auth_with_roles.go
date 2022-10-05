@@ -2013,6 +2013,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LicenseWarnings: warnings,
+		LoadAllCAs:      a.authServer.loadAllCAs,
 	}, nil
 }
 
@@ -2644,11 +2645,6 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
 	// tokens are their own authz mechanism, no need to double check
 	return a.authServer.getResetPasswordToken(ctx, tokenID)
-}
-
-func (a *ServerWithRoles) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	// tokens are their own authz mechanism, no need to double check
-	return a.authServer.RotateUserTokenSecrets(ctx, tokenID)
 }
 
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
@@ -3961,86 +3957,6 @@ func (a *ServerWithRoles) DeleteAllApplicationServers(ctx context.Context, names
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllApplicationServers(ctx, namespace)
-}
-
-// GetAppServers gets all application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := a.authServer.GetAppServers(ctx, namespace, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Loop over all servers, filter out applications on each server and only
-	// return the applications the caller has access to.
-	//
-	// MFA is not required to list the apps, but will be required to connect to
-	// them.
-	mfaParams := services.AccessMFAParams{Verified: true}
-	for _, server := range servers {
-		filteredApps := make([]*types.App, 0, len(server.GetApps()))
-		for _, app := range server.GetApps() {
-			appV3, err := types.NewAppV3FromLegacyApp(app)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			err = a.context.Checker.CheckAccess(appV3, mfaParams)
-			if err != nil {
-				if trace.IsAccessDenied(err) {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			filteredApps = append(filteredApps, app)
-		}
-		server.SetApps(filteredApps)
-	}
-
-	return servers, nil
-}
-
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	if err := a.action(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.UpsertAppServer(ctx, server)
-}
-
-// DeleteAppServer removes an application server.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-func (a *ServerWithRoles) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	if err := a.action(namespace, types.KindAppServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAppServer(ctx, namespace, name); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteAllAppServers removes all application servers.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	if err := a.action(namespace, types.KindAppServer, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAllAppServers(ctx, namespace); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // GetAppSession gets an application web session.

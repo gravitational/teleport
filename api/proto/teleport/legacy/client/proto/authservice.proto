@@ -377,11 +377,6 @@ message RequestID {
   string ID = 1 [(gogoproto.jsontag) = "id"];
 }
 
-// RotateUserTokenSecretsRequest is a request to rotate token secrets.
-message RotateUserTokenSecretsRequest {
-  string TokenID = 1 [(gogoproto.jsontag) = "token"];
-}
-
 // GetResetPasswordTokenRequest is a request to get a reset password token.
 message GetResetPasswordTokenRequest {
   string TokenID = 1 [(gogoproto.jsontag) = "token"];
@@ -493,6 +488,9 @@ message PingResponse {
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
+  // LoadAllCAs signals whether or not tsh should load all CAs when trying
+  // to ssh into a node.
+  bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
 }
 
 // Features are auth server features.
@@ -581,20 +579,6 @@ message CompleteStream {}
 // FlushAndCloseStream flushes the stream data and closes the stream
 message FlushAndCloseStream {}
 
-// GetApplicationServersRequest is a request to fetch all registered apps.
-// DELETE IN 10.0.
-message GetApplicationServersRequest {
-  // Namespace is the app servers namespace.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-}
-
-// GetApplicationServersResponse contains all registered app servers.
-// DELETE IN 10.0.
-message GetApplicationServersResponse {
-  // Servers is a list of proxied applications.
-  repeated types.AppServerV3 Servers = 1 [(gogoproto.jsontag) = "servers"];
-}
-
 // UpsertApplicationServerRequest upserts an app server.
 message UpsertApplicationServerRequest {
   // Server is an app server resource to register.
@@ -614,52 +598,6 @@ message DeleteApplicationServerRequest {
 // DeleteAllApplicationServersRequest are the parameters used to remove all applications.
 message DeleteAllApplicationServersRequest {
   // Namespace is the app servers namespace.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-}
-
-// GetAppServersRequest are the parameters used to request application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServersRequest.
-message GetAppServersRequest {
-  // Namespace is the namespace for application.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-  // DEPRECATED: SkipValidation is used to skip JSON schema validation.
-  bool SkipValidation = 2 [
-    deprecated = true,
-    (gogoproto.jsontag) = "skip_validation"
-  ];
-}
-
-// GetAppServersResponse contains all requested application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServersResponse.
-message GetAppServersResponse {
-  // Servers is a slice of types.Server that represent applications.
-  repeated types.ServerV2 Servers = 1 [(gogoproto.jsontag) = "servers"];
-}
-
-// UpsertAppServerRequest are the parameters used to add an application.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServerRequest.
-message UpsertAppServerRequest {
-  types.ServerV2 Server = 1 [(gogoproto.jsontag) = "server"];
-}
-
-// DeleteAppServerRequest are the parameters used to remove an application.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServerRequest.
-message DeleteAppServerRequest {
-  // Namespace is the namespace for application.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-  // Name is the name of the application to delete.
-  string Name = 2 [(gogoproto.jsontag) = "name"];
-}
-
-// DeleteAllAppServersRequest are the parameters used to remove all applications.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServersRequest.
-message DeleteAllAppServersRequest {
-  // Namespace is the namespace for application.
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
@@ -720,10 +658,6 @@ message CreateAppSessionRequest {
   string ClusterName = 4 [(gogoproto.jsontag) = "cluster_name"];
   // AWSRoleARN is AWS role the user wants to assume.
   string AWSRoleARN = 5 [(gogoproto.jsontag) = "aws_role_arn"];
-  // AppName is the name of the application.
-  string AppName = 6 [(gogoproto.jsontag) = "app_name"];
-  // AppURI is the URI of the application.
-  string AppURI = 7 [(gogoproto.jsontag) = "app_uri"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -802,18 +736,6 @@ message GetWebTokensResponse {
   repeated types.WebTokenV3 Tokens = 1 [(gogoproto.jsontag) = "tokens"];
 }
 
-// GetKubeServicesRequest are the parameters used to request kubernetes services.
-// DELETE IN 10.0
-message GetKubeServicesRequest {}
-
-// GetKubeServicesResponse contains all requested kubernetes services.
-// DELETE IN 10.0
-message GetKubeServicesResponse {
-  // Servers is a slice of types.Server that represent kubernetes
-  // services.
-  repeated types.ServerV2 Servers = 1 [(gogoproto.jsontag) = "servers"];
-}
-
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
 // DELETE IN 12.0.0
@@ -848,25 +770,6 @@ message DeleteKubernetesServerRequest {
 
 // DeleteAllKubernetesServersRequest are the parameters used to remove all kubernetes servers.
 message DeleteAllKubernetesServersRequest {}
-
-// GetDatabaseServersRequest is a request to return all registered database servers.
-// DELETE IN 10.0.
-message GetDatabaseServersRequest {
-  // Namespace is the database server namespace.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
-  // DEPRECATED: SkipValidation allows to turn off JSON schema validation.
-  bool SkipValidation = 2 [
-    deprecated = true,
-    (gogoproto.jsontag) = "skip_validation"
-  ];
-}
-
-// GetDatabaseServersResponse contains all registered database servers.
-// DELETE IN 10.0.
-message GetDatabaseServersResponse {
-  // Servers is a list of database proxy servers.
-  repeated types.DatabaseServerV3 Servers = 1 [(gogoproto.jsontag) = "servers"];
-}
 
 // UpsertDatabaseServerRequest is a request to register database server.
 message UpsertDatabaseServerRequest {
@@ -2136,9 +2039,6 @@ service AuthService {
   // clients for verification or configuration on startup.
   rpc Ping(PingRequest) returns (PingResponse);
 
-  // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-  // DELETE IN: 9.0.0 in favor of CreateRegisterChallenge.
-  rpc RotateResetPasswordTokenSecrets(RotateUserTokenSecretsRequest) returns (types.UserTokenSecretsV3);
   // GetResetPasswordToken returns a reset password token.
   rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
   // CreateResetPasswordToken resets users current password and second factors and creates a reset
@@ -2184,46 +2084,12 @@ service AuthService {
   // CreateAuditStream creates or resumes audit events streams
   rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
 
-  // GetApplicationServers gets all application servers.
-  // DELETE IN 10.0. Deprecated, use ListResources.
-  rpc GetApplicationServers(GetApplicationServersRequest) returns (GetApplicationServersResponse) {
-    option deprecated = true;
-  }
-
   // UpsertApplicationServer adds an application server.
   rpc UpsertApplicationServer(UpsertApplicationServerRequest) returns (types.KeepAlive);
   // DeleteApplicationServer removes an application server.
   rpc DeleteApplicationServer(DeleteApplicationServerRequest) returns (google.protobuf.Empty);
   // DeleteAllApplicationServers removes all application servers.
   rpc DeleteAllApplicationServers(DeleteAllApplicationServersRequest) returns (google.protobuf.Empty);
-
-  // GetAppServers gets all application servers.
-  //
-  // DELETE IN 9.0. Deprecated, use GetApplicationServers.
-  rpc GetAppServers(GetAppServersRequest) returns (GetAppServersResponse) {
-    option deprecated = true;
-  }
-
-  // UpsertAppServer adds an application server.
-  //
-  // DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-  rpc UpsertAppServer(UpsertAppServerRequest) returns (types.KeepAlive) {
-    option deprecated = true;
-  }
-
-  // DeleteAppServer removes an application server.
-  //
-  // DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-  rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
-
-  // DeleteAllAppServers removes all application servers.
-  //
-  // DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-  rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty) {
-    option deprecated = true;
-  }
 
   // GenerateAppToken will generate a JWT token for application access.
   rpc GenerateAppToken(GenerateAppTokenRequest) returns (GenerateAppTokenResponse);
@@ -2275,12 +2141,6 @@ service AuthService {
   // UpdateRemoteCluster updates remote cluster
   rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
 
-  // GetKubeServices gets all kubernetes services.
-  // DELETE IN 10.0. Deprecated, use ListResources.
-  rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse) {
-    option deprecated = true;
-  }
-
   // UpsertKubeService adds or updates a kubernetes service.
   // DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
   rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty) {
@@ -2311,12 +2171,6 @@ service AuthService {
   rpc DeleteKubernetesServer(DeleteKubernetesServerRequest) returns (google.protobuf.Empty);
   // DeleteAllKubernetesServers removes all kubernetes servers.
   rpc DeleteAllKubernetesServers(DeleteAllKubernetesServersRequest) returns (google.protobuf.Empty);
-
-  // GetDatabaseServers returns all registered database proxy servers.
-  // DELETE IN 10.0. Deprecated, use ListResources.
-  rpc GetDatabaseServers(GetDatabaseServersRequest) returns (GetDatabaseServersResponse) {
-    option deprecated = true;
-  }
 
   // UpsertDatabaseServer registers a new database proxy server.
   rpc UpsertDatabaseServer(UpsertDatabaseServerRequest) returns (types.KeepAlive);

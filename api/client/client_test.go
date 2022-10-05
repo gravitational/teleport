@@ -101,11 +101,17 @@ func startMockServer(t *testing.T) *mockServer {
 // startMockServerWithListener starts a new mock server with the provided listener
 func startMockServerWithListener(t *testing.T, l net.Listener) *mockServer {
 	srv := newMockServer(l.Addr().String())
-	t.Cleanup(srv.grpc.Stop)
 
+	errCh := make(chan error, 1)
 	go func() {
-		require.NoError(t, srv.grpc.Serve(l))
+		errCh <- srv.grpc.Serve(l)
 	}()
+
+	t.Cleanup(func() {
+		srv.grpc.Stop()
+		require.NoError(t, <-errCh)
+	})
+
 	return srv
 }
 
