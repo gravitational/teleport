@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v5 contains API Schema definitions for the resources v5 API group
-//+kubebuilder:object:generate=true
-//+groupName=resources.teleport.dev
+// +kubebuilder:object:generate=true
+// +groupName=resources.teleport.dev
 package v5
 
 import (

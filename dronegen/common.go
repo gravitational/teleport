@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -94,6 +95,16 @@ func pushTriggerForBranch(branches ...string) trigger {
 	}
 	t.Branch.Include = append(t.Branch.Include, branches...)
 	return t
+}
+
+func cloneRepoCommands(cloneDirectory, commit string) []string {
+	return []string{
+		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
+		fmt.Sprintf("cd %q", cloneDirectory),
+		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
+		`git fetch origin --tags`,
+		fmt.Sprintf("git checkout -qf %q", commit),
+	}
 }
 
 type buildType struct {
@@ -241,5 +252,48 @@ func waitForDockerStep() step {
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
 		Volumes: dockerVolumeRefs(),
+	}
+}
+
+func verifyValidPromoteRunSteps(checkoutPath, commit string, isParallelismEnabled bool) []step {
+	tagStep := verifyTaggedStep()
+	cloneStep := cloneRepoStep(checkoutPath, commit)
+	verifyStep := verifyNotPrereleaseStep(checkoutPath)
+
+	if isParallelismEnabled {
+		cloneStep.DependsOn = []string{tagStep.Name}
+		verifyStep.DependsOn = []string{cloneStep.Name}
+	}
+
+	return []step{tagStep, cloneStep, verifyStep}
+}
+
+func verifyTaggedStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
+}
+
+// Note that tags are also valid here as a tag refers to a specific commit
+func cloneRepoStep(clonePath, commit string) step {
+	return step{
+		Name:     "Check out code",
+		Image:    "alpine/git:latest",
+		Commands: cloneRepoCommands(clonePath, commit),
+	}
+}
+
+func verifyNotPrereleaseStep(checkoutPath string) step {
+	return step{
+		Name:  "Check if tag is prerelease",
+		Image: "golang:1.18-alpine",
+		Commands: []string{
+			fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
+			"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
+		},
 	}
 }

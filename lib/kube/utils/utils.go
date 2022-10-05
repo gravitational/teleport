@@ -137,7 +137,6 @@ func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string)
 //
 // It is hex encoded to allow wildcard matching to work. In DNS wildcard match
 // include only one '.'
-//
 func EncodeClusterName(clusterName string) string {
 	// k is to avoid first letter to be a number
 	return "k" + hex.EncodeToString([]byte(clusterName))

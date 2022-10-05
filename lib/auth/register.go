@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto/x509"
 
+	"github.com/gravitational/teleport/lib/githubactions"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -91,8 +93,10 @@ type RegisterParams struct {
 	Token string
 	// ID is identity ID
 	ID IdentityID
-	// Servers is a list of auth servers to dial
-	Servers []utils.NetAddr
+	// AuthServers is a list of auth servers to dial
+	AuthServers []utils.NetAddr
+	// ProxyServer is a proxy server to dial
+	ProxyServer utils.NetAddr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
@@ -120,12 +124,38 @@ type RegisterParams struct {
 	ec2IdentityDocument []byte
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
+	// IDToken is a token retrieved from a workload identity provider for
+	// certain join types e.g GitHub, Google.
+	IDToken string
 }
 
-func (r *RegisterParams) setDefaults() {
+func (r *RegisterParams) checkAndSetDefaults() error {
 	if r.Clock == nil {
 		r.Clock = clockwork.NewRealClock()
 	}
+
+	if err := r.verifyAuthOrProxyAddress(); err != nil {
+		return trace.BadParameter("no auth or proxy servers set")
+	}
+
+	return nil
+}
+
+func (r *RegisterParams) verifyAuthOrProxyAddress() error {
+	haveAuthServers := len(r.AuthServers) > 0
+	haveProxyServer := !r.ProxyServer.IsEmpty()
+
+	if !haveAuthServers && !haveProxyServer {
+		return trace.BadParameter("no auth or proxy servers set")
+	}
+
+	if haveAuthServers && haveProxyServer {
+		return trace.BadParameter("only one of auth or proxy server should be set")
+	}
+
+	return nil
 }
 
 // CredGetter is an interface for a client that can be used to get host
@@ -138,7 +168,10 @@ type HostCredentials func(context.Context, string, bool, types.RegisterUsingToke
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
 func Register(params RegisterParams) (*proto.Certs, error) {
-	params.setDefaults()
+	ctx := context.TODO()
+	if err := params.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
 	token, err := utils.TryReadValueAsFile(params.Token)
@@ -159,24 +192,41 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else if params.JoinMethod == types.JoinMethodGitHub {
+		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-
-	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
 
 	type registerMethod struct {
 		call func(token string, params RegisterParams) (*proto.Certs, error)
 		desc string
 	}
+
 	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
 	registerThroughProxy := registerMethod{registerThroughProxy, "via proxy server"}
 
 	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
-	if params.GetHostCredentials == nil {
-		log.Debugf("Missing client, it is not possible to register through proxy.")
-		registerMethods = []registerMethod{registerThroughAuth}
-	} else if authServerIsProxy(params.Servers) {
-		log.Debugf("The first specified auth server appears to be a proxy.")
-		registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
+
+	if !params.ProxyServer.IsEmpty() {
+		log.WithField("proxy-server", params.ProxyServer).Debugf("Registering node to the cluster.")
+
+		registerMethods = []registerMethod{registerThroughProxy}
+
+		if proxyServerIsAuth(params.ProxyServer) {
+			log.Debugf("The specified proxy server appears to be an auth server.")
+		}
+	} else {
+		log.WithField("auth-servers", params.AuthServers).Debugf("Registering node to the cluster.")
+
+		if params.GetHostCredentials == nil {
+			log.Debugf("Missing client, it is not possible to register through proxy.")
+			registerMethods = []registerMethod{registerThroughAuth}
+		} else if authServerIsProxy(params.AuthServers) {
+			log.Debugf("The first specified auth server appears to be a proxy.")
+			registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
+		}
 	}
 
 	var collectedErrs []error
@@ -204,12 +254,15 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 	return port == defaults.HTTPListenPort || port == teleport.StandardHTTPSPort
 }
 
+// proxyServerIsAuth returns true if the address given to register with
+// appears to be an auth server.
+func proxyServerIsAuth(server utils.NetAddr) bool {
+	port := server.Port(0)
+	return port == defaults.AuthListenPort
+}
+
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
-	if len(params.Servers) == 0 {
-		return nil, trace.BadParameter("no auth servers set")
-	}
-
 	var certs *proto.Certs
 	if params.JoinMethod == types.JoinMethodIAM {
 		// IAM join method requires gRPC client
@@ -226,7 +279,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		// params to call proxy HTTP endpoint
 		var err error
 		certs, err = params.GetHostCredentials(context.Background(),
-			params.Servers[0].String(),
+			getHostAddresses(params)[0],
 			lib.IsInsecureDevMode(),
 			types.RegisterUsingTokenRequest{
 				Token:                token,
@@ -238,12 +291,21 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	return certs, nil
+}
+
+func getHostAddresses(params RegisterParams) []string {
+	if !params.ProxyServer.IsEmpty() {
+		return []string{params.ProxyServer.String()}
+	}
+
+	return utils.NetAddrsToStrings(params.AuthServers)
 }
 
 // registerThroughAuth is used to register through the auth server.
@@ -284,6 +346,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
 			})
 	}
 	return certs, trace.Wrap(err)
@@ -293,10 +356,6 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
 func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
-	if len(params.Servers) == 0 {
-		return nil, trace.BadParameter("no auth servers set")
-	}
-
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
@@ -308,7 +367,7 @@ func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, e
 	}
 
 	conn, err := grpc.Dial(
-		params.Servers[0].String(),
+		getHostAddresses(params)[0],
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
@@ -351,7 +410,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	}
 
 	client, err := NewClient(client.Config{
-		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -390,7 +449,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.Time = params.Clock.Now
 	authClient, err := NewClient(client.Config{
-		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -441,7 +500,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig.RootCAs = certPool
 
 	authClient, err = NewClient(client.Config{
-		Addrs: utils.NetAddrsToStrings(params.Servers),
+		Addrs: getHostAddresses(params),
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -470,22 +529,32 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 	var errs []error
 	for _, s := range []struct {
 		desc string
-		opt  stsEndpointOption
+		opts []stsIdentityRequestOption
 	}{
 		{
 			desc: "regional",
-			opt:  stsEndpointOptionRegional,
+			opts: []stsIdentityRequestOption{
+				withFIPSEndpoint(params.FIPS),
+				withRegionalEndpoint(true),
+			},
 		},
 		{
+			// DELETE IN 12.0, global endpoint does not support China or
+			// GovCloud or FIPS, is only a fallback for connecting to an auth
+			// server on an older version which does not support regional
+			// endpoints.
 			desc: "global",
-			opt:  stsEndpointOptionGlobal,
+			opts: []stsIdentityRequestOption{
+				withFIPSEndpoint(false),
+				withRegionalEndpoint(false),
+			},
 		},
 	} {
 		log.Infof("Attempting to register %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
 		// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 		certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 			// create the signed sts:GetCallerIdentity request and include the challenge
-			signedRequest, err := createSignedSTSIdentityRequest(ctx, s.opt, challenge)
+			signedRequest, err := createSignedSTSIdentityRequest(ctx, challenge, s.opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

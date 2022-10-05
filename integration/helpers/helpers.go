@@ -28,23 +28,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh/agent"
 )
 
-// commandOptions controls how the SSH command is built.
+// CommandOptions controls how the SSH command is built.
 type CommandOptions struct {
 	ForwardAgent bool
 	ForcePTY     bool
@@ -234,7 +234,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
-	bf, err := utils.NewLinear(utils.LinearConfig{
+	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
 		Max:  max,
 	})
@@ -256,4 +256,10 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 			t.Fatalf("event type %q not found after %v", eventType, max)
 		}
 	}
+}
+
+func MustGetCurrentUser(t *testing.T) *user.User {
+	user, err := user.Current()
+	require.NoError(t, err)
+	return user
 }

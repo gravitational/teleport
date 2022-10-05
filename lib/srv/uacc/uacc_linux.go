@@ -71,8 +71,8 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	}
 
 	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char = nil
-	var cWtmpPath *C.char = nil
+	var cUtmpPath *C.char
+	var cWtmpPath *C.char
 	if len(utmpPath) > 0 {
 		cUtmpPath = C.CString(utmpPath)
 		defer C.free(unsafe.Pointer(cUtmpPath))
@@ -136,8 +136,8 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	}
 
 	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char = nil
-	var cWtmpPath *C.char = nil
+	var cUtmpPath *C.char
+	var cWtmpPath *C.char
 	if len(utmpPath) > 0 {
 		cUtmpPath = C.CString(utmpPath)
 		defer C.free(unsafe.Pointer(cUtmpPath))
@@ -182,7 +182,7 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	}
 
 	// Convert Go strings into C strings that we can pass over ffi.
-	var cUtmpPath *C.char = nil
+	var cUtmpPath *C.char
 	if len(utmpPath) > 0 {
 		cUtmpPath = C.CString(utmpPath)
 		defer C.free(unsafe.Pointer(cUtmpPath))

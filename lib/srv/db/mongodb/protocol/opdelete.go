@@ -30,13 +30,13 @@ import (
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_delete
 //
-// struct {
-//     MsgHeader header;             // standard message header
-//     int32     ZERO;               // 0 - reserved for future use
-//     cstring   fullCollectionName; // "dbname.collectionname"
-//     int32     flags;              // bit vector - see below for details.
-//     document  selector;           // query object.  See below for details.
-// }
+//	struct {
+//	    MsgHeader header;             // standard message header
+//	    int32     ZERO;               // 0 - reserved for future use
+//	    cstring   fullCollectionName; // "dbname.collectionname"
+//	    int32     flags;              // bit vector - see below for details.
+//	    document  selector;           // query object.  See below for details.
+//	}
 //
 // OP_DELETE is deprecated starting MongoDB 5.0 in favor of OP_MSG.
 type MessageOpDelete struct {

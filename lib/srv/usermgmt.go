@@ -30,9 +30,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewHostUsers initialize a new HostUsers object
@@ -134,7 +134,9 @@ type HostUserManagement struct {
 var _ HostUsers = &HostUserManagement{}
 
 // Under the section "Including other files from within sudoers":
-//           https://man7.org/linux/man-pages/man5/sudoers.5.html
+//
+//	https://man7.org/linux/man-pages/man5/sudoers.5.html
+//
 // '.', '~' and '/' will cause a file not to be read and these can be
 // included in a username, removing slash to avoid escaping a
 // directory
@@ -257,7 +259,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				MaxLeases:     1,
 				Expires:       time.Now().Add(time.Second * 20),
 			},
-			Retry: utils.LinearConfig{
+			Retry: retryutils.LinearConfig{
 				Step: time.Second * 5,
 				Max:  time.Minute,
 			},
