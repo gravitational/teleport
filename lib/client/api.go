@@ -399,6 +399,10 @@ type Config struct {
 
 	// PrivateKeyPolicy is a key policy that this client will try to follow during login.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
+
+	// LoadAllCAs indicates that tsh should load the CAs of all clusters
+	// instead of just the current cluster.
+	LoadAllCAs bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1130,6 +1134,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
+	c.LoadAllCAs = cp.LoadAllCAs
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1165,6 +1170,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
+	cp.LoadAllCAs = c.LoadAllCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -1492,7 +1498,8 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		Username:   c.Username,
 		KeysOption: c.AddKeysToAgent,
 		Insecure:   c.InsecureSkipVerify,
-		SiteName:   tc.SiteName,
+		Site:       tc.SiteName,
+		LoadAllCAs: tc.LoadAllCAs,
 	}
 
 	// sometimes we need to use external auth without using local auth
@@ -3805,10 +3812,11 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		}
 	}
 
-	// Update tc with proxy settings specified in Ping response.
+	// Update tc with proxy and auth settings specified in Ping response.
 	if err := tc.applyProxySettings(pr.Proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tc.applyAuthSettings(pr.Auth)
 
 	tc.lastPing = pr
 
@@ -4094,6 +4102,12 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	}
 
 	return nil
+}
+
+// applyAuthSettings updates configuration changes based on the advertised
+// authentication settings, overriding existing fields in tc.
+func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
+	tc.LoadAllCAs = authSettings.LoadAllCAs
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests

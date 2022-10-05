@@ -6538,48 +6538,6 @@ steps:
       target: teleport/${DRONE_TAG##v}/
       strip_prefix: /go/artifacts/
 
-  - name: Pull/retag Docker images
-    image: docker
-    settings:
-      docker_staging_username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      docker_staging_password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      docker_production_username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      docker_production_password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      # wait for docker to start
-      - sleep 3
-      - export VERSION=${DRONE_TAG##v}
-      # authenticate with staging credentials
-      - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
-      # pull 'temporary' CI-built images
-      - echo "---> Pulling images for $${VERSION}"
-      - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
-      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
-      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
-      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
-      # retag images to production naming
-      - echo "---> Tagging images for $${VERSION}"
-      - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
-      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
-      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
-      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
-      # reauthenticate with production credentials
-      - docker logout quay.io
-      - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
-      # push production images
-      - echo "---> Pushing images for $${VERSION}"
-      - docker push quay.io/gravitational/teleport:$${VERSION}
-      - docker push quay.io/gravitational/teleport-ent:$${VERSION}
-      - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
-      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
-
   - name: Check out code
     image: docker:git
     commands:
@@ -7188,6 +7146,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 995421dc7dd0788e81eeb49877cd3c7897482fe8b95da6bf08511380d6c7e25d
+hmac: 35eb57ba2a6fbddc27bf4fb0b88184a2d3b724d2fdb4235a8ad3f687dc7f58b6
 
 ...
