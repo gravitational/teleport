@@ -107,7 +107,7 @@ func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, er
 						},
 					)
 					if err != nil {
-						a.Log.WithError(err).Warnf("Unable to describe EKS cluster %q", clusterName)
+						logger.WithError(err).Warnf("Unable to describe EKS cluster %q", clusterName)
 						return
 					}
 
@@ -115,7 +115,15 @@ func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, er
 						logger.WithError(err).Warnf("Unable to match EKS cluster labels against match labels")
 						return
 					} else if !match {
-						a.Log.Debugf("EKS cluster labels does not match the selector: %s", reason)
+						logger.Debugf("EKS cluster labels does not match the selector: %s", reason)
+						return
+					}
+
+					switch st := aws.StringValue(rsp.Cluster.Status); st {
+					case eks.ClusterStatusUpdating, eks.ClusterStatusActive:
+						logger.Debugf("EKS cluster status is valid: %s", st)
+					default:
+						logger.Debugf("EKS cluster not enrolled due to its current status: %s", st)
 						return
 					}
 
