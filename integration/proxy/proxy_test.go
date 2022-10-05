@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
@@ -800,7 +801,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			Protocol:    pack.Root.MysqlService.Protocol,
 			Username:    dbUser,
 		}
-		m, err := alpnproxy.NewDBCertChecker(tc, routeToDatabase, nil)
+		m, err := libclient.NewDBCertChecker(tc, routeToDatabase, nil)
 		require.NoError(t, err)
 
 		// configure local proxy without certs but with cert checking/reissuing middleware
