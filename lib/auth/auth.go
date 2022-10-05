@@ -251,6 +251,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		inventory:       inventory.NewController(cfg.Presence),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
+		loadAllCAs:      cfg.LoadAllCAs,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -456,6 +457,9 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+
+	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
+	loadAllCAs bool
 }
 
 func (a *Server) CloseContext() context.Context {
