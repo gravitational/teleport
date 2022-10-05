@@ -693,8 +693,8 @@ github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWm
 github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23 h1:havbccuFO5fRj0O67oHXI7doShLig3rSIXfMrd/UnkA=
 github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23/go.mod h1:XL9nebvlfNVvRzRPWdDcWootcyA0l7THiH/A+W1233g=
-github.com/gravitational/crypto v0.0.0-20220925030905-69ba99298ac8 h1:Mx/PtpO8+f+3yNG/VIQxucfHX7ogGQUSL2OGiePZ3Gc=
-github.com/gravitational/crypto v0.0.0-20220925030905-69ba99298ac8/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
+github.com/gravitational/crypto v0.0.0-20221005181411-e69ec148c162 h1:R+PxEtx6oEmd9JthL3ieb+dpM3Q9eKsE1QTq6pvVODo=
+github.com/gravitational/crypto v0.0.0-20221005181411-e69ec148c162/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI0mdq3nGLzXqTV1wNOJByxv01+u9/BxM=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
 github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500 h1:54z7/KbhT1dTmM1HnFQ5ggu5GZ4nUFARYaO6MNsxB1M=
