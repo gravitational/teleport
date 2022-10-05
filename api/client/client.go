@@ -2719,24 +2719,6 @@ func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTrack
 	}
 
 	req := &proto.CreateSessionTrackerRequest{SessionTracker: v1}
-
-	// DELETE IN 11.0.0
-	// Early v9 versions use a flattened out types.SessionTrackerV1
-	req.ID = v1.Spec.SessionID
-	req.Type = v1.Spec.Kind
-	req.Reason = v1.Spec.Reason
-	req.Invited = v1.Spec.Invited
-	req.Hostname = v1.Spec.Hostname
-	req.Address = v1.Spec.Address
-	req.ClusterName = v1.Spec.ClusterName
-	req.Login = v1.Spec.Login
-	req.Expires = v1.Spec.Expires
-	req.KubernetesCluster = v1.Spec.KubernetesCluster
-	req.HostUser = v1.Spec.HostUser
-	if len(v1.Spec.Participants) > 0 {
-		req.Initiator = &v1.Spec.Participants[0]
-	}
-
 	tracker, err := c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
