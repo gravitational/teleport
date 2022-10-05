@@ -362,7 +362,7 @@ replace (
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1
 	// Our for inlcudes support for RFC 8308 https://go-review.googlesource.com/c/crypto/+/396714/
 	// It should be dropped as soon as this PR is merged into upstream.
-	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20220925030905-69ba99298ac8
+	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221005181411-e69ec148c162
 )
 
 // Exclude etcd/v3 from the modules graph.
