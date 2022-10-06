@@ -435,6 +435,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_KubernetesClusterDelete{
 			KubernetesClusterDelete: e,
 		}
+	case *DesktopSharedDirectoryRead:
+		out.Event = &OneOf_DesktopSharedDirectoryRead{
+			DesktopSharedDirectoryRead: e,
+		}
+	case *DesktopSharedDirectoryWrite:
+		out.Event = &OneOf_DesktopSharedDirectoryWrite{
+			DesktopSharedDirectoryWrite: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}

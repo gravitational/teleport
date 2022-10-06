@@ -3866,6 +3866,8 @@ func (m *AuthPreferenceSpecV2) XXX_DiscardUnknown() {
 var xxx_messageInfo_AuthPreferenceSpecV2 proto.InternalMessageInfo
 
 // U2F defines settings for U2F device.
+// Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer
+// using WebAuthn instead.
 type U2F struct {
 	// AppID returns the application ID for universal second factor.
 	AppID string `protobuf:"bytes,1,opt,name=AppID,proto3" json:"app_id,omitempty"`
@@ -3875,7 +3877,6 @@ type U2F struct {
 	Facets []string `protobuf:"bytes,2,rep,name=Facets,proto3" json:"facets,omitempty"`
 	// DeviceAttestationCAs contains the trusted attestation CAs for U2F
 	// devices.
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
 	DeviceAttestationCAs []string `protobuf:"bytes,3,rep,name=DeviceAttestationCAs,proto3" json:"device_attestation_cas,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
