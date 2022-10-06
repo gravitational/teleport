@@ -81,8 +81,8 @@ export class GetAccessRequestRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): GetAccessRequestRequest;
 
-    getId(): string;
-    setId(value: string): GetAccessRequestRequest;
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): GetAccessRequestRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -98,7 +98,7 @@ export class GetAccessRequestRequest extends jspb.Message {
 export namespace GetAccessRequestRequest {
     export type AsObject = {
         clusterUri: string,
-        id: string,
+        accessRequestId: string,
     }
 }
 
@@ -174,8 +174,8 @@ export class DeleteAccessRequestRequest extends jspb.Message {
     getRootClusterUri(): string;
     setRootClusterUri(value: string): DeleteAccessRequestRequest;
 
-    getRequestId(): string;
-    setRequestId(value: string): DeleteAccessRequestRequest;
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): DeleteAccessRequestRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -191,7 +191,7 @@ export class DeleteAccessRequestRequest extends jspb.Message {
 export namespace DeleteAccessRequestRequest {
     export type AsObject = {
         rootClusterUri: string,
-        requestId: string,
+        accessRequestId: string,
     }
 }
 
@@ -354,8 +354,8 @@ export class ReviewAccessRequestRequest extends jspb.Message {
     setRolesList(value: Array<string>): ReviewAccessRequestRequest;
     addRoles(value: string, index?: number): string;
 
-    getRequestId(): string;
-    setRequestId(value: string): ReviewAccessRequestRequest;
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): ReviewAccessRequestRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -374,7 +374,7 @@ export namespace ReviewAccessRequestRequest {
         state: string,
         reason: string,
         rolesList: Array<string>,
-        requestId: string,
+        accessRequestId: string,
     }
 }
 
