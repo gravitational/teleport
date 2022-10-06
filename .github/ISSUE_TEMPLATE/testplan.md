@@ -176,6 +176,14 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
+- [ ] `tsh` CA loading
+
+  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
+  - [ ] `load_all_cas` on the root auth server is `false` (default) -
+  `tsh ssh leaf.node.example.com` results in access denied.
+  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
+  succeeds.
+
 ### User accounting
 
 - [ ] Verify that active interactive sessions are tracked in `/var/run/utmp` on Linux.
@@ -341,6 +349,13 @@ connectors are accepted, invalid are rejected with sensible error messages.
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestIAMNodeJoin`
 - [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
+
+### Cloud Labels
+- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
+and with tag `foo`: `bar`. Verify that a node running on the instance has label
+`aws/foo=bar`.
+- [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
+instance has label `azure/foo=bar`.
 
 ### Passwordless
 
