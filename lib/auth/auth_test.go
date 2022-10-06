@@ -27,21 +27,27 @@ import (
 	mathrand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	. "gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -56,14 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/require"
-	. "gopkg.in/check.v1"
 )
 
 type testPack struct {
@@ -1983,4 +1981,107 @@ func TestIterateNodes(t *testing.T) {
 			tt.errorAssertion(t, err)
 		})
 	}
+}
+
+func TestVersionMetrics(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const resourceCount = 1100
+
+	expiry := srv.Auth().clock.Now().Add(time.Hour)
+	for i := 0; i < resourceCount; i++ {
+		version := strconv.Itoa(i % 2)
+
+		// create node
+		s, err := types.NewServer(uuid.New(), types.KindNode, types.ServerSpecV2{Version: version})
+		require.NoError(t, err)
+		s.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertNode(ctx, s)
+		require.NoError(t, err)
+
+		// create database resource.
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name:    uuid.New(),
+			Expires: &expiry,
+		},
+			types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			})
+		require.NoError(t, err)
+
+		dbserver, err := types.NewDatabaseServerV3(types.Metadata{
+			Name:    uuid.New(),
+			Expires: &expiry,
+		},
+			types.DatabaseServerSpecV3{
+				Version:  version,
+				Hostname: "host",
+				HostID:   uuid.New(),
+				Database: db,
+			})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, dbserver)
+		require.NoError(t, err)
+
+		// create app server
+		app, err := types.NewAppV3(types.Metadata{Name: uuid.New()}, types.AppSpecV3{URI: "localhost"})
+		require.NoError(t, err)
+
+		appserver, err := types.NewAppServerV3(types.Metadata{
+			Name:    uuid.New(),
+			Expires: &expiry,
+		}, types.AppServerSpecV3{
+			Hostname: "host",
+			HostID:   uuid.New(),
+			App:      app,
+			Version:  version,
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, appserver)
+		require.NoError(t, err)
+
+		// create desktop
+		desktop, err := types.NewWindowsDesktopServiceV3(uuid.New(), types.WindowsDesktopServiceSpecV3{
+			Addr:            "localhost:1234",
+			TeleportVersion: version,
+		})
+		require.NoError(t, err)
+		desktop.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertWindowsDesktopService(ctx, desktop)
+		require.NoError(t, err)
+
+		// create kube service
+		kube := &types.ServerV2{
+			Metadata: types.Metadata{Name: uuid.New(), Expires: &expiry},
+			Kind:     types.KindKubeService,
+			Version:  types.V2,
+			Spec: types.ServerSpecV2{
+				KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+				Version:            version,
+			},
+		}
+
+		require.NoError(t, srv.Auth().UpsertKubeService(ctx, kube))
+	}
+
+	// calculate the versions of all resources
+	srv.Auth().updateVersionMetrics()
+
+	// half the resources should be version 1
+	version1, err := registeredAgents.GetMetricWithLabelValues("1")
+	require.NoError(t, err)
+	require.Equal(t, resourceCount*2.5, testutil.ToFloat64(version1))
+
+	// half the resources should be version 2
+	version0, err := registeredAgents.GetMetricWithLabelValues("0")
+	require.NoError(t, err)
+	require.Equal(t, resourceCount*2.5, testutil.ToFloat64(version0))
+
 }
