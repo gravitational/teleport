@@ -1665,7 +1665,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -1720,6 +1720,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -1731,13 +1755,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -1758,10 +1781,12 @@ steps:
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
   volumes:
-  - name: tmpfs
-    path: /tmpfs
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
+  - name: tmpfs
+    path: /tmpfs
 - name: Copy artifacts
   image: docker
   commands:
@@ -1838,17 +1863,19 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: dockersock
+  temp: {}
+- name: awsconfig
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
-- name: dockersock
-  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -1903,6 +1930,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -1912,13 +1963,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -1940,10 +1990,12 @@ steps:
     RUNTIME: fips
     TMPDIR: /go
   volumes:
-  - name: tmpfs
-    path: /tmpfs
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
+  - name: tmpfs
+    path: /tmpfs
 - name: Copy artifacts
   image: docker
   commands:
@@ -2018,17 +2070,19 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: dockersock
+  temp: {}
+- name: awsconfig
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
-- name: dockersock
-  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -2083,6 +2137,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2094,13 +2172,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -2116,6 +2193,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 - name: Copy artifacts
   image: docker
   commands:
@@ -2192,12 +2271,14 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: awsconfig
+  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -2252,6 +2333,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2261,13 +2366,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -2284,6 +2388,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 - name: Copy artifacts
   image: docker
   commands:
@@ -2357,6 +2463,8 @@ services:
     path: /var/run
 volumes:
 - name: dockersock
+  temp: {}
+- name: awsconfig
   temp: {}
 
 ---
@@ -2545,7 +2653,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -2600,6 +2708,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2611,13 +2743,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -2638,10 +2769,12 @@ steps:
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
   volumes:
-  - name: tmpfs
-    path: /tmpfs
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
+  - name: tmpfs
+    path: /tmpfs
 - name: Copy artifacts
   image: docker
   commands:
@@ -2718,17 +2851,19 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: dockersock
+  temp: {}
+- name: awsconfig
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
-- name: dockersock
-  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -2783,6 +2918,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -2794,13 +2953,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -2816,6 +2974,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 - name: Copy artifacts
   image: docker
   commands:
@@ -2891,6 +3051,8 @@ services:
     path: /var/run
 volumes:
 - name: dockersock
+  temp: {}
+- name: awsconfig
   temp: {}
 
 ---
@@ -3828,7 +3990,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -3883,6 +4045,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -3894,13 +4080,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -3916,6 +4101,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 - name: Copy artifacts
   image: docker
   commands:
@@ -3992,12 +4179,14 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: awsconfig
+  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -4052,6 +4241,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -4063,13 +4276,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -4085,6 +4297,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 - name: Copy artifacts
   image: docker
   commands:
@@ -4161,12 +4375,14 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: awsconfig
+  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -4221,6 +4437,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -4232,13 +4472,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -4259,10 +4498,12 @@ steps:
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
   volumes:
-  - name: tmpfs
-    path: /tmpfs
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
+  - name: tmpfs
+    path: /tmpfs
 - name: Copy artifacts
   image: docker
   commands:
@@ -4339,17 +4580,19 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: dockersock
+  temp: {}
+- name: awsconfig
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
-- name: dockersock
-  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:431
+# Generated at dronegen/tag.go:437
 ################################################
 
 kind: pipeline
@@ -4404,6 +4647,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Download artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -4415,13 +4682,12 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -4442,10 +4708,12 @@ steps:
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
   volumes:
-  - name: tmpfs
-    path: /tmpfs
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
+  - name: tmpfs
+    path: /tmpfs
 - name: Copy artifacts
   image: docker
   commands:
@@ -4522,11 +4790,13 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: dockersock
+  temp: {}
+- name: awsconfig
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
-- name: dockersock
-  temp: {}
 
 ---
 ################################################
@@ -5559,6 +5829,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 649e7592aef66fcf1a89d94a07cd3b2eb4f1e385fe752d1a17509ff83e7b1ce1
+hmac: 332ad6e07637f28927886a47739bacf4d56ab9f57252eee4e5394cbf79d9551f
 
 ...
