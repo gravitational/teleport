@@ -73,7 +73,7 @@ type GrpcFileTransferProgress struct {
 	lock               sync.Mutex
 }
 
-func (p *GrpcFileTransferProgress) Write(bytes []byte) (n int, err error) {
+func (p *GrpcFileTransferProgress) Write(bytes []byte) (int, error) {
 	bytesLength := len(bytes)
 
 	p.lock.Lock()
@@ -82,10 +82,10 @@ func (p *GrpcFileTransferProgress) Write(bytes []byte) (n int, err error) {
 	p.sentSize += int64(bytesLength)
 	percentage := uint32(p.sentSize * 100 / p.fileSize)
 
-	if p.canSendProgress(percentage) {
-		writeErr := p.transferFileServer.Send(&api.FileTransferProgress{Percentage: percentage})
-		if writeErr != nil {
-			return bytesLength, trace.Wrap(writeErr)
+	if p.shouldSendProgress(percentage) {
+		err := p.transferFileServer.Send(&api.FileTransferProgress{Percentage: percentage})
+		if err != nil {
+			return bytesLength, trace.Wrap(err)
 		}
 		p.lastSentAt = time.Now()
 		p.lastSentPercentage = percentage
@@ -94,7 +94,7 @@ func (p *GrpcFileTransferProgress) Write(bytes []byte) (n int, err error) {
 	return bytesLength, nil
 }
 
-func (p *GrpcFileTransferProgress) canSendProgress(percentage uint32) bool {
+func (p *GrpcFileTransferProgress) shouldSendProgress(percentage uint32) bool {
 	hasIntervalPassed := time.Since(p.lastSentAt).Milliseconds() > 100
 	hasPercentageChanged := percentage != p.lastSentPercentage
 	return hasIntervalPassed && hasPercentageChanged
