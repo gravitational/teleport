@@ -1,5 +1,5 @@
-ARG BUILDBOX_VERSION
-FROM public.ecr.aws/gravitational/teleport-buildbox:${BUILDBOX_VERSION} as builder
+ARG BUILDBOX
+FROM $BUILDBOX as builder
 
 WORKDIR /go/src/github.com/gravitational/teleport
 
