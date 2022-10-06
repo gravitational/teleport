@@ -923,9 +923,15 @@ func (c *installerCollection) resources() []types.Resource {
 
 func (c *installerCollection) writeText(w io.Writer) error {
 	for _, inst := range c.installers {
-		fmt.Fprintf(w, "Script: %s\n----------\n", inst.GetName())
-		fmt.Fprintln(w, inst.GetScript())
-		fmt.Fprintln(w, "----------")
+		if _, err := fmt.Fprintf(w, "Script: %s\n----------\n", inst.GetName()); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(w, inst.GetScript()); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(w, "----------"); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
