@@ -634,12 +634,19 @@ type localProxyConfig struct {
 func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 	certFile := arg.cliConf.LocalProxyCertFile
 	keyFile := arg.cliConf.LocalProxyKeyFile
-	// For SQL Server connections, local proxy must be configured with the
-	// client certificate that will be used to route connections.
-	// If opening an authenticated tunnel, the local proxy will fetch certs in-memory instead.
-	if !arg.localProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer {
+	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer || (arg.localProxyTunnel && certFile == "") {
+		// For SQL Server connections, local proxy must be configured with the
+		// client certificate that will be used to route connections.
 		certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
 		keyFile = arg.profile.KeyPath()
+	}
+	certs, err := mkLocalProxyCerts(certFile, keyFile)
+	if err != nil {
+		if !arg.localProxyTunnel {
+			return nil, trace.Wrap(err)
+		}
+		// local proxy with tunnel monitors its certs, so it's ok if a cert file can't be loaded.
+		certs = nil
 	}
 
 	opts := &localProxyOpts{
@@ -647,8 +654,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 		listener:                arg.listener,
 		protocols:               []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
 		insecure:                arg.cliConf.InsecureSkipVerify,
-		certFile:                certFile,
-		keyFile:                 keyFile,
+		certs:                   certs,
 		alpnConnUpgradeRequired: alpnproxy.IsALPNConnUpgradeRequired(arg.teleportClient.WebProxyAddr, arg.cliConf.InsecureSkipVerify),
 	}
 

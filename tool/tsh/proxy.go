@@ -484,8 +484,7 @@ type localProxyOpts struct {
 	listener                net.Listener
 	protocols               []alpncommon.Protocol
 	insecure                bool
-	certFile                string
-	keyFile                 string
+	certs                   []tls.Certificate
 	rootCAs                 *x509.CertPool
 	alpnConnUpgradeRequired bool
 	middleware              alpnproxy.LocalProxyMiddleware
@@ -508,10 +507,6 @@ func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalPr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := mkLocalProxyCerts(opts.certFile, opts.keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
 	if alpncommon.HasPingSupport(alpnProtocol) {
@@ -525,7 +520,7 @@ func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalPr
 		Listener:                opts.listener,
 		ParentContext:           ctx,
 		SNI:                     address.Host(),
-		Certs:                   certs,
+		Certs:                   opts.certs,
 		RootCAs:                 opts.rootCAs,
 		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
 		Middleware:              opts.middleware,
