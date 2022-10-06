@@ -5,9 +5,6 @@
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
 
-# Buildbox image version, can be built by running `make -C build.assets`
-BUILDBOX_VERSION ?= teleport11
-
 # Image URL to use all building/pushing image targets
 IMG ?= teleport-operator:latest
 
@@ -19,6 +16,9 @@ ENVTEST_K8S_VERSION = 1.23
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
+
+# include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
+include ../build.assets/images.mk
 
 .PHONY: all
 all: build
@@ -103,7 +103,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} .. -f ./Dockerfile
+	docker build --build-arg BUILDBOX=$(BUILDBOX) -t ${IMG} .. -f ./Dockerfile
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
