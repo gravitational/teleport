@@ -5768,6 +5768,31 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
+  - name: Assume AWS Role
+    image: amazon/aws-cli
+    commands:
+    - aws sts get-caller-identity
+    - |-
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        $(aws sts assume-role \
+          --role-arn "$AWS_ROLE" \
+          --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+          --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+          --output text) \
+        > /root/.aws/credentials
+    - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+    - aws sts get-caller-identity
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      AWS_ROLE:
+        from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
   - name: Build/push OSS/Enterprise Docker images
     image: docker
     environment:
@@ -5777,13 +5802,11 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-      AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
@@ -5828,6 +5851,8 @@ services:
 
 volumes:
   - name: dockersock
+    temp: {}
+  - name: awsconfig
     temp: {}
 
 ---
@@ -7250,6 +7275,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c1dff9458da3fead5862446e187ab5f982c83605df7efadbe6b51ff852ccc3e2
+hmac: 30a7be787790312fc21544be374d346569e5960239f1d1782b872be9a517f712
 
 ...
