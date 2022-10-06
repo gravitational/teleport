@@ -1,5 +1,4 @@
 //go:build !webassets_embed
-// +build !webassets_embed
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -17,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package web
+package teleport
 
 import (
 	"net/http"
@@ -25,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NewStaticFileSystem is a no-op in this build mode.
-func NewStaticFileSystem() (http.FileSystem, error) { //nolint:staticcheck
+const webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
+
+// NewWebAssetsFilesystem is a no-op in this build mode.
+func NewWebAssetsFilesystem() (http.FileSystem, error) { //nolint:staticcheck
 	return nil, trace.NotFound(webAssetsMissingError)
 }
