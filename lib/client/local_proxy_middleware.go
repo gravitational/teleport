@@ -107,7 +107,7 @@ func (c *DBCertChecker) checkCerts(lp *alpnproxy.LocalProxy) error {
 // ensureValidCerts ensures that the local proxy is configured with valid certs.
 func (c *DBCertChecker) ensureValidCerts(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	if err := c.checkCerts(lp); err != nil {
-		log.WithError(err).Debug("need cert renewal")
+		log.WithError(err).Debug("local proxy tunnel certificates need to be reissued")
 	} else {
 		return nil
 	}
@@ -123,7 +123,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
 
-	msg := fmt.Sprintf("Local proxy tunnel requires credentials to access database %q", c.dbRoute.ServiceName)
+	msg := fmt.Sprintf("MFA is required to access database %q", c.dbRoute.ServiceName)
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.tc, func() error {
 		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
@@ -157,7 +157,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		return trace.Wrap(err)
 	}
 	certTTL := x509cert.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	fmt.Printf("Proxy credentials renewed. New cert valid until %s [valid for %v]\n",
+	fmt.Printf("Database certificate renewed: valid until %s [valid for %v]\n",
 		x509cert.NotAfter.Format(time.RFC3339), certTTL)
 	lp.SetCerts([]tls.Certificate{tlsCert})
 	return nil
