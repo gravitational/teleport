@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/pkg/sftp"
+	"github.com/schollz/progressbar/v3"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -443,4 +445,25 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 		return 0, err
 	}
 	return len(b), nil
+}
+
+// CreateProgressBar returns a new progress bar that writes to writer.
+func CreateProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
+	// this is necessary because progressbar.DefaultBytes doesn't allow
+	// the caller to specify a writer
+	return progressbar.NewOptions64(
+		size,
+		progressbar.OptionSetDescription(desc),
+		progressbar.OptionSetWriter(writer),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetWidth(10),
+		progressbar.OptionThrottle(100*time.Millisecond),
+		progressbar.OptionShowCount(),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprint(writer, "\n")
+		}),
+		progressbar.OptionSpinnerType(14),
+		progressbar.OptionFullWidth(),
+		progressbar.OptionSetRenderBlankState(true),
+	)
 }
