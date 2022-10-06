@@ -427,7 +427,7 @@ message DesktopSharedDirectoryRead {
   // Length is the number of bytes read.
   uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were read from.
-  uint32 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
 }
 
 // DesktopSharedDirectoryWrite is emitted when Teleport
@@ -475,7 +475,7 @@ message DesktopSharedDirectoryWrite {
   // Length is the number of bytes written.
   uint32 Length = 10 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were written to.
-  uint32 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  uint64 Offset = 11 [(gogoproto.jsontag) = "offset"];
 }
 
 // SessionReject event happens when a user hits a session control restriction.
