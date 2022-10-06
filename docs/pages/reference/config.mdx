@@ -640,7 +640,7 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, SSH is multiplexed on web_listen_addr
+    # "v2" & onwards: listener is not created, SSH is multiplexed on web_listen_addr
     # "v1": defaults to 0.0.0.0:3023
     listen_addr: 0.0.0.0:3023
 
@@ -651,7 +651,7 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
+    # "v2" & onwards: listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
     # "v1": defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
@@ -700,7 +700,7 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
+    # "v2" & onwards: listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
     # "v1": defaults to 0.0.0.0:3026
     kube_listen_addr: 0.0.0.0:3026
     # optional: set a different public address for kubernetes access
@@ -710,8 +710,8 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2": listener is not created, MySQL traffic is multiplexed on
-    #       web_listen_addr
+    # "v2" & onwards: listener is not created, MySQL traffic is multiplexed on
+    #                 web_listen_addr
     # "v1": defaults to 0.0.0.0:3036
     mysql_listen_addr: "0.0.0.0:3036"
 
