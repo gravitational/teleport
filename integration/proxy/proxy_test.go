@@ -771,8 +771,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		}
 		// inject a fake clock into the middleware so we can control when it thinks certs have expired
 		fakeClock := clockwork.NewFakeClockAt(time.Now())
-		m, err := libclient.NewDBCertChecker(tc, routeToDatabase, fakeClock)
-		require.NoError(t, err)
 
 		// configure local proxy without certs but with cert checking/reissuing middleware
 		// local proxy middleware should fetch a DB cert when the local proxy starts
@@ -780,7 +778,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
 			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 			InsecureSkipVerify: true,
-			Middleware:         m,
+			Middleware:         libclient.NewDBCertChecker(tc, routeToDatabase, fakeClock),
 		})
 
 		client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)

@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -222,22 +221,6 @@ type RouteToDatabase struct {
 func (r RouteToDatabase) String() string {
 	return fmt.Sprintf("Database(Service=%v, Protocol=%v, Username=%v, Database=%v)",
 		r.ServiceName, r.Protocol, r.Username, r.Database)
-}
-
-// CheckAndSetDefaults checks the database route and sets defaults
-func (r *RouteToDatabase) CheckAndSetDefaults() error {
-	// When generating certificate for MongoDB access, database username must
-	// be encoded into it. This is required to be able to tell which database
-	// user to authenticate the connection as.
-	if r.Protocol == defaults.ProtocolMongoDB && r.Username == "" {
-		return trace.BadParameter("please provide the database user name using --db-user flag")
-	}
-	if r.Protocol == defaults.ProtocolRedis && r.Username == "" {
-		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
-		// ref: https://redis.io/commands/auth
-		r.Username = defaults.DefaultRedisUsername
-	}
-	return nil
 }
 
 // GetRouteToApp returns application routing data. If missing, returns an error.
