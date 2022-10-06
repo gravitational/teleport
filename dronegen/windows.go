@@ -16,6 +16,7 @@ package main
 
 import (
 	"path"
+	"path/filepath"
 )
 
 const (
@@ -38,6 +39,7 @@ func newWindowsPipeline(name string) pipeline {
 
 func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
+	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = triggerTag
@@ -49,14 +51,21 @@ func windowsTagPipeline() pipeline {
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
+		windowsAssumeAwsRoleStep(windowsRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configPath: awsConfigPath,
+		}),
 		{
 			Name: "Upload Artifacts",
 			Environment: map[string]value{
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
