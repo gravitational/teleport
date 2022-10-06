@@ -68,8 +68,11 @@ func (h *Handler) desktopConnectHandle(
 	log.Debug("New desktop access websocket connection")
 
 	if err := h.createDesktopConnection(w, r, desktopName, log, ctx, site); err != nil {
+		// createDesktopConnection makes a best effort attempt to send an error to the user
+		// (via websocket) before terminating the connection. We log the error here, but
+		// return nil because our HTTP middleware will try to write the returned error in JSON
+		// format, and this will fail since the HTTP connection has been upgraded to websockets.
 		log.Error(err)
-		return nil, trace.Wrap(err)
 	}
 
 	return nil, nil
