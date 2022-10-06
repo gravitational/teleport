@@ -449,7 +449,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	matchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
+	awsMatchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
 
 	for _, matcher := range conf.Discovery.AWSMatchers {
 		for _, serviceType := range matcher.Types {
@@ -488,10 +488,29 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		if matcher.SSM.DocumentName == "" {
 			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
 		}
-		matchers = append(matchers, matcher)
+		awsMatchers = append(awsMatchers, matcher)
 	}
 
-	conf.Discovery.AWSMatchers = matchers
+	conf.Discovery.AWSMatchers = awsMatchers
+
+	azureMatchers := make([]AzureMatcher, 0, len(conf.Discovery.AzureMatchers))
+
+	for _, matcher := range conf.Discovery.AzureMatchers {
+		for _, serviceType := range matcher.Types {
+			if !apiutils.SliceContainsStr(constants.SupportedAzureDiscoveryServices, serviceType) {
+				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
+					serviceType, constants.SupportedAzureDiscoveryServices)
+			}
+		}
+		if matcher.ResourceTags == nil || len(matcher.ResourceTags) == 0 {
+			matcher.ResourceTags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+		}
+
+		// TODO: add install params
+		azureMatchers = append(azureMatchers, matcher)
+	}
+
+	conf.Discovery.AzureMatchers = azureMatchers
 
 	return nil
 }
@@ -1141,6 +1160,9 @@ type Discovery struct {
 
 	// AWSMatchers are used to match EC2 instances
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+
+	// AzureMatchers are used to match Azure VMs
+	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1303,13 +1325,13 @@ type AWSSSM struct {
 	DocumentName string `yaml:"document_name,omitempty"`
 }
 
-// AzureMatcher matches Azure databases.
+// AzureMatcher matches Azure resources.
 type AzureMatcher struct {
 	// Subscriptions are Azure subscriptions to query for resources.
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure database types to match: "mysql", "postgres"
+	// Types are Azure database types to match: "mysql", "postgres", "vm"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`

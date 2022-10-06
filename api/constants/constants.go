@@ -335,6 +335,15 @@ const (
 	AWSServiceTypeEC2 = "ec2"
 )
 
+// Constants for Azure discovery
+const (
+	AzureServiceTypeVM = "vm"
+)
+
 // SupportedAWSDiscoveryServices is list of AWS services currently
 // supported by the Teleport discovery service
 var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}
+
+// SupportedAzureDiscoveryServices is a list of Azure services
+// currently supported by the Teleport discovery service
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeVM}

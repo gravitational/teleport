@@ -689,7 +689,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectError:   require.NoError,
 			expectEnabled: require.False,
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSMatcher{},
+				AWSMatchers:   []AWSMatcher{},
+				AzureMatchers: []AzureMatcher{},
 			},
 		},
 		{
@@ -823,6 +824,37 @@ func TestDiscoveryConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:          "Azure section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{"types": []string{"vm"},
+						"regions":         []string{"westcentralus"},
+						"resource_groups": []string{"rg1"},
+						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:          []string{"vm"},
+						Regions:        []string{"westcentralus"},
+						ResourceGroups: []string{"rg1"},
+						Subscriptions:  []string{"88888888-8888-8888-8888-888888888888"},
+						ResourceTags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.desc, func(t *testing.T) {
@@ -833,7 +865,12 @@ func TestDiscoveryConfig(t *testing.T) {
 				return
 			}
 			testCase.expectEnabled(t, cfg.Discovery.Enabled())
-			require.Equal(t, testCase.expectedDiscoverySection.AWSMatchers, cfg.Discovery.AWSMatchers)
+			if expectedAWS := testCase.expectedDiscoverySection.AWSMatchers; expectedAWS != nil {
+				require.Equal(t, expectedAWS, cfg.Discovery.AWSMatchers)
+			}
+			if expectedAzure := testCase.expectedDiscoverySection.AzureMatchers; expectedAzure != nil {
+				require.Equal(t, expectedAzure, cfg.Discovery.AzureMatchers)
+			}
 		})
 	}
 }
