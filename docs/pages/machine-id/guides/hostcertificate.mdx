@@ -1,10 +1,10 @@
 ---
 title: Host Certificates with Machine ID
-description: Issuing Host Certificates with Machine ID
+description: Issuing Host Certificates with Machine ID for OpenSSH servers.
 ---
 
-In this guide, you will learn how to create host certificates through Machine ID for OpenSSH servers. This allows for the benefits of
-Machine ID with OpenSSH nodes and reduces risk by ensuring that short-lived certificates issued to tbot users on Teleport clusters can be successfully applied.
+In this guide, you will learn how to create host certificates through Machine ID to allow Teleport users (manually or automated through Machine ID) to access OpenSSH servers. This allows for the benefits of
+Machine ID with OpenSSH nodes and reduces risk by ensuring that short-lived host certificates on Teleport clusters can be successfully applied.
 
 ## Prerequisites
 
@@ -18,8 +18,6 @@ Machine ID with OpenSSH nodes and reduces risk by ensuring that short-lived cert
   $ ssh -V
   ```
 
-- A host that you wish to assign an identity to using Machine ID.
-
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
 In this step, you will be downloading and installing Teleport binaries onto the
@@ -30,8 +28,10 @@ binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
 
 - `teleport` is the daemon used to initialize a Teleport cluster; this binary is not used in this guide.
 - `tctl` is the administrative tool you will use to create the bot user.
-- `tsh` is the client tool you will use to log in to the Teleport Cluster.
+- `tsh` is the client tool you will use to log in to the OpenSSH server.
 - `tbot` is the Machine ID tool you will use to associate a bot user with a machine.
+
+Machine ID is available starting from the Teleport 9.0.0 release. Download the appropriate Teleport package for your platform from our [downloads page](https://goteleport.com/teleport/download).
 
 Next, log in to your cluster using `tsh` to ensure that your machine will be able to interact with the cluster:
 
@@ -42,20 +42,18 @@ tsh login --proxy=myteleportcluster.com --user=teleport-username
 
 ## Step 2/4. Create a Role to Issue `tbot` Certificates
 
-In order to create certificates with Tbot, a role must be created that provides the necessary permissions. Tbot configurations support certificate **principals** and **predicates**,
-or strings which are used to reduce the scope of access the bot will have when accessing a specific host.
-By using the format of `where: 'predicate(host_cert.principals, "domain.name")'`, a Teleport user can create a role that will only be able to able to effect the designated domain name
-in a manner defined by the selected predicate. A full list of predicates and their behavior are listed below:
+In order to create certificates `tbot` a role that provides the necessary permissions. Roles may restrict which **principals** can be requested using **predicates**,
+or strings which are used to reduce the scope of permissions for creating host certificates.
+By using the format of `where: 'predicate(host_cert.principals, "domain.name")'`, a Teleport user can create a role that will only be able to able to affect the designated domain name
+in a manner defined by the selected predicate. A list of supported predicates and their behavior are listed below:
 
-| **Predicate** | **Behavior** |
-| ----------- | ----------- |
-| eguals | Created domain must be equal to the domain. |
-| contains | Created domains must contain the domain in some way. |
-| all_equal | All created domains must be equal to the domain. |
-| all_end_with | All created domains or subdomains must end with the selected domain. |
-| is_subset | All created domains must be a subset of the selected domain. This requires the certificate requested by tbot to be be listed with the role's predicate. |
+| **Predicate** | **Behavior** | **Example** |
+| ----------- | ----------- | ----------- |
+| all_equal | All created domains must be equal to the domain. | `all_equal(host_cert.principals, "foo.example.com")` |
+| all_end_with | All created domains or subdomains must end with the selected domain. | `all_end_with(host_cert.principals, ".example.com")` |
+| is_subset | All created domains must be a subset of the selected domain. This requires the certificate requested by tbot to be be listed with the role's predicate. | `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")` |
 
-In the case of an example role for use within this guide, use a text editor of your choice to create a role YAML named `tbotrole.yaml` with the following configuration options, replacing `my.domain.com` with your own primary domain name,
+In the case of an example role for use within this guide, use a text editor of your choice to create a role YAML named `tbotrole.yaml` with the following configuration options, replacing `nodename.my.domain.com` with your own domain name,
 or the domain associated with your cluster:
 
 ```code
@@ -70,11 +68,7 @@ spec:
           - host_cert
         verbs:
           - create
-          - list
-          - read
-          - update
-          - delete
-        where: 'all_end_with(host_cert.principals, ".my.domain.com")'
+        where: 'is_subset(host_cert.principals, "nodename.my.domain.com")'
 ```
 
 Once complete, create your role to apply to the tbot configuration in the next step:
@@ -116,16 +110,15 @@ editor
 hostcert-bot  host_cert:create,list,read,update,delete             user:list,create,read,update,delete,...
 ```
 
-Machine ID can join with a `token` or the [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
+`tbot` can join the Teleport Cluster using a number of supported methods. This guide will highlight both the `token` and the [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
+Note that the following commands may be entered on any Teleport node with `tctl` access to the cluster.
 
-While any role with permissions for logging into nodes will work, this guide will additionally make use of the default
-`access` role to ensure that the tbot user can successfully log in. Use the `--logins` flag when adding your bot to specify the SSH logins that you wish to 
-allow the bot to access on hosts. For our example, we will be using `root`.
+While any role with permissions for creating host certificates will work, this guide will make use of the `hostcert-bot` role created previously to ensure that the configuration adheres to the principle of least privilege.
 
 <Tabs>
   <TabItem label="Token-based Joining">
   ```code
-  $ tctl bots add robot --roles=hostcert-bot,access --logins=root
+  $ tctl bots add robot --roles=hostcert-bot
   ```
   </TabItem>
   <TabItem label="IAM Method">
@@ -164,13 +157,13 @@ allow the bot to access on hosts. For our example, we will be using `root`.
   Next, create the bot user.
 
   ```
-  $ tctl bots add robot --token=iam-token --roles=access --logins=root
+  $ tctl bots add robot --token=iam-token --roles=hostcert-bot
   ```
   </TabItem>
 </Tabs>
 
 
-Machine ID may now be configured using the `tbot configure` command.
+Machine ID may now be configured using the `tbot configure` command on the bot node.
 
 First, create a basic configuration file using the following parameters:
 
@@ -245,7 +238,7 @@ Replace the following fields with values from your own cluster.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`.
-- `certificate-ttl` is the option that will result in creation of a host certificate with Machine ID. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
+- `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
 
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
@@ -253,7 +246,7 @@ Replace the following fields with values from your own cluster.
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `certificate-ttl` is the option that will result creation of a host certificate with Machine ID. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
+- `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
 - `auth-server` is the address of your Teleport Auth Server, for example
   `auth.example.com:3025`. If your Machine ID host is in a different network
   than your Auth Server, use the public web address of your Proxy Service
@@ -264,10 +257,10 @@ Replace the following fields with values from your own cluster.
 
 Using a text editor of your choice, write the output generated by the `tbot configure` command to a configuration YAML file, in this example we'll be using `tbot.yaml`.
 
-Once complete, the Machine ID configuration will still require a destination directory to be manually referenced within the configuration file. The destination directory is where Machine ID will write user certificates
+Once complete, the Machine ID configuration will still require a destination directory to be manually referenced within the configuration file. The destination directory is where Machine ID will write certificates
 which can be used by application and tools to start Machine ID. In the configuration yaml `tbot.yaml`, this configuration will additionally be used to designate the **principal**,
 in this case the Domain Name that we'll be applying to the tbot configuration to access a Node.
-The new configuration YAML will require a `destination` field and `ssh_host_cert` subfield that resembles the following, replacing `nodename.my.domain.com` with your own required domain name:
+The new configuration YAML will require a `destination` field and `ssh_host_cert` subfield that resembles the following, replacing `nodename.my.domain.com` with your own required domain name or IP addresses:
 
 ```
 destinations:
@@ -309,8 +302,8 @@ Note the `renewal_interval` field, which will determine the cadence in which new
 
 ## Step 4/4 Start Machine ID and create a host certificate
 
-Using your configuration file, The `tbot start -c` command will start running Machine ID in a loop,
-writing renewable certificates to /var/lib/teleport/bot according to your configuration, and the short-lived certificates including the Host Certificate your bot will use to `/opt/machine-id`.
+Using your configuration file, The `tbot start` command will start running Machine ID in a loop,
+writing renewable certificates to `/var/lib/teleport/bot` according to your configuration, and the short-lived certificates including the Host Certificate your bot will use to `/opt/machine-id`.
 
 In a production environment you will want to run Machine ID in the background using a service manager like systemd. However, in this guide you will run it in the foreground to better understand how it works.
 
@@ -363,41 +356,9 @@ Your output will resemble the following:
 
 ## Next Steps
 
-Now that Host Certificates have been created with machine ID, they can be applied to OpenSSH configurations as needed. For more information regarding the next steps
+Now that Host Certificates have been created with Teleport, they can be applied to OpenSSH configurations as needed. For more information regarding the next steps
 to connect to OpenSSH with Machine ID, see the following documentation:
 
-- [Using Teleport With OpenSSH](../server-access/guides/openssh/)
+- [Using Teleport With OpenSSH](../../server-access/guides/openssh.mdx)
 - [Using SSH Host Certificates](https://goteleport.com/blog/how-to-ssh-properly/)
-- [Machine ID Configuration Reference](../machine-id/reference/configuration/)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- [Machine ID Configuration Reference](../machine-id/reference/configuration.mdx)
