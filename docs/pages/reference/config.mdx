@@ -867,3 +867,10 @@ Replaced `teleport.auth_servers` with either `teleport.auth_server` or `teleport
 **Introduced in Teleport v8**
 
 Added support for multiplexing via `auth_service.proxy_listener_mode`.
+
+Removed the default values being set for:
+
+- `proxy_service.kube_listen_addr`
+- `proxy_service.ssh_public_addr`
+- `proxy_service.tunnel_listen_addr`
+- `proxy_service.web_listen_addr`
