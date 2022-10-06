@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 )
@@ -66,7 +67,10 @@ func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emit
 	s.emit(ctx, emitter, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sessionID string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sid string, desktop types.WindowsDesktop) {
+	// Ensure audit cache gets cleaned up
+	s.auditCache.Delete(sessionID(sid))
+
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -78,7 +82,7 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitte
 		},
 		UserMetadata: userMetadata,
 		SessionMetadata: events.SessionMetadata{
-			SessionID: sessionID,
+			SessionID: sid,
 			WithMFA:   id.MFAVerified,
 		},
 		WindowsDesktopService: s.cfg.Heartbeat.HostUUID,
@@ -149,4 +153,9 @@ func (s *WindowsService) emit(ctx context.Context, emitter events.Emitter, event
 	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)
 	}
+}
+
+// onSharedDirectoryAnnounce adds the shared directory's name to the auditCache.
+func (s *WindowsService) onSharedDirectoryAnnounce(sid string, m tdp.SharedDirectoryAnnounce) {
+	s.auditCache.SetName(sessionID(sid), directoryID(m.DirectoryID), directoryName(m.Name))
 }

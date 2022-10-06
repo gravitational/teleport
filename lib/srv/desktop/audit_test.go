@@ -49,6 +49,7 @@ func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
 			},
 			Clock: clockwork.NewFakeClockAt(time.Now()),
 		},
+		auditCache: NewSharedDirectoryAuditCache(),
 	}
 
 	id := &tlsca.Identity{

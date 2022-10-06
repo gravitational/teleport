@@ -333,3 +333,63 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.Equal(t, s.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
+
+// TestAuditCacheLifecycle confirms that the audit cache is properly
+// initialized upon receipt of a tdp.SharedDirectoryAnnounce message,
+// and properly cleaned up upon session end.
+func TestAuditCacheLifecycle(t *testing.T) {
+	s, id, emitter := setup()
+	sidString := "session-0"
+	sid := sessionID(sidString)
+	handler := s.makeTDPReceiveHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sidString, "windows.example.com")
+
+	msg := tdp.SharedDirectoryAnnounce{
+		DirectoryID: 2,
+		Name:        "test-dir",
+	}
+	handler(msg)
+
+	// Check than an initialized audit cache entry is created
+	// for sessionID upon receipt of a tdp.SharedDirectoryAnnounce.
+	entry, ok := s.auditCache.get(sid)
+	require.True(t, ok)
+	require.NotNil(t, entry.nameCache)
+	require.NotNil(t, entry.readRequestCache)
+	require.NotNil(t, entry.writeRequestCache)
+
+	// Confirm that audit cache entry for sid
+	// is in the expected state.
+	name, ok := s.auditCache.GetName(sid, 2)
+	require.True(t, ok)
+	require.Equal(t, directoryName("test-dir"), name)
+	_, ok = s.auditCache.GetReadRequestInfo(sid, 999)
+	require.False(t, ok)
+	_, ok = s.auditCache.GetWriteRequestInfo(sid, 999)
+	require.False(t, ok)
+
+	// Simulate a session end event
+	startTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
+	desktop := &types.WindowsDesktopV3{}
+	s.onSessionEnd(
+		context.Background(),
+		s.cfg.Emitter,
+		id,
+		startTime,
+		true,
+		"Administrator",
+		sidString,
+		desktop,
+	)
+
+	// Confirm that the audit cache was cleaned up
+	_, ok = s.auditCache.get(sid)
+	require.False(t, ok)
+	_, ok = s.auditCache.GetName(sid, 2)
+	require.False(t, ok)
+	_, ok = s.auditCache.GetReadRequestInfo(sid, 999)
+	require.False(t, ok)
+	_, ok = s.auditCache.GetWriteRequestInfo(sid, 999)
+	require.False(t, ok)
+}

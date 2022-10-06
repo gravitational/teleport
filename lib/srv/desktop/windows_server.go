@@ -125,6 +125,11 @@ type WindowsService struct {
 	// cfg.AccessPoint.GetClusterName multiple times.
 	clusterName string
 
+	// auditCache caches information from shared directory
+	// TDP messages that are needed for
+	// creating shared directory audit events.
+	auditCache sharedDirectoryAuditCache
+
 	closeCtx context.Context
 	close    func()
 }
@@ -361,6 +366,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
+		auditCache:  NewSharedDirectoryAuditCache(),
 	}
 
 	// initialize LDAP - if this fails it will automatically schedule a retry.
@@ -954,6 +960,8 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
 			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
+		case tdp.SharedDirectoryAnnounce:
+			s.onSharedDirectoryAnnounce(sessionID, m.(tdp.SharedDirectoryAnnounce))
 		}
 	}
 }

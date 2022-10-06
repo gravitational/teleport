@@ -52,8 +52,8 @@ type sharedDirectoryAuditCache struct {
 	sync.RWMutex
 }
 
-func newSharedDirectoryAuditCache() *sharedDirectoryAuditCache {
-	return &sharedDirectoryAuditCache{
+func NewSharedDirectoryAuditCache() sharedDirectoryAuditCache {
+	return sharedDirectoryAuditCache{
 		m: make(map[sessionID]sharedDirectoryAuditCacheEntry),
 	}
 }
@@ -68,6 +68,9 @@ func (c *sharedDirectoryAuditCache) get(sid sessionID) (entry sharedDirectoryAud
 
 // getInitialized gets an initialized sharedDirectoryAuditCacheEntry, mapped to sid.
 // If an entry at sid already exists, it returns that, otherwise it returns an empty, initialized entry.
+//
+// This should be called at the start of any SetX method to ensure that we never get a
+// "panic: assignment to entry in nil map".
 func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry sharedDirectoryAuditCacheEntry) {
 	entry, ok := c.get(sid)
 
@@ -75,6 +78,7 @@ func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry sharedD
 		c.Lock()
 		defer c.Unlock()
 		entry.init()
+		c.m[sid] = entry
 	}
 
 	return entry
@@ -141,4 +145,8 @@ func (c *sharedDirectoryAuditCache) GetWriteRequestInfo(sid sessionID, cid compl
 
 	info, ok = entry.writeRequestCache[cid]
 	return
+}
+
+func (c *sharedDirectoryAuditCache) Delete(sid sessionID) {
+	delete(c.m, sid)
 }
