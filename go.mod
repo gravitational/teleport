@@ -363,9 +363,6 @@ replace (
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1
-	// Our fork includes support for RFC 8308 https://go-review.googlesource.com/c/crypto/+/396714/
-	// It should be dropped as soon as this PR is merged into upstream.
-	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221005181411-e69ec148c162
 )
 
 // Exclude etcd/v3 from the modules graph.

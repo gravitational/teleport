@@ -33,6 +33,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TODO(jakule): remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1.
 var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(
 	`# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
 {{$dot := . }}
@@ -42,6 +43,7 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
     UserKnownHostsFile "{{ $dot.KnownHostsPath }}"
     IdentityFile "{{ $dot.IdentityFilePath }}"
     CertificateFile "{{ $dot.CertificateFilePath }}"
+    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
     HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
 
 # Flags for all {{ $clusterName }} hosts except the proxy
