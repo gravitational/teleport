@@ -967,12 +967,22 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: rpID,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
 				},
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
@@ -1217,12 +1227,22 @@ func TestFIDO2Register(t *testing.T) {
 			Challenge: challenge,
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: rpID,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferDirectAttestation,
 		},
@@ -1512,12 +1532,22 @@ func TestFIDO2Register_errors(t *testing.T) {
 			Challenge: make([]byte, 32),
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferNoAttestation,
 		},
@@ -1621,12 +1651,22 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 			Challenge: make([]byte, 32),
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferNoAttestation,
 		},
