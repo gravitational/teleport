@@ -927,6 +927,10 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 				// it on the TDP connection
 				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
 			}
+		case byte(tdp.TypeSharedDirectoryReadRequest):
+			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
+				s.onSharedDirectoryReadRequest(sessionID, message)
+			}
 		}
 	}
 }
@@ -962,6 +966,8 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
 		case tdp.SharedDirectoryAnnounce:
 			s.onSharedDirectoryAnnounce(sessionID, m.(tdp.SharedDirectoryAnnounce))
+		case tdp.SharedDirectoryReadResponse:
+			s.onSharedDirectoryReadResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
 		}
 	}
 }

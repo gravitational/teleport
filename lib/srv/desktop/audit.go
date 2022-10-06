@@ -149,13 +149,119 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.
 	s.emit(ctx, emitter, event)
 }
 
+// onSharedDirectoryAnnounce adds the shared directory's name to the auditCache.
+func (s *WindowsService) onSharedDirectoryAnnounce(sid string, m tdp.SharedDirectoryAnnounce) {
+	s.auditCache.SetName(sessionID(sid), directoryID(m.DirectoryID), directoryName(m.Name))
+}
+
+// onSharedDirectoryReadRequest adds ReadRequestInfo to the auditCache.
+func (s *WindowsService) onSharedDirectoryReadRequest(sid string, m tdp.SharedDirectoryReadRequest) {
+	s.auditCache.SetReadRequestInfo(sessionID(sid), completionID(m.CompletionID), readRequestInfo{
+		directoryID: directoryID(m.DirectoryID),
+		path:        m.Path,
+		offset:      m.Offset,
+	})
+}
+
+// onSharedDirectoryReadResponse emits a DesktopSharedDirectoryRead audit event.
+func (s *WindowsService) onSharedDirectoryReadResponse(
+	ctx context.Context,
+	emitter events.Emitter,
+	id *tlsca.Identity,
+	sid string,
+	desktopAddr string,
+	m tdp.SharedDirectoryReadResponse,
+) {
+	var did directoryID
+	var path string
+	var offset uint64
+	var name directoryName
+	// Gather info from the audit cache
+	info, ok := s.auditCache.GetReadRequestInfo(sessionID(sid), completionID(m.CompletionID))
+	if ok {
+		// Only search for the directory name if we retrieved the directoryID from the audit cache.
+		name, ok = s.auditCache.GetName(sessionID(sid), did)
+		if !ok {
+			name = events.UnknownEvent
+			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
+		}
+		did = info.directoryID
+		path = info.path
+		offset = info.offset
+	} else {
+		path = events.UnknownEvent
+		name = events.UnknownEvent
+		s.cfg.Log.Warnf("failed to find audit information corresponding to sessionID(%v), completionID(%v)", sid, m.CompletionID)
+	}
+
+	event := &events.DesktopSharedDirectoryRead{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopSharedDirectoryReadEvent,
+			Code:        libevents.DesktopSharedDirectoryReadCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sid,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		Status:        statusFromErrCode(m.ErrCode),
+		DesktopAddr:   desktopAddr,
+		DirectoryName: string(name),
+		DirectoryID:   uint32(did),
+		Path:          path,
+		Length:        m.ReadDataLength,
+		Offset:        offset,
+	}
+
+	s.emit(ctx, emitter, event)
+}
+
 func (s *WindowsService) emit(ctx context.Context, emitter events.Emitter, event events.AuditEvent) {
 	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)
 	}
 }
 
-// onSharedDirectoryAnnounce adds the shared directory's name to the auditCache.
-func (s *WindowsService) onSharedDirectoryAnnounce(sid string, m tdp.SharedDirectoryAnnounce) {
-	s.auditCache.SetName(sessionID(sid), directoryID(m.DirectoryID), directoryName(m.Name))
+func statusFromErrCode(errCode uint32) events.Status {
+	success := errCode == tdp.ErrCodeNil
+
+	// early return for most common case
+	if success {
+		return events.Status{
+			Success:     success,
+			UserMessage: succeededSatusMessage,
+		}
+	}
+
+	msg := unknownErrStatusMsg
+	switch errCode {
+	case tdp.ErrCodeFailed:
+		msg = failedStatusMessage
+	case tdp.ErrCodeDoesNotExist:
+		msg = doesNotExistStatusMessage
+	case tdp.ErrCodeAlreadyExists:
+		msg = alreadyExistsStatusMessage
+	}
+
+	return events.Status{
+		Success:     success,
+		Error:       msg,
+		UserMessage: msg,
+	}
+
 }
+
+const (
+	succeededSatusMessage      = "success"
+	failedStatusMessage        = "operation failed"
+	doesNotExistStatusMessage  = "item does not exist"
+	alreadyExistsStatusMessage = "item already exists"
+	unknownErrStatusMsg        = "unknown error"
+)

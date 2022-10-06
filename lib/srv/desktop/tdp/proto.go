@@ -1417,3 +1417,11 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v >> 8))
 	b.WriteByte(byte(v))
 }
+
+// These correspond to TdpErrCode enum in the rust RDP client.
+const (
+	ErrCodeNil           uint32 = 0
+	ErrCodeFailed        uint32 = 1
+	ErrCodeDoesNotExist  uint32 = 2
+	ErrCodeAlreadyExists uint32 = 3
+)
