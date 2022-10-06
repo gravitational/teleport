@@ -931,12 +931,10 @@ func (c *installerCollection) resources() []types.Resource {
 }
 
 func (c *installerCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Script"})
 	for _, inst := range c.installers {
-		t.AddRow([]string{
-			inst.GetScript(),
-		})
+		fmt.Printf("Script: %s\n----------\n", inst.GetName())
+		fmt.Println(inst.GetScript())
+		fmt.Println("----------")
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return nil
 }
