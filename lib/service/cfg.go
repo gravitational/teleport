@@ -657,6 +657,10 @@ type AuthConfig struct {
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore keystore.Config
+
+	// LoadAllCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
+	// instead of just the host CA for the current cluster.
+	LoadAllCAs bool
 }
 
 // SSHConfig configures SSH server node role

@@ -849,7 +849,10 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
 			switch cfg.JoinMethod {
-			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
+			case types.JoinMethodToken,
+				types.JoinMethodUnspecified,
+				types.JoinMethodIAM,
+				types.JoinMethodGitHub:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
 				// Teleport starts very early in the node initialization cycle and /dev/urandom
@@ -1604,6 +1607,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
 		FIPS:                    cfg.FIPS,
+		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -4794,8 +4798,8 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
 	if !isDebugMode() {
-		fs, err := web.NewStaticFileSystem() //nolint:staticcheck
-		if err != nil {                      //nolint:staticcheck
+		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck
+		if err != nil {                              //nolint:staticcheck
 			return nil, trace.Wrap(err)
 		}
 		return fs, nil
