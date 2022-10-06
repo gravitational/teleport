@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -105,6 +106,9 @@ type SignParams struct {
 	// Roles are the roles assigned to the user within Teleport.
 	Roles []string
 
+	// Traits are the traits assigned to the user within Teleport.
+	Traits wrappers.Traits
+
 	// Expiry is time to live for the token.
 	Expires time.Time
 
@@ -119,6 +123,9 @@ func (p *SignParams) Check() error {
 	}
 	if len(p.Roles) == 0 {
 		return trace.BadParameter("roles missing")
+	}
+	if len(p.Traits) == 0 {
+		return trace.BadParameter("traits missing")
 	}
 	if p.Expires.IsZero() {
 		return trace.BadParameter("expires missing")
@@ -177,6 +184,7 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		},
 		Username: p.Username,
 		Roles:    p.Roles,
+		Traits:   p.Traits,
 	}
 
 	return k.sign(claims)
@@ -324,6 +332,9 @@ type Claims struct {
 
 	// Roles returns the list of roles assigned to the user within Teleport.
 	Roles []string `json:"roles"`
+
+	// Traits returns the traits assigned to the user within Teleport.
+	Traits wrappers.Traits `json:"traits"`
 }
 
 // GenerateKeyPair generates and return a PEM encoded private and public
