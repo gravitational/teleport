@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -149,7 +148,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/trustedclusters/validate", srv.withAuth(srv.validateTrustedCluster))
 
 	// Tokens
-	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
 
 	// Active sessions
@@ -169,16 +167,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/configuration/static_tokens", srv.withAuth(srv.deleteStaticTokens))
 	srv.POST("/:version/configuration/static_tokens", srv.withAuth(srv.setStaticTokens))
 
-	// OIDC
-	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest)) // DELETE in 11.0.0
+	// SSO validation handlers
 	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
-
-	// SAML handlers
-	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
-
-	// Github connector
-	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
 	// Audit logs AKA events
@@ -677,19 +668,6 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 	return string(cert), nil
 }
 
-// DELETE IN 11.0.0
-func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req proto.GenerateTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := auth.GenerateToken(r.Context(), &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return token, nil
-}
-
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -843,23 +821,6 @@ func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
 }
 
-type createOIDCAuthRequestReq struct {
-	Req types.OIDCAuthRequest `json:"req"`
-}
-
-// DELETE IN 11.0.0
-func (s *APIServer) createOIDCAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createOIDCAuthRequestReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.CreateOIDCAuthRequest(r.Context(), req.Req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
 type validateOIDCAuthCallbackReq struct {
 	Query url.Values `json:"query"`
 }
@@ -916,23 +877,6 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 		raw.HostSigners[i] = data
 	}
 	return &raw, nil
-}
-
-type createSAMLAuthRequestReq struct {
-	Req types.SAMLAuthRequest `json:"req"`
-}
-
-// DELETE IN 11.0.0
-func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createSAMLAuthRequestReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.CreateSAMLAuthRequest(r.Context(), req.Req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
 }
 
 type validateSAMLResponseReq struct {
@@ -992,31 +936,6 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 		raw.HostSigners[i] = data
 	}
 	return &raw, nil
-}
-
-// createGithubAuthRequestReq is a request to start Github OAuth2 flow
-type createGithubAuthRequestReq struct {
-	// Req is the request parameters
-	Req types.GithubAuthRequest `json:"req"`
-}
-
-/* createGithubAuthRequest creates a new request for Github OAuth2 flow
-
-   POST /:version/github/requests/create
-
-   Success response: types.GithubAuthRequest
-*/
-// DELETE IN 11.0.0
-func (s *APIServer) createGithubAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req createGithubAuthRequestReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := auth.CreateGithubAuthRequest(r.Context(), req.Req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
