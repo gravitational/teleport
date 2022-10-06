@@ -442,7 +442,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:18
+# Generated at dronegen/mac.go:19
 ################################################
 
 kind: pipeline
@@ -2871,7 +2871,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:18
+# Generated at dronegen/mac.go:19
 ################################################
 
 kind: pipeline
@@ -2952,19 +2952,37 @@ steps:
     $FILE > $FILE.sha256; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Assume AWS Role
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /tmp/build-darwin-amd64/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64/credentials
 - name: Upload to S3
   commands:
   - set -u
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64/credentials
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Register artifacts
   commands:
@@ -3024,7 +3042,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:18
+# Generated at dronegen/mac.go:19
 ################################################
 
 kind: pipeline
@@ -3084,6 +3102,27 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
+- name: Assume AWS Role
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /tmp/build-darwin-amd64-pkg/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
 - name: Download built tarball artifacts from S3
   commands:
   - set -u
@@ -3094,13 +3133,10 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz
     $WORKSPACE_DIR/go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
@@ -3141,13 +3177,10 @@ steps:
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Register artifacts
   commands:
@@ -3207,7 +3240,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:18
+# Generated at dronegen/mac.go:19
 ################################################
 
 kind: pipeline
@@ -3267,6 +3300,27 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
+- name: Assume AWS Role
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /tmp/build-darwin-amd64-pkg-tsh/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
 - name: Download built tarball artifacts from S3
   commands:
   - set -u
@@ -3277,13 +3331,10 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz
     $WORKSPACE_DIR/go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
@@ -3324,13 +3375,10 @@ steps:
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Register artifacts
   commands:
@@ -5459,6 +5507,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 24ce4f21facc14416138e9aa833209c16a12cb45a6a1585682b1f8caad9d0dfe
+hmac: 489089f9fbd90385d85b8f3b2c9e6e35219eb32a9e8bcba23bb10c7bf09dbda4
 
 ...
