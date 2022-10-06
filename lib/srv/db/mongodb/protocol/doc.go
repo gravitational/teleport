@@ -30,18 +30,18 @@ limitations under the License.
 //
 // Package layout:
 //
-// * message.go: Defines wire message common interface and provides methods for
-//   reading wire messages from client/server connections.
+//   - message.go: Defines wire message common interface and provides methods for
+//     reading wire messages from client/server connections.
 //
-// * opmsg.go: Contains marshal/unmarshal for OP_MSG - extensible message that
-//   MongoDB 3.6 and higher use for all commands.
+//   - opmsg.go: Contains marshal/unmarshal for OP_MSG - extensible message that
+//     MongoDB 3.6 and higher use for all commands.
 //
-// * opquery.go: Contains marshal/unmarshal for OP_QUERY - a legacy command,
-//   still used for some operations (e.g. first "isMaster" handshake message).
+//   - opquery.go: Contains marshal/unmarshal for OP_QUERY - a legacy command,
+//     still used for some operations (e.g. first "isMaster" handshake message).
 //
-// * opreply.go: Contains marshal/unmarshal for OP_REPLY - a reply message sent
-//   by a database to an OP_QUERY command.
+//   - opreply.go: Contains marshal/unmarshal for OP_REPLY - a reply message sent
+//     by a database to an OP_QUERY command.
 //
-// * errors.go: Provides methods for sending errors in wire message to client
-//   connections.
+//   - errors.go: Provides methods for sending errors in wire message to client
+//     connections.
 package protocol

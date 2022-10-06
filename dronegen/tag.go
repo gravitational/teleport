@@ -24,13 +24,24 @@ const (
 	rpmPackage = "rpm"
 	// debPackage is the DEB package type
 	debPackage = "deb"
+
+	// tagCleanupPipelineName is the name of the pipeline that cleans up
+	// artifacts from a previous partially-failed build
+	tagCleanupPipelineName = "clean-up-previous-build"
 )
 
-const releasesHost = "https://releases-staging.platform.teleport.sh"
+const releasesHost = "https://releases-prod.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
-func tagCheckoutCommands(fips bool) []string {
-	commands := []string{
+func tagCheckoutCommands(b buildType) []string {
+	var commands []string
+
+	if b.hasTeleportConnect() {
+		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
+		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
+	}
+
+	commands = append(commands,
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
@@ -41,6 +52,21 @@ func tagCheckoutCommands(fips bool) []string {
 		`git submodule update --init e`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
+	)
+
+	if b.hasTeleportConnect() {
+		// TODO(zmb3): this can be removed after webapps migration
+		// clone webapps for the Teleport Connect Source code
+		commands = append(commands,
+			`cd /go/src/github.com/gravitational/webapps`,
+			`git clone https://github.com/gravitational/webapps.git .`,
+			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
+			`git submodule update --init packages/webapps.e`,
+			`cd -`,
+		)
+	}
+
+	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
 		// create necessary directories
 		`mkdir -p /go/cache /go/artifacts`,
@@ -51,7 +77,7 @@ if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
   exit 1
 fi
 echo "$$VERSION" > /go/.version.txt`,
-	}
+	)
 	return commands
 }
 
@@ -63,7 +89,7 @@ func tagBuildCommands(b buildType) []string {
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
 
-	if b.fips {
+	if b.fips || b.hasTeleportConnect() {
 		commands = append(commands,
 			"export VERSION=$(cat /go/.version.txt)",
 		)
@@ -84,11 +110,10 @@ func tagBuildCommands(b buildType) []string {
 
 	// Build Teleport Connect on suported OS/arch
 	if b.hasTeleportConnect() {
-		commands = append(commands,
-			`cd /go/src/github.com/gravitational/webapps`,
-			`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
-			`cd -`,
-		)
+		switch b.os {
+		case "linux":
+			commands = append(commands, `make -C build.assets teleterm`)
+		}
 
 	}
 
@@ -148,8 +173,21 @@ func tagCopyArtifactCommands(b buildType) []string {
 		}
 	}
 
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm" -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;`,
+		)
+	}
+
 	// generate checksums
 	commands = append(commands, fmt.Sprintf(`cd /go/artifacts && for FILE in teleport*%s; do sha256sum $FILE > $FILE.sha256; done && ls -l`, extension))
+
+	if b.os == "linux" && b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd /go/artifacts && for FILE in teleport-connect*.deb teleport-connect*.rpm; do
+  sha256sum $FILE > $FILE.sha256;
+done && ls -l`)
+	}
 	return commands
 }
 
@@ -208,7 +246,10 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
-	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline())
+	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
+	ps = append(ps, windowsTagPipeline())
+
+	ps = append(ps, tagCleanupPipeline())
 	return ps
 }
 
@@ -253,6 +294,7 @@ func tagPipeline(b buildType) pipeline {
 		"RUNTIME":          goRuntime,
 	}
 	p.Trigger = triggerTag
+	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = dockerVolumes()
 	p.Services = []service{
@@ -265,7 +307,7 @@ func tagPipeline(b buildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(b.fips),
+			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
 		{
@@ -290,10 +332,9 @@ func tagPipeline(b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
-			Failure:  "ignore",
 			Environment: map[string]value{
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 	}
@@ -363,7 +404,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   products="$name"
   if [ "$name" = "tsh" ]; then
     products="teleport teleport-ent"
-  elif [ "$name" = "Teleport Connect" ]; then
+  elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
     description="Teleport Connect"
     products="teleport teleport-ent"
   fi
@@ -399,9 +440,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	environment := map[string]value{
-		"ARCH":             {raw: b.arch},
-		"TMPDIR":           {raw: "/go"},
-		"ENT_TARBALL_PATH": {raw: "/go/artifacts"},
+		"ARCH":                  {raw: b.arch},
+		"TMPDIR":                {raw: "/go"},
+		"ENT_TARBALL_PATH":      {raw: "/go/artifacts"},
+		"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+		"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
@@ -418,8 +461,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 
 	packageBuildCommands := []string{
 		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
+		`apk add --no-cache aws-cli`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`export VERSION=$(cat /go/.version.txt)`,
+		// Login to Amazon ECR Public
+		`aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws`,
 	}
 
 	makeCommand := fmt.Sprintf("make %s", packageType)
@@ -463,7 +509,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Trigger = triggerTag
-	p.DependsOn = []string{dependentPipeline}
+	p.DependsOn = []string{dependentPipeline, tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = packageDockerVolumes
 	p.Services = []service{
@@ -476,7 +522,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(b.fips),
+			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
 		{
@@ -512,12 +558,15 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 	}
 	return p
+}
+
+func tagCleanupPipeline() pipeline {
+	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "relcli auto_destroy -f -v 6")
 }

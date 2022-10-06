@@ -256,7 +256,7 @@ response.
 #### 16 - Shared Directory Create Response
 
 ```
-| message type (16) | completion_id uint32 | err_code uint32 |
+| message type (16) | completion_id uint32 | err_code uint32 | file_system_object fso |
 ```
 
 This message is sent by the client to the server to acknowledge a `Shared Directory Create Request` was successfully executed. A `Shared Directory Create Request`
@@ -265,6 +265,8 @@ that fails should respond with an "operation failed" `Shared Directory Error`.
 `completion_id` must match the `completion_id` of the `Shared Directory Create Request` that this message is responding to.
 
 `err_code` is an error code. If a filesystem object at `path` already exists, this should be set to `3` ("resource already exists").
+
+`file_system_object` is the file system object that was created.
 
 #### 17 - Shared Directory Delete Request
 
@@ -444,8 +446,12 @@ This message is sent by the client to the server in response to a `Shared Direct
 ##### File System Object (fso)
 
 ```
-| last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
+| last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
 ```
+
+The design of this message is constrained by [what information is made available to us by the browser](https://developer.mozilla.org/en-US/docs/Web/API/File) and
+which [File Information Classes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1) are potentially
+requested by RDP.
 
 For files, `last_modified` is the last modified time of the file as specified by the [`mtime`](https://www.makeuseof.com/linux-file-timestamps/), in milliseconds
 since the [UNIX epoch](https://en.wikipedia.org/wiki/Unix_time). For directories, `last_modified` should also be set to the
@@ -462,9 +468,8 @@ types available in RDP's [File Attributes](https://docs.microsoft.com/en-us/open
 0. file
 1. directory
 
-The design of this message is constrained by [what information is made available to us by the browser](https://developer.mozilla.org/en-US/docs/Web/API/File) and
-which [File Information Classes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1) are potentially
-requested by RDP.
+`is_empty` says whether or not a directory is empty. For objects where `file_type = 0` (files), this field should be
+ignored.
 
 `path_length` is the length in bytes of the `path`
 
@@ -485,6 +490,13 @@ For now, all errors will be unspecified, and translated into
 [`NTSTATUS::STATUS_UNSUCCESSFUL`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55) over RDP. Later, we
 can add more specific error messages for more specific RDP error handling,
 [as they do in FreeRDP](https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L67-L132).
+
+##### bool
+
+`bool` is a `uint8` specifying True or False:
+
+0. False
+1. True
 
 ## RDP --> TDP Translation for `IRP_MJ_READ`
 

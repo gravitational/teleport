@@ -56,6 +56,13 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 }
 
 func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+	// Check that file copying is allowed Node-wide again here in case
+	// this connection was proxied, the proxy doesn't know if file copying
+	// is allowed for certain Nodes.
+	if !serverCtx.AllowFileCopying {
+		return srv.ErrNodeFileCopyingNotPermitted
+	}
+
 	s.ch = ch
 
 	// Create two sets of anonymous pipes to give the child process
@@ -83,10 +90,14 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverCtx.ExecRequest, err = srv.NewExecRequest(serverCtx, executable+" sftp")
+	execRequest, err := srv.NewExecRequest(serverCtx, executable+" sftp")
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := serverCtx.SetExecRequest(execRequest); err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -100,7 +111,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		return trace.Wrap(err)
 	}
 	// TODO: put in cgroup?
-	serverCtx.ExecRequest.Continue()
+	execRequest.Continue()
 
 	// Copy the SSH channel to and from the anonymous pipes
 	s.errCh = make(chan error, copyingGoroutines)

@@ -36,10 +36,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -71,6 +69,8 @@ var (
 	)
 )
 
+var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+
 func init() {
 	prometheus.MustRegister(serverTX)
 	prometheus.MustRegister(serverRX)
@@ -101,6 +101,9 @@ type AccessPoint interface {
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
+	services.ConnectionDiagnosticTraceAppender
 }
 
 // Server is regular or forwarding SSH server.
@@ -148,11 +151,18 @@ type Server interface {
 	// using reverse tunnel.
 	UseTunnel() bool
 
-	// GetBPF returns the BPF service used for enhanced session recording.
-	GetBPF() bpf.BPF
+	// OpenBPFSession will start monitoring all events within a session and
+	// emitting them to the Audit Log.
+	OpenBPFSession(ctx *ServerContext) (uint64, error)
 
-	// GetRestrictedSessionManager returns the manager for restricting user activity
-	GetRestrictedSessionManager() restricted.Manager
+	// CloseBPFSession will stop monitoring events for a particular session.
+	CloseBPFSession(ctx *ServerContext) error
+
+	// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
+	OpenRestrictedSession(ctx *ServerContext, cgroupID uint64)
+
+	// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+	CloseRestrictedSession(ctx *ServerContext, cgroupID uint64)
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -167,7 +177,7 @@ type Server interface {
 	// temporary teleport users or not
 	GetCreateHostUser() bool
 
-	// GetHostUser returns the HostUsers instance being used to manage
+	// GetHostUsers returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
 
@@ -274,8 +284,9 @@ type ServerContext struct {
 	// IsTestStub is set to true by tests.
 	IsTestStub bool
 
-	// ExecRequest is the command to be executed within this session context.
-	ExecRequest Exec
+	// execRequest is the command to be executed within this session context. Do
+	// not get or set this field directly, use (Get|Set)ExecRequest.
+	execRequest Exec
 
 	// ClusterName is the name of the cluster current user is authenticated with.
 	ClusterName string
@@ -284,23 +295,20 @@ type ServerContext struct {
 	// time this context was created.
 	SessionRecordingConfig types.SessionRecordingConfig
 
-	// RemoteClient holds a SSH client to a remote server. Only used by the
+	// RemoteClient holds an SSH client to a remote server. Only used by the
 	// recording proxy.
 	RemoteClient *tracessh.Client
 
-	// RemoteSession holds a SSH session to a remote server. Only used by the
+	// RemoteSession holds an SSH session to a remote server. Only used by the
 	// recording proxy.
 	RemoteSession *tracessh.Session
 
-	// clientLastActive records the last time there was activity from the client
-	clientLastActive time.Time
-
 	// disconnectExpiredCert is set to time when/if the certificate should
-	// be disconnected, set to empty if no disconect is necessary
+	// be disconnected, set to empty if no disconnect is necessary
 	disconnectExpiredCert time.Time
 
 	// clientIdleTimeout is set to the timeout on
-	// on client inactivity, set to 0 if not setup
+	// client inactivity, set to 0 if not setup
 	clientIdleTimeout time.Duration
 
 	// cancelContext signals closure to all outstanding operations
@@ -314,8 +322,12 @@ type ServerContext struct {
 	// session. Terminals can be allocated for both "exec" or "session" requests.
 	termAllocated bool
 
-	// request is the request that was issued by the client
-	request *ssh.Request
+	// ttyName is the name of the TTY used for a session, ex: /dev/pts/0
+	ttyName string
+
+	// sshRequest is the SSH request that was issued by the client. Do not get or
+	// set this field directly, use (Get|Set)SSHRequest instead.
+	sshRequest *ssh.Request
 
 	// cmd{r,w} are used to send the command from the parent process to the
 	// child process.
@@ -332,7 +344,7 @@ type ServerContext struct {
 	ChannelType string
 
 	// SrcAddr is the source address of the request. This the originator IP
-	// address and port in a SSH "direct-tcpip" request. This value is only
+	// address and port in an SSH "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	SrcAddr string
 
@@ -340,6 +352,10 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
+	// by the server.
+	AllowFileCopying bool
 
 	// x11rdy{r,w} is used to signal from the child process to the
 	// parent process when X11 forwarding is set up.
@@ -508,6 +524,31 @@ func (c *ServerContext) GetServer() Server {
 	return c.srv
 }
 
+// StreamWriter returns the underlying stream writer for the session or an
+// events.DiscardStream if the session has yet to be established.
+func (c *ServerContext) StreamWriter() events.StreamWriter {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.session == nil {
+		return &events.DiscardStream{}
+	}
+
+	return c.session.Recorder()
+}
+
+// GetPID returns the PID of the Teleport process that was re-execed
+// or -1 if the process has not yet completed spawning.
+func (c *ServerContext) GetPID() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.term == nil {
+		return -1
+	}
+
+	return c.term.PID()
+}
+
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
 // no session is found, a new one is created. If one is found, it is returned.
 func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
@@ -540,21 +581,6 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 // use the returned ssh.Channel instead of the original one.
 func (c *ServerContext) TrackActivity(ch ssh.Channel) ssh.Channel {
 	return newTrackingChannel(ch, c)
-}
-
-// GetClientLastActive returns time when client was last active
-func (c *ServerContext) GetClientLastActive() time.Time {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.clientLastActive
-}
-
-// UpdateClientActivity sets last recorded client activity associated with this context
-// either channel or session
-func (c *ServerContext) UpdateClientActivity() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.clientLastActive = c.srv.GetClock().Now().UTC()
 }
 
 // AddCloser adds any closer in ctx that will be called
@@ -627,6 +653,25 @@ func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.session
+}
+
+func (c *ServerContext) SetAllowFileCopying(allow bool) {
+	c.AllowFileCopying = allow
+}
+
+// CheckFileCopyingAllowed returns an error if remote file operations via
+// SCP or SFTP are not allowed by the user's role or the node's config.
+func (c *ServerContext) CheckFileCopyingAllowed() error {
+	// Check if remote file operations are disabled for this node.
+	if !c.AllowFileCopying {
+		return ErrNodeFileCopyingNotPermitted
+	}
+	// Check if the user's RBAC role allows remote file operations.
+	if !c.Identity.AccessChecker.CanCopyFiles() {
+		return errRoleFileCopyingNotPermitted
+	}
+
+	return nil
 }
 
 // OpenXServerListener opens a new XServer unix listener.
@@ -769,7 +814,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	closers := []io.Closer{}
+	var closers []io.Closer
 	if c.term != nil {
 		closers = append(closers, c.term)
 		c.term = nil
@@ -970,15 +1015,15 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	// (exec or shell) is being requested, port forwarding has no command to
 	// execute.
 	var command string
-	if c.ExecRequest != nil {
-		command = c.ExecRequest.GetCommand()
+	if execRequest, err := c.GetExecRequest(); err == nil {
+		command = execRequest.GetCommand()
 	}
 
 	// Extract the request type. This only exists for command execution (exec
 	// or shell), port forwarding requests have no request type.
 	var requestType string
-	if c.request != nil {
-		requestType = c.request.Type
+	if sshRequest, err := c.GetSSHRequest(); err == nil {
+		requestType = sshRequest.Type
 	}
 
 	uaccMetadata, err := newUaccMetadata(c)
@@ -999,6 +1044,8 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		Login:                 c.Identity.Login,
 		Roles:                 roleNames,
 		Terminal:              c.termAllocated || command == "",
+		TerminalName:          c.ttyName,
+		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),
@@ -1128,4 +1175,54 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
 	)
 	return lockTargets, nil
+}
+
+// SetRequest sets the ssh request that was issued by the client.
+// Will return an error if called more than once for a single server context.
+func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.sshRequest != nil {
+		return trace.AlreadyExists("sshRequest has already been set")
+	}
+	c.sshRequest = e
+	return nil
+}
+
+// GetRequest returns the ssh request that was issued by the client and saved on
+// this ServerContext by SetExecRequest, or an error if it has not been set.
+func (c *ServerContext) GetSSHRequest() (*ssh.Request, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.sshRequest == nil {
+		return nil, trace.NotFound("sshRequest has not been set")
+	}
+	return c.sshRequest, nil
+}
+
+// SetExecRequest sets the command to be executed within this session context.
+// Will return an error if called more than once for a single server context.
+func (c *ServerContext) SetExecRequest(e Exec) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.execRequest != nil {
+		return trace.AlreadyExists("execRequest has already been set")
+	}
+	c.execRequest = e
+	return nil
+}
+
+// GetExecRequest returns the exec request that is to be executed within this
+// session context, or an error if it has not been set.
+func (c *ServerContext) GetExecRequest() (Exec, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.execRequest == nil {
+		return nil, trace.NotFound("execRequest has not been set")
+	}
+	return c.execRequest, nil
 }

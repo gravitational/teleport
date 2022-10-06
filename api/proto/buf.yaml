@@ -1,0 +1,36 @@
+version: v1
+deps:
+  # gogo/protobuf v1.3.2, keep in sync with build.assets/Makefile.
+  - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
+lint:
+  use:
+    - DEFAULT
+    - PACKAGE_NO_IMPORT_CYCLE
+    # Top-level types require comments.
+    - COMMENT_ENUM
+    - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+  except:
+    # Allow Google API-style responses (CreateFoo returns Foo).
+    # See https://cloud.google.com/apis/design/standard_methods.
+    - RPC_RESPONSE_STANDARD_NAME
+  ignore:
+    - teleport/legacy/client/proto/authservice.proto
+    - teleport/legacy/client/proto/certs.proto
+    - teleport/legacy/client/proto/proxyservice.proto
+    - teleport/legacy/types/events/events.proto
+    - teleport/legacy/types/types.proto
+    - teleport/legacy/types/wrappers/wrappers.proto
+  ignore_only:
+    # Allow package/directory mismatch for legacy protos.
+    PACKAGE_DIRECTORY_MATCH:
+      - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/webauthn/webauthn.proto
+    # Allow non-versioned packages for legacy protos.
+    PACKAGE_VERSION_SUFFIX:
+      - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/webauthn/webauthn.proto
+breaking:
+  use:
+    - FILE

@@ -232,7 +232,7 @@
                 "image": {
                     "$id": "#/properties/operator/properties/image",
                     "type": "string",
-                    "default": "quay.io/gravitational/teleport-operator"
+                    "default": "public.ecr.aws/gravitational/teleport-operator"
                 },
                 "resources": {
                     "$id": "#/properties/operator/properties/resources",
@@ -465,6 +465,7 @@
                 "replicaCount",
                 "requireAntiAffinity",
                 "certManager",
+                "minReadySeconds",
                 "podDisruptionBudget"
             ],
             "properties": {
@@ -515,6 +516,11 @@
                         }
                     }
                 },
+                "minReadySeconds": {
+                    "$id": "#/properties/highAvailability/properties/minReadySeconds",
+                    "type": "integer",
+                    "default": 15
+                },
                 "podDisruptionBudget": {
                     "$id": "#/properties/highAvailability/properties/podDisruptionBudget",
                     "type": "object",
@@ -560,12 +566,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "quay.io/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "enterpriseImage": {
             "$id": "#/properties/enterpriseImage",
             "type": "string",
-            "default": "quay.io/gravitational/teleport-ent"
+            "default": "public.ecr.aws/gravitational/teleport-ent"
         },
         "logLevel": {
             "$id": "#/properties/logLevel",
@@ -676,6 +682,23 @@
                     "$id": "#/properties/service/spec",
                     "type": "object",
                     "default": {}
+                }
+            }
+        },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/service/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/service/create",
+                    "type": "boolean",
+                    "default": true 
                 }
             }
         },

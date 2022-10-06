@@ -89,7 +89,7 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error
 
 // getRDSDatabases returns a list of database resources representing RDS instances.
 func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
-	instances, err := getAllDBInstances(ctx, f.cfg.RDS, maxPages)
+	instances, err := getAllDBInstances(ctx, f.cfg.RDS, common.MaxPages)
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
@@ -174,7 +174,7 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, er
 
 // getAuroraDatabases returns a list of database resources representing RDS clusters.
 func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, error) {
-	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, maxPages)
+	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, common.MaxPages)
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}
@@ -195,22 +195,35 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 			continue
 		}
 
-		// Add a database from primary endpoint
-		database, err := services.NewDatabaseFromRDSCluster(cluster)
-		if err != nil {
-			f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
-				aws.StringValue(cluster.DBClusterIdentifier), err)
-		} else {
-			databases = append(databases, database)
+		// Find out what types of instances the cluster has. Some examples:
+		// - Aurora cluster with one instance: one writer
+		// - Aurora cluster with three instances: one writer and two readers
+		// - Secondary cluster of a global database: one or more readers
+		var hasWriterInstance, hasReaderInstance bool
+		for _, clusterMember := range cluster.DBClusterMembers {
+			if clusterMember != nil {
+				if aws.BoolValue(clusterMember.IsClusterWriter) {
+					hasWriterInstance = true
+				} else {
+					hasReaderInstance = true
+				}
+			}
 		}
 
-		// Add a database from reader endpoint, only when the reader endpoint
-		// is available and there is more than one instance. When the cluster
-		// contains only a primary instance and no Aurora Replicas, the reader
-		// endpoint connects to the primary instance, which makes the reader
-		// database entry pointless.
+		// Add a database from primary endpoint, if any writer instances.
+		if cluster.Endpoint != nil && hasWriterInstance {
+			database, err := services.NewDatabaseFromRDSCluster(cluster)
+			if err != nil {
+				f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
+					aws.StringValue(cluster.DBClusterIdentifier), err)
+			} else {
+				databases = append(databases, database)
+			}
+		}
+
+		// Add a database from reader endpoint, if any reader instances.
 		// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Reader
-		if cluster.ReaderEndpoint != nil && len(cluster.DBClusterMembers) > 1 {
+		if cluster.ReaderEndpoint != nil && hasReaderInstance {
 			database, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 			if err != nil {
 				f.log.Warnf("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
@@ -276,23 +289,4 @@ func auroraFilters() []*rds.Filter {
 			services.RDSEngineAuroraMySQL,
 			services.RDSEngineAuroraPostgres}),
 	}}
-}
-
-// maxPages is the maximum number of pages to iterate over when fetching databases.
-const maxPages = 10
-
-// filterDatabasesByLabels filters input databases with provided labels.
-func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
-	var matchedDatabases types.Databases
-	for _, database := range databases {
-		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
-		if err != nil {
-			log.Warnf("Failed to match %v against selector: %v.", database, err)
-		} else if match {
-			matchedDatabases = append(matchedDatabases, database)
-		} else {
-			log.Debugf("%v doesn't match selector.", database)
-		}
-	}
-	return matchedDatabases
 }

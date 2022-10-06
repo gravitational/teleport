@@ -64,7 +64,7 @@ const (
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
-//    │   ├── foo                      --> RSA Private Key for user "foo"
+//    │   ├── foo                      --> Private Key for user "foo"
 //    │   ├── foo.pub                  --> Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
@@ -137,11 +137,11 @@ func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtTLSCert)
 }
 
-// SSHCAsPath returns the path to the users's SSH CA's certificates
+// PublicKeyPath returns the path to the users's public key
 // for the given proxy.
 //
 // <baseDir>/keys/<proxy>/<username>.pub
-func SSHCAsPath(baseDir, proxy, username string) string {
+func PublicKeyPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtPub)
 }
 

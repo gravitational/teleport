@@ -23,10 +23,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/jonboulle/clockwork"
 )
@@ -118,7 +119,7 @@ func (b *Backend) retryTx(ctx context.Context, begin func(context.Context) Tx, t
 	ctx, cancel := context.WithTimeout(ctx, b.RetryTimeout)
 	defer cancel()
 
-	var delay *utils.Linear
+	var delay *retryutils.Linear
 	tx := begin(ctx)
 	for {
 		if tx.Err() != nil {
@@ -143,11 +144,11 @@ func (b *Backend) retryTx(ctx context.Context, begin func(context.Context) Tx, t
 			if retryDelayPeriod == 0 { // sanity check (0 produces an error in NewLinear)
 				retryDelayPeriod = DefaultRetryDelayPeriod
 			}
-			delay, err = utils.NewLinear(utils.LinearConfig{
+			delay, err = retryutils.NewLinear(retryutils.LinearConfig{
 				First:  retryDelayPeriod,
 				Step:   retryDelayPeriod,
 				Max:    retryDelayPeriod,
-				Jitter: utils.NewJitter(),
+				Jitter: retryutils.NewJitter(),
 			})
 			if err != nil {
 				return trace.BadParameter("[BUG] invalid retry delay configuration: %v", err)

@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"net/url"
 	"regexp"
 	"sort"
 	"time"
@@ -25,13 +26,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// matchStrictLabel is a fairly conservative allowed charset for labels.
-var matchStrictLabel = regexp.MustCompile(`^[a-z0-9\.\-\/]+$`).MatchString
+// matchAlertLabelKey is a fairly conservative allowed charset for label keys.
+var matchAlertLabelKey = regexp.MustCompile(`^[a-z0-9\.\-\/]+$`).MatchString
+
+// matchAlertLabelVal is a slightly more permissive matcher for label values.
+var matchAlertLabelVal = regexp.MustCompile(`^[a-z0-9\.\-_\/:|]+$`).MatchString
+
+const validLinkDestination = "goteleport.com"
 
 type alertOptions struct {
 	labels   map[string]string
 	severity AlertSeverity
 	created  time.Time
+	expires  time.Time
 }
 
 // AlertOption is a functional option for alert construction.
@@ -62,6 +69,14 @@ func WithAlertCreated(created time.Time) AlertOption {
 	}
 }
 
+// WithAlertExpires sets the alerts expiry time. Auth server automatically applies a
+// 24h expiry before inserting the alert in the backend if none is set.
+func WithAlertExpires(expires time.Time) AlertOption {
+	return func(options *alertOptions) {
+		options.expires = expires.UTC()
+	}
+}
+
 // NewClusterAlert creates a new cluster alert.
 func NewClusterAlert(name string, message string, opts ...AlertOption) (ClusterAlert, error) {
 	options := alertOptions{
@@ -73,8 +88,9 @@ func NewClusterAlert(name string, message string, opts ...AlertOption) (ClusterA
 	alert := ClusterAlert{
 		ResourceHeader: ResourceHeader{
 			Metadata: Metadata{
-				Name:   name,
-				Labels: options.labels,
+				Name:    name,
+				Labels:  options.labels,
+				Expires: &options.expires,
 			},
 		},
 		Spec: ClusterAlertSpec{
@@ -112,10 +128,9 @@ func (c *ClusterAlert) setDefaults() {
 	}
 }
 
-// CheckAndSetDefaults verfies required fields.
+// CheckAndSetDefaults verifies required fields.
 func (c *ClusterAlert) CheckAndSetDefaults() error {
 	c.setDefaults()
-
 	if c.Version != V1 {
 		return trace.BadParameter("unsupported cluster alert version: %s", c.Version)
 	}
@@ -128,6 +143,33 @@ func (c *ClusterAlert) CheckAndSetDefaults() error {
 		return trace.BadParameter("alert name must be specified")
 	}
 
+	if err := c.CheckMessage(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for key, val := range c.Metadata.Labels {
+		if !matchAlertLabelKey(key) {
+			return trace.BadParameter("invalid alert label key: %q", key)
+		}
+		// for links, we relax the conditions on label values
+		if key != AlertLink && !matchAlertLabelVal(val) {
+			return trace.BadParameter("invalid alert label value: %q", val)
+		}
+
+		if key == AlertLink {
+			u, err := url.Parse(val)
+			if err != nil {
+				return trace.BadParameter("invalid alert: label link %q is not a valid URL", val)
+			}
+			if u.Hostname() != validLinkDestination {
+				return trace.BadParameter("invalid alert: label link not allowed %q", val)
+			}
+		}
+	}
+	return nil
+}
+
+func (c *ClusterAlert) CheckMessage() error {
 	if c.Spec.Message == "" {
 		return trace.BadParameter("alert message must be specified")
 	}
@@ -135,15 +177,6 @@ func (c *ClusterAlert) CheckAndSetDefaults() error {
 	for _, c := range c.Spec.Message {
 		if unicode.IsControl(c) {
 			return trace.BadParameter("control characters not supported in alerts")
-		}
-	}
-
-	for key, val := range c.Metadata.Labels {
-		if !matchStrictLabel(key) {
-			return trace.BadParameter("invalid alert label key: %q", key)
-		}
-		if !matchStrictLabel(val) {
-			return trace.BadParameter("invalid alert label value: %q", val)
 		}
 	}
 	return nil

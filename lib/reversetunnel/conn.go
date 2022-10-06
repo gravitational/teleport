@@ -158,8 +158,8 @@ func (c *remoteConn) markInvalid(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	atomic.StoreInt32(&c.invalid, 1)
 	c.lastError = err
+	atomic.StoreInt32(&c.invalid, 1)
 	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
 }
 

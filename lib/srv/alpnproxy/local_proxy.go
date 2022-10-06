@@ -19,7 +19,7 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"io"
+	"crypto/x509"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -64,13 +64,14 @@ type LocalProxyConfig struct {
 	SSHHostKeyCallback ssh.HostKeyCallback
 	// SSHTrustedCluster allows selecting trusted cluster ssh subsystem request.
 	SSHTrustedCluster string
-	// ClientTLSConfig is a client TLS configuration used during establishing
-	// connection to the RemoteProxyAddr.
-	ClientTLSConfig *tls.Config
 	// Certs are the client certificates used to connect to the remote Teleport Proxy.
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
+	// RootCAs overwrites the root CAs used in tls.Config if specified.
+	RootCAs *x509.CertPool
+	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
+	ALPNConnUpgradeRequired bool
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -129,7 +130,7 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
-			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
+			if err := l.handleDownstreamConnection(ctx, conn); err != nil {
 				if utils.IsOKNetworkError(err) {
 					return
 				}
@@ -146,46 +147,31 @@ func (l *LocalProxy) GetAddr() string {
 
 // handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
 // traffic to the upstreamConn (TLS connection to remote host).
-func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
+func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
 	defer downstreamConn.Close()
 
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
-		NextProtos:         l.cfg.GetProtocols(),
-		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-		ServerName:         serverName,
-		Certificates:       l.cfg.Certs,
+	tlsConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, ALPNDialerConfig{
+		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
+		TLSConfig: &tls.Config{
+			NextProtos:         l.cfg.GetProtocols(),
+			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+			ServerName:         l.cfg.SNI,
+			Certificates:       l.cfg.Certs,
+			RootCAs:            l.cfg.RootCAs,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer upstreamConn.Close()
+	defer tlsConn.Close()
 
-	errC := make(chan error, 2)
-	go func() {
-		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(downstreamConn, upstreamConn)
-		errC <- err
-	}()
-	go func() {
-		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(upstreamConn, downstreamConn)
-		errC <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case <-ctx.Done():
-			return trace.NewAggregate(append(errs, ctx.Err())...)
-		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
-			}
-		}
+	var upstreamConn net.Conn = tlsConn
+	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		log.Debug("Using ping connection")
+		upstreamConn = NewPingConn(tlsConn)
 	}
-	return trace.NewAggregate(errs...)
+
+	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
 }
 
 func (l *LocalProxy) Close() error {

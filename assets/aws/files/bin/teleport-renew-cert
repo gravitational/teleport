@@ -4,7 +4,7 @@
 # needs renewal, and renews the cert after that
 
 set -e
-if [[ "${DEBUG}" == "true" ]]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
 

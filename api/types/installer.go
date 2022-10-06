@@ -35,9 +35,11 @@ type Installer interface {
 }
 
 // NewInstallerV1 returns a new installer resource
-func NewInstallerV1(script string) (*InstallerV1, error) {
+func NewInstallerV1(name, script string) (*InstallerV1, error) {
 	installer := &InstallerV1{
-		Metadata: Metadata{},
+		Metadata: Metadata{
+			Name: name,
+		},
 		Spec: InstallerSpecV1{
 			Script: script,
 		},
@@ -51,8 +53,8 @@ func NewInstallerV1(script string) (*InstallerV1, error) {
 // MustNewInstallerV1 creates a new installer resource from the provided script.
 //
 // Panics in case of any error when creating the resource.
-func MustNewInstallerV1(script string) *InstallerV1 {
-	inst, err := NewInstallerV1(script)
+func MustNewInstallerV1(name, script string) *InstallerV1 {
+	inst, err := NewInstallerV1(name, script)
 	if err != nil {
 		panic(err)
 	}
@@ -132,5 +134,4 @@ func (c *InstallerV1) SetScript(s string) {
 func (c *InstallerV1) setStaticFields() {
 	c.Kind = KindInstaller
 	c.Version = V1
-	c.Metadata.Name = MetaNameClusterInstallerScript
 }

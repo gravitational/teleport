@@ -24,12 +24,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetKubeCredentialData(t *testing.T) {
@@ -54,7 +56,7 @@ func TestGetKubeCredentialData(t *testing.T) {
 	idFile := &identityfile.IdentityFile{
 		PrivateKey: privateKeyBytes,
 		Certs: identityfile.Certs{
-			SSH: []byte("ssh ssh-cert"), // dummy value
+			SSH: []byte(ssh.CertAlgoRSAv01), // dummy value
 			TLS: certBytes,
 		},
 		CACerts: identityfile.CACerts{

@@ -268,16 +268,18 @@ func (c *SessionContext) GetUser() string {
 
 // extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) extendWebSession(ctx context.Context, accessRequestID string, switchback bool) (types.WebSession, error) {
+func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionRequest) (types.WebSession, error) {
 	session, err := c.clt.ExtendWebSession(ctx, auth.WebSessionReq{
 		User:            c.user,
 		PrevSessionID:   c.session.GetName(),
-		AccessRequestID: accessRequestID,
-		Switchback:      switchback,
+		AccessRequestID: req.AccessRequestID,
+		Switchback:      req.Switchback,
+		ReloadUser:      req.ReloadUser,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return session, nil
 }
 
@@ -609,11 +611,12 @@ func (s *sessionCache) GetCertificateWithoutOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:            c.PubKey,
+		CompatibilityMode:    c.Compatibility,
+		TTL:                  c.TTL,
+		RouteToCluster:       c.RouteToCluster,
+		KubernetesCluster:    c.KubernetesCluster,
+		AttestationStatement: c.AttestationStatement,
 	})
 }
 
@@ -631,11 +634,12 @@ func (s *sessionCache) GetCertificateWithOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:            c.PubKey,
+		CompatibilityMode:    c.Compatibility,
+		TTL:                  c.TTL,
+		RouteToCluster:       c.RouteToCluster,
+		KubernetesCluster:    c.KubernetesCluster,
+		AttestationStatement: c.AttestationStatement,
 	})
 }
 
@@ -665,6 +669,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
+		AttestationStatement:    c.AttestationStatement,
 	})
 }
 

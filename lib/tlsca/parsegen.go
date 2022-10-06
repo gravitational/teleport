@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
@@ -141,15 +140,11 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 
 // GenerateCertificateRequestPEM returns PEM-encoded certificate signing
 // request from the provided subject and private key.
-func GenerateCertificateRequestPEM(subject pkix.Name, privateKeyBytes []byte) ([]byte, error) {
-	privateKey, err := ssh.ParseRawPrivateKey(privateKeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func GenerateCertificateRequestPEM(subject pkix.Name, priv crypto.Signer) ([]byte, error) {
 	csr := &x509.CertificateRequest{
 		Subject: subject,
 	}
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

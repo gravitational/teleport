@@ -91,15 +91,15 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 # so we retrieve the file path for the cached proto files with go mod tools.
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
 	$(eval CUSTOM_IMPORTS_TMP_DIR := $(shell mktemp -d))
-	mkdir -p $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/types/wrappers
-	cp ../api/types/wrappers/wrappers.proto $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/types/wrappers
+	mkdir -p $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/proto/teleport/legacy/types/wrappers
+	cp ../api/proto/teleport/legacy/types/wrappers/wrappers.proto $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/proto/teleport/legacy/types/wrappers
 	protoc \
-		-I=../api/types \
+		-I=../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
 		-I=$(CUSTOM_IMPORTS_TMP_DIR) \
 		--plugin=./crdgen/protoc-gen-crd \
 		--crd_out=:./config/crd/bases \
-		types.proto
+		../api/proto/teleport/legacy/types/types.proto
 	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
 
 	cp ./config/crd/bases/* ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/

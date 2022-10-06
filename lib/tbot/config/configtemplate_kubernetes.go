@@ -224,10 +224,15 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, hostCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	status := &kubernetesStatus{
 		clusterAddr:           kubeAddr,
 		proxyAddr:             authPong.ProxyPublicAddr,
-		credentials:           newClientKey(currentIdentity, hostCAs),
+		credentials:           key,
 		teleportClusterName:   clusterName.GetClusterName(),
 		kubernetesClusterName: destination.KubernetesCluster.ClusterName,
 	}

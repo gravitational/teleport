@@ -82,8 +82,9 @@ func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	// Creating a lock should emit a LockCreatedEvent.
 	err = p.a.UpsertLock(ctx, lock)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockCreatedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockCreate).Name, lock.GetName())
+	require.Equal(t, events.LockCreatedEvent, p.mockEmitter.LastEvent().GetType())
+	require.Equal(t, lock.GetName(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Name)
+	require.Equal(t, lock.Target(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Target)
 	p.mockEmitter.Reset()
 
 	// When a lock update results in an error, no event should be emitted.
@@ -96,15 +97,16 @@ func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	lock.SetTarget(types.LockTarget{Role: "test-role"})
 	err = p.a.UpsertLock(ctx, lock)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockCreatedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockCreate).Name, lock.GetName())
+	require.Equal(t, events.LockCreatedEvent, p.mockEmitter.LastEvent().GetType())
+	require.Equal(t, lock.GetName(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Name)
+	require.Equal(t, lock.Target(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Target)
 	p.mockEmitter.Reset()
 
 	// Deleting a lock should emit a LockDeletedEvent.
 	err = p.a.DeleteLock(ctx, lock.GetName())
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.LockDeletedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.LockDelete).Name, lock.GetName())
+	require.Equal(t, events.LockDeletedEvent, p.mockEmitter.LastEvent().GetType())
+	require.Equal(t, lock.GetName(), p.mockEmitter.LastEvent().(*apievents.LockDelete).Name)
 	p.mockEmitter.Reset()
 
 	// When deleting a nonexistent lock, no event should be emitted.

@@ -67,13 +67,18 @@ func (t *TemplateCockroach) Render(ctx context.Context, bot Bot, currentIdentity
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, dbCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg := identityfile.WriteConfig{
 		OutputPath: t.DirName,
 		Writer: &BotConfigWriter{
 			dest:    dest,
 			subpath: t.DirName,
 		},
-		Key:    newClientKey(currentIdentity, dbCAs),
+		Key:    key,
 		Format: identityfile.FormatCockroach,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

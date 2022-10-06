@@ -206,11 +206,11 @@ func TestDumpConfigFile(t *testing.T) {
 }
 
 const configData = `
+version: v3
 teleport:
   advertise_ip: 10.5.5.5
   nodename: hvostongo.example.org
-  auth_servers:
-    - auth.server.example.org:3024
+  auth_server: auth.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr

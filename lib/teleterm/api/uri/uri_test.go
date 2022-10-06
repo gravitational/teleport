@@ -18,14 +18,16 @@ package uri_test
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestURI(t *testing.T) {
-	testCases := []struct {
+func TestString(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
 		in  uri.ResourceURI
 		out string
 	}{
@@ -43,12 +45,49 @@ func TestURI(t *testing.T) {
 		},
 	}
 
-	for _, tt := range testCases {
+	for _, tt := range tests {
+		tt := tt
 		t.Run(fmt.Sprintf("%v", tt.in), func(t *testing.T) {
+			t.Parallel()
+
 			out := tt.in.String()
-			if !reflect.DeepEqual(out, tt.out) {
-				t.Errorf("out %#v, want %#v", out, tt.out)
-			}
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
+
+func TestParseClusterURI(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		in  string
+		out uri.ResourceURI
+	}{
+		{
+			"/clusters/cluster.sh",
+			uri.NewClusterURI("cluster.sh"),
+		},
+		{
+			"/clusters/cluster.sh/servers/server1",
+			uri.NewClusterURI("cluster.sh"),
+		},
+		{
+			"/clusters/cluster.sh/leaves/leaf.sh",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
+		},
+		{
+			"/clusters/cluster.sh/leaves/leaf.sh/dbs/postgres",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.in, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := uri.ParseClusterURI(tt.in)
+			require.NoError(t, err)
+			require.Equal(t, tt.out, out)
 		})
 	}
 }

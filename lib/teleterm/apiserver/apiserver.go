@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 
@@ -159,7 +160,7 @@ func generateKeyPair(certsDir string) (credentials.TransportCredentials, error) 
 		return nil, trace.Wrap(err, "failed to rename server certificate")
 	}
 
-	certificate, err := tls.X509KeyPair(cert.Cert, cert.PrivateKey)
+	certificate, err := keys.X509KeyPair(cert.Cert, cert.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse server certificates")
 	}

@@ -919,18 +919,24 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 }
 
 type installerCollection struct {
-	installer types.Installer
+	installers []types.Installer
 }
 
-func (c *installerCollection) resources() (r []types.Resource) {
-	return []types.Resource{c.installer}
+func (c *installerCollection) resources() []types.Resource {
+	var r []types.Resource
+	for _, inst := range c.installers {
+		r = append(r, inst)
+	}
+	return r
 }
 
 func (c *installerCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Script"})
-	t.AddRow([]string{
-		c.installer.GetScript(),
-	})
+	for _, inst := range c.installers {
+		t.AddRow([]string{
+			inst.GetScript(),
+		})
+	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

@@ -65,12 +65,17 @@ func (t *TemplateIdentity) Render(ctx context.Context, bot Bot, currentIdentity 
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, hostCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg := identityfile.WriteConfig{
 		OutputPath: t.FileName,
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, hostCAs),
+		Key:    key,
 		Format: identityfile.FormatFile,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

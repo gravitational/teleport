@@ -20,8 +20,8 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 // Label describes a label
 message Label {
-    // name is this label name
-    string name = 1;
-    // value is this label value
-    string value = 2;
+  // name is this label name
+  string name = 1;
+  // value is this label value
+  string value = 2;
 }

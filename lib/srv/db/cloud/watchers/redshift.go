@@ -122,7 +122,7 @@ func getRedshiftClusters(ctx context.Context, redshiftClient redshiftiface.Redsh
 		func(page *redshift.DescribeClustersOutput, lastPage bool) bool {
 			pageNum++
 			clusters = append(clusters, page.Clusters...)
-			return pageNum <= maxPages
+			return pageNum <= common.MaxPages
 		},
 	)
 	return clusters, common.ConvertError(err)

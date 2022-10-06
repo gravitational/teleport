@@ -26,19 +26,16 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/creack/pty"
+	"github.com/gravitational/trace"
+	"github.com/moby/term"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
-
-	"github.com/kr/pty"
-	"github.com/moby/term"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -491,10 +488,10 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	}
 
 	// we want to run a "exec" command within a pty
-	if t.ctx.ExecRequest.GetCommand() != "" {
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
 		t.log.Debugf("Running exec request within a PTY")
 
-		if err := t.session.Start(ctx, t.ctx.ExecRequest.GetCommand()); err != nil {
+		if err := t.session.Start(ctx, execRequest.GetCommand()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -510,24 +507,29 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 }
 
 func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	err := t.session.Wait()
+	execRequest, err := t.ctx.GetExecRequest()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = t.session.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*ssh.ExitError); ok {
 			return &ExecResult{
 				Code:    exitErr.ExitStatus(),
-				Command: t.ctx.ExecRequest.GetCommand(),
+				Command: execRequest.GetCommand(),
 			}, err
 		}
 
 		return &ExecResult{
 			Code:    teleport.RemoteCommandFailure,
-			Command: t.ctx.ExecRequest.GetCommand(),
+			Command: execRequest.GetCommand(),
 		}, err
 	}
 
 	return &ExecResult{
 		Code:    teleport.RemoteCommandSuccess,
-		Command: t.ctx.ExecRequest.GetCommand(),
+		Command: execRequest.GetCommand(),
 	}, nil
 }
 
@@ -614,20 +616,7 @@ func (t *remoteTerminal) SetTerminalModes(termModes ssh.TerminalModes) {
 }
 
 func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
-	type windowChangeRequest struct {
-		W   uint32
-		H   uint32
-		Wpx uint32
-		Hpx uint32
-	}
-	req := windowChangeRequest{
-		W:   uint32(w),
-		H:   uint32(h),
-		Wpx: uint32(w * 8),
-		Hpx: uint32(h * 8),
-	}
-	_, err := t.session.SendRequest(ctx, sshutils.WindowChangeRequest, false, ssh.Marshal(&req))
-	return err
+	return trace.Wrap(t.session.WindowChange(ctx, h, w))
 }
 
 // prepareRemoteSession prepares the more session for execution.

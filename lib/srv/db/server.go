@@ -48,6 +48,8 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
+	// Import to register Elasticsearch engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -904,7 +906,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 	}
 
 	// Try to extract the engine version for AWS metadata labels.
-	if database.IsRDS() {
+	if database.IsRDS() || database.IsAzure() {
 		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)

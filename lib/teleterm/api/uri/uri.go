@@ -40,7 +40,10 @@ func NewClusterURI(profileName string) ResourceURI {
 	}
 }
 
-// ParseClusterURI parses a string and returns cluster URI
+// ParseClusterURI parses a string and returns a cluster URI.
+//
+// If given a resource URI, it'll return the URI of the cluster to which the resource belongs to.
+// If given a leaf cluster resource URI, it'll return the URI of the leaf cluster.
 func ParseClusterURI(path string) (ResourceURI, error) {
 	URI := New(path)
 	profileName := URI.GetProfileName()

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -273,7 +274,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		if !found {
 			// if we're trying to create an OIDC/SAML connector with the OSS version of tctl, return a specific error
 			if raw.Kind == "oidc" || raw.Kind == "saml" {
-				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. If you connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
+				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. If you are connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
 			}
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
@@ -813,11 +814,16 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("kubernetes server %q has been deleted\n", rc.ref.Name)
 	case types.KindInstaller:
-		err := client.DeleteInstaller(ctx)
+		err := client.DeleteInstaller(ctx, rc.ref.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("%s has been reset to a default value\n", types.KindInstaller)
+		if rc.ref.Name == installers.InstallerScriptName {
+			fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
+		} else {
+			fmt.Printf("%s has been deleted\n", rc.ref.Name)
+		}
+
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1306,14 +1312,18 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindInstaller:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("installer is a singleton resource, use `tctl get %v` to fetch it", types.KindInstaller)
+		if rc.ref.Name == "" {
+			installers, err := client.GetInstallers(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &installerCollection{installers: installers}, nil
 		}
-		inst, err := client.GetInstaller(ctx)
+		inst, err := client.GetInstaller(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &installerCollection{inst}, nil
+		return &installerCollection{installers: []types.Installer{inst}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

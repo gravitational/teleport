@@ -3,10 +3,9 @@
 # for example renewing or getting letsencrypt certificates
 
 set -e
-if [[ "${DEBUG}" == "true" ]]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
-
 
 # Source variables from user-data
 . /etc/teleport.d/conf
