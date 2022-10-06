@@ -499,7 +499,7 @@ func (l *localProxyOpts) protocol() string {
 	return string(l.protocols[0])
 }
 
-func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
+func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
 	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
 	if err != nil {
 		return nil, trace.Wrap(err)
