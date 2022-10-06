@@ -631,7 +631,7 @@ type localProxyConfig struct {
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
-func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
+func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 	certFile := arg.cliConf.LocalProxyCertFile
 	keyFile := arg.cliConf.LocalProxyKeyFile
 	// For SQL Server connections, local proxy must be configured with the
@@ -642,7 +642,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		keyFile = arg.profile.KeyPath()
 	}
 
-	opts := localProxyOpts{
+	opts := &localProxyOpts{
 		proxyAddr:               arg.teleportClient.WebProxyAddr,
 		listener:                arg.listener,
 		protocols:               []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
@@ -657,7 +657,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	if opts.alpnConnUpgradeRequired {
 		profileCAs, err := utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.rootClusterName))
 		if err != nil {
-			return localProxyOpts{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		opts.rootCAs = profileCAs
 	}
@@ -665,7 +665,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	if arg.localProxyTunnel {
 		certChecker, err := client.NewDBCertChecker(arg.teleportClient, *arg.routeToDatabase, nil)
 		if err != nil {
-			return localProxyOpts{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		opts.middleware = certChecker
 	}
@@ -676,7 +676,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 			var err error
 			arg.database, err = getDatabase(arg.cliConf, arg.teleportClient, arg.routeToDatabase.ServiceName)
 			if err != nil {
-				return localProxyOpts{}, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 		}
 
