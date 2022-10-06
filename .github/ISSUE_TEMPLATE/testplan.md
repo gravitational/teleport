@@ -1410,6 +1410,52 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
   - [ ] Log in; create two db connections, then remove access to one of the db servers for that
     user; wait for the cert to expire, click "Sync", verify that the db tab with no access shows an
     appropriate error and that the other db tab still handles old and new connections.
+
+- Access Requests
+	
+	**Creating Access Requests (Role Based)**
+	To setup a test environment, follow the steps laid out in `Created Access Requests (Role Based)` from the Web UI testplan and then verify the tasks below.
+
+  - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and `allow-users-with-short-ttl` are listed
+  - [ ] Verify you can select/input/modify reviewers
+  - [ ] Verify you can view the request you created from request list (should be in pending states)
+  - [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
+  - [ ] Verify you can't review own requests
+
+  **Creating Access Requests (Search Based)**
+  To setup a test environment, follow the steps laid out in `Created Access Requests (Search Based)` from the Web UI testplan and then verify the tasks below.
+
+  - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
+  - [ ] Verify you can select/input/modify reviewers
+  - [ ] Verify you can view the request you created from request list (should be in pending states)
+  - [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
+  - [ ] Verify you can't review own requests
+  - [ ] Verify that you can't mix adding resources from different clusters (there should be a warning dialogue that clears the selected list)
+  - [ ] Verify that you can't mix roles and resources into the same request.
+
+  **Viewing & Approving/Denying Requests**
+  To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying Requests` from the Web UI testplan and then verify the tasks below.
+
+  - [ ] Verify you can view access request from request list
+  - [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
+  - [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
+  - [ ] Verify deleting the denied request is removed from list
+
+  **Assuming Approved Requests (Role Based)**
+  - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into nodes
+  - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-short-ttl` allows you to see users screen, and denies access to nodes
+  - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
+  - [ ] Verify `switching back` goes back to your default static role
+  - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged out after the expiry is met (4 minutes)
+
+  **Assuming Approved Requests (Search Based)**
+  - [ ] Verify that assuming approved request, allows you to see the resources you've requested.
+
+  **Assuming Approved Requests (Both)**
+  - [ ] Verify assume buttons are only present for approved request and for logged in user
+  - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
+  - [ ] Verify that after re-login, requests that are not expired and are approved are assumable again
+
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 - [ ] Verify that the password from the login form is not saved in the renderer log.
