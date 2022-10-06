@@ -208,15 +208,25 @@ type macRoleSettings struct {
 	configPath string
 }
 
-func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
-	configFile := filepath.Join(s.configVolume.Path, "credentials")
+func assumeRoleCommands(configPath string) []string {
 	assumeRoleCmd := `printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
   $(aws sts assume-role \
     --role-arn "$AWS_ROLE" \
     --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g")
     --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
     --output text) \
-  > ` + configFile
+  > ` + configPath
+	return []string{
+		`aws sts get-caller-identity`, // check the original identity
+		assumeRoleCmd,
+		`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`, // remove original identity from environment
+		`aws sts get-caller-identity`,                   // check the new assumed identity
+	}
+
+}
+
+func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
+	configPath := filepath.Join(s.configVolume.Path, "credentials")
 	return step{
 		Name:  "Assume AWS Role",
 		Image: "amazon/aws-cli",
@@ -225,17 +235,21 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
 			"AWS_ROLE":              s.role,
 		},
-		Volumes: []volumeRef{s.configVolume},
-		Commands: []string{
-			`aws sts get-caller-identity`, // check the original identity
-			assumeRoleCmd,
-			`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`, // remove original identity from environment
-			`aws sts get-caller-identity`,                   // check the new assumed identity
-		},
+		Volumes:  []volumeRef{s.configVolume},
+		Commands: assumeRoleCommands(configPath),
 	}
 }
 
-func macAssumeAwsRoleStep(s macRoleSettings) {
+func macAssumeAwsRoleStep(s macRoleSettings) step {
+	return step{
+		Name: "Assume AWS Role",
+		Environment: map[string]value{
+			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyId,
+			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
+			"AWS_ROLE":              s.role,
+		},
+		Commands: assumeRoleCommands(s.configPath),
+	}
 
 }
 

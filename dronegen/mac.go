@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 )
 
 const (
@@ -49,6 +50,7 @@ func darwinConnectDmgPipeline() pipeline {
 	artifactConfig := onlyConnectWithBundledTshApp
 
 	p := newDarwinPipeline("build-darwin-amd64-connect")
+	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64-pkg-tsh"}
 	p.Steps = []step{
@@ -65,15 +67,22 @@ func darwinConnectDmgPipeline() pipeline {
 	p.Steps = append(p.Steps,
 		installToolchains(p.Workspace.Path, toolchainConfig)...)
 	p.Steps = append(p.Steps, []step{
+		macAssumeAwsRoleStep(macRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configPath: awsConfigPath,
+		}),
 		{
 			Name: "Download tsh.pkg artifact from S3",
 			Environment: map[string]value{
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"GITHUB_PRIVATE_KEY":    {fromSecret: "GITHUB_PRIVATE_KEY"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"GITHUB_PRIVATE_KEY":          {fromSecret: "GITHUB_PRIVATE_KEY"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
 			},
 			Commands: darwinConnectDownloadArtifactCommands(),
 		},
