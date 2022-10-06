@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -192,117 +191,6 @@ done && ls -l`)
 	return commands
 }
 
-type awsRoleSettings struct {
-	awsAccessKeyId     value
-	awsSecretAccessKey value
-	role               value
-}
-
-type kubernetesRoleSettings struct {
-	awsRoleSettings
-	configVolume volumeRef
-}
-
-type macRoleSettings struct {
-	awsRoleSettings
-	configPath string
-}
-
-type windowsRoleSettings macRoleSettings
-
-func assumeRoleCommands(configPath string) []string {
-	assumeRoleCmd := `printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
-  $(aws sts assume-role \
-    --role-arn "$AWS_ROLE" \
-    --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-    --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-    --output text) \
-  > ` + configPath
-	return []string{
-		`aws sts get-caller-identity`, // check the original identity
-		assumeRoleCmd,
-		`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`, // remove original identity from environment
-		`aws sts get-caller-identity`,                   // check the new assumed identity
-	}
-
-}
-
-func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
-	configPath := filepath.Join(s.configVolume.Path, "credentials")
-	return step{
-		Name:  "Assume AWS Role",
-		Image: "amazon/aws-cli",
-		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyId,
-			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
-			"AWS_ROLE":              s.role,
-		},
-		Volumes:  []volumeRef{s.configVolume},
-		Commands: assumeRoleCommands(configPath),
-	}
-}
-
-func macAssumeAwsRoleStep(s macRoleSettings) step {
-	return step{
-		Name: "Assume AWS Role",
-		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyId,
-			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
-			"AWS_ROLE":              s.role,
-		},
-		Commands: assumeRoleCommands(s.configPath),
-	}
-}
-
-func windowsAssumeAwsRoleStep(s windowsRoleSettings) step {
-	assumeRoleCmd := `printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
-  $(aws sts assume-role \
-    --role-arn "$AWS_ROLE" \
-    --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-    --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-    --output text) \
-  > ` + s.configPath
-
-	return step{
-		Name: "Assume AWS Role",
-		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyId,
-			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
-			"AWS_ROLE":              s.role,
-		},
-		Commands: []string{
-			`aws sts get-caller-identity`, // check the original identity
-			assumeRoleCmd,
-			`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`, // remove original identity from environment
-			`aws sts get-caller-identity`,                   // check the new assumed identity
-		},
-	}
-}
-
-type kubernetesS3Settings struct {
-	region       string
-	source       string
-	target       string
-	configVolume volumeRef
-}
-
-// kubernetesUploadToS3Step generates an S3 upload step
-func kubernetesUploadToS3Step(s kubernetesS3Settings) step {
-	return step{
-		Name:  "Upload to S3",
-		Image: "amazon/aws-cli",
-		Environment: map[string]value{
-			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
-			"AWS_REGION":    {raw: s.region},
-		},
-		Volumes: []volumeRef{s.configVolume},
-		Commands: []string{
-			`cd ` + s.source,
-			`aws s3 sync . s3://$AWS_S3_BUCKET/` + s.target,
-		},
-	}
-}
-
 // tagPipelines builds all applicable tag pipeline combinations
 func tagPipelines() []pipeline {
 	var ps []pipeline
@@ -384,7 +272,7 @@ func tagPipeline(b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes()
+	p.Volumes = dockerVolumes(volumeAwsConfig)
 	p.Services = []service{
 		dockerService(),
 	}

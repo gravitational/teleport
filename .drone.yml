@@ -1995,6 +1995,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -2179,6 +2181,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -2376,6 +2380,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -2558,6 +2564,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -3476,6 +3484,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -4603,6 +4613,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -4785,6 +4797,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -5706,6 +5720,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -7420,6 +7436,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 171006a00e2be49de7a1b6ae3f0363c3c258771f4dc737abd6bf1fd527b96b45
+hmac: 1f33a0cfe50711fa3b2c61a327158db233a51f1d7c137ce5f00e1d2580fb6b6f
 
 ...
