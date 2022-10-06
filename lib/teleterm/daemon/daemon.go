@@ -378,13 +378,13 @@ func (s *Service) Stop() {
 	}
 }
 
-func (s *Service) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
+func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress func(progress *api.FileTransferProgress) error) error {
 	cluster, err := s.ResolveCluster(request.GetClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return cluster.TransferFile(request, server)
+	return cluster.TransferFile(ctx, request, sendProgress)
 }
 
 // Service is the daemon service

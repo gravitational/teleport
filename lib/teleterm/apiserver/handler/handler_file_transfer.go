@@ -20,6 +20,6 @@ import (
 )
 
 func (s *Handler) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
-	err := s.DaemonService.TransferFile(request, server)
+	err := s.DaemonService.TransferFile(server.Context(), request, server.Send)
 	return trace.Wrap(err)
 }
