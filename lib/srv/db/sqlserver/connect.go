@@ -23,12 +23,16 @@ import (
 	"strconv"
 
 	mssql "github.com/denisenkom/go-mssqldb"
+	"github.com/denisenkom/go-mssqldb/azuread"
 	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
+
+// AzureAuthMethod is the authentication method used to connect to Azure SQL.
+const AzureAuthMethod = "ActiveDirectoryIntegrated"
 
 // Connector defines an interface for connecting to a SQL Server so it can be
 // swapped out in tests.
@@ -64,12 +68,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		TypeFlags:    loginPacket.TypeFlags(),
 	}
 
-	auth, err := c.getAuth(sessionCtx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	connector := mssql.NewConnectorConfig(msdsn.Config{
+	dsnConfig := msdsn.Config{
 		Host:         host,
 		Port:         portI,
 		Database:     sessionCtx.DatabaseName,
@@ -77,7 +76,34 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		Encryption:   msdsn.EncryptionRequired,
 		TLSConfig:    tlsConfig,
 		PacketSize:   loginPacket.PacketSize(),
-	}, auth)
+	}
+
+	var connector *mssql.Connector
+	switch {
+	case sessionCtx.Database.IsAzure() && sessionCtx.Database.GetAD().IsEmpty():
+		// If the client is connecting to Azure SQL, and no AD configuration is
+		// provided, authenticate using the Azure AD Integrated authentication
+		// method.
+		managedIdentityID, err := c.Auth.GetAzureIdentityResourceID(ctx, sessionCtx.DatabaseUser)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		connector, err = azuread.NewConnectorFromConfig(dsnConfig, map[string]string{
+			"fedauth":     azuread.ActiveDirectoryManagedIdentity,
+			"resource id": managedIdentityID,
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	default:
+		auth, err := c.getAuth(sessionCtx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		connector = mssql.NewConnectorConfig(dsnConfig, auth)
+	}
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {

@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
@@ -222,6 +223,7 @@ func (m *ARMRedisMock) ListKeys(ctx context.Context, resourceGroupName string, n
 		},
 	}, nil
 }
+
 func (m *ARMRedisMock) NewListBySubscriptionPager(options *armredis.ClientListBySubscriptionOptions) *runtime.Pager[armredis.ClientListBySubscriptionResponse] {
 	return newPagerHelper(m.NoAuth, func() (armredis.ClientListBySubscriptionResponse, error) {
 		return armredis.ClientListBySubscriptionResponse{
@@ -356,4 +358,16 @@ func newPagerHelper[T any](noAuth bool, newT func() (T, error)) *runtime.Pager[T
 			return newT()
 		},
 	})
+}
+
+// ARMComputeMock mocks armcompute.VirtualMachinesClient.
+type ARMComputeMock struct {
+	GetResult armcompute.VirtualMachine
+	GetErr    error
+}
+
+func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
+	return armcompute.VirtualMachinesClientGetResponse{
+		VirtualMachine: m.GetResult,
+	}, m.GetErr
 }
