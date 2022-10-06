@@ -17,6 +17,7 @@ package clusters
 import (
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
@@ -69,17 +70,22 @@ type GrpcFileTransferProgress struct {
 	fileSize           int64
 	lastSentPercentage uint32
 	lastSentAt         time.Time
+	lock               sync.Mutex
 }
 
 func (p *GrpcFileTransferProgress) Write(bytes []byte) (n int, err error) {
 	bytesLength := len(bytes)
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	p.sentSize += int64(bytesLength)
 	percentage := uint32(p.sentSize * 100 / p.fileSize)
 
 	if p.canSendProgress(percentage) {
 		writeErr := p.transferFileServer.Send(&api.FileTransferProgress{Percentage: percentage})
 		if writeErr != nil {
-			return bytesLength, writeErr
+			return bytesLength, trace.Wrap(writeErr)
 		}
 		p.lastSentAt = time.Now()
 		p.lastSentPercentage = percentage
