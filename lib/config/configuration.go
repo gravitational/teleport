@@ -1138,6 +1138,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
+	for _, matcher := range fc.Discovery.AzureMatchers {
+		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers,
+			services.AzureMatcher{
+				Types:          matcher.Types,
+				Regions:        matcher.Regions,
+				ResourceGroups: matcher.ResourceGroups,
+				Subscriptions:  matcher.Subscriptions,
+				ResourceTags:   matcher.ResourceTags,
+			},
+		)
+	}
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
