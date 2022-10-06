@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride <noah@goteleport.com>
-state: draft
+state: implemented(v11.0.0)
 ---
 
 # RFD 79 - OIDC JWT Joining
@@ -26,9 +26,9 @@ Users will need to be able to configure trust in an OP, and rules that determine
 
 ## Why
 
-This feature reduces the friction involved in dynamically adding many new nodes to Teleport on a variety of platforms. This is also more secure, as the user does not need to distribute a token which is liable to exfilitration.
+This feature reduces the friction involved in dynamically adding many new nodes to Teleport on a variety of platforms. This is also more secure, as the user does not need to distribute a token which is liable to ex-filtration.
 
-Whilst multiple providers offer OIDC identities to workloads running on their platform, we will start by targetting GCP since this represents a key platform for Teleport, and is also well documented and easy to test on. However, the work towards this feature will also enable us to simply add other providers that support OIDC workload identity (see the references for more), this particularly ties into Machine ID goals as we aim to support several CI/CD providers that offer workload identity.
+Whilst multiple providers offer OIDC identities to workloads running on their platform, we will start by targetting GHA since this represents a key platform for Teleport, and is also well documented and easy to test on. However, the work towards this feature will also enable us to simply add other providers that support OIDC workload identity (see the references for more), this particularly ties into Machine ID goals as we aim to support several CI/CD providers that offer workload identity.
 
 ## Details
 
@@ -43,11 +43,11 @@ OIDC supports multiple types of token (`id_token`: a JWT encoding information ab
 
 We will re-use the existing endpoints around joining as much as possible. This means that the main entry-point for joining will be the existing `RegisterUsingToken` method.
 
-We will introduce a new token type for each provider. In the case of GCP this will be `oidc-gcp`.
+We will introduce a new token join type for each provider. In the case of GHA this will be `github`.
 
 Registration flow:
 
-1. Client is configured by the user to use `oidc-gcp` joining. The client will then query the Google Metadata Service to obtain a JWT.
+1. Client is configured by the user to use `github` joining. The client will then query the GitHub Actions internal API to obtain a JWT using the request token environment variable.
 2. The client will call the `RegisterUsingToken` endpoint, providing the OIDC JWT that it has collected, and specifying the name of the Teleport provisioning token which should be used to verify it.
 3. The server will attempt to fetch the Token resource for the specified token.
 4. The server will check JWT header to ensure the `alg` is one we have allow-listed (RS[256, 384, 512])
@@ -85,194 +85,120 @@ Whilst out of scope for an initial implementation, we should eventually allow th
 
 #### Configuration
 
-In order to introduce support for OIDC joining, we will need to introduce a V3 of the `ProvisionTokenSpec`. This allows us to segregate the configuration for each provider as currently the EC2 and IAM options are intermingled, and as we introduce Google, GitHub and more, this configuration will grow more and more complicated. This complexity makes it more difficult for a user to determine which fields are relevant when configuring support for a provider.
+In order to introduce support for GHA joining, we will introduce a new field to `ProvisionTokenV2` called `github`. This RFD sets a new standard for expansion of the `ProvisionTokenV2` with all future providers recommended to create their own top level fields, rather than continuing to expand the existing `Allow` field. Work will eventually beging to migrate IAM and EC2 joining to their own fields.
 
-For example, `ProvisionTokenSpecV2` with fields added to support Google:
+`ProvisionTokenSpecV2` with fields added to support GHA:
 
 ```proto
-// TokenRule is a rule that a joining node must match in order to use the
-// associated token.
-message TokenRule {
-    message GoogleSubclaim {
-        message ComputeEngineSubclaim {
-            string ProjectID = 1 [ (gogoproto.jsontag) = "project_id,omitempty" ];
-            int64 ProjectNumber = 2 [ (gogoproto.jsontag) = "project_number,omitempty" ];
-            string InstanceID = 3 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
-            string InstanceName = 4 [ (gogoproto.jsontag) = "instance_name,omitempty" ];
-            string Zone = 5 [ (gogoproto.jsontag) = "zone,omitempty" ];
-        }
-        ComputeEngineSubclaim ComputeEngine = 1
-            [ (gogoproto.jsontag) = "compute_engine,omitempty" ];
-    }
-
-    // AWSAccount is the AWS account ID.
-    string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
-    // AWSRegions is used for the EC2 join method and is a list of AWS regions a
-    // node is allowed to join from.
-    repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
-    // AWSRole is used for the EC2 join method and is the the ARN of the AWS
-    // role that the auth server will assume in order to call the ec2 API.
-    string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
-    // AWSARN is used for the IAM join method, the AWS identity of joining nodes
-    // must match this ARN. Supports wildcards "*" and "?".
-    string AWSARN = 4 [ (gogoproto.jsontag) = "aws_arn,omitempty" ];
-    string Sub = 5 [ (gogoproto.jsontag) = "sub,omitempty" ];
-    GoogleSubclaim Google = 6 [ (gogoproto.jsontag) = "google,omitempty" ];
-}
-
 // ProvisionTokenSpecV2 is a specification for V2 token
 message ProvisionTokenSpecV2 {
-    // Roles is a list of roles associated with the token,
-    // that will be converted to metadata in the SSH and X509
-    // certificates issued to the user of the token
-    repeated string Roles = 1
-        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
-    // Allow is a list of TokenRules, nodes using this token must match one
-    // allow rule to use this token.
-    repeated TokenRule Allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
-    // AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
-    // to join the cluster with this token.
-    int64 AWSIIDTTL = 3
-        [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
-    // JoinMethod is the joining method required in order to use this token.
-    // Supported joining methods include "token", "ec2", and "iam".
-    string JoinMethod = 4
-        [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
-    // BotName is the name of the bot this token grants access to, if any
-    string BotName = 5 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
-    // SuggestedLabels is a set of labels that resources should set when using this token to enroll
-    // themselves in the cluster
-    wrappers.LabelValues SuggestedLabels = 6 [
-        (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "suggested_labels,omitempty",
-        (gogoproto.customtype) = "Labels"
-    ];
+  // Roles is a list of roles associated with the token,
+  // that will be converted to metadata in the SSH and X509
+  // certificates issued to the user of the token
+  repeated string Roles = 1 [
+    (gogoproto.jsontag) = "roles",
+    (gogoproto.casttype) = "SystemRole"
+  ];
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated TokenRule Allow = 2 [(gogoproto.jsontag) = "allow,omitempty"];
+  // AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
+  // to join the cluster with this token.
+  int64 AWSIIDTTL = 3 [
+    (gogoproto.jsontag) = "aws_iid_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // JoinMethod is the joining method required in order to use this token.
+  // Supported joining methods include "token", "ec2", and "iam".
+  string JoinMethod = 4 [
+    (gogoproto.jsontag) = "join_method",
+    (gogoproto.casttype) = "JoinMethod"
+  ];
+  // BotName is the name of the bot this token grants access to, if any
+  string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // SuggestedLabels is a set of labels that resources should set when using this token to enroll
+  // themselves in the cluster
+  wrappers.LabelValues SuggestedLabels = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "suggested_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // GitHub allows the configuration of options specific to the "github" join method.
+  ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
+}
+
+message ProvisionTokenSpecV2GitHub {
+  // Rule includes fields mapped from `lib/githubactions.IDToken`
+  // Not all fields should be included, only ones that we expect to be useful
+  // when trying to create rules around which workflows should be allowed to
+  // authenticate against a cluster.
+  message Rule {
+    // Sub also known as Subject is a string that roughly uniquely indentifies
+    // the workload. The format of this varies depending on the type of
+    // github action run.
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    // The repository from where the workflow is running.
+    // This includes the name of the owner e.g `gravitational/teleport`
+    string Repository = 2 [(gogoproto.jsontag) = "repository,omitempty"];
+    // The name of the organization in which the repository is stored.
+    string RepositoryOwner = 3 [(gogoproto.jsontag) = "repository_owner,omitempty"];
+    // The name of the workflow.
+    string Workflow = 4 [(gogoproto.jsontag) = "workflow,omitempty"];
+    // The name of the environment used by the job.
+    string Environment = 5 [(gogoproto.jsontag) = "environment,omitempty"];
+    // The personal account that initiated the workflow run.
+    string Actor = 6 [(gogoproto.jsontag) = "actor,omitempty"];
+    // The git ref that triggered the workflow run.
+    string Ref = 7 [(gogoproto.jsontag) = "ref,omitempty"];
+    // The type of ref, for example: "branch".
+    string RefType = 8 [(gogoproto.jsontag) = "ref_type,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 ```
 
-`ProvisionTokenSpecV3` will be introduced with the following schema:
-
-```proto
-message ProvisionTokenSpecV3OIDCGoogle {
-    message Rule {
-        string Sub = 1 [ (gogoproto.jsontag) = "sub,omitempty" ];
-        string ProjectID = 2 [ (gogoproto.jsontag) = "project_id,omitempty" ];
-        int64 ProjectNumber = 3 [ (gogoproto.jsontag) = "project_number,omitempty" ];
-        string InstanceID = 4 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
-        string InstanceName = 5 [ (gogoproto.jsontag) = "instance_name,omitempty" ];
-        string Zone = 6 [ (gogoproto.jsontag) = "zone,omitempty" ];
-    }
-    // Allow is a list of TokenRules, nodes using this token must match one
-    // allow rule to use this token.
-    repeated Rule Allow = 1 [ (gogoproto.jsontag) = "allow,omitempty" ];
-}
-
-message ProvisionTokenSpecV3AWSEC2 {
-    message Rule {
-        // AWSAccount is the AWS account ID.
-        string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
-        // AWSRegions is used for the EC2 join method and is a list of AWS regions a
-        // node is allowed to join from.
-        repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
-        // AWSRole is used for the EC2 join method and is the the ARN of the AWS
-        // role that the auth server will assume in order to call the ec2 API.
-        string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
-    }
-    // Allow is a list of TokenRules, nodes using this token must match one
-    // allow rule to use this token.
-    repeated Rule Allow = 1 [ (gogoproto.jsontag) = "allow,omitempty" ];
-    // AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
-    // to join the cluster with this token.
-    int64 AWSIIDTTL = 2
-        [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
-}
-
-message ProvisionTokenSpecV3AWSIAM {
-    message Rule {
-        // AWSAccount is the AWS account ID.
-        string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
-        // AWSARN is used for the IAM join method, the AWS identity of joining nodes
-        // must match this ARN. Supports wildcards "*" and "?".
-        string AWSARN = 2 [ (gogoproto.jsontag) = "aws_arn,omitempty" ];
-    }
-    // Allow is a list of TokenRules, nodes using this token must match one
-    // allow rule to use this token.
-    repeated Rule Allow = 1 [ (gogoproto.jsontag) = "allow,omitempty" ];
-}
-
-message ProvisionTokenSpecV3 {
-    // Roles is a list of roles associated with the token,
-    // that will be converted to metadata in the SSH and X509
-    // certificates issued to the user of the token
-    repeated string Roles = 1
-        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
-    // JoinMethod is the joining method required in order to use this token.
-    // Supported joining methods include "token", "ec2", and "iam".
-    string JoinMethod = 2
-        [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
-    // BotName is the name of the bot this token grants access to, if any
-    string BotName = 3 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
-    // SuggestedLabels is a set of labels that resources should set when using this token to enroll
-    // themselves in the cluster
-    wrappers.LabelValues SuggestedLabels = 4 [
-        (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "suggested_labels,omitempty",
-        (gogoproto.customtype) = "Labels"
-    ];
-
-    oneof ProviderConfiguration {
-        ProvisionTokenSpecV3OIDCGoogle OIDCGCP = 5;
-        ProvisionTokenSpecV3AWSIAM IAM = 6;
-        ProvisionTokenSpecV3AWSEC2 EC2 = 7;
-    }
-}
-```
-
-The new schema introduces some duplication of fields between the IAM and EC2 configuration (e.g `AWSAccount`), but does make it clearer which fields belong to EC2 and IAM configuration without the user being reliant on reading the documentation of the fields. This has the additional benefit of also reducing the complexity of validation code, which is currently reliant on checking `JoinMethod` to determine which fields are allowed to be set.
-
-##### Migration
-
-TODO: A strategy for moving between SpecV2 and SpecV3
-
-##### Configuration for OIDC GCP
+##### Configuration for OIDC GHA
 
 ```yaml
 kind: token
-version: v3
+version: v2
 metadata:
-  name: my-gcp-token
+  name: github-bot
   expires: "3000-01-01T00:00:00Z"
 spec:
-  roles: [Node]
-  join_method: oidc-gcp
-  gcp:
+  roles: [Bot]
+  join_method: github
+  bot_name: robot
+  github:
     allow:
-    - project_id: "my-project"
-      instance_name: "an-instance"
-    - project_id: "my-project"
-      instance_name: "a-different-instance"
+      - repository: strideynet/sandbox
+        repository_owner: strideynet
 ```
 
-For GCP joining, they will set `join_method` to `oidc-gcp`.
+For GHA joining, they will set `join_method` to `github`.
 
 To allow the user to configure rules for what JWTs will be accepted, we will leverage the `allow` field similar to how it works with the IAM joining. Each element of the slice is a set of conditions that must all be satisfied, and a token is authorised as long as at least one allow block is satisfied.
 
-For GCP, we will map the [following JWT claims](https://cloud.google.com/compute/docs/instances/verifying-instance-identity#token_format) to configuration values:
+For GHA, we will map the [following JWT claims](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token) to configuration values:
 
-- `sub`: subject
-- `google.compute_engine.project_id`: project_id
-- `google.compute_engine.project_number`: project_number
-- `google.compute_engine.instance_name`: instance_name
-- `google.compute_engine.instance_id`: instance_id
-- `google.compute_engine.zone`: zone
+- sub
+- repository
+- repository_owner
+- workflow
+- environment
+- actor
+- ref
+- ref_type
 
 To ensure that we guide users to creating secure configurations, we will also ensure that at least one of the following fields is included in each allow block:
 
-- project_id
-- project_number
-- subject
+- repository
+- repository_owner
+- sub
 
-This ensures that a token produced in another GCP project cannot be used against their Teleport cluster.
+This ensures that a token produced in another GitHub organization cannot be used against their Teleport cluster.
 
 #### Extracting claims as metadata for generated credentials
 
@@ -286,11 +212,7 @@ Node here not only refers to a Teleport node, but also to various other particip
 
 We will need to support collecting the token from the environment. This will differ on each platform. Some offer the token via a metadata service, and others directly inject it via an environment variable. Where possible, we should encourage the user to configure the token to be generated with an audience of their Teleport cluster, however, not all providers support this (e.g GitLab CI/CD).
 
-For GCP, a HTTP request is made to a metadata service. In this request, a query parameter controls the audience of the generated token. E.g
-
-```
-GET http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://noah.teleport.sh&format=full
-```
+For GHA, a HTTP request is made to an internal service accessible to the workflow runner. The address of this service is injected into the environment as `ACTIONS_ID_TOKEN_REQUEST_URL`, and a token which must be provided as an Authorization header is injected as `ACTIONS_RUNTIME_TOKEN`. Making this GET request returns a JSON object including a field with the signed JWT.
 
 ### Security Considerations
 
@@ -304,7 +226,7 @@ In order to verify the JWT, we have to fetch the public key from the issuers's J
 
 We should require that the configured issuer URL is HTTPS to mitigate this.
 
-Another potential mitigation would be to allow users to pin a certain certificate signature they expect Teleport to receive when connecting to the issuer. Whilst this is not particularly useful for GCP (since they rotate certificates on a regular basis), this could be useful if we support custom OIDC providers where the user controls the certificate used for the endpoint and would be able to rotate the pinned certificate in step with their issuer. As this is not useful for GCP, nor GHA, it is out of scope for the initial implementation.
+Another potential mitigation would be to allow users to pin a certain certificate signature they expect Teleport to receive when connecting to the issuer. Whilst this is not particularly useful for GHA (since they rotate certificates on a regular basis), this could be useful if we support custom OIDC providers where the user controls the certificate used for the endpoint and would be able to rotate the pinned certificate in step with their issuer. As this is not useful for GCP, nor GHA, it is out of scope for the initial implementation.
 
 #### Vulnerabilities in JWT and JWT signing algorithms
 
