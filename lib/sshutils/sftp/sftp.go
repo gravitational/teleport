@@ -447,8 +447,8 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// CreateProgressBar returns a new progress bar that writes to writer.
-func CreateProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
+// NewProgressBar returns a new progress bar that writes to writer.
+func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
 	// this is necessary because progressbar.DefaultBytes doesn't allow
 	// the caller to specify a writer
 	return progressbar.NewOptions64(
