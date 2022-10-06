@@ -47,7 +47,7 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 	}
 
 	config.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
-		return newGrpcFileTransferProgress(fileInfo.Size(), sendProgress)
+		return newFileTransferProgress(fileInfo.Size(), sendProgress)
 	}
 
 	err := addMetadataToRetryableError(ctx, func() error {
@@ -57,15 +57,15 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 	return trace.Wrap(err)
 }
 
-func newGrpcFileTransferProgress(fileSize int64, sendProgress func(progress *api.FileTransferProgress) error) io.Writer {
-	return &GrpcFileTransferProgress{
+func newFileTransferProgress(fileSize int64, sendProgress func(progress *api.FileTransferProgress) error) io.Writer {
+	return &fileTransferProgress{
 		sendProgress: sendProgress,
 		sentSize:     0,
 		fileSize:     fileSize,
 	}
 }
 
-type GrpcFileTransferProgress struct {
+type fileTransferProgress struct {
 	sendProgress       func(progress *api.FileTransferProgress) error
 	sentSize           int64
 	fileSize           int64
@@ -74,7 +74,7 @@ type GrpcFileTransferProgress struct {
 	lock               sync.Mutex
 }
 
-func (p *GrpcFileTransferProgress) Write(bytes []byte) (int, error) {
+func (p *fileTransferProgress) Write(bytes []byte) (int, error) {
 	bytesLength := len(bytes)
 
 	p.lock.Lock()
@@ -95,7 +95,7 @@ func (p *GrpcFileTransferProgress) Write(bytes []byte) (int, error) {
 	return bytesLength, nil
 }
 
-func (p *GrpcFileTransferProgress) shouldSendProgress(percentage uint32) bool {
+func (p *fileTransferProgress) shouldSendProgress(percentage uint32) bool {
 	hasIntervalPassed := time.Since(p.lastSentAt).Milliseconds() > 100
 	hasPercentageChanged := percentage != p.lastSentPercentage
 	return hasIntervalPassed && hasPercentageChanged
