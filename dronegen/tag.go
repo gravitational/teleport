@@ -462,8 +462,14 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := dockerVolumes()
-	packageDockerVolumeRefs := dockerVolumeRefs()
+	packageDockerVolumes := []volume{
+		volumeDocker,
+		volumeAwsConfig,
+	}
+	packageDockerVolumeRefs := []volumeRef{
+		volumeRefDocker,
+		volumeRefAwsConfig,
+	}
 	packageDockerService := dockerService()
 
 	switch packageType {
@@ -478,8 +484,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			`rm -rf $GNUPG_DIR`,
 		)
 		// RPM builds require tmpfs to hold the key material in memory.
-		packageDockerVolumes = dockerVolumes(volumeTmpfs)
-		packageDockerVolumeRefs = dockerVolumeRefs(volumeRefTmpfs)
+		packageDockerVolumes = append(packageDockerVolumes, volumeTmpfs)
+		packageDockerVolumeRefs = append(packageDockerVolumeRefs, volumeRefTmpfs)
 		packageDockerService = dockerService(volumeRefTmpfs)
 	case debPackage:
 		packageBuildCommands = append(packageBuildCommands,
@@ -509,16 +515,23 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"AWS_REGION":    {raw: "us-west-2"},
+				"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
 			},
 			Commands: tagDownloadArtifactCommands(b),
+			Volumes:  []volumeRef{volumeRefAwsConfig},
 		},
 		{
 			Name:        "Build artifacts",
