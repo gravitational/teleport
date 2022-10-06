@@ -3421,7 +3421,6 @@ func onStatus(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.HomePath = cf.HomePath
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertLicenseExpired: "yes",
 	}, nil); err != nil {
