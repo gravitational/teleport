@@ -3084,6 +3084,8 @@ message OIDCConnectorSpecV3 {
   ];
   // AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
   bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
+  // UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
+  string UsernameClaim = 16 [(gogoproto.jsontag) = "username_claim,omitempty"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
