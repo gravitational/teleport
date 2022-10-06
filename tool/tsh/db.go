@@ -275,9 +275,25 @@ func onDatabaseLogin(cf *CLIConf) error {
 	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
 }
 
+// checkAndSetDBRouteDefaults checks the database route and sets defaults for certificate generation.
+func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
+	// When generating certificate for MongoDB access, database username must
+	// be encoded into it. This is required to be able to tell which database
+	// user to authenticate the connection as.
+	if r.Protocol == defaults.ProtocolMongoDB && r.Username == "" {
+		return trace.BadParameter("please provide the database user name using --db-user flag")
+	}
+	if r.Protocol == defaults.ProtocolRedis && r.Username == "" {
+		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
+		// ref: https://redis.io/commands/auth
+		r.Username = defaults.DefaultRedisUsername
+	}
+	return nil
+}
+
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", db, tc.SiteName)
-	if err := db.CheckAndSetDefaults(); err != nil {
+	if err := checkAndSetDBRouteDefaults(&db); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -669,11 +685,11 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 	}
 
 	if arg.localProxyTunnel {
-		certChecker, err := client.NewDBCertChecker(arg.teleportClient, *arg.routeToDatabase, nil)
-		if err != nil {
+		dbRoute := *arg.routeToDatabase
+		if err := checkAndSetDBRouteDefaults(&dbRoute); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts.middleware = certChecker
+		opts.middleware = client.NewDBCertChecker(arg.teleportClient, dbRoute, nil)
 	}
 
 	// To set correct MySQL server version DB proxy needs additional protocol.

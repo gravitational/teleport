@@ -47,10 +47,7 @@ type DBCertChecker struct {
 	clock clockwork.Clock
 }
 
-func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) (alpnproxy.LocalProxyMiddleware, error) {
-	if err := dbRoute.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) alpnproxy.LocalProxyMiddleware {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
@@ -58,7 +55,7 @@ func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock c
 		tc:      tc,
 		dbRoute: dbRoute,
 		clock:   clock,
-	}, nil
+	}
 }
 
 var _ alpnproxy.LocalProxyMiddleware = (*DBCertChecker)(nil)
