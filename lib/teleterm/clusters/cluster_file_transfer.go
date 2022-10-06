@@ -15,6 +15,7 @@
 package clusters
 
 import (
+	"context"
 	"io"
 	"os"
 	"sync"
@@ -26,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (c *Cluster) TransferFile(request *api.FileTransferRequest, server api.TerminalService_TransferFileServer) error {
+func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress func(progress *api.FileTransferProgress) error) error {
 	var config *sftp.Config
 	var configErr error
 
@@ -46,26 +47,26 @@ func (c *Cluster) TransferFile(request *api.FileTransferRequest, server api.Term
 	}
 
 	config.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
-		return newGrpcFileTransferProgress(fileInfo.Size(), server)
+		return newGrpcFileTransferProgress(fileInfo.Size(), sendProgress)
 	}
 
-	err := addMetadataToRetryableError(server.Context(), func() error {
-		err := c.clusterClient.TransferFiles(server.Context(), request.GetLogin(), request.GetHostname()+":0", config)
+	err := addMetadataToRetryableError(ctx, func() error {
+		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), request.GetHostname()+":0", config)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)
 }
 
-func newGrpcFileTransferProgress(fileSize int64, writer api.TerminalService_TransferFileServer) io.Writer {
+func newGrpcFileTransferProgress(fileSize int64, sendProgress func(progress *api.FileTransferProgress) error) io.Writer {
 	return &GrpcFileTransferProgress{
-		transferFileServer: writer,
-		sentSize:           0,
-		fileSize:           fileSize,
+		sendProgress: sendProgress,
+		sentSize:     0,
+		fileSize:     fileSize,
 	}
 }
 
 type GrpcFileTransferProgress struct {
-	transferFileServer api.TerminalService_TransferFileServer
+	sendProgress       func(progress *api.FileTransferProgress) error
 	sentSize           int64
 	fileSize           int64
 	lastSentPercentage uint32
@@ -83,7 +84,7 @@ func (p *GrpcFileTransferProgress) Write(bytes []byte) (int, error) {
 	percentage := uint32(p.sentSize * 100 / p.fileSize)
 
 	if p.shouldSendProgress(percentage) {
-		err := p.transferFileServer.Send(&api.FileTransferProgress{Percentage: percentage})
+		err := p.sendProgress(&api.FileTransferProgress{Percentage: percentage})
 		if err != nil {
 			return bytesLength, trace.Wrap(err)
 		}
