@@ -5800,6 +5800,31 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
+  - name: Assume AWS Role
+    image: amazon/aws-cli
+    commands:
+    - aws sts get-caller-identity
+    - |-
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        $(aws sts assume-role \
+          --role-arn "$AWS_ROLE" \
+          --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+          --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+          --output text) \
+        > /root/.aws/credentials
+    - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+    - aws sts get-caller-identity
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      AWS_ROLE:
+        from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
   - name: Build/push OSS/Enterprise Docker images
     image: docker
     environment:
@@ -5809,13 +5834,11 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-      AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
@@ -5861,6 +5884,8 @@ services:
 
 volumes:
   - name: dockersock
+    temp: {}
+  - name: awsconfig
     temp: {}
 
 ---
@@ -7488,6 +7513,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 7bc6a3c1f0360f3ed844cf92dc643dde7b61700beb07172f92fcfc45cad3549f
+hmac: 5a71ab0360fdbc4a30191712a44061c1ecaf4dd65e2f6ceae30b42c0c7e6bc2c
 
 ...
