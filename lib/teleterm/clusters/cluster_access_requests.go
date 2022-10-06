@@ -128,7 +128,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		defer authClient.Close()
 
 		reviewSubmission := types.AccessReviewSubmission{
-			RequestID: req.RequestId,
+			RequestID: req.AccessRequestId,
 			Review: types.AccessReview{
 				Roles:         req.Roles,
 				ProposedState: reviewState,
@@ -171,7 +171,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		}
 		defer authClient.Close()
 
-		return authClient.DeleteAccessRequest(ctx, req.RequestId)
+		return authClient.DeleteAccessRequest(ctx, req.AccessRequestId)
 	})
 	if err != nil {
 		return trace.Wrap(err)
