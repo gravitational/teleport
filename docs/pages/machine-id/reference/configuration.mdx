@@ -78,12 +78,6 @@ destinations:
           #   * required: Always use ACLs, produce a hard error at runtime if ACLs
           #     are invalid.
           acls: try
-      configs:
-        # Enables the creation of an SSH Host Certificate for OpenSSL with short-lived machine ID credentials.
-        # The principal should be the hostname of the domain be accessed, ensuring that it meets the limits of
-        # any limiting predicates defined by the associated role configuration.
-        -ssh_host_cert:
-           principlals [my.machineid.domain.com]
       # One or more roles to request for this destination directory from among
       # the roles granted by `tctl bots add --roles=...`
       # By default, all roles specified during `tctl bots add ...` are
@@ -107,6 +101,9 @@ destinations:
       # A list of configuration templates to generate and write to this
       # destination.
       configs:
+          # Requests an SSH host certificate. Requires a role granting the `create` verb on `host_cert` resources.
+          - ssh_host_cert:
+              principlals [my.machineid.domain.com]
           # ssh_client generates known_hosts and an ssh_config that can be
           # included.
           - ssh_client
