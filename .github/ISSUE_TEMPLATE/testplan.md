@@ -1292,7 +1292,9 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
     - Run the program: `$ mc`
     - Resize Teleport Connect to see if the panels resize with it
   - [ ] Verify that the tab automatically closes on `$ exit` command.
-- State restoration
+  - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
+    error from tsh ssh.
+- State restoration from disk
   - [ ] Verify that the app asks about restoring the previous tabs when launched and restores them
         properly.
   - [ ] Verify that the app opens with the cluster that was active when you closed the app.
@@ -1305,6 +1307,11 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
         but not the `tsh` dir doesn't crash the app.
   - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
         remember previous tabs (they should be cleared on logout).
+  - [ ] Open a db connection tab. Change the db name and port. Close the tab. Restart the app. Open
+        connection tracker and choose said db connection from it. Verify that the newly opened tab
+        uses the same db name and port.
+  - [ ] Log in to a cluster. Close the DocumentCluster tab. Open a new DocumentCluster tab. Restart
+        the app. Verify that the app doesn't ask you about restoring the previous tabs.
 - Connections picker
   - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
   - [ ] Check if those connections are available after the app restart.
@@ -1314,13 +1321,19 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 - Cluster resources (servers/databases)
   - [ ] Verify that the app shows the same resources as the Web UI.
   - [ ] Verify that search is working for the resources lists.
+  - [ ] Verify that pagination is working for the resources lists.
+  - [ ] Verify that pagination works in tandem with search, that is verify that search results are
+        paginated too.
   - [ ] Verify that you can connect to these resources.
   - [ ] Verify that clicking "Connect" shows available logins and db usernames.
     - Logins and db usernames are taken from the role, under `spec.allow.logins` and
       `spec.allow.db_users`.
   - [ ] Repeat the above steps for resources in leaf clusters.
   - [ ] Verify that tabs have correct titles set.
+  - [ ] Verify that changing tab position works.
   - [ ] Verify that the port number remains the same for a db connection between app restarts.
+  - [ ] Verify that you can't open more than one tab for the same db server + username pair. Trying
+    to open a second tab with the same pair should just switch you to the already existing tab.
   - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the app.
         Verify that the app doesn't crash and the db connection tab shows you the error (address in
         use) and offers a way to retry creating the connection.
@@ -1329,11 +1342,16 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
   - [ ] Verify that other shortcuts are shown after you close all tabs.
   - [ ] Verify that the other shortcuts work and each of them is shown on hover on relevant UI
         elements.
-- Workspaces
+- Workspaces & cluster management
   - [ ] Verify that logging in to a new cluster adds it to the identity switcher and switches to the
         workspace of that cluster automatically.
   - [ ] Verify that the state of the current workspace is preserved when you change the workspace (by
         switching to another cluster) and return to the previous workspace.
+  - [ ] Click "Add another cluster", provide an address to a cluster that was already added. Verify
+        that Connect simply changes the workspace to that of that cluster.
+  - [ ] Click "Add another cluster", provide an address to a new cluster and submit the form. Close
+        the modal when asked for credentials. Verify that the cluster was still added and is visible
+        in the profile selector.
 - Command bar & autocomplete
   - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
   - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
@@ -1352,13 +1370,24 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
   - [ ] Verify that launching any other command that's not supported by the autocomplete opens a new
         local shell with that command running.
 - Resilience when resources become unavailable
-  - For each scenario, create at least one tab for each available kind (minus k8s for now).
-  - For each scenario, first do the external action, then click "Sync" on the relevant cluster tab.
-    Verify that no unrecoverable error was raised. Then restart the app and verify that it was
-    restarted gracefully (no unrecoverable error on restart, the user can continue using the app).
-    * [ ] Stop the root cluster.
-    * [ ] Stop a leaf cluster.
-    * [ ] Disconnect your device from the internet.
+  - DocumentCluster
+    - For each scenario, create at least one DocumentCluster tab for each available resource kind.
+    - For each scenario, first do the action described in the bullet point, then click "Sync" on the
+      relevant cluster tab. Verify that no unrecoverable error was raised (that is, the app still
+      works). Then restart the app and verify that it was restarted gracefully (no unrecoverable
+      error on restart, the user can continue using the app).
+      - [ ] Stop the root cluster.
+      - [ ] Stop a leaf cluster.
+      - [ ] Disconnect your device from the internet.
+  - DocumentGateway
+    - Create a db connection tab for a given database. Then remove access to that db for that user.
+      Go back to Connect and:
+      - Change database name in the tab. This should still work.
+      - Change database port. This should result in an error.
+    - Open DocumentCluster and make sure a given db is visible on the list of available dbs. Click
+      "Connect" to show a list of db users. Now remove access to that db. Go back to Connect and
+      choose a username. Verify that a recoverable error is shown and the user can continue using
+      the app.
 - Refreshing certs
   - To test scenarios from this section, create a user with a role that has TTL of `1m`
     (`spec.options.max_session_ttl`).
