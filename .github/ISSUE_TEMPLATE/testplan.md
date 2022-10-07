@@ -1294,6 +1294,13 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
   - [ ] Verify that the tab automatically closes on `$ exit` command.
   - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
     error from tsh ssh.
+- Kubernetes access
+  - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory. 
+  - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
+  - [ ] Run `kubectl get pods` and see if the command succeeds. 
+  - Verify if the kubeconfig file is removed when the user:
+    - [ ] Removes the connection
+    - [ ] Logs out of the cluster
 - State restoration from disk
   - [ ] Verify that the app asks about restoring the previous tabs when launched and restores them
         properly.
@@ -1388,6 +1395,15 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
       "Connect" to show a list of db users. Now remove access to that db. Go back to Connect and
       choose a username. Verify that a recoverable error is shown and the user can continue using
       the app.
+- File transfer
+  - Download
+    - [ ] Verify if Connect asks for a path when downloading the file.
+    - [ ] Verify that invalid paths and network errors are handled.
+    - [ ] Verify if cancelling the download works.
+  - Upload
+    - [ ] Verify if uploading single/multiple files works.
+    - [ ] Verify that invalid paths and network errors are handled.
+    - [ ] Verify if cancelling the upload works.
 - Refreshing certs
   - To test scenarios from this section, create a user with a role that has TTL of `1m`
     (`spec.options.max_session_ttl`).
