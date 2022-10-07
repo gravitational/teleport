@@ -22,8 +22,8 @@ package main
 // sed -i '' 's/type\: kubernetes/type\: docker/' .drone.yml && sed -i '' 's/type\: exec/type\: docker/' .drone.yml
 // # Drone has a bug where "workspace" is appended to "/drone/src". This fixes that by updating references
 // sed -i '' 's~/go/~/drone/src/go/~g' .drone.yml
-// # Pull the current branch instead of v10
-// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v10')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
+// # Pull the current branch instead of v11
+// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v11')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
 // # `drone exec` does not properly map the workspace path. This creates a volume to be shared between steps
 // #  at the correct path
 // DOCKER_VOLUME_NAME="go"
@@ -55,8 +55,8 @@ import (
 // 9. Set the Drone secrets for the secret names listed in "GetContainerRepos" to the credentials in (7, 8), prefixed by the value of `testingSecretPrefix`
 //
 // On each commit, after running `make dronegen``, run the following commands and resign the file:
-// # Pull the current branch instead of v10 so the appropriate dockerfile gets loaded
-// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v10')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
+// # Pull the current branch instead of v11 so the appropriate dockerfile gets loaded
+// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v11')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
 //
 // When finishing up your PR check the following:
 // * The testing secrets added to Drone have been removed
@@ -84,8 +84,8 @@ func buildContainerImagePipelines() []pipeline {
 	// *************************************************************
 	// ****** These need to be updated on each major release. ******
 	// *************************************************************
-	latestMajorVersions := []string{"v10", "v9", "v8"}
-	branchMajorVersion := "v10"
+	latestMajorVersions := []string{"v11", "v10", "v9"}
+	branchMajorVersion := "v11"
 
 	triggers := []*TriggerInfo{
 		NewTagTrigger(branchMajorVersion),
@@ -332,7 +332,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 type semver struct {
 	Name        string // Human-readable name for the information contained in the semver, i.e. "major"
 	FilePath    string // The path under the working dir where the information can be read from
-	FieldCount  int    // The number of significant version fields available in the semver i.e. "v10" -> 1
+	FieldCount  int    // The number of significant version fields available in the semver i.e. "v11" -> 1
 	IsImmutable bool
 }
 
@@ -462,19 +462,13 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 			gccPackage := ""
 			compilerName := ""
 			switch arch {
-			case "x86_64":
-				fallthrough
-			case "amd64":
+			case "x86_64", "amd64":
 				gccPackage = "gcc-x86-64-linux-gnu"
 				compilerName = "x86_64-linux-gnu-gcc"
-			case "i686":
-				fallthrough
-			case "i386":
+			case "i686", "i386":
 				gccPackage = "gcc-multilib-i686-linux-gnu"
 				compilerName = "i686-linux-gnu-gcc"
-			case "aarch64":
-				fallthrough
-			case "arm64":
+			case "arm64", "aarch64":
 				gccPackage = "gcc-aarch64-linux-gnu"
 				compilerName = "aarch64-linux-gnu-gcc"
 			// We may want to add additional arm ISAs in the future to support devices without hardware FPUs
@@ -689,6 +683,15 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		}
 	}
 
+	loginCommands := []string{
+		"apk add --no-cache aws-cli",
+		fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
+	}
+
+	if guaranteeUnique {
+		loginCommands = append(loginCommands, "TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')")
+	}
+
 	return &ContainerRepo{
 		Name:             fmt.Sprintf("ECR - %s", nameSuffix),
 		IsProductionRepo: isProduction,
@@ -703,11 +706,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		},
 		RegistryDomain: domain,
 		RegistryOrg:    registryOrg,
-		LoginCommands: []string{
-			"apk add --no-cache aws-cli",
-			"TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')",
-			fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
-		},
+		LoginCommands:  loginCommands,
 		TagBuilder: func(tag *ImageTag) *ImageTag {
 			if guaranteeUnique {
 				tag.AppendString("$TIMESTAMP")

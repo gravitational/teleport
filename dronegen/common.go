@@ -49,7 +49,7 @@ var (
 	triggerPromote = trigger{
 		Event:  triggerRef{Include: []string{"promote"}},
 		Target: triggerRef{Include: []string{"production"}},
-		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 
 	volumeDocker = volume{
