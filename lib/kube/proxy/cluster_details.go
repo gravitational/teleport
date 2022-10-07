@@ -125,13 +125,13 @@ func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
 // getAWSCredentials creates a dynamicCreds that generates and updates the access credentials to a kubernetes cluster.
 func getAWSCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicCreds, error) {
 	// create a client that returns the credentials for kubeCluster
-	client := awsRestConfigClient(cloudClients)
+	client := getAWSClientRestConfig(cloudClients)
 	creds, err := newDynamicCreds(ctx, cluster, log, client, checker)
 	return creds, trace.Wrap(err)
 }
 
-// awsRestConfigClient creates a dynamicCredsClient that generates returns credentials to EKS clusters.
-func awsRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
+// getAWSClientRestConfig creates a dynamicCredsClient that generates returns credentials to EKS clusters.
+func getAWSClientRestConfig(cloudClients cloud.Clients) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
 
 		regionalClient, err := cloudClients.GetAWSEKSClient(cluster.GetAWSConfig().Region)
