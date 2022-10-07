@@ -4,6 +4,10 @@ description: How to use JetBrains IDE to browse remote host with Teleport
 h1: SFTP with JetBrains IDE
 ---
 
+JetBrain's IDEs, like PyCharm, Goland, Intellij, allow browsing, copying, and editing files on a remote server
+using SFTP protocol. The built-in integration will simplify the process if you are used to copying files back and forth
+using `scp` or other 3rd party clients. You can do the same things without leaving your IDE anymore.
+
 This guide explains how to use Teleport and a JetBrains IDE to access files with SFTP.
 
 ## Prerequisites
@@ -93,9 +97,9 @@ Click the three dots next to `SSH configuration` as in the picture above.
 
 Create a new configuration by clicking the plus sign on the top left and providing:
 
-* `Host` - name of the Teleport Node.
-* `Port` - is the Teleport Node's SSH port (3022 by default).
-* `Username` - is the system username.
+- `Host` - name of the Teleport Node.
+- `Port` - is the Teleport Node's SSH port (3022 by default).
+- `Username` - is the system username.
 
 As an `Authentication type` pick `OpenSSH config and authentication agent`.
 Next, you can click `Test Connection`.
