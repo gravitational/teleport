@@ -6,58 +6,10 @@
 
 #### GitHub external SSO checking
 
-Teleport 11 agents will now refuse to use a GitHub authentication connector if
-one of the specified GitHub organizations uses external SSO and the Teleport 
-agent is not enterprise licensed. SSO is an enterprise feature that requires
+Teleport 11 will now refuse to use a GitHub authentication connector if
+one of the specified GitHub organizations uses external SSO and Teleport
+is not enterprise licensed. SSO is an enterprise feature that requires
 Teleport Enterprise to use.
-
-#### GitHub Connector `teams_to_logins`
-
-The `teams_to_logins` field in the GitHub connector was deprecated in Teleport 10
-and fully removed in Teleport 11. Please update your GitHub connector to use the
-new `teams_to_roles` setting before upgrading to Teleport 11.
-
-For example, the following connector configuration was valid in Teleport 10, but
-must be migrated before upgrading to Teleport 11.
-
-```
-kind: github
-version: v3
-metadata:
-  name: github
-spec:
-  client_id: <client-id>
-  client_secret: <client-secret>
-  redirect_url: "https://<cluster-url>/v1/webapi/github/callback"
-   display: GitHub
-   teams_to_logins:
-   - team: <github-team>
-     organization: <github-org>
-     logins: [access, editor]
-     kubernetes_users: [admin]
-     kubernetes_groups: [system:masters]
-```
-
-After migrating to the new `teams_to_roles` field, the connector looks like:
-
-```
-kind: github
-version: v3
-metadata:
-  name: github
-spec:
-  client_id: <client-id>
-  client_secret: <client-secret>
-  redirect_url: "https://<cluster-url>/v1/webapi/github/callback"
-   display: GitHub
-   teams_to_roles:
-   - team: <github-team>
-     organization: <github-org>
-     roles: [access, editor]
-```
-
-Note: the `kubernetes_users` and `kubernetes_groups` fields are no longer
-necessary, as those traits will be pulled from the roles assigned to the user.
 
 #### Deprecate Quay.io support
 #### Deprecate old deb/rpm repos
