@@ -4059,10 +4059,10 @@ name: build-darwin-amd64
 trigger:
   event:
     include:
-    - tag
+    - promote
   ref:
     include:
-    - refs/tags/v*
+    - none
   repo:
     include:
     - gravitational/*
@@ -4268,10 +4268,10 @@ name: build-darwin-amd64-pkg
 trigger:
   event:
     include:
-    - tag
+    - promote
   ref:
     include:
-    - refs/tags/v*
+    - none
   repo:
     include:
     - gravitational/*
@@ -4452,10 +4452,10 @@ name: build-darwin-amd64-pkg-tsh
 trigger:
   event:
     include:
-    - tag
+    - promote
   ref:
     include:
-    - refs/tags/v*
+    - none
   repo:
     include:
     - gravitational/*
@@ -7665,10 +7665,10 @@ name: build-darwin-amd64-connect
 trigger:
   event:
     include:
-    - tag
+    - promote
   ref:
     include:
-    - refs/tags/v*
+    - none
   repo:
     include:
     - gravitational/*
@@ -7894,6 +7894,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 6c3bd1f8d5dcf1c6d9e492f0b81b864db69579ed4646ab924aebc9781fc88641
+hmac: a04223cca45a8bf964376d3c6e4f9636309670c0abc7ee8369e5fe5d0257d7d3
 
 ...
