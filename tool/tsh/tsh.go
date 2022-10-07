@@ -97,7 +97,7 @@ const (
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
 
-	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || name == "%[1]s"`
+	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || resource.metadata.name == "%[1]s"`
 )
 
 // CLIConf stores command line arguments and flags:
@@ -889,9 +889,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
-	cf.command = command
 	// Did we initially get the Username from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
+
+	cf.command = command
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -1487,6 +1488,7 @@ func onLogin(cf *CLIConf) error {
 			Format:               cf.IdentityFormat,
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
+			KubeStoreAllCAs:      tc.LoadAllCAs,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1504,6 +1506,11 @@ func onLogin(cf *CLIConf) error {
 		if err := updateKubeConfig(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	pingResp, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Regular login without -i flag.
@@ -1573,12 +1580,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Display any license compliance warnings
-	resp, err := tc.Ping(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, warning := range resp.LicenseWarnings {
+	for _, warning := range pingResp.LicenseWarnings {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
@@ -2891,6 +2893,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.JumpHosts = hosts
 	}
 
+	var key *client.Key
+
 	// Look if a user identity was given via -i flag
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
@@ -2900,7 +2904,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.UseKeyPrincipals = hostLogin == ""
 
 		var (
-			key          *client.Key
 			expiryDate   time.Time
 			hostAuthFunc ssh.HostKeyCallback
 		)
@@ -3132,8 +3135,28 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// addresses from the proxy (this is what Ping does).
 	if cf.IdentityFileIn != "" {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-		if _, err := tc.Ping(cf.Context); err != nil {
+		_, err := tc.Ping(cf.Context)
+		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// If, after pinging the proxy, we've determined that the client should load
+		// all CAs, update the host key callback and TLS config.
+		if tc.LoadAllCAs {
+			sites, err := key.GetClusterNames()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tc.Config.HostKeyCallback, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, sites)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(key.TLSCert) > 0 {
+				tc.Config.TLS, err = key.TeleportClientTLSConfig(nil, sites)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 	}
 

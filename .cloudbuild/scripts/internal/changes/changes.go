@@ -101,7 +101,14 @@ func isCIChange(path string) bool {
 
 func isOperatorChange(path string) bool {
 	path = strings.ToLower(path)
-	return strings.HasPrefix(path, "operator/")
+	// dependency updates can impact CRD generation,
+	// so ensure that operator tests are run when
+	// dependencies change
+	return path == "go.mod" ||
+		path == "go.sum" ||
+		strings.HasPrefix(path, "operator/") ||
+		strings.HasPrefix(path, "api/types") || // the operator uses directly Teleport types
+		strings.HasPrefix(path, "lib/tbot") // the operator embeds a tbot instance
 }
 
 func isDocChange(path string) bool {

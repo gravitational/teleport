@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -150,7 +150,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -253,7 +253,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -360,7 +360,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -525,7 +525,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.1
+    RUNTIME: go1.19.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -576,7 +576,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
     print-version)
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
@@ -800,7 +800,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70
 trigger:
   event:
     include:
@@ -853,19 +853,18 @@ steps:
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
       $RELCLI_IMAGE relcli auto_destroy -f -v 6
   environment:
-    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
     RELCLI_KEY: /tmpfs/creds/releases.key
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
+      from_secret: RELEASES_KEY
   volumes:
   - name: tmpfs
     path: /tmpfs
   - name: dockersock
     path: /var/run
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -1038,17 +1037,17 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-beta.3-windows.exe'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-windows.exe'
   - $relcliSha256 = '1cd0e4e2912ded6c6b61a82018ac3d76eac091f9719b5a80795d79ff194788a7'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
   environment:
-    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
+      from_secret: RELEASES_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
@@ -1074,7 +1073,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -1177,7 +1176,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
   UID: "1000"
 trigger:
   event:
@@ -1808,7 +1807,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -1905,7 +1904,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -1943,10 +1942,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -1970,7 +1968,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -2066,7 +2064,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -2104,10 +2102,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -2131,7 +2128,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -2240,7 +2237,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -2278,10 +2275,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -2305,7 +2301,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -2399,7 +2395,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -2437,10 +2433,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -2586,7 +2581,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -2624,10 +2619,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -2775,7 +2769,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -2813,10 +2807,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -2964,7 +2957,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -3002,10 +2995,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -3139,7 +3131,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -3177,10 +3169,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -3204,7 +3195,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -3298,7 +3289,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -3336,10 +3327,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -3485,7 +3475,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -3523,10 +3513,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -3668,7 +3657,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -3706,10 +3695,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -3793,7 +3781,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.1
+    RUNTIME: go1.19.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3823,7 +3811,7 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   environment:
     ARCH: amd64
     BUILDBOX_PASSWORD:
@@ -3860,7 +3848,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -3898,11 +3886,10 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
+      from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64
-  failure: ignore
 - name: Clean up toolchains (post)
   commands:
   - set -u
@@ -4063,7 +4050,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -4101,11 +4088,10 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
+      from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-  failure: ignore
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -4247,7 +4233,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -4285,11 +4271,10 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
+      from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-  failure: ignore
 - name: Clean up exec runner storage (post)
   commands:
   - set -u
@@ -4310,7 +4295,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -4404,7 +4389,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -4442,10 +4427,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -4469,7 +4453,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -4563,7 +4547,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -4601,10 +4585,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -4741,7 +4724,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -4779,10 +4762,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -4919,7 +4901,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -4957,10 +4939,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -5106,7 +5087,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -5144,10 +5125,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -5298,7 +5278,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -5336,10 +5316,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -5368,7 +5347,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.19.1
+  RUNTIME: go1.19.2
 trigger:
   event:
     include:
@@ -5465,7 +5444,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -5503,10 +5482,9 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
-  failure: ignore
+      from_secret: RELEASES_KEY
 services:
 - name: Start Docker
   image: docker:dind
@@ -6104,16 +6082,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -6241,16 +6224,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -6549,48 +6537,6 @@ steps:
       source: /go/artifacts/*
       target: teleport/${DRONE_TAG##v}/
       strip_prefix: /go/artifacts/
-
-  - name: Pull/retag Docker images
-    image: docker
-    settings:
-      docker_staging_username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      docker_staging_password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      docker_production_username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      docker_production_password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      # wait for docker to start
-      - sleep 3
-      - export VERSION=${DRONE_TAG##v}
-      # authenticate with staging credentials
-      - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
-      # pull 'temporary' CI-built images
-      - echo "---> Pulling images for $${VERSION}"
-      - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
-      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
-      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
-      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
-      # retag images to production naming
-      - echo "---> Tagging images for $${VERSION}"
-      - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
-      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
-      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
-      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
-      # reauthenticate with production credentials
-      - docker logout quay.io
-      - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
-      # push production images
-      - echo "---> Pushing images for $${VERSION}"
-      - docker push quay.io/gravitational/teleport:$${VERSION}
-      - docker push quay.io/gravitational/teleport-ent:$${VERSION}
-      - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
-      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
 
   - name: Check out code
     image: docker:git
@@ -6895,7 +6841,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70
 trigger:
   event:
     include:
@@ -6948,19 +6894,18 @@ steps:
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
       $RELCLI_IMAGE relcli auto_publish -f -v 6
   environment:
-    RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+    RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
     RELCLI_KEY: /tmpfs/creds/releases.key
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
+      from_secret: RELEASES_KEY
   volumes:
   - name: tmpfs
     path: /tmpfs
   - name: dockersock
     path: /var/run
-  failure: ignore
 services:
 - name: Start Docker
   image: docker:dind
@@ -7140,7 +7085,7 @@ steps:
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
   - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
   - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
   - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
@@ -7178,11 +7123,10 @@ steps:
     done
   environment:
     RELEASES_CERT:
-      from_secret: RELEASES_CERT_STAGING
+      from_secret: RELEASES_CERT
     RELEASES_KEY:
-      from_secret: RELEASES_KEY_STAGING
+      from_secret: RELEASES_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-  failure: ignore
 - name: Clean up toolchains (post)
   commands:
   - set -u
@@ -7202,6 +7146,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 707c836fc9c2d0b3ee8074d258b3723651a6e53dcada5b5fcf0417b10f455b45
+hmac: 35eb57ba2a6fbddc27bf4fb0b88184a2d3b724d2fdb4235a8ad3f687dc7f58b6
 
 ...

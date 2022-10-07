@@ -1,5 +1,7 @@
+//go:build !webassets_embed
+
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,18 +16,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package helpers
+package teleport
 
 import (
-	"time"
+	"net/http"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
-func MustCreateProvisionToken(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
-	t, err := types.NewProvisionToken(token, roles, expires)
-	if err != nil {
-		panic(err)
-	}
-	return t
+const webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
+
+// NewWebAssetsFilesystem is a no-op in this build mode.
+func NewWebAssetsFilesystem() (http.FileSystem, error) { //nolint:staticcheck
+	return nil, trace.NotFound(webAssetsMissingError)
 }

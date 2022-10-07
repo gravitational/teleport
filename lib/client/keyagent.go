@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/sirupsen/logrus"
@@ -71,8 +72,12 @@ type LocalKeyAgent struct {
 	// insecure allows to accept public host keys.
 	insecure bool
 
-	// siteName specifies site to execute operation.
+	// siteName specifies the site to execute operation.
 	siteName string
+
+	// loadAllCAs allows the agent to load all host CAs when checking a host
+	// signature.
+	loadAllCAs bool
 }
 
 // sshKnowHostGetter allows to fetch key for particular host - trusted cluster.
@@ -139,7 +144,8 @@ type LocalAgentConfig struct {
 	Username   string
 	KeysOption string
 	Insecure   bool
-	SiteName   string
+	Site       string
+	LoadAllCAs bool
 }
 
 // NewLocalAgent reads all available credentials from the provided LocalKeyStore
@@ -152,13 +158,14 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentKeyAgent,
 		}),
-		Agent:     conf.Agent,
-		keyStore:  conf.Keystore,
-		noHosts:   make(map[string]bool),
-		username:  conf.Username,
-		proxyHost: conf.ProxyHost,
-		insecure:  conf.Insecure,
-		siteName:  conf.SiteName,
+		Agent:      conf.Agent,
+		keyStore:   conf.Keystore,
+		noHosts:    make(map[string]bool),
+		username:   conf.Username,
+		proxyHost:  conf.ProxyHost,
+		insecure:   conf.Insecure,
+		siteName:   conf.Site,
+		loadAllCAs: conf.LoadAllCAs,
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
@@ -188,6 +195,12 @@ func (a *LocalKeyAgent) UpdateUsername(username string) {
 // UpdateCluster changes the cluster that the local agent operates on.
 func (a *LocalKeyAgent) UpdateCluster(cluster string) {
 	a.siteName = cluster
+}
+
+// UpdateLoadAllCAs changes whether or not the local agent should load all
+// host CAs.
+func (a *LocalKeyAgent) UpdateLoadAllCAs(loadAllCAs bool) {
+	a.loadAllCAs = loadAllCAs
 }
 
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
@@ -386,6 +399,11 @@ func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, hostKey
 		// In case of establishing connection to leaf cluster the client validate ssh cert against root
 		// cluster proxy cert and leaf cluster cert.
 		clusters = append(clusters, a.siteName)
+	} else if a.loadAllCAs {
+		clusters, err = a.GetClusterNames()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	certChecker := sshutils.CertChecker{
@@ -664,4 +682,23 @@ func (a *LocalKeyAgent) ClientCertPool(cluster string) (*x509.CertPool, error) {
 		}
 	}
 	return pool, nil
+}
+
+// GetClusterNames gets the names of the Teleport clusters this
+// key agent knows about.
+func (a *LocalKeyAgent) GetClusterNames() ([]string, error) {
+	certs, err := a.GetTrustedCertsPEM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var clusters []string
+	for _, cert := range certs {
+		cert, err := tlsca.ParseCertificatePEM(cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clusters = append(clusters, cert.Subject.CommonName)
+	}
+	return clusters, nil
 }

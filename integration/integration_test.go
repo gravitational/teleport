@@ -400,7 +400,10 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 					Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
 					ForwardAgent: tt.inForwardAgent,
 				})
-				require.NoError(t, err)
+				if err != nil {
+					endC <- err
+					return
+				}
 				cl.Stdout = myTerm
 				cl.Stdin = myTerm
 
@@ -437,7 +440,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait for session to end:
 			select {
-			case <-endC:
+			case err := <-endC:
+				require.NoError(t, err)
 			case <-time.After(10 * time.Second):
 				t.Fatalf("%s: Timeout waiting for session to finish.", tt.comment)
 			}
@@ -2162,7 +2166,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
@@ -2667,7 +2671,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(ctx,
-		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
@@ -3678,7 +3682,10 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 			Host:    Host,
 			Port:    helpers.Port(t, teleport.SSH),
 		})
-		require.NoError(t, err)
+		if err != nil {
+			endCh <- err
+			return
+		}
 		cl.Stdout = myTerm
 		cl.Stdin = myTerm
 		err = cl.SSH(ctx, []string{}, false)
@@ -3708,7 +3715,8 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	select {
 	case <-time.After(1 * time.Minute):
 		t.Fatalf("Timed out waiting for session to end.")
-	case <-endCh:
+	case err := <-endCh:
+		require.NoError(t, err)
 	}
 
 	// audit log should have the fact that the session occurred recorded in it
@@ -3842,8 +3850,9 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 
 			termSession := NewTerminal(250)
 
+			errCh := make(chan error)
+
 			// Create an interactive session and write something to the terminal.
-			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
 				cl, err := teleport.NewClient(helpers.ClientConfig{
 					Login:   suite.Me.Username,
@@ -3851,7 +3860,10 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 					Host:    Host,
 					Port:    helpers.Port(t, teleport.SSH),
 				})
-				require.NoError(t, err)
+				if err != nil {
+					errCh <- err
+					return
+				}
 
 				cl.Stdout = termSession
 				cl.Stdin = termSession
@@ -3859,10 +3871,10 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 				termSession.Type("\aecho hi\n\r\aexit\n\r\a")
 				err = cl.SSH(context.TODO(), []string{}, false)
 				if !isSSHError(err) {
-					require.NoError(t, err)
+					errCh <- err
+					return
 				}
-
-				cancel()
+				errCh <- nil
 			}()
 
 			// Wait for the session to end or timeout after 10 seconds.
@@ -3870,7 +3882,8 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 			case <-time.After(10 * time.Second):
 				dumpGoroutineProfile()
 				t.Fatalf("Timeout exceeded waiting for session to complete.")
-			case <-ctx.Done():
+			case err := <-errCh:
+				require.NoError(t, err)
 			}
 
 			// If any output is expected, check to make sure it was output.
@@ -4263,7 +4276,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	trustedClusterToken := "trusted-cluster-token"
 	err = svc.GetAuthServer().UpsertToken(ctx,
-		helpers.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
+		services.MustCreateProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{}))
 	require.NoError(t, err)
 	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},

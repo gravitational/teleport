@@ -23,7 +23,7 @@ OS ?= linux
 ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport11
 
-GOLANG_VERSION ?= go1.19.1
+GOLANG_VERSION ?= go1.19.2
 
 NODE_VERSION ?= 16.13.2
 

@@ -58,7 +58,7 @@ func EnableKube(t *testing.T, config *service.Config, clusterName string) error 
 
 		TeleportClusterName: clusterName,
 		Credentials:         key,
-	})
+	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
