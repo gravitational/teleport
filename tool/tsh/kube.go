@@ -752,7 +752,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		}
 
 		if c.quiet {
-			t = asciitable.MakeHeadlessTable(3)
+			t = asciitable.MakeHeadlessTable(len(columns))
 			for _, row := range rows {
 				t.AddRow(row)
 			}
