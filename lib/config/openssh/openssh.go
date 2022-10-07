@@ -16,7 +16,7 @@
 
 */
 
-package config
+package openssh
 
 import (
 	"bytes"
