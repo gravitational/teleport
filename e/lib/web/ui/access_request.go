@@ -34,11 +34,6 @@ type AccessRequest struct {
 	ThresholdNames []string `json:"thresholdNames"`
 	// Resources is the list of resources for a Resource Access Request
 	Resources []Resource `json:"resources"`
-
-	// TODO(nic): delete this after webassets are updated to not read
-	// ResourceIDs
-	// ResourceID is a unique identifier for a teleport resource.
-	ResourceIDs []ResourceID `json:"resourceIds"`
 }
 
 // AccessRequestReview defines fields of a review applied to a request.
@@ -130,17 +125,6 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		}
 	}
 
-	// TODO(nic): delete this after webassets are updated to not read
-	// ResourceIDs
-	resourceIDs := make([]ResourceID, len(requestedResourceIDs))
-	for i, r := range request.GetRequestedResourceIDs() {
-		resourceIDs[i] = ResourceID{
-			ClusterName: r.ClusterName,
-			Kind:        r.Kind,
-			Name:        r.Name,
-		}
-	}
-
 	return &AccessRequest{
 		ID:                 request.GetMetadata().Name,
 		State:              request.GetState().String(),
@@ -154,9 +138,6 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		SuggestedReviewers: request.GetSuggestedReviewers(),
 		ThresholdNames:     thresholdNames,
 		Resources:          resources,
-		// TODO(nic): delete this after webassets are updated to not read
-		// ResourceIDs
-		ResourceIDs: resourceIDs,
 	}, nil
 }
 

@@ -346,12 +346,6 @@ func TestGetAccessRequest(t *testing.T) {
 				require.Equal(t, tc.requestedResources[i].ClusterName, result.Resources[i].ID.ClusterName)
 				require.Equal(t, tc.requestedResources[i].Kind, result.Resources[i].ID.Kind)
 				require.Equal(t, tc.requestedResources[i].Name, result.Resources[i].ID.Name)
-
-				// TODO(nic): delete this after webassets are updated to not
-				// read result.ResourceIDs
-				require.Equal(t, tc.requestedResources[i].ClusterName, result.ResourceIDs[i].ClusterName)
-				require.Equal(t, tc.requestedResources[i].Kind, result.ResourceIDs[i].Kind)
-				require.Equal(t, tc.requestedResources[i].Name, result.ResourceIDs[i].Name)
 			}
 
 			if tc.resultAssertion != nil {
@@ -388,7 +382,7 @@ func TestGetAccessRequests(t *testing.T) {
 	require.Len(t, reqs, 2)
 	require.Equal(t, reqs[0].State, types.RequestState_APPROVED.String())
 	require.Equal(t, reqs[1].State, types.RequestState_PENDING.String())
-	require.Equal(t, reqs[1].ResourceIDs, []ui.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
+	require.Equal(t, reqs[1].Resources, []ui.Resource{{ID: ui.ResourceID{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}})
 }
 
 func TestReviewAccessRequest(t *testing.T) {
