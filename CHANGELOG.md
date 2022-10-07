@@ -62,6 +62,7 @@ necessary, as those traits will be pulled from the roles assigned to the user.
 #### Deprecate Quay.io support
 #### Deprecate old deb/rpm repos
 #### `teleport-kube-agent` without persistent storage
+#### PostgreSQL/CockroachDB backend removed
 
 ## 10.0.0
 
