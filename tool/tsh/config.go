@@ -21,18 +21,18 @@ import (
 	"net"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/config/openssh"
+
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
 )
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(sb *strings.Builder, params *config.SSHConfigParameters, getSSHVersion func() (*semver.Version, error)) error {
-	sshConf := config.NewSSHConfig(getSSHVersion, log)
+func writeSSHConfig(sb *strings.Builder, params *openssh.SSHConfigParameters, getSSHVersion func() (*semver.Version, error)) error {
+	sshConf := openssh.NewSSHConfig(getSSHVersion, log)
 	if err := sshConf.GetSSHConfig(sb, params); err != nil {
 		return trace.Wrap(err)
 	}
@@ -81,8 +81,8 @@ func onConfig(cf *CLIConf) error {
 	}
 
 	var sb strings.Builder
-	if err := writeSSHConfig(&sb, &config.SSHConfigParameters{
-		AppName:          config.TshApp,
+	if err := writeSSHConfig(&sb, &openssh.SSHConfigParameters{
+		AppName:          openssh.TshApp,
 		ClusterNames:     append([]string{rootClusterName}, leafClustersNames...),
 		KnownHostsPath:   knownHostsPath,
 		IdentityFilePath: identityFilePath,
