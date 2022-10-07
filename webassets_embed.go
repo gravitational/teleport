@@ -1,5 +1,4 @@
-//go:build webassets_embed
-// +build webassets_embed
+//go:build webassets_embed && !webassets_ent
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -17,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package web
+package teleport
 
 import (
 	"embed"
@@ -27,13 +26,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
-//go:embed build/webassets
-var webassetFS embed.FS
+//go:embed webassets/teleport
+var embedded embed.FS
 
-// NewStaticFileSystem returns the initialized implementation of http.FileSystem
-// interface which can be used to serve Teleport Proxy Web UI
-func NewStaticFileSystem() (http.FileSystem, error) {
-	wfs, err := fs.Sub(webassetFS, "build/webassets")
+// NewWebAssetsFilesystem returns the initialized implementation of
+// http.FileSystem interface which can be used to serve Teleport Proxy Web UI
+func NewWebAssetsFilesystem() (http.FileSystem, error) {
+	wfs, err := fs.Sub(embedded, "webassets/teleport")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
