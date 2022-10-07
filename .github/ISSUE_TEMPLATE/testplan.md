@@ -7,7 +7,7 @@ labels: testplan
 ## Manual Testing Plan
 
 Below are the items that should be manually tested with each release of Teleport.
-These tests should be run on both a fresh install of the version to be released
+These tests should be run on both a fresh installation of the version to be released
 as well as an upgrade of the previous version of Teleport.
 
 - [ ] Adding nodes to a cluster
@@ -76,8 +76,8 @@ as well as an upgrade of the previous version of Teleport.
 
     Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
     restart the server and then register an U2F device (`tsh mfa add`). Upgrade
-    the install to the current Teleport version (one major at a time) and try to
-    login using the U2F device as your second factor - it should work.
+    the installation to the current Teleport version (one major at a time) and try to
+    log in using the U2F device as your second factor - it should work.
 
   - [ ] Login OIDC
   - [ ] Login SAML
@@ -176,6 +176,14 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
+- [ ] `tsh` CA loading
+
+  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
+  - [ ] `load_all_cas` on the root auth server is `false` (default) -
+  `tsh ssh leaf.node.example.com` results in access denied.
+  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
+  succeeds.
+
 ### User accounting
 
 - [ ] Verify that active interactive sessions are tracked in `/var/run/utmp` on Linux.
@@ -203,32 +211,32 @@ interactive sessions the 12 combinations are below.
 
 * [ ] Deploy Teleport on a single EKS cluster
 * [ ] Deploy Teleport on two EKS clusters and connect them via trusted cluster feature
-* [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
-* [ ] Deploy Teleport Proxy outside of EKS cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
+* [ ] Deploy Teleport Proxy outside GKE cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
+* [ ] Deploy Teleport Proxy outside EKS cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
 
 ### Teleport with multiple Kubernetes clusters
 
 Note: you can use GKE or EKS or minikube to run Kubernetes clusters.
 Minikube is the only caveat - it's not reachable publicly so don't run a proxy there.
 
-* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig
+* [ ] Deploy combo auth/proxy/kubernetes_service outside a Kubernetes cluster, using a kubeconfig
   * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy combo auth/proxy/kubernetes_service inside of a Kubernetes cluster
+* [ ] Deploy combo auth/proxy/kubernetes_service inside a Kubernetes cluster
   * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy combo auth/proxy_service outside of the Kubernetes cluster and kubernetes_service inside of a Kubernetes cluster, connected over a reverse tunnel
+* [ ] Deploy combo auth/proxy_service outside the Kubernetes cluster and kubernetes_service inside of a Kubernetes cluster, connected over a reverse tunnel
   * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy a second kubernetes_service inside of another Kubernetes cluster, connected over a reverse tunnel
+* [ ] Deploy a second kubernetes_service inside another Kubernetes cluster, connected over a reverse tunnel
   * [ ] Login with `tsh login`, check that `tsh kube ls` has both clusters
   * [ ] Switch to a second cluster using `tsh kube login`
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh` on the new cluster
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig with multiple clusters in it
+* [ ] Deploy combo auth/proxy/kubernetes_service outside a Kubernetes cluster, using a kubeconfig with multiple clusters in it
   * [ ] Login with `tsh login`, check that `tsh kube ls` has all clusters
 * [ ] Test Kubernetes screen in the web UI (tab is located on left side nav on dashboard):
   * [ ] Verify that all kubes registered are shown with correct `name` and `labels`
@@ -292,19 +300,19 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 ### Teleport with SSO Providers
 
 - [ ] G Suite install instructions work
-    - [ ] G Suite Screenshots are up to date
+    - [ ] G Suite Screenshots are up-to-date
 - [ ] Azure Active Directory (AD) install instructions work
-    - [ ] Azure Active Directory (AD) Screenshots are up to date
+    - [ ] Azure Active Directory (AD) Screenshots are up-to-date
 - [ ] ActiveDirectory (ADFS) install instructions work
-    - [ ] Active Directory (ADFS) Screenshots are up to date
+    - [ ] Active Directory (ADFS) Screenshots are up-to-date
 - [ ] Okta install instructions work
-    - [ ] Okta Screenshots are up to date
+    - [ ] Okta Screenshots are up-to-date
 - [ ] OneLogin install instructions work
-    - [ ] OneLogin Screenshots are up to date
+    - [ ] OneLogin Screenshots are up-to-date
 - [ ] GitLab install instructions work
-    - [ ] GitLab Screenshots are up to date
+    - [ ] GitLab Screenshots are up-to-date
 - [ ] OIDC install instructions work
-    - [ ] OIDC Screenshots are up to date
+    - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 
 ### `tctl sso` family of commands
@@ -341,6 +349,13 @@ connectors are accepted, invalid are rejected with sensible error messages.
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestIAMNodeJoin`
 - [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
+
+### Cloud Labels
+- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
+and with tag `foo`: `bar`. Verify that a node running on the instance has label
+`aws/foo=bar`.
+- [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
+instance has label `azure/foo=bar`.
 
 ### Passwordless
 
@@ -448,7 +463,7 @@ For help with setting up auth connectors, check out the [Quick GitHub/SAML/OIDC 
 - [ ] Verify that error is shown when saving an invalid YAML
 - [ ] Verify that correct hint text is shown on the right side
 - [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
-- [ ] Verify that created github, saml, oidc card has their icons
+- [ ] Verify that created GitHub, saml, oidc card has their icons
 #### Roles
 - [ ] Verify that roles are shown
 - [ ] Verify that "Create New Role" dialog works
@@ -872,37 +887,58 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
 
-## Performance/Soak Test
+## Performance
 
-Using `tsh bench` tool, perform the soak tests and benchmark tests on the following configurations:
+Perform all tests on the following configurations:
 
-* Cluster with 10K nodes in normal (non-IOT) node mode with ETCD
-* Cluster with 10K nodes in normal (non-IOT) mode with DynamoDB
+- [ ] With default networking configuration
+- [ ] With Proxy Peering Enabled
+- [ ] With TLS Routing Enabled
 
-* Cluster with 1K IOT nodes with ETCD
-* Cluster with 1K IOT nodes with DynamoDB
+* Cluster with 10K direct dial nodes: 
+ - [ ] etcd
+ - [ ] DynamoDB
+ - [ ] Firestore
 
-* Cluster with 500 trusted clusters with ETCD
-* Cluster with 500 trusted clusters with DynamoDB
+* Cluster with 10K reverse tunnel nodes:
+ - [ ] etcd
+ - [ ] DynamoDB
+ - [ ] Firestore
 
-**Soak Tests**
+* Cluster with 500 trusted clusters:
+- [ ] etcd
+- [ ] DynamoDB
+- [ ] Firestore
 
-Run 4hour soak test with a mix of interactive/non-interactive sessions:
+### Soak Test
 
-```
-tsh bench --duration=4h user@teleport-monster-6757d7b487-x226b ls
-tsh bench -i --duration=4h user@teleport-monster-6757d7b487-x226b ps uax
+Run 30 minute soak test with a mix of interactive/non-interactive sessions for both direct and reverse tunnel nodes:
+
+```shell
+tsh bench --duration=30m user@direct-dial-node ls
+tsh bench -i --duration=30m user@direct-dial-node ps uax
+
+tsh bench --duration=30m user@reverse-tunnel-node ls
+tsh bench -i --duration=30m user@reverse-tunnel-node ps uax
 ```
 
 Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
 
 - [ ] Verify that prometheus metrics are accurate.
 
-**Breaking load tests**
+### Concurrent Session Test
 
-Load system with tsh bench to the capacity and publish maximum numbers of concurrent sessions with interactive
-and non interactive tsh bench loads.
+* Cluster with 1k reverse tunnel nodes
 
+Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
+
+```shell
+tsh bench sessions --max=5000 user ls
+tsh bench sessions --max=5000 --web user ls 
+```
+
+- [ ] Verify that all 5000 sessions are able to be established.
+- [ ] Verify that tsh and the web UI are still functional.
 
 ## Teleport with Cloud Providers
 
@@ -970,6 +1006,9 @@ and non interactive tsh bench loads.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
+  - [ ] Azure Cache for Redis.
+  - [ ] Elasticsearch.
+  - [ ] Cassandra/ScyllaDB.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -987,6 +1026,9 @@ and non interactive tsh bench loads.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
+  - [ ] Azure Cache for Redis.
+  - [ ] Elasticsearch.
+  - [ ] Cassandra/ScyllaDB.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1005,11 +1047,15 @@ and non interactive tsh bench loads.
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
-  - [ ] Can detect and register RDS instances.
-  - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
-  - [ ] Can detect and register Redshift clusters.
-  - [ ] Can detect and register ElastiCache Redis clusters.
-  - [ ] Can detect and register MemoryDB clusters.
+    - [ ] AWS
+      - [ ] Can detect and register RDS instances.
+      - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
+      - [ ] Can detect and register Redshift clusters.
+      - [ ] Can detect and register ElastiCache Redis clusters.
+      - [ ] Can detect and register MemoryDB clusters.
+    - [ ] Azure
+      - [ ] Can detect and register MySQL and Postgres instances.
+      - [ ] Can detect and register Azure Cache for Redis servers.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users 
@@ -1053,7 +1099,10 @@ and non interactive tsh bench loads.
     - [ ] Redis
     - [ ] MSSQL
     - [ ] Snowflake
+    - [ ] Elasticsearch.
+    - [ ] Cassandra/ScyllaDB.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+  - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
@@ -1113,6 +1162,45 @@ and non interactive tsh bench loads.
     - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
   - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
     - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
+- Directory Sharing
+  - On supported, non-chromium based browsers (Firefox/Safari)
+    - [ ] Attempting to share directory shows a dismissible "Unsupported Action" dialog
+  - On supported, chromium based browsers (Chrome/Edge)
+    - Begin sharing works
+      - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
+      - [ ] The shared directory appears as a network drive named "<directory_name> on teleport"
+      - [ ] The share directory menu option disappears from the menu
+    - Navigation
+      - [ ] The folders of the shared directory are navigable (move up and down the directory tree)
+    - CRUD
+      - [ ] A new text file can be created
+      - [ ] The text file can be written to (saved)
+      - [ ] The text file can be read (close it, check that it's saved on the local machine, then open it again on the remote)
+      - [ ] The text file can be deleted
+    - File/Folder movement
+      - In to out (make at least one of these from a non-top-level-directory)
+        - [ ] A file from inside the shared directory can be drag-and-dropped outside the shared directory
+        - [ ] A folder from inside the shared directory can be drag-and-dropped outside the shared directory (and its contents retained)
+        - [ ] A file from inside the shared directory can be cut-pasted outside the shared directory
+        - [ ] A folder from inside the shared directory can be cut-pasted outside the shared directory
+        - [ ] A file from inside the shared directory can be copy-pasted outside the shared directory
+        - [ ] A folder from inside the shared directory can be copy-pasted outside the shared directory
+      - Out to in (make at least one of these overwrite an existing file, and one go into a non-top-level directory)
+        - [ ] A file from outside the shared directory can be drag-and-dropped into the shared directory
+        - [ ] A folder from outside the shared directory can be drag-and-dropped into the shared directory (and its contents retained)
+        - [ ] A file from outside the shared directory can be cut-pasted into the shared directory
+        - [ ] A folder from outside the shared directory can be cut-pasted into the shared directory
+        - [ ] A file from outside the shared directory can be copy-pasted into the shared directory
+        - [ ] A folder from outside the shared directory can be copy-pasted into the shared directory
+      - Within
+        - [ ] A file from inside the shared directory cannot be drag-and-dropped to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A folder from inside the shared directory cannot be drag-and-dropped to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A file from inside the shared directory cannot be cut-pasted to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A folder from inside the shared directory cannot be cut-pasted to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A file from inside the shared directory can be copy-pasted to another folder inside the shared directory
+        - [ ] A folder from inside the shared directory can be copy-pasted to another folder inside shared directory (and its contents retained)
+  - RBAC
+    - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
 - Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
   - [ ] Attempting to start a session no keys registered shows an error message
   - [ ] Attempting to start a session with a u2f key registered shows an error message
@@ -1146,13 +1234,7 @@ and non interactive tsh bench loads.
 
 ## Binaries compatibility
 
-- Verify that teleport/tsh/tctl/tbot run on:
-  - [ ] CentOS 7
-  - [ ] CentOS 8
-  - [ ] Ubuntu 18.04
-  - [ ] Ubuntu 20.04
-  - [ ] Debian 9
-- Verify tsh runs on:
+- Verify `tsh` runs on:
   - [ ] Windows 10
   - [ ] MacOS
 
@@ -1325,7 +1407,7 @@ TODO(lxea): replace links with actual docs once merged
 - Verify host users creation functionality
   - [ ] non-existing users are created automatically
   - [ ] users are added to groups
-    - [ ] non existing configured groups are created
+    - [ ] non-existing configured groups are created
 	- [ ] created users are added to the `teleport-system` group
   - [ ] users are cleaned up after their session ends
 	- [ ] cleanup occurs if a program was left running after session ends

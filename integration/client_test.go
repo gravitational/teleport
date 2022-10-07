@@ -51,7 +51,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
 
-	username := mustGetCurrentUser(t).Username
+	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
 	err := rc.CreateEx(t, nil, rcConf)
@@ -61,7 +61,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	defer rc.StopAll()
 
 	// Create an expired identity file: ttl is 1 second in the past
-	identityFilePath := MustCreateUserIdentityFile(t, rc, username, -time.Second)
+	identityFilePath := helpers.MustCreateUserIdentityFile(t, rc, username, -time.Second)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()

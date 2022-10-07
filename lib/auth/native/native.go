@@ -57,24 +57,11 @@ var startPrecomputeOnce sync.Once
 
 // GenerateKeyPair generates a new RSA key pair.
 func GenerateKeyPair() ([]byte, []byte, error) {
-	priv, err := getOrGenerateRSAPrivateKey()
+	priv, err := GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	privPEM := pem.EncodeToMemory(&pem.Block{
-		Type:    "RSA PRIVATE KEY",
-		Headers: nil,
-		Bytes:   x509.MarshalPKCS1PrivateKey(priv),
-	})
-
-	pub, err := ssh.NewPublicKey(&priv.PublicKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	pubPEM := ssh.MarshalAuthorizedKey(pub)
-
-	return privPEM, pubPEM, nil
+	return priv.PrivateKeyPEM(), priv.MarshalSSHPublicKey(), nil
 }
 
 // GeneratePrivateKey generates a new RSA private key.
@@ -83,11 +70,17 @@ func GeneratePrivateKey() (*keys.PrivateKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rsaSigner, err := keys.NewStandardSigner(rsaKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keys.NewPrivateKey(rsaSigner)
+
+	// We encode the private key in PKCS #1, ASN.1 DER form
+	// instead of PKCS #8 to maintain compatibility with some
+	// third party clients.
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    keys.PKCS1PrivateKeyType,
+		Headers: nil,
+		Bytes:   x509.MarshalPKCS1PrivateKey(rsaKey),
+	})
+
+	return keys.NewPrivateKey(rsaKey, keyPEM)
 }
 
 func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
@@ -299,6 +292,12 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.AllowedResourceIDs != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
 	}
+	if c.ConnectionDiagnosticID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = c.ConnectionDiagnosticID
+	}
+	if c.PrivateKeyPolicy != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionPrivateKeyPolicy] = string(c.PrivateKeyPolicy)
+	}
 
 	if c.SourceIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
@@ -365,8 +364,8 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 // BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
-//    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
-//    * If nodename is empty, it is not included in the list of principals.
+//   - If RoleAdmin is in the list of roles, only a single principal is returned: hostID
+//   - If nodename is empty, it is not included in the list of principals.
 func BuildPrincipals(hostID string, nodeName string, clusterName string, roles types.SystemRoles) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.

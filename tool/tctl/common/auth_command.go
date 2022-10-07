@@ -27,6 +27,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -55,6 +56,7 @@ type AuthCommand struct {
 	genPrivPath                string
 	genUser                    string
 	genHost                    string
+	format                     string
 	genTTL                     time.Duration
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
@@ -80,6 +82,7 @@ type AuthCommand struct {
 	authExport   *kingpin.CmdClause
 	authSign     *kingpin.CmdClause
 	authRotate   *kingpin.CmdClause
+	authLS       *kingpin.CmdClause
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
@@ -132,6 +135,10 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
 	a.authRotate.Flag("type", "Certificate authority to rotate, rotates host, user and database CA by default").StringVar(&a.rotateType)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
+
+	a.authLS = auth.Command("ls", "List connected auth servers")
+	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
+
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -146,6 +153,8 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		err = a.GenerateAndSignKeys(ctx, client)
 	case a.authRotate.FullCommand():
 		err = a.RotateCertAuthority(ctx, client)
+	case a.authLS.FullCommand():
+		err = a.ListAuthServers(ctx, client)
 	default:
 		return false, nil
 	}
@@ -327,7 +336,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
-		identityfile.FormatRedis:
+		identityfile.FormatRedis, identityfile.FormatElasticsearch:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
 	case identityfile.FormatSnowflake:
 		return a.generateSnowflakeKey(ctx, clusterAPI)
@@ -395,6 +404,27 @@ func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.Clien
 		fmt.Printf("Updated rotation phase to %q. To check status use 'tctl status'\n", a.rotateTargetPhase)
 	} else {
 		fmt.Printf("Initiated certificate authority rotation. To check status use 'tctl status'\n")
+	}
+
+	return nil
+}
+
+// ListAuthServers prints a list of connected auth servers
+func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI auth.ClientI) error {
+	servers, err := clusterAPI.GetAuthServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sc := &serverCollection{servers, false}
+
+	switch a.format {
+	case teleport.Text:
+		return sc.writeText(os.Stdout)
+	case teleport.YAML:
+		return writeYAML(sc, os.Stdout)
+	case teleport.JSON:
+		return writeJSON(sc, os.Stdout)
 	}
 
 	return nil
@@ -485,11 +515,12 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
-	identityfile.FormatDatabase:  dbAuthSignTpl,
-	identityfile.FormatMongo:     mongoAuthSignTpl,
-	identityfile.FormatCockroach: cockroachAuthSignTpl,
-	identityfile.FormatRedis:     redisAuthSignTpl,
-	identityfile.FormatSnowflake: snowflakeAuthSignTpl,
+	identityfile.FormatDatabase:      dbAuthSignTpl,
+	identityfile.FormatMongo:         mongoAuthSignTpl,
+	identityfile.FormatCockroach:     cockroachAuthSignTpl,
+	identityfile.FormatRedis:         redisAuthSignTpl,
+	identityfile.FormatSnowflake:     snowflakeAuthSignTpl,
+	identityfile.FormatElasticsearch: elasticsearchAuthSignTpl,
 }
 
 func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format) error {
@@ -516,16 +547,14 @@ var (
 	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
 	dbAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
-To enable mutual TLS on your PostgreSQL server, add the following to its
-postgresql.conf configuration file:
+To enable mutual TLS on your PostgreSQL server, add the following to its postgresql.conf configuration file:
 
 ssl = on
 ssl_cert_file = '/path/to/{{.output}}.crt'
 ssl_key_file = '/path/to/{{.output}}.key'
 ssl_ca_file = '/path/to/{{.output}}.cas'
 
-To enable mutual TLS on your MySQL server, add the following to its
-mysql.cnf configuration file:
+To enable mutual TLS on your MySQL server, add the following to its mysql.cnf configuration file:
 
 [mysqld]
 require_secure_transport=ON
@@ -569,6 +598,27 @@ tls-protocols "TLSv1.2 TLSv1.3"
 
 Please add the generated key to the Snowflake users as described here:
 https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
+`))
+
+	elasticsearchAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Elasticsearch server, add the following to your elasticsearch.yml:
+
+xpack.security.http.ssl:
+  certificate_authorities: /path/to/{{.output}}.cas
+  certificate: /path/to/{{.output}}.crt
+  key: /path/to/{{.output}}.key
+  enabled: true
+  client_authentication: required
+  verification_mode: certificate
+
+xpack.security.authc.realms.pki.pki1:
+  order: 1
+  enabled: true
+  certificate_authorities: /path/to/{{.output}}.cas
+
+For more information on configuring security settings in Elasticsearch, see:
+https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
 `))
 )
 
@@ -842,7 +892,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 // base64-encoded key, comment.
 // For example:
 //
-//    cert-authority AAA... type=user&clustername=cluster-a
+//	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
 func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
@@ -854,7 +904,7 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 // authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//    @cert-authority *.cluster-a ssh-rsa AAA... type=host
+//	@cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {

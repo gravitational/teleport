@@ -49,7 +49,6 @@ const (
 //
 // Profiles can be stored in a profile file, allowing TSH users to
 // type fewer CLI args.
-//
 type Profile struct {
 	// WebProxyAddr is the host:port the web proxy can be accessed at.
 	WebProxyAddr string `yaml:"web_proxy_addr,omitempty"`
@@ -92,6 +91,10 @@ type Profile struct {
 	// AuthConnector (like "google", "passwordless").
 	// Equivalent to the --auth tsh flag.
 	AuthConnector string `yaml:"auth_connector,omitempty"`
+
+	// LoadAllCAs indicates that tsh should load the CAs of all clusters
+	// instead of just the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
 }
 
 // Name returns the name of the profile.

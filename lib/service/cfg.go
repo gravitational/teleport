@@ -90,10 +90,8 @@ type Config struct {
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 
-	// AuthServers is a list of auth servers, proxies and peer auth servers to
-	// connect to. Yes, this is not just auth servers, the field name is
-	// misleading.
-	AuthServers []utils.NetAddr
+	// ProxyServer is the address of the proxy
+	ProxyServer utils.NetAddr
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
@@ -128,6 +126,9 @@ type Config struct {
 
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
+
+	// Discovery defines the discovery service configuration.
+	Discovery DiscoveryConfig
 
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
@@ -266,6 +267,49 @@ type Config struct {
 	// This is private to avoid external packages reading the value - the value should be obtained
 	// using Token()
 	token string
+
+	// v1, v2 -
+	// AuthServers is a list of auth servers, proxies and peer auth servers to
+	// connect to. Yes, this is not just auth servers, the field name is
+	// misleading.
+	// v3 -
+	// AuthServers contains a single address that is set by `auth_server` in the config
+	// A proxy address would be specified separately, so this no longer contains both
+	// auth servers and proxies.
+	//
+	// In order to keep backwards compatibility between v3 and v2/v1, this is now private
+	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
+	// as we still need to keep multiple addresses and return them for older config versions.
+	authServers []utils.NetAddr
+}
+
+// AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
+// will return just the first (as only one should be set) address for config versions v3
+// onwards.
+func (cfg *Config) AuthServerAddresses() []utils.NetAddr {
+	return cfg.authServers
+}
+
+// SetAuthServerAddresses sets the value of authServers
+// If the config version is v1 or v2, it will set the value to all the given addresses (as
+// multiple can be specified).
+// If the config version is v3 or onwards, it'll error if more than one address is given.
+func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
+	// from config v3 onwards, we will error if more than one address is given
+	if cfg.Version != defaults.TeleportConfigVersionV1 && cfg.Version != defaults.TeleportConfigVersionV2 {
+		if len(addrs) > 1 {
+			return trace.BadParameter("only one auth server address should be set from config v3 onwards")
+		}
+	}
+
+	cfg.authServers = addrs
+
+	return nil
+}
+
+// SetAuthServerAddress sets the value of authServers to a single value
+func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
+	cfg.authServers = []utils.NetAddr{addr}
 }
 
 // Token returns token needed to join the auth server
@@ -326,7 +370,7 @@ func (cfg *Config) RoleConfig() RoleConfig {
 		DataDir:     cfg.DataDir,
 		HostUUID:    cfg.HostUUID,
 		HostName:    cfg.Hostname,
-		AuthServers: cfg.AuthServers,
+		AuthServers: cfg.AuthServerAddresses(),
 		Auth:        cfg.Auth,
 		Console:     cfg.Console,
 	}
@@ -613,6 +657,10 @@ type AuthConfig struct {
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore keystore.Config
+
+	// LoadAllCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
+	// instead of just the host CA for the current cluster.
+	LoadAllCAs bool
 }
 
 // SSHConfig configures SSH server node role
@@ -656,9 +704,6 @@ type SSHConfig struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
-
-	// AWSMatchers are used to match EC2 instances for auto enrollment.
-	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -691,6 +736,9 @@ type KubeConfig struct {
 	// CheckImpersonationPermissions is an optional override to the default
 	// impersonation permissions check, for use in testing.
 	CheckImpersonationPermissions proxy.ImpersonationPermissionsChecker
+
+	// ResourceMatchers match dynamic kube_cluster resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // DatabasesConfig configures the database proxy service.
@@ -733,6 +781,8 @@ type Database struct {
 	GCP DatabaseGCP
 	// AD contains Active Directory configuration for database.
 	AD DatabaseAD
+	// Azure contains Azure database configuration.
+	Azure DatabaseAzure
 }
 
 // TLSMode defines all possible database verification modes.
@@ -862,6 +912,12 @@ type DatabaseAD struct {
 	Domain string
 	// SPN is the service principal name for the database.
 	SPN string
+}
+
+// DatabaseAzure contains Azure database configuration.
+type DatabaseAzure struct {
+	// ResourceID is the Azure fully qualified ID for the resource.
+	ResourceID string `yaml:"resource_id,omitempty"`
 }
 
 // CheckAndSetDefaults validates database Active Directory configuration.
@@ -1169,6 +1225,7 @@ type WindowsDesktopConfig struct {
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
+	Labels     map[string]string
 }
 
 type LDAPDiscoveryConfig struct {
@@ -1224,6 +1281,8 @@ type LDAPConfig struct {
 	Username string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }
@@ -1242,6 +1301,12 @@ type Header struct {
 	Name string
 	// Value is the http header value.
 	Value string
+}
+
+type DiscoveryConfig struct {
+	Enabled bool
+	// AWSMatchers are used to match EC2 instances for auto enrollment.
+	AWSMatchers []services.AWSMatcher
 }
 
 // ParseHeader parses the provided string as a http header.
@@ -1295,6 +1360,8 @@ func ApplyDefaults(cfg *Config) {
 	// golang.org/x/crypto/ssh default config.
 	var sc ssh.Config
 	sc.SetDefaults()
+
+	cfg.Version = defaults.TeleportConfigVersionV1
 
 	if cfg.Log == nil {
 		cfg.Log = utils.NewLogger()

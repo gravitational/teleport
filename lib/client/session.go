@@ -133,6 +133,7 @@ func newSession(ctx context.Context,
 		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
 		terminal:              term,
+		shouldClearOnExit:     client.FIPSEnabled || isFIPS(),
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
@@ -163,16 +164,6 @@ func newSession(ctx context.Context,
 	}
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
-
-	// Determine if terminal should clear on exit.
-	ns.shouldClearOnExit = isFIPS()
-	if client.Proxy != nil {
-		boring, err := client.Proxy.isAuthBoring(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ns.shouldClearOnExit = ns.shouldClearOnExit || boring
-	}
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
@@ -446,15 +437,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 			}
 
 			// Send the "window-change" request over the channel.
-			_, err = s.SendRequest(
-				ctx,
-				sshutils.WindowChangeRequest,
-				false,
-				ssh.Marshal(sshutils.WinChangeReqParams{
-					W: uint32(currWidth),
-					H: uint32(currHeight),
-				}))
-			if err != nil {
+			if err = s.WindowChange(ctx, int(currHeight), int(currWidth)); err != nil {
 				log.Warnf("Unable to send %v reqest: %v.", sshutils.WindowChangeRequest, err)
 				continue
 			}
@@ -584,27 +567,22 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
 	return ns.regularSession(ctx, func(s *tracessh.Session) error {
-		var err error
-
-		runContext, cancel := context.WithCancel(ctx)
+		errCh := make(chan error, 1)
 		go func() {
-			defer cancel()
-			err = s.Run(ctx, strings.Join(cmd, " "))
+			errCh <- s.Run(ctx, strings.Join(cmd, " "))
 		}()
 
 		select {
 		// Run returned a result, return that back to the caller.
-		case <-runContext.Done():
+		case err := <-errCh:
 			return trace.Wrap(err)
 		// The passed in context timed out. This is often due to the user hitting
 		// Ctrl-C.
 		case <-ctx.Done():
-			err = s.Close()
-			if err != nil {
+			if err := s.Close(); err != nil {
 				log.Debugf("Unable to close SSH channel: %v", err)
 			}
-			err = ns.NodeClient().Client.Close()
-			if err != nil {
+			if err := ns.NodeClient().Client.Close(); err != nil {
 				log.Debugf("Unable to close SSH client: %v", err)
 			}
 			return trace.ConnectionProblem(ctx.Err(), "connection canceled")

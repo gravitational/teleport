@@ -19,6 +19,7 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/desktop"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -30,15 +31,21 @@ func (h *Handler) desktopPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	ctx *SessionContext,
+	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing sid in request URL")
 	}
 
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	websocket.Handler(func(ws *websocket.Conn) {
 		defer h.log.Debug("desktopPlaybackHandle websocket handler returned")
-		desktop.NewPlayer(sID, ws, ctx.clt, h.log).Play(r.Context())
+		desktop.NewPlayer(sID, ws, clt, h.log).Play(r.Context())
 	}).ServeHTTP(w, r)
 	return nil, nil
 }

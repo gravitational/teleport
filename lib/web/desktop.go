@@ -17,13 +17,20 @@ limitations under the License.
 package web
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/pem"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -36,10 +43,12 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
@@ -66,6 +75,12 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
+const (
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
+	maxRDPScreenWidth  = 8192
+	maxRDPScreenHeight = 8192
+)
+
 func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -74,7 +89,6 @@ func (h *Handler) createDesktopConnection(
 	ctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
-
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
@@ -87,6 +101,12 @@ func (h *Handler) createDesktopConnection(
 	height, err := strconv.Atoi(q.Get("height"))
 	if err != nil {
 		return trace.BadParameter("height missing or invalid")
+	}
+
+	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
+		return trace.BadParameter("screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
+		)
 	}
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
@@ -171,11 +191,11 @@ func (h *Handler) createDesktopConnection(
 	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
-	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
 		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
-	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
 		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
@@ -318,11 +338,12 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// (io.Copy's internal buffer could split one message
 		// into multiple ws.WriteMessage calls)
 		tc := tdp.NewConn(wds)
+
+		// we don't care about the content of the message, we just
+		// need to split the stream into individual messages and
+		// write them to the websocket
 		for {
-			// TODO(zmb3): avoid the decode/encode loop here,
-			// and instead just build a tokenizer that reads
-			// the correct amount of bytes
-			msg, err := tc.InputMessage()
+			raw, err := tc.ReadRaw()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -332,13 +353,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				return
 			}
 
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
+			err = ws.WriteMessage(websocket.BinaryMessage, raw)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -369,4 +384,108 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
+}
+
+// createCertificateBlob creates Certificate BLOB
+// It has following structure:
+//
+//	CertificateBlob {
+//		PropertyID: u32, little endian,
+//		Reserved: u32, little endian, must be set to 0x01 0x00 0x00 0x00
+//		Length: u32, little endian
+//		Value: certificate data
+//	}
+func createCertificateBlob(certData []byte) []byte {
+	buf := new(bytes.Buffer)
+	buf.Grow(len(certData) + 12)
+	// PropertyID for certificate is 32
+	binary.Write(buf, binary.LittleEndian, int32(32))
+	binary.Write(buf, binary.LittleEndian, int32(1))
+	binary.Write(buf, binary.LittleEndian, int32(len(certData)))
+	buf.Write(certData)
+
+	return buf.Bytes()
+}
+
+func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	tokenStr := p.ByName("token")
+	if tokenStr == "" {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	// verify that the token exists
+	token, err := h.GetProxyClient().GetToken(r.Context(), tokenStr)
+	if err != nil {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	proxyServers, err := h.GetProxyClient().GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if len(proxyServers) == 0 {
+		return "", trace.NotFound("no proxy servers found")
+	}
+
+	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := h.GetProxyClient().GetCertAuthority(
+		r.Context(),
+		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+		false,
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(certAuthority.GetActiveKeys().TLS) != 1 {
+		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	}
+
+	var internalResourceID string
+	for labelKey, labelValues := range token.GetSuggestedLabels() {
+		if labelKey == types.InternalResourceIDLabel {
+			internalResourceID = strings.Join(labelValues, " ")
+			break
+		}
+	}
+
+	keyPair := certAuthority.GetActiveKeys().TLS[0]
+	block, _ := pem.Decode(keyPair.Cert)
+	if block == nil {
+		return nil, trace.BadParameter("no PEM data in CA data")
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
+		"caCertPEM":          string(keyPair.Cert),
+		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+		"caCertBase64":       base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
+		"provisionToken":     tokenStr,
+		"internalResourceID": internalResourceID,
+	})
+
+	return nil, trace.Wrap(err)
+
+}
+
+func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADDS)
+	return nil, trace.Wrap(err)
+}
+
+func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADCS)
+	return nil, trace.Wrap(err)
 }

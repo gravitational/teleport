@@ -81,6 +81,45 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 	return trace.Wrap(err)
 }
 
+// AppendDiagnosticTrace adds a Trace into the ConnectionDiagnostics.
+// It does a CompareAndSwap to ensure atomicity.
+func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	existing, err := s.Get(ctx, backend.Key(connectionDiagnosticPrefix, name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("connection diagnostic %q doesn't exist", name)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnostic, err := services.UnmarshalConnectionDiagnostic(existing.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnostic.AppendTrace(t)
+
+	value, err := services.MarshalConnectionDiagnostic(connectionDiagnostic)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newItem := backend.Item{
+		Key:     backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Value:   value,
+		Expires: connectionDiagnostic.Expiry(),
+		ID:      connectionDiagnostic.GetResourceID(),
+	}
+
+	_, err = s.CompareAndSwap(ctx, *existing, newItem)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
+}
+
 // GetConnectionDiagnostic receives a name and returns the Connection Diagnostic matching that name
 //
 // If not found, a `trace.NotFound` error is returned
