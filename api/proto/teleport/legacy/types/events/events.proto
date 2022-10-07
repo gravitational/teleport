@@ -3951,14 +3951,12 @@ message CassandraBatch {
     (gogoproto.jsontag) = ""
   ];
 
-  // QueryId is the prepared query id to execute.
-  string QueryID = 5 [(gogoproto.jsontag) = "query_id,omitempty"];
   // Consistency is the consistency level to use.
-  string Consistency = 6 [(gogoproto.jsontag) = "consistency,omitempty"];
+  string Consistency = 5 [(gogoproto.jsontag) = "consistency,omitempty"];
   // Keyspace is the keyspace the statement is in.
-  string Keyspace = 7 [(gogoproto.jsontag) = "keyspace,omitempty"];
+  string Keyspace = 6 [(gogoproto.jsontag) = "keyspace,omitempty"];
   // BatchType is the type of batch.
-  string BatchType = 8 [(gogoproto.jsontag) = "batch_type,omitempty"];
+  string BatchType = 7 [(gogoproto.jsontag) = "batch_type,omitempty"];
   // BatchChild represents a single child batch statement.
   message BatchChild {
     // Value is a single value to bind to the query.
@@ -3976,7 +3974,7 @@ message CassandraBatch {
     repeated Value Values = 3 [(gogoproto.jsontag) = "values,omitempty"];
   }
   // Children is batch children statements.
-  repeated BatchChild Children = 9 [(gogoproto.jsontag) = "children,omitempty"];
+  repeated BatchChild Children = 8 [(gogoproto.jsontag) = "children,omitempty"];
 }
 
 // CassandraRegister is emitted when a Cassandra client
