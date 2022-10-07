@@ -85,6 +85,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO: Use proxy address
 	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
