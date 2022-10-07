@@ -176,6 +176,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	clientConf.UseKeyPrincipals = true
 	clientConf.Username = currentUser.GetName()
 	clientConf.WebProxyAddr = s.webProxyAddr
+	clientConf.SiteName = clusterName.GetClusterName()
 
 	tc, err := client.NewClient(clientConf)
 	if err != nil {

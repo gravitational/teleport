@@ -160,6 +160,8 @@ type SampleFlags struct {
 	Roles string
 	// AuthServer is the address of the auth server
 	AuthServer string
+	// ProxyAddress is the address of the proxy
+	ProxyAddress string
 	// AppName is the name of the application to start
 	AppName string
 	// AppURI is the internal address of the application to proxy
@@ -220,6 +222,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
+	}
+
+	if flags.ProxyAddress != "" {
+		g.ProxyServer = flags.ProxyAddress
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
@@ -311,7 +317,8 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 			a.LicenseFile = flags.LicensePath
 		}
 
-		if flags.Version == defaults.TeleportConfigVersionV2 {
+		// from config v2 onwards, we support `proxy_listener_mode`, so we set it to `multiplex`
+		if flags.Version != defaults.TeleportConfigVersionV1 {
 			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
 		}
 	} else {
@@ -574,12 +581,19 @@ type Global struct {
 	DataDir  string `yaml:"data_dir,omitempty"`
 	PIDFile  string `yaml:"pid_file,omitempty"`
 
+	JoinParams JoinParams `yaml:"join_params,omitempty"`
+
+	// v1, v2
+	AuthServers []string `yaml:"auth_servers,omitempty"`
 	// AuthToken is the old way of configuring the token to be used by the
 	// node to join the Teleport cluster. `JoinParams.TokenName` should be
 	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
-	AuthToken   string           `yaml:"auth_token,omitempty"`
-	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
-	AuthServers []string         `yaml:"auth_servers,omitempty"`
+	AuthToken string `yaml:"auth_token,omitempty"`
+
+	// v3
+	AuthServer  string `yaml:"auth_server,omitempty"`
+	ProxyServer string `yaml:"proxy_server,omitempty"`
+
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
@@ -771,6 +785,10 @@ type Auth struct {
 	// should be sent. This is applicable only when using ping-wrapped
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
+
+	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
+	// to ssh into a node, instead of just the CA for the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -953,9 +971,8 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
-	// Disabled has no effect, it is kept solely to not break existing
+	// Deprecated: Disabled has no effect, it is kept solely to not break existing
 	// configurations.
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
 	Disabled bool `yaml:"disabled,omitempty"`
 }
 
@@ -1327,6 +1344,8 @@ type Database struct {
 	GCP DatabaseGCP `yaml:"gcp"`
 	// AD contains Active Directory database configuration.
 	AD DatabaseAD `yaml:"ad"`
+	// Azure contains Azure database configuration.
+	Azure DatabaseAzure `yaml:"azure"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
@@ -1415,6 +1434,12 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
+}
+
+// DatabaseAzure contains Azure database configuration.
+type DatabaseAzure struct {
+	// ResourceID is the Azure fully qualified ID for the resource.
+	ResourceID string `yaml:"resource_id,omitempty"`
 }
 
 // Apps represents the configuration for the collection of applications this

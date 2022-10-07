@@ -76,6 +76,10 @@ const (
 	// configuration Snowflake JWT access.
 	FormatSnowflake Format = "snowflake"
 
+	// FormatElasticsearch produces CA and key pair in the format suitable for
+	// configuring Elasticsearch for mutual TLS authentication.
+	FormatElasticsearch Format = "elasticsearch"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
@@ -85,7 +89,7 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake}
+	FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
@@ -146,6 +150,9 @@ type WriteConfig struct {
 	KubeProxyAddr string
 	// KubeTLSServerName is the SNI host value passed to the server.
 	KubeTLSServerName string
+	// KubeStoreAllCAs stores the CAs of all clusters in kubeconfig, instead
+	// of just the root cluster's CA.
+	KubeStoreAllCAs bool
 	// OverwriteDestination forces all existing destination files to be
 	// overwritten. When false, user will be prompted for confirmation of
 	// overwrite first.
@@ -224,7 +231,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis:
+	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatElasticsearch:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
@@ -334,7 +341,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
 			TLSServerName:       cfg.KubeTLSServerName,
-		}); err != nil {
+		}, cfg.KubeStoreAllCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

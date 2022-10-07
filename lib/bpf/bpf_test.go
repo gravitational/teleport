@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	os_exec "os/exec"
+	osexec "os/exec"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -85,7 +85,7 @@ func TestRootWatch(t *testing.T) {
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emitted to the Audit Log.
-	cmd := os_exec.Command("sleep", "10")
+	cmd := osexec.Command("sleep", "10")
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -109,13 +109,13 @@ func TestRootWatch(t *testing.T) {
 	require.Greater(t, cgroupID, 0)
 
 	// Find "ls" binary.
-	lsPath, err := os_exec.LookPath("ls")
+	lsPath, err := osexec.LookPath("ls")
 	require.NoError(t, err)
 
 	// Execute "ls" a few times
 	for i := 0; i < 5; i++ {
 		// Run "ls".
-		err = os_exec.Command(lsPath).Run()
+		err = osexec.Command(lsPath).Run()
 		require.NoError(t, err)
 
 		// Delay.
@@ -150,9 +150,9 @@ func TestRootObfuscate(t *testing.T) {
 	}
 
 	// Find the programs needed to run these tests on the host.
-	decoderPath, err := os_exec.LookPath("base64")
+	decoderPath, err := osexec.LookPath("base64")
 	require.NoError(t, err)
-	shellPath, err := os_exec.LookPath("sh")
+	shellPath, err := osexec.LookPath("sh")
 	require.NoError(t, err)
 
 	// Start execsnoop.
@@ -160,56 +160,54 @@ func TestRootObfuscate(t *testing.T) {
 	defer execsnoop.close()
 	require.NoError(t, err)
 
-	// Create a context that will be used to signal that an event has been received.
-	doneContext, doneFunc := context.WithCancel(context.Background())
+	// Create obfuscated script.
+	shellContents := fmt.Sprintf("#!%v\necho bHM= | %v --decode | %v",
+		shellPath, decoderPath, shellPath)
 
-	// Start two goroutines. The first writes a script which will execute "ls"
-	// in a loop. The second waits for an exec event to show up the reports "ls"
+	// Write script to a temporary folder.
+	fileName := filepath.Join(t.TempDir(), "test-script")
+	err = os.WriteFile(fileName, []byte(shellContents), 0700)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	defer close(done)
+
+	// Start a goroutine that writes a script which will execute "ls"
+	// in a loop. Then waits for an exec event to show up the reports "ls"
 	// has been executed.
 	go func() {
-		// Create obfuscated script.
-		shellContents := fmt.Sprintf("#!%v\necho bHM= | %v --decode | %v",
-			shellPath, decoderPath, shellPath)
-
-		// Write script to a temporary folder.
-		fileName := filepath.Join(t.TempDir(), "test-script")
-		err = os.WriteFile(fileName, []byte(shellContents), 0700)
-		require.NoError(t, err)
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
 
 		for {
-			// Run script.
-			err = os_exec.Command(fileName).Run()
-			t.Logf("Failed to run script: %v.", err)
-
-			// Delay.
-			time.Sleep(250 * time.Millisecond)
+			select {
+			case <-ticker.C:
+				if err := osexec.Command(fileName).Run(); err != nil {
+					t.Logf("Failed to run script: %v.", err)
+				}
+			case <-done:
+				return
+			}
 		}
 	}()
-	go func() {
-		for {
-			eventBytes := <-execsnoop.events()
-			// Unmarshal the event.
+
+	// Wait for an event to arrive from execsnoop. If an event does not arrive
+	// within 10 seconds, timeout.
+	for {
+		select {
+		case eventBytes := <-execsnoop.events():
 			var event rawExecEvent
 			err := unmarshalEvent(eventBytes, &event)
 			require.NoError(t, err)
 
 			// Check the event is what we expect, in this case "ls".
 			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
-				doneFunc()
-				break
+				return
 			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("Timed out waiting for an event.")
 		}
-
-	}()
-
-	// Wait for an event to arrive from execsnoop. If an event does not arrive
-	// within 10 seconds, timeout.
-	select {
-	case <-doneContext.Done():
-	case <-time.After(10 * time.Second):
-		t.Fatalf("Timed out waiting for an event.")
 	}
-
 }
 
 // TestRootScript checks if execsnoop can capture what a script executes.
@@ -223,55 +221,55 @@ func TestRootScript(t *testing.T) {
 		t.Skip("Tests for package bpf can only be run as root.")
 	}
 
+	// Write script to a temporary folder.
+	fileName := filepath.Join(t.TempDir(), "test-script")
+	err := os.WriteFile(fileName, []byte("#!/bin/sh\nls"), 0700)
+	require.NoError(t, err)
+
 	// Start execsnoop.
 	execsnoop, err := startExec(8192)
 	defer execsnoop.close()
 	require.NoError(t, err)
 
-	// Create a context that will be used to signal that an event has been received.
-	doneContext, doneFunc := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	defer close(done)
 
-	// Start two goroutines. The first writes a script which will execute "ls"
-	// in a loop. The second waits for an exec event to show up the reports "ls"
+	// Start a goroutine that writes a script which will execute "ls"
+	// in a loop. Then waits for an exec event to show up the reports "ls"
 	// has been executed.
 	go func() {
-		// Write script to a temporary folder.
-		fileName := filepath.Join(t.TempDir(), "test-script")
-		err = os.WriteFile(fileName, []byte("#!/bin/sh\nls"), 0700)
-		require.NoError(t, err)
-
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
 		for {
-			// Run script.
-			err = os_exec.Command(fileName).Run()
-			t.Logf("Failed to run script: %v.", err)
-
-			// Delay.
-			time.Sleep(250 * time.Millisecond)
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				// Run script.
+				if err := osexec.Command(fileName).Run(); err != nil {
+					t.Logf("Failed to run script: %v.", err)
+				}
+			}
 		}
 	}()
-	go func() {
-		for {
-			eventBytes := <-execsnoop.events()
-			// Unmarshal the event.
+
+	// Wait for an event to arrive from execsnoop. If an event does not arrive
+	// within 10 seconds, timeout.
+	for {
+		select {
+		case eventBytes := <-execsnoop.events():
 			var event rawExecEvent
 			err := unmarshalEvent(eventBytes, &event)
 			require.NoError(t, err)
 
 			// Check the event is what we expect, in this case "ls".
 			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
-				doneFunc()
-				break
+				return
 			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("Timed out waiting for an event.")
+			return
 		}
-
-	}()
-
-	// Wait for an event to arrive from execsnoop. If an event does not arrive
-	// within 10 seconds, timeout.
-	select {
-	case <-doneContext.Done():
-	case <-time.After(10 * time.Second):
-		t.Fatalf("Timed out waiting for an event.")
 	}
 }
 
@@ -445,39 +443,53 @@ func waitForEvent(ctx context.Context, cancel context.CancelFunc, eventCh <-chan
 func executeCommand(t *testing.T, doneContext context.Context, file string) {
 	t.Helper()
 
-	for {
-		// Lookup and run the requested command.
-		path, err := os_exec.LookPath(file)
-		if err != nil {
-			t.Logf("Failed to find execute %q: %v.", file, err)
-		}
-		err = os_exec.Command(path).Run()
-		if err != nil {
-			t.Logf("Failed to run command %q: %v.", file, err)
-		}
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
 
-		time.Sleep(250 * time.Millisecond)
+	for {
+		select {
+		case <-ticker.C:
+			// Lookup and run the requested command.
+			path, err := osexec.LookPath(file)
+			if err != nil {
+				t.Logf("Failed to find executable %q: %v.", file, err)
+			}
+			err = osexec.Command(path).Run()
+			if err != nil {
+				t.Logf("Failed to run command %q: %v.", file, err)
+			}
+
+		case <-doneContext.Done():
+			return
+		}
 	}
 }
 
 // executeHTTP will perform a HTTP GET to some endpoint in a loop.
 func executeHTTP(t *testing.T, doneContext context.Context, endpoint string) {
-	for {
-		// Perform HTTP GET to the requested endpoint.
-		_, err := http.Get(endpoint)
-		t.Logf("HTTP request failed: %v.", err)
+	t.Helper()
 
-		time.Sleep(250 * time.Millisecond)
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Perform HTTP GET to the requested endpoint.
+			if _, err := http.Get(endpoint); err != nil {
+				t.Logf("HTTP request failed: %v.", err)
+			}
+
+		case <-doneContext.Done():
+			return
+		}
 	}
 }
 
 // isRoot returns a boolean if the test is being run as root or not. Tests
 // for this package must be run as root.
 func isRoot() bool {
-	if os.Geteuid() != 0 {
-		return false
-	}
-	return true
+	return os.Geteuid() == 0
 }
 
 // bpfTestEnabled returns true if BPF tests should run. Tests can be enabled by
