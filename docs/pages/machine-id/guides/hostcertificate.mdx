@@ -42,16 +42,16 @@ tsh login --proxy=myteleportcluster.com --user=teleport-username
 
 ## Step 2/4. Create a Role to Issue `tbot` Certificates
 
-In order to create certificates `tbot` a role that provides the necessary permissions. Roles may restrict which **principals** can be requested using **predicates**,
+In order to create certificates `tbot` requires a role that provides the necessary permissions. Roles may restrict which **principals** can be requested using **predicates**,
 or strings which are used to reduce the scope of permissions for creating host certificates.
 By using the format of `where: 'predicate(host_cert.principals, "domain.name")'`, a Teleport user can create a role that will only be able to able to affect the designated domain name
 in a manner defined by the selected predicate. A list of supported predicates and their behavior are listed below:
 
 | **Predicate** | **Behavior** | **Example** |
 | ----------- | ----------- | ----------- |
-| all_equal | All created domains must be equal to the domain. | `all_equal(host_cert.principals, "foo.example.com")` |
-| all_end_with | All created domains or subdomains must end with the selected domain. | `all_end_with(host_cert.principals, ".example.com")` |
-| is_subset | All created domains must be a subset of the selected domain. This requires the certificate requested by tbot to be be listed with the role's predicate. | `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")` |
+| all_equal | All requested principals must be equal to the set string. If the set string is `foo.example.com`, host certificates limit access only to `foo.example.com`. | `all_equal(host_cert.principals, "foo.example.com")` |
+| all_end_with |  All requested principals must end with the set string. If the set string is `.example.com`, host certificates limit access only to `*.example.com`. | `all_end_with(host_cert.principals, ".example.com")` |
+| is_subset | All requested principals must be contained in the listed set. | `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")` |
 
 In the case of an example role for use within this guide, use a text editor of your choice to create a role YAML named `tbotrole.yaml` with the following configuration options, replacing `nodename.my.domain.com` with your own domain name,
 or the domain associated with your cluster:
