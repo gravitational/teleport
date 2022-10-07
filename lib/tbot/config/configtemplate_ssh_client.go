@@ -27,7 +27,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,7 +56,7 @@ func (c *TemplateSSHClient) CheckAndSetDefaults() error {
 		log.Warn("ssh_client's proxy_port parameter is deprecated and will be removed in a future release.")
 	}
 	if c.getSSHVersion == nil {
-		c.getSSHVersion = config.GetSystemSSHVersion
+		c.getSSHVersion = openssh.GetSystemSSHVersion
 	}
 	if c.getExecutablePath == nil {
 		c.getExecutablePath = os.Executable
@@ -160,9 +160,9 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 	identityFilePath := filepath.Join(destDir, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(destDir, identity.SSHCertKey)
 
-	sshConf := config.NewSSHConfig(c.getSSHVersion, log)
-	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &config.SSHConfigParameters{
-		AppName:             config.TbotApp,
+	sshConf := openssh.NewSSHConfig(c.getSSHVersion, log)
+	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+		AppName:             openssh.TbotApp,
 		ClusterNames:        []string{clusterName.GetClusterName()},
 		KnownHostsPath:      knownHostsPath,
 		IdentityFilePath:    identityFilePath,
