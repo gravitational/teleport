@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -753,6 +755,72 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			require.NoError(t, client.Close())
 		})
+	})
+
+	t.Run("authenticated tunnel with cert renewal", func(t *testing.T) {
+		// get a teleport client
+		tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
+			Login:   pack.Root.User.GetName(),
+			Cluster: pack.Root.Cluster.Secrets.SiteName,
+		})
+		require.NoError(t, err)
+		routeToDatabase := tlsca.RouteToDatabase{
+			ServiceName: pack.Root.MysqlService.Name,
+			Protocol:    pack.Root.MysqlService.Protocol,
+			Username:    "root",
+		}
+		// inject a fake clock into the middleware so we can control when it thinks certs have expired
+		fakeClock := clockwork.NewFakeClockAt(time.Now())
+
+		// configure local proxy without certs but with cert checking/reissuing middleware
+		// local proxy middleware should fetch a DB cert when the local proxy starts
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
+			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolMySQL},
+			InsecureSkipVerify: true,
+			Middleware:         libclient.NewDBCertChecker(tc, routeToDatabase, fakeClock),
+		})
+
+		client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
+		require.NoError(t, err)
+
+		// Execute a query.
+		result, err := client.Execute("select 1")
+		require.NoError(t, err)
+		require.Equal(t, mysql.TestQueryResponse, result)
+
+		// Disconnect.
+		require.NoError(t, client.Close())
+		certs := lp.GetCerts()
+		require.NotEmpty(t, certs)
+		cert1, err := utils.TLSCertToX509(certs[0])
+		require.NoError(t, err)
+		// sanity check that cert equality check works
+		require.Equal(t, cert1, cert1, "cert should be equal to itself")
+
+		// mock db cert expiration (as far as the middleware thinks anyway)
+		// Unfortunately, mocking cert expiration by advancing a fake clock
+		// does not cause an invalid certificate error even if no cert renewal is done by the middleware,
+		// because TLS handshakes are done with real system time.
+		require.Greater(t, cert1.NotAfter, fakeClock.Now())
+		fakeClock.Advance(cert1.NotAfter.Sub(fakeClock.Now()) + time.Second)
+
+		// Open a new connection
+		client, err = mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
+		require.NoError(t, err)
+
+		// Execute a query.
+		result, err = client.Execute("select 1")
+		require.NoError(t, err)
+		require.Equal(t, mysql.TestQueryResponse, result)
+
+		// Disconnect.
+		require.NoError(t, client.Close())
+		certs = lp.GetCerts()
+		require.NotEmpty(t, certs)
+		cert2, err := utils.TLSCertToX509(certs[0])
+		require.NoError(t, err)
+		require.NotEqual(t, cert1, cert2, "cert should have been renewed by middleware")
 	})
 }
 
