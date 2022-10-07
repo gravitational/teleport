@@ -110,9 +110,10 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return appLoginTpl.Execute(os.Stdout, map[string]string{
-		"appName": app.GetName(),
-		"curlCmd": curlCmd,
+	return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
+		"appName":  app.GetName(),
+		"curlCmd":  curlCmd,
+		"insecure": cf.InsecureSkipVerify,
 	})
 }
 
@@ -121,7 +122,10 @@ func onAppLogin(cf *CLIConf) error {
 var appLoginTpl = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Example curl command:
 
-{{.curlCmd}}
+{{.curlCmd}}{{ if .insecure }}
+
+WARNING: tsh was called with --insecure, so this curl command will be unable to validate the certificate presented by Teleport.
+{{- end }}
 `))
 
 // appLoginTCPTpl is the message that gets printed to a user upon successful
@@ -243,12 +247,17 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 	} else {
 		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
 	}
-	curlCmd := fmt.Sprintf(`curl \
-  --cacert %v \
+
+	var curlInsecureFlag string
+	if tc.InsecureSkipVerify {
+		curlInsecureFlag = "--insecure "
+	}
+
+	curlCmd := fmt.Sprintf(`curl %s\
   --cert %v \
   --key %v \
   %v`,
-		profile.CACertPathForCluster(cluster),
+		curlInsecureFlag,
 		profile.AppCertPath(appName),
 		profile.KeyPath(),
 		uri)
@@ -273,7 +282,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("%s\n", out), nil
+		return out, nil
 	}
 	return fmt.Sprintf(`Name:      %v
 URI:       %v
@@ -298,7 +307,12 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 	var err error
 	if format == appFormatJSON {
 		out, err = utils.FastMarshalIndent(configInfo, "", "  ")
+		// This JSON marshaling returns a string without a newline at the end, which
+		// makes display of the string look wonky. Let's append it here.
+		out = append(out, '\n')
 	} else {
+		// The YAML marshaling does return a string with a newline, so no need to append
+		// another.
 		out, err = yaml.Marshal(configInfo)
 	}
 	return string(out), trace.Wrap(err)
