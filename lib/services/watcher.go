@@ -174,7 +174,7 @@ func (p *resourceWatcher) IsInitialized() bool {
 // the resources presented in auth server.
 func (p *resourceWatcher) WaitInitialization() error {
 	// wait for resourceWatcher to complete initialization.
-	t := time.NewTicker(500 * time.Millisecond)
+	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
 	for {
 		select {
@@ -183,7 +183,7 @@ func (p *resourceWatcher) WaitInitialization() error {
 		case <-t.C:
 			p.Log.Debugf("ResourceWatcher %s is not yet initialized.", p.collector.resourceKind())
 		case <-p.ctx.Done():
-			trace.BadParameter("ResourceWatcher %s failed to initialize.")
+			return trace.BadParameter("ResourceWatcher %s failed to initialize.")
 		}
 	}
 }
@@ -409,7 +409,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 
 func (p *proxyCollector) defineCollectorAsInitialized() {
 	p.once.Do(func() {
-		// mark whatcher as initialized.
+		// mark watcher as initialized.
 		close(p.initializationC)
 	})
 }
@@ -462,8 +462,6 @@ func (p *proxyCollector) broadcastUpdate(ctx context.Context) {
 // isInitialized is used to check that the cache has done its initial
 // sync
 func (p *proxyCollector) initializationChan() <-chan struct{} {
-	p.rw.RUnlock()
-	defer p.rw.RUnlock()
 	return p.initializationC
 }
 
@@ -608,8 +606,6 @@ func (p *lockCollector) resourceKind() string {
 // initializationChan is used to check that the cache has done its initial
 // sync
 func (p *lockCollector) initializationChan() <-chan struct{} {
-	p.currentRW.RUnlock()
-	defer p.currentRW.RUnlock()
 	return p.initializationC
 }
 
@@ -638,7 +634,7 @@ func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 
 func (p *lockCollector) defineCollectorAsInitialized() {
 	p.once.Do(func() {
-		// mark whatcher as initialized.
+		// mark watcher as initialized.
 		close(p.initializationC)
 	})
 }
@@ -786,8 +782,6 @@ func (p *databaseCollector) resourceKind() string {
 // isInitialized is used to check that the cache has done its initial
 // sync
 func (p *databaseCollector) initializationChan() <-chan struct{} {
-	p.lock.RUnlock()
-	defer p.lock.RUnlock()
 	return p.initializationC
 }
 
@@ -817,7 +811,7 @@ func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) er
 
 func (p *databaseCollector) defineCollectorAsInitialized() {
 	p.once.Do(func() {
-		// mark whatcher as initialized.
+		// mark watcher as initialized.
 		close(p.initializationC)
 	})
 }
@@ -928,8 +922,6 @@ func (p *appCollector) resourceKind() string {
 // isInitialized is used to check that the cache has done its initial
 // sync
 func (p *appCollector) initializationChan() <-chan struct{} {
-	p.lock.RUnlock()
-	defer p.lock.RUnlock()
 	return p.initializationC
 }
 
@@ -957,7 +949,7 @@ func (p *appCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 
 func (p *appCollector) defineCollectorAsInitialized() {
 	p.once.Do(func() {
-		// mark whatcher as initialized.
+		// mark watcher as initialized.
 		close(p.initializationC)
 	})
 }
@@ -1073,8 +1065,6 @@ type kubeCollector struct {
 // isInitialized is used to check that the cache has done its initial
 // sync
 func (k *kubeCollector) initializationChan() <-chan struct{} {
-	k.lock.RLock()
-	defer k.lock.RUnlock()
 	return k.initializationC
 }
 
@@ -1110,7 +1100,7 @@ func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 
 func (k *kubeCollector) defineCollectorAsInitialized() {
 	k.once.Do(func() {
-		// mark whatcher as initialized.
+		// mark watcher as initialized.
 		close(k.initializationC)
 	})
 }
@@ -1257,8 +1247,6 @@ func (c *caCollector) resourceKind() string {
 // isInitialized is used to check that the cache has done its initial
 // sync
 func (c *caCollector) initializationChan() <-chan struct{} {
-	c.lock.RUnlock()
-	defer c.lock.RUnlock()
 	return c.initializationC
 }
 
@@ -1294,7 +1282,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 
 func (c *caCollector) defineCollectorAsInitialized() {
 	c.once.Do(func() {
-		// mark whatcher as initialized.
+		// mark watcher as initialized.
 		close(c.initializationC)
 	})
 }
@@ -1488,7 +1476,7 @@ func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 
 func (n *nodeCollector) defineCollectorAsInitialized() {
 	n.once.Do(func() {
-		// mark whatcher as initialized.
+		// mark watcher as initialized.
 		close(n.initializationC)
 	})
 }
@@ -1519,8 +1507,6 @@ func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 }
 
 func (n *nodeCollector) initializationChan() <-chan struct{} {
-	n.rw.RLock()
-	defer n.rw.RUnlock()
 	return n.initializationC
 }
 
