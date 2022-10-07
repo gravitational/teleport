@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -1318,11 +1318,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 
 func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Can not use t.Parallel() when changing modules
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			ResourceAccessRequests: true,
-		},
-	})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1769,7 +1765,7 @@ func TestPluginData(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -1861,7 +1857,7 @@ func TestGenerateCerts(t *testing.T) {
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2317,7 +2313,7 @@ func TestCertificateFormat(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2396,7 +2392,7 @@ func TestClusterConfigContext(t *testing.T) {
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// try and generate a host cert, this should fail because we are recording
@@ -2648,7 +2644,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = tt.server.Auth().AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
@@ -2760,7 +2756,7 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate public and private keys for node.
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -2777,8 +2773,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with valid CA pin, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2795,8 +2791,8 @@ func TestRegisterCAPin(t *testing.T) {
 	// Attempt to register with multiple CA pins where the auth server only
 	// matches one, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2812,8 +2808,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with invalid CA pin, should fail.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2829,8 +2825,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with multiple invalid CA pins, should fail.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2865,8 +2861,8 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Attempt to register with multiple CA pins, should work
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2899,7 +2895,7 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate public and private keys for node.
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -2908,8 +2904,8 @@ func TestRegisterCAPath(t *testing.T) {
 
 	// Attempt to register with nothing at the CA path, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2937,8 +2933,8 @@ func TestRegisterCAPath(t *testing.T) {
 
 	// Attempt to register with valid CA path, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
+		AuthServers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Token:       token,
 		ID: IdentityID{
 			HostUUID: "once",
 			NodeName: "node-name",
@@ -2962,6 +2958,17 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	defer cancel()
 
 	tt := setupAuthContext(ctx, t)
+
+	expectAlerts := func(alerts []types.ClusterAlert, names ...string) {
+		for _, alert := range alerts {
+			for _, name := range names {
+				if alert.Metadata.Name == name {
+					return
+				}
+			}
+			t.Fatalf("unexpected alert %q", alert.Metadata.Name)
+		}
+	}
 
 	alert1, err := types.NewClusterAlert("alert-1", "some msg")
 	require.NoError(t, err)
@@ -2988,6 +2995,7 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 	require.NoError(t, err)
 	require.Len(t, alerts, 2)
+	expectAlerts(alerts, "alert-1", "alert-2")
 
 	// verify that some other client with no alert-specific permissions can
 	// see the "permit-all" subset of alerts (using role node here, but any
@@ -2999,6 +3007,7 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 	require.NoError(t, err)
 	require.Len(t, alerts, 1)
+	expectAlerts(alerts, "alert-2")
 
 	// verify that we still reject unauthenticated clients
 	nopClt, err := tt.server.NewClient(TestBuiltin(types.RoleNop))
@@ -3007,6 +3016,39 @@ func TestClusterAlertAccessControls(t *testing.T) {
 
 	_, err = nopClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 	require.True(t, trace.IsAccessDenied(err))
+
+	// add more alerts that use resource verb permits
+	alert3, err := types.NewClusterAlert(
+		"alert-3",
+		"msg 3",
+		types.WithAlertLabel(types.AlertVerbPermit, "token:create"),
+	)
+	require.NoError(t, err)
+
+	alert4, err := types.NewClusterAlert(
+		"alert-4",
+		"msg 4",
+		types.WithAlertLabel(types.AlertVerbPermit, "token:create|role:read"),
+	)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert3)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert4)
+	require.NoError(t, err)
+
+	// verify that admin client can see all alerts
+	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 4)
+	expectAlerts(alerts, "alert-1", "alert-2", "alert-3", "alert-4")
+
+	// verify that node client can only see one of the two new alerts
+	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 2)
+	expectAlerts(alerts, "alert-2", "alert-4")
 }
 
 // TestEventsNodePresence tests streaming node presence API -

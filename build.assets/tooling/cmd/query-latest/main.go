@@ -18,11 +18,12 @@ limitations under the License.
 // query-latest ignores drafts and pre-releases.
 //
 // For example:
-//  query-latest v8.1.5     -> v8.1.5
-//  query-latest v8.1.3     -> error, no matching release (this is a tag, but not a release)
-//  query-latest v8.0.0-rc3 -> error, no matching release (this is a pre-release, in github and in semver)
-//  query-latest v7.0       -> v7.0.2
-//  query-latest v5         -> v5.2.4
+//
+//	query-latest v8.1.5     -> v8.1.5
+//	query-latest v8.1.3     -> error, no matching release (this is a tag, but not a release)
+//	query-latest v8.0.0-rc3 -> error, no matching release (this is a pre-release, in github and in semver)
+//	query-latest v7.0       -> v7.0.2
+//	query-latest v5         -> v5.2.4
 package main
 
 import (

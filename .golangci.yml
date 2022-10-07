@@ -6,6 +6,12 @@ issues:
     - linters:
       - revive
       text: "exported: exported const"
+    # TODO(codingllama): Remove ignore after the new golangci-lint image lands.
+    # For some reason this particular files causes problems between different
+    # goimports versions.
+    - path: lib/services/role_test.go
+      linters:
+      - goimports
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -14,7 +20,6 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - deadcode
     - depguard
     - goimports
     - gosimple
@@ -23,10 +28,8 @@ linters:
     - misspell
     - revive
     - staticcheck
-    - structcheck
-    - unused
     - unconvert
-    - varcheck
+    - unused
 
 linters-settings:
   depguard:
@@ -34,8 +37,9 @@ linters-settings:
     include-go-root: true # check against stdlib
     packages-with-error-message:
     - io/ioutil: 'use "io" or "os" packages instead'
-    - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
+    - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
     - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
+    - go.uber.org/atomic: 'use "sync/atomic" instead'
   misspell:
     locale: US
 output:

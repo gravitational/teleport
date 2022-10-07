@@ -132,7 +132,7 @@ impl Client {
             Some(c) => Ok(c),
             None => {
                 error!("invalid Rust client pointer");
-                Err(CGOErrCode::ErrCodeFailure)
+                Err(CGOErrCode::ErrCodeClientPtr)
             }
         }
     }
@@ -631,7 +631,14 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            rdpdr::CHANNEL_NAME => self.rdpdr.read_and_reply(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => {
+                let responses = self.rdpdr.read_and_create_reply(message)?;
+                let chan = &rdpdr::CHANNEL_NAME.to_string();
+                for resp in responses {
+                    self.mcs.write(chan, resp)?;
+                }
+                Ok(())
+            }
             cliprdr::CHANNEL_NAME => match self.cliprdr {
                 Some(ref mut clip) => clip.read_and_reply(message, &mut self.mcs),
                 None => Ok(()),
@@ -1387,6 +1394,7 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
 pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
+    ErrCodeClientPtr = 2,
 }
 
 #[repr(C)]
@@ -1867,5 +1875,13 @@ extern "C" {
     ) -> CGOErrCode;
 }
 
-/// Payload is a generic type used to represent raw incoming RDP messages for parsing.
+/// Payload represents raw incoming RDP messages for parsing.
 pub(crate) type Payload = Cursor<Vec<u8>>;
+/// Message represents a raw outgoing RDP message to send to the RDP server.
+pub(crate) type Message = Vec<u8>;
+pub(crate) type Messages = Vec<Message>;
+
+/// Encode is an object that can be encoded for sending to the RDP server.
+trait Encode: std::fmt::Debug {
+    fn encode(&self) -> RdpResult<Message>;
+}

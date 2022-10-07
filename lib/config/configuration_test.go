@@ -50,6 +50,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 type testConfigFiles struct {
@@ -289,6 +290,7 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Proxy.Enabled())
 	require.True(t, conf.SSH.Enabled())
 	require.False(t, conf.Kube.Enabled())
+	require.False(t, conf.Discovery.Enabled())
 
 	// good config
 	conf, err = ReadFromFile(testConfigs.configFile)
@@ -337,14 +339,19 @@ func TestConfigReading(t *testing.T) {
 			},
 			Labels:   Labels,
 			Commands: CommandLabels,
-			AWSMatchers: []AWSEC2Matcher{
+		},
+		Discovery: Discovery{
+			Service: Service{
+				defaultEnabled: false,
+				EnabledFlag:    "true",
+				ListenAddress:  "",
+			},
+			AWSMatchers: []AWSMatcher{
 				{
-					Matcher: AWSMatcher{
-						Types:   []string{"ec2"},
-						Regions: []string{"us-west-1", "us-east-1"},
-						Tags: map[string]apiutils.Strings{
-							"a": {"b"},
-						},
+					Types:   []string{"ec2"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
 					},
 					InstallParams: &InstallParams{
 						JoinParams: JoinParams{
@@ -381,6 +388,11 @@ func TestConfigReading(t *testing.T) {
 			},
 			KubeClusterName: "kube-cluster",
 			PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
+			ResourceMatchers: []ResourceMatcher{
+				{
+					Labels: map[string]apiutils.Strings{"*": {"*"}},
+				},
+			},
 		},
 		Apps: Apps{
 			Service: Service{
@@ -775,10 +787,10 @@ func TestApplyConfig(t *testing.T) {
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOTP,
-			U2F: &types.U2F{
-				AppID: "app-id",
-				DeviceAttestationCAs: []string{
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "goteleport.com",
+				AttestationAllowedCAs: []string{
 					string(u2fCAFromFile),
 					`-----BEGIN CERTIFICATE-----
 MIIDFzCCAf+gAwIBAgIDBAZHMA0GCSqGSIb3DQEBCwUAMCsxKTAnBgNVBAMMIFl1
@@ -805,9 +817,9 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
-			AllowPasswordless:     types.NewBoolOption(false),
+			AllowPasswordless:     types.NewBoolOption(true),
 		},
-	}))
+	}, protocmp.Transform()))
 
 	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.Path)
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
@@ -837,6 +849,23 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				},
 			},
 		}))
+
+	require.True(t, cfg.Kube.Enabled)
+	require.Empty(t, cmp.Diff(cfg.Kube.ResourceMatchers,
+		[]services.ResourceMatcher{
+			{
+				Labels: map[string]apiutils.Strings{
+					"*": {"*"},
+				},
+			},
+		},
+	))
+	require.Equal(t, cfg.Kube.KubeconfigPath, "/tmp/kubeconfig")
+	require.Empty(t, cmp.Diff(cfg.Kube.StaticLabels,
+		map[string]string{
+			"testKey": "testValue",
+		},
+	))
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1233,9 +1262,10 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			{Name: "hostname", Command: []string{"/bin/hostname"}, Period: 10 * time.Millisecond},
 			{Name: "date", Command: []string{"/bin/date"}, Period: 20 * time.Millisecond},
 		},
-		PublicAddr:  apiutils.Strings{"luna3:22"},
-		AWSMatchers: []AWSEC2Matcher{},
+		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
+
+	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: []AWSMatcher{}}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -1338,12 +1368,14 @@ func makeConfigFixture() string {
 	conf.SSH.ListenAddress = "tcp://ssh"
 	conf.SSH.Labels = Labels
 	conf.SSH.Commands = CommandLabels
-	conf.SSH.AWSMatchers = []AWSEC2Matcher{
+
+	// discovery service
+	conf.Discovery.EnabledFlag = "true"
+	conf.Discovery.AWSMatchers = []AWSMatcher{
 		{
-			Matcher: AWSMatcher{Types: []string{"ec2"},
-				Regions: []string{"us-west-1", "us-east-1"},
-				Tags:    map[string]apiutils.Strings{"a": {"b"}},
-			},
+			Types:   []string{"ec2"},
+			Regions: []string{"us-west-1", "us-east-1"},
+			Tags:    map[string]apiutils.Strings{"a": {"b"}},
 		},
 	}
 
@@ -1370,6 +1402,11 @@ func makeConfigFixture() string {
 		},
 		KubeClusterName: "kube-cluster",
 		PublicAddr:      apiutils.Strings([]string{"kube-host:1234"}),
+		ResourceMatchers: []ResourceMatcher{
+			{
+				Labels: map[string]apiutils.Strings{"*": {"*"}},
+			},
+		},
 	}
 
 	// Application service.
