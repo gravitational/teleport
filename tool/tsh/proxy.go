@@ -354,7 +354,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	routeToDatabase, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -412,11 +412,18 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		var opts = []dbcmd.ConnectCommandFunc{
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
+		}
+		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
+			return trace.Wrap(err)
+		}
+
+		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
 			return trace.Wrap(err)
@@ -454,6 +461,20 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func maybeAddDBUserPassword(db types.Database, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	if db.GetProtocol() == defaults.ProtocolCassandra && db.IsAWSHosted() {
+		// Cassandra client always prompt for password, so we need to provide it
+		// Provide an auto generated random password to skip the prompt in case of
+		// connection to AWS hosted cassandra.
+		password, err := utils.CryptoRandomHex(16)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return append(opts, dbcmd.WithPassword(password)), nil
+	}
+	return opts, nil
 }
 
 type templateCommandItem struct {

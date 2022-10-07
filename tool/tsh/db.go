@@ -743,15 +743,8 @@ func onDatabaseConnect(cf *CLIConf) error {
 	}
 	opts = append(opts, dbcmd.WithLogger(log))
 
-	if database.GetProtocol() == defaults.ProtocolCassandra && database.IsAWSHosted() {
-		// Cassandra client always prompt for password, so we need to provide it
-		// Provide an auto generated random password to skip the prompt in case of
-		// connection to AWS hosted cassandra.
-		password, err := utils.CryptoRandomHex(16)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		opts = append(opts, dbcmd.WithPassword(password))
+	if opts, err = maybeAddDBUserPassword(database, opts); err != nil {
+		return trace.Wrap(err)
 	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, routeToDatabase, rootClusterName, opts...)
@@ -797,11 +790,23 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	username := cf.DatabaseUser
+	databaseName := cf.DatabaseName
+	if database != nil {
+		if username == "" {
+			username = database.Username
+		}
+		if databaseName == "" {
+			databaseName = database.Database
+		}
+	}
+
 	return &tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
-		Username:    cf.DatabaseUser,
-		Database:    cf.DatabaseName,
+		Username:    username,
+		Database:    databaseName,
 	}, db, nil
 }
 
