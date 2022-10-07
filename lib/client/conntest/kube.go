@@ -108,65 +108,21 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := client.GenerateRSAKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:              key.MarshalSSHPublicKey(),
-		Username:               currentUser.GetName(),
-		Expires:                time.Now().Add(time.Minute).UTC(),
-		ConnectionDiagnosticID: connectionDiagnosticID,
-		KubernetesCluster:      req.ResourceName,
-	})
-
+	tlsCfg, err := s.genKubeRestTLSClientConfig(ctx, connectionDiagnosticID, req.ResourceName, currentUser.GetName())
 	diag, diagErr := s.handleUserGenCertsErr(ctx, connectionDiagnosticID, err)
 	if err != nil || diagErr != nil {
 		return diag, diagErr
 	}
 
-	key.TLSCert = certs.TLS
-
-	certAuths, err := s.cfg.UserClient.GetCertAuthorities(ctx, types.HostCA, false /* loadKeys */)
+	client, err := s.getKubeClient(tlsCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(certAuths)
-	ca, err := s.cfg.UserClient.GetClusterCACert(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	ctxWithTimeout, cancelFunc := context.WithTimeout(ctx, req.DialTimeout)
 	defer cancelFunc()
-
-	restConfig := &rest.Config{
-		Host: "https://" + s.cfg.KubernetesPublicProxyAddr,
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData:   ca.TLSCA,
-			CertData: key.TLSCert,
-			KeyData:  key.PrivateKeyPEM(),
-		},
-	}
-
-	if s.cfg.TLSRoutingEnabled {
-		k8host := strings.Split(s.webProxyAddr, ":")[0]
-		// replace localhost with "127.0.0.1" so GetKubeTLSServerName can generate a domain kube.cluster.local.
-		if strings.EqualFold(k8host, "localhost") {
-			k8host = "127.0.0.1"
-		}
-		restConfig.TLSClientConfig.ServerName = client.GetKubeTLSServerName(k8host)
-		restConfig.Host = "https://" + s.webProxyAddr
-	}
-
-	client, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	_, err = client.CoreV1().Pods(req.KubernetesNamespace).List(ctxWithTimeout, v1.ListOptions{})
-	diag, diagErr = s.handleErrFromKube(ctxWithTimeout, connectionDiagnosticID, err, req.KubernetesNamespace)
+	diag, diagErr = s.handleErrFromKube(ctx, connectionDiagnosticID, err, req.KubernetesNamespace)
 	if err != nil || diagErr != nil {
 		return diag, diagErr
 	}
@@ -188,6 +144,75 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 	return connDiag, nil
 }
 
+// genKubeRestTLSClientConfig creates the Teleport user credentials to access
+// the given Kubernetes cluster name.
+func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, connectionDiagnosticID string, clusterName, userName string) (rest.TLSClientConfig, error) {
+	key, err := client.GenerateRSAKey()
+	if err != nil {
+		return rest.TLSClientConfig{}, trace.Wrap(err)
+	}
+
+	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		PublicKey:              key.MarshalSSHPublicKey(),
+		Username:               userName,
+		Expires:                time.Now().Add(time.Minute).UTC(),
+		ConnectionDiagnosticID: connectionDiagnosticID,
+		KubernetesCluster:      clusterName,
+	})
+	if err != nil {
+		return rest.TLSClientConfig{}, trace.Wrap(err)
+	}
+
+	key.TLSCert = certs.TLS
+
+	ca, err := s.cfg.UserClient.GetClusterCACert(ctx)
+	if err != nil {
+		return rest.TLSClientConfig{}, trace.Wrap(err)
+	}
+
+	return rest.TLSClientConfig{
+		CAData:   ca.TLSCA,
+		CertData: key.TLSCert,
+		KeyData:  key.PrivateKeyPEM(),
+	}, nil
+}
+
+// getKubeClient creates a Kubernetes client with the authentication given by tlsCfg
+// to teleport Proxy or Kube proxy depending on whether tls routing is enabled.
+func (s KubeConnectionTester) getKubeClient(tlsCfg rest.TLSClientConfig) (kubernetes.Interface, error) {
+	restConfig := &rest.Config{
+		Host:            "https://" + s.cfg.KubernetesPublicProxyAddr,
+		TLSClientConfig: tlsCfg,
+	}
+
+	if s.cfg.TLSRoutingEnabled {
+		// passing an empty string to GetKubeTLSServerName results in
+		// a server name = kube.teleport.cluster.local.
+		restConfig.TLSClientConfig.ServerName = client.GetKubeTLSServerName("")
+		restConfig.Host = "https://" + s.webProxyAddr
+	}
+
+	client, err := kubernetes.NewForConfig(restConfig)
+	return client, trace.Wrap(err)
+}
+
+// handleErrFromKube parses the errors received from the Teleport when generating
+// user credentials to access the cluster.
+func (s KubeConnectionTester) handleUserGenCertsErr(ctx context.Context, connectionDiagnosticID string, actionErr error) (types.ConnectionDiagnostic, error) {
+	if trace.IsBadParameter(actionErr) {
+		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered."
+		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
+		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+	} else if actionErr != nil {
+		return nil, trace.Wrap(actionErr)
+	}
+	message := "Kubernetes Cluster is registered in Teleport."
+	traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
+	return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, nil)
+}
+
+// handleErrFromKube parses the errors received from the Teleport and marks the
+// steps according to the given error.
 func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionDiagnosticID string, actionErr error, namespace string) (types.ConnectionDiagnostic, error) {
 	var kubeErr *kubeerrors.StatusError
 	if actionErr != nil && !errors.As(actionErr, &kubeErr) {
@@ -197,7 +222,11 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionD
 		return connDiag, trace.Wrap(err)
 	}
 
-	if kubeErr != nil && strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users") {
+	// WARNING: Check compatibility between this error message in the current version of
+	// Teleport and the previous version so that old agents connected to the
+	// Teleport cluster continue to be supported.
+	noAssignedGroups := strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users")
+	if kubeErr != nil && noAssignedGroups {
 		message := `User-associated roles do not configure "kubernetes_groups" or "kubernetes_users". Make sure that at least one is configured for the user.`
 		traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 
@@ -214,6 +243,9 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionD
 	}
 
 	if kubeErr != nil {
+		// WARNING: Check compatibility between this error messages in the current version of
+		// Teleport and the previous version so that old agents connected to the
+		// Teleport cluster continue to be supported.
 		notFound := strings.Contains(kubeErr.ErrStatus.Message, "not found")
 		accessDenied := strings.Contains(kubeErr.ErrStatus.Message, "[00] access denied")
 		if notFound || accessDenied {
@@ -223,6 +255,7 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionD
 			return connDiag, trace.Wrap(err)
 		}
 
+		//  this is a kubernetes RBAC error
 		cannotListPods := strings.Contains(kubeErr.ErrStatus.Message, "cannot list resource \"pods\"")
 		if cannotListPods {
 			message := fmt.Sprintf("You are not allowed to list pods in the %q namespace. "+
@@ -248,19 +281,6 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionD
 	}
 
 	return connDiag, nil
-}
-
-func (s KubeConnectionTester) handleUserGenCertsErr(ctx context.Context, connectionDiagnosticID string, actionErr error) (types.ConnectionDiagnostic, error) {
-	if trace.IsBadParameter(actionErr) {
-		message := "Failed to connect to kubernetes cluster. Ensure the cluster is registered."
-		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
-		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
-	} else if actionErr != nil {
-		return nil, trace.Wrap(actionErr)
-	}
-	message := "Kubernetes Cluster is registered in Teleport."
-	traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
-	return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, nil)
 }
 
 func (s KubeConnectionTester) appendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, err error) (types.ConnectionDiagnostic, error) {

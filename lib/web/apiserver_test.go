@@ -52,6 +52,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -93,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
@@ -4126,7 +4128,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
-				require.True(t, foundTrace, expectedTrace)
+				require.True(t, foundTrace, "expected trace %v was not found", expectedTrace)
 			}
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
@@ -4233,7 +4235,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Failed to connect to kubernetes cluster. Ensure the cluster is registered.`,
+					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered.`,
 					Error:   "kubernetes cluster \"notregistered\" is not registered",
 				},
 			},
@@ -4252,7 +4254,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Failed to connect to kubernetes cluster. Ensure the cluster is registered.`,
+					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered.`,
 					Error:   fmt.Sprintf("kubernetes cluster %q is not registered", disconnectedKubeClustername),
 				},
 			},
@@ -4382,7 +4384,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			localEnv := env
 
 			if tt.disconnectedKube {
-				kubeServer, _ := startKubeWithoutCleanup(ctx, t, startKubeOptions{
+				kubeServer, cleanup, _ := startKubeWithoutCleanup(ctx, t, startKubeOptions{
 					serviceType: kubeproxy.KubeService,
 					authServer:  env.server.TLS,
 					clusters: []kubeClusterConfig{
@@ -4394,6 +4396,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				})
 				err := kubeServer.Close()
 				require.NoError(t, err)
+				require.NoError(t, cleanup())
 			}
 
 			clusterName := localEnv.server.ClusterName()
@@ -5420,15 +5423,18 @@ type startKubeOptions struct {
 }
 
 func startKube(ctx context.Context, t *testing.T, cfg startKubeOptions) net.Addr {
-	server, addr := startKubeWithoutCleanup(ctx, t, cfg)
+	server, cleanup, addr := startKubeWithoutCleanup(ctx, t, cfg)
 	t.Cleanup(func() {
 		err := server.Close()
 		require.NoError(t, err)
+		require.NoError(t, cleanup())
 	})
 	return addr
 }
 
-func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOptions) (*kubeproxy.TLSServer, net.Addr) {
+type cleanupFunc func() error
+
+func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOptions) (*kubeproxy.TLSServer, cleanupFunc, net.Addr) {
 	role := types.RoleProxy
 	if cfg.serviceType == kubeproxy.KubeService {
 		role = types.RoleKube
@@ -5530,23 +5536,25 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	closeC := make(chan struct{}, 1)
+	errChan := make(chan error, 1)
 	go func() {
-		closeC <- struct{}{}
+		defer close(errChan)
 		err := kubeServer.Serve(listener)
 		// ignore server closed error returned when .Close is called.
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		require.NoError(t, err)
+		errChan <- err
 	}()
-	<-closeC
+
 	// Waits for len(clusters) heartbeats to start
 	for i := 0; i < len(cfg.clusters); i++ {
 		<-heartbeatsWaitChannel
 	}
 
-	return kubeServer, listener.Addr()
+	return kubeServer, func() error {
+		return <-errChan
+	}, listener.Addr()
 }
 
 func marshalRBACError(t *testing.T, w http.ResponseWriter) {
