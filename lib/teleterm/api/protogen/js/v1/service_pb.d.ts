@@ -691,27 +691,6 @@ export namespace AddClusterRequest {
     }
 }
 
-export class ListKubesRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): ListKubesRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListKubesRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: ListKubesRequest): ListKubesRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListKubesRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListKubesRequest;
-    static deserializeBinaryFromReader(message: ListKubesRequest, reader: jspb.BinaryReader): ListKubesRequest;
-}
-
-export namespace ListKubesRequest {
-    export type AsObject = {
-        clusterUri: string,
-    }
-}
-
 export class ListAppsRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): ListAppsRequest;
@@ -1249,26 +1228,123 @@ export namespace GetDatabasesResponse {
     }
 }
 
-export class ListKubesResponse extends jspb.Message { 
+export class GetAllKubesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetAllKubesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAllKubesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllKubesRequest): GetAllKubesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAllKubesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllKubesRequest;
+    static deserializeBinaryFromReader(message: GetAllKubesRequest, reader: jspb.BinaryReader): GetAllKubesRequest;
+}
+
+export namespace GetAllKubesRequest {
+    export type AsObject = {
+        clusterUri: string,
+    }
+}
+
+export class GetAllKubesResponse extends jspb.Message { 
     clearKubesList(): void;
     getKubesList(): Array<v1_kube_pb.Kube>;
-    setKubesList(value: Array<v1_kube_pb.Kube>): ListKubesResponse;
+    setKubesList(value: Array<v1_kube_pb.Kube>): GetAllKubesResponse;
     addKubes(value?: v1_kube_pb.Kube, index?: number): v1_kube_pb.Kube;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListKubesResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: ListKubesResponse): ListKubesResponse.AsObject;
+    toObject(includeInstance?: boolean): GetAllKubesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllKubesResponse): GetAllKubesResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListKubesResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListKubesResponse;
-    static deserializeBinaryFromReader(message: ListKubesResponse, reader: jspb.BinaryReader): ListKubesResponse;
+    static serializeBinaryToWriter(message: GetAllKubesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllKubesResponse;
+    static deserializeBinaryFromReader(message: GetAllKubesResponse, reader: jspb.BinaryReader): GetAllKubesResponse;
 }
 
-export namespace ListKubesResponse {
+export namespace GetAllKubesResponse {
     export type AsObject = {
         kubesList: Array<v1_kube_pb.Kube.AsObject>,
+    }
+}
+
+export class GetKubesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetKubesRequest;
+
+    getLimit(): number;
+    setLimit(value: number): GetKubesRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetKubesRequest;
+
+    getSearch(): string;
+    setSearch(value: string): GetKubesRequest;
+
+    getQuery(): string;
+    setQuery(value: string): GetKubesRequest;
+
+    getSortBy(): string;
+    setSortBy(value: string): GetKubesRequest;
+
+    getSearchAsRoles(): string;
+    setSearchAsRoles(value: string): GetKubesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetKubesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetKubesRequest): GetKubesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetKubesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetKubesRequest;
+    static deserializeBinaryFromReader(message: GetKubesRequest, reader: jspb.BinaryReader): GetKubesRequest;
+}
+
+export namespace GetKubesRequest {
+    export type AsObject = {
+        clusterUri: string,
+        limit: number,
+        startKey: string,
+        search: string,
+        query: string,
+        sortBy: string,
+        searchAsRoles: string,
+    }
+}
+
+export class GetKubesResponse extends jspb.Message { 
+    clearAgentsList(): void;
+    getAgentsList(): Array<v1_kube_pb.Kube>;
+    setAgentsList(value: Array<v1_kube_pb.Kube>): GetKubesResponse;
+    addAgents(value?: v1_kube_pb.Kube, index?: number): v1_kube_pb.Kube;
+
+    getTotalCount(): number;
+    setTotalCount(value: number): GetKubesResponse;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetKubesResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetKubesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetKubesResponse): GetKubesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetKubesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetKubesResponse;
+    static deserializeBinaryFromReader(message: GetKubesResponse, reader: jspb.BinaryReader): GetKubesResponse;
+}
+
+export namespace GetKubesResponse {
+    export type AsObject = {
+        agentsList: Array<v1_kube_pb.Kube.AsObject>,
+        totalCount: number,
+        startKey: string,
     }
 }
 

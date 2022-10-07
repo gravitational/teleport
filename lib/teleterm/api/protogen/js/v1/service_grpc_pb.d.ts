@@ -30,7 +30,8 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     reviewAccessRequest: ITerminalServiceService_IReviewAccessRequest;
     getRequestableRoles: ITerminalServiceService_IGetRequestableRoles;
     assumeRole: ITerminalServiceService_IAssumeRole;
-    listKubes: ITerminalServiceService_IListKubes;
+    getAllKubes: ITerminalServiceService_IGetAllKubes;
+    getKubes: ITerminalServiceService_IGetKubes;
     listApps: ITerminalServiceService_IListApps;
     addCluster: ITerminalServiceService_IAddCluster;
     removeCluster: ITerminalServiceService_IRemoveCluster;
@@ -173,14 +174,23 @@ interface ITerminalServiceService_IAssumeRole extends grpc.MethodDefinition<v1_s
     responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
 }
-interface ITerminalServiceService_IListKubes extends grpc.MethodDefinition<v1_service_pb.ListKubesRequest, v1_service_pb.ListKubesResponse> {
-    path: "/teleport.terminal.v1.TerminalService/ListKubes";
+interface ITerminalServiceService_IGetAllKubes extends grpc.MethodDefinition<v1_service_pb.GetAllKubesRequest, v1_service_pb.GetAllKubesResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetAllKubes";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<v1_service_pb.ListKubesRequest>;
-    requestDeserialize: grpc.deserialize<v1_service_pb.ListKubesRequest>;
-    responseSerialize: grpc.serialize<v1_service_pb.ListKubesResponse>;
-    responseDeserialize: grpc.deserialize<v1_service_pb.ListKubesResponse>;
+    requestSerialize: grpc.serialize<v1_service_pb.GetAllKubesRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetAllKubesRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetAllKubesResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetAllKubesResponse>;
+}
+interface ITerminalServiceService_IGetKubes extends grpc.MethodDefinition<v1_service_pb.GetKubesRequest, v1_service_pb.GetKubesResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetKubes";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetKubesRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetKubesRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetKubesResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetKubesResponse>;
 }
 interface ITerminalServiceService_IListApps extends grpc.MethodDefinition<v1_service_pb.ListAppsRequest, v1_service_pb.ListAppsResponse> {
     path: "/teleport.terminal.v1.TerminalService/ListApps";
@@ -326,7 +336,8 @@ export interface ITerminalServiceServer {
     reviewAccessRequest: grpc.handleUnaryCall<v1_service_pb.ReviewAccessRequestRequest, v1_service_pb.ReviewAccessRequestResponse>;
     getRequestableRoles: grpc.handleUnaryCall<v1_service_pb.GetRequestableRolesRequest, v1_service_pb.GetRequestableRolesResponse>;
     assumeRole: grpc.handleUnaryCall<v1_service_pb.AssumeRoleRequest, v1_service_pb.EmptyResponse>;
-    listKubes: grpc.handleUnaryCall<v1_service_pb.ListKubesRequest, v1_service_pb.ListKubesResponse>;
+    getAllKubes: grpc.handleUnaryCall<v1_service_pb.GetAllKubesRequest, v1_service_pb.GetAllKubesResponse>;
+    getKubes: grpc.handleUnaryCall<v1_service_pb.GetKubesRequest, v1_service_pb.GetKubesResponse>;
     listApps: grpc.handleUnaryCall<v1_service_pb.ListAppsRequest, v1_service_pb.ListAppsResponse>;
     addCluster: grpc.handleUnaryCall<v1_service_pb.AddClusterRequest, v1_cluster_pb.Cluster>;
     removeCluster: grpc.handleUnaryCall<v1_service_pb.RemoveClusterRequest, v1_service_pb.EmptyResponse>;
@@ -386,9 +397,12 @@ export interface ITerminalServiceClient {
     assumeRole(request: v1_service_pb.AssumeRoleRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    listKubes(request: v1_service_pb.ListKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
+    getAllKubes(request: v1_service_pb.GetAllKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    getKubes(request: v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     listApps(request: v1_service_pb.ListAppsRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
@@ -477,9 +491,12 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public assumeRole(request: v1_service_pb.AssumeRoleRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public assumeRole(request: v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    public listKubes(request: v1_service_pb.ListKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    public listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
-    public listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
+    public getAllKubes(request: v1_service_pb.GetAllKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    public getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    public getAllKubes(request: v1_service_pb.GetAllKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllKubesResponse) => void): grpc.ClientUnaryCall;
+    public getKubes(request: v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    public getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    public getKubes(request: v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     public listApps(request: v1_service_pb.ListAppsRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     public listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
     public listApps(request: v1_service_pb.ListAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListAppsResponse) => void): grpc.ClientUnaryCall;
