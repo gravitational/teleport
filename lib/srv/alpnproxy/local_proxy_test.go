@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -153,7 +154,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 	})
 	go func() {
 		err := lp.StartAWSAccessProxy(context.Background())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	return lp
 }

@@ -164,9 +164,10 @@ const (
 	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorOTP = SecondFactorType("otp")
-	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
-	// required for all users.
-	// U2F is marked for removal. It currently works as an alias for "webauthn".
+	// SecondFactorU2F means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
+	// Deprecated: "u2f" is aliased to "webauthn". Prefer using
+	// SecondFactorWebauthn instead.
 	SecondFactorU2F = SecondFactorType("u2f")
 	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
 	// is required for all users.

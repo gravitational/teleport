@@ -697,6 +697,8 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
+
 	return nil
 }
 

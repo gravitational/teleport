@@ -379,7 +379,6 @@ func TestEC2Labels(t *testing.T) {
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
 	var kubes []types.KubeServer
-
 	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
 		var err error
@@ -391,7 +390,22 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		kubes, err = authServer.GetKubernetesServers(ctx)
 		require.NoError(t, err)
-		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
+
+		// dedupClusters is required because GetKubernetesServers returns duplicated servers
+		// because it lists the KindKubeServer and KindKubeService.
+		// We must remove this once legacy heartbeat is removed.
+		// DELETE IN 12.0.0
+		var dedupClusters []types.KubeServer
+		dedup := map[string]struct{}{}
+		for _, kube := range kubes {
+			if _, ok := dedup[kube.GetName()]; ok {
+				continue
+			}
+			dedup[kube.GetName()] = struct{}{}
+			dedupClusters = append(dedupClusters, kube)
+		}
+
+		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(dedupClusters) == 1
 	}, 10*time.Second, time.Second)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
