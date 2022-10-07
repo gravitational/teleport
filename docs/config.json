@@ -1105,7 +1105,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.2.2",
+      "version": "10.3.1",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",

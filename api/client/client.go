@@ -1519,9 +1519,6 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1534,9 +1531,6 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
-		// An old server would send RedirectURL instead of RedirectURLs
-		// DELETE IN 11.0.0
-		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1548,9 +1542,6 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	// An old server would expect RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
@@ -2732,24 +2723,6 @@ func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTrack
 	}
 
 	req := &proto.CreateSessionTrackerRequest{SessionTracker: v1}
-
-	// DELETE IN 11.0.0
-	// Early v9 versions use a flattened out types.SessionTrackerV1
-	req.ID = v1.Spec.SessionID
-	req.Type = v1.Spec.Kind
-	req.Reason = v1.Spec.Reason
-	req.Invited = v1.Spec.Invited
-	req.Hostname = v1.Spec.Hostname
-	req.Address = v1.Spec.Address
-	req.ClusterName = v1.Spec.ClusterName
-	req.Login = v1.Spec.Login
-	req.Expires = v1.Spec.Expires
-	req.KubernetesCluster = v1.Spec.KubernetesCluster
-	req.HostUser = v1.Spec.HostUser
-	if len(v1.Spec.Participants) > 0 {
-		req.Initiator = &v1.Spec.Participants[0]
-	}
-
 	tracker, err := c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
