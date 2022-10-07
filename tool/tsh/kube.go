@@ -657,6 +657,7 @@ type kubeLSCommand struct {
 	listAll        bool
 	siteName       string
 	verbose        bool
+	quiet          bool
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
@@ -670,6 +671,7 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c.Flag("all", "List kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("verbose", "Print full list of labels.").Short('v').BoolVar(&c.verbose)
+	c.Flag("quiet", "Only print output without table header").Short('q').BoolVar(&c.quiet)
 	return c
 }
 
@@ -749,8 +751,11 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 			rows = append(rows, []string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
 		}
 
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(2)
+		if c.quiet {
+			t = asciitable.MakeHeadlessTable(3)
+			for _, row := range rows {
+				t.AddRow(row)
+			}
 		} else if c.verbose {
 			t = asciitable.MakeTable(columns, rows...)
 		} else {
