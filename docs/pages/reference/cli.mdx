@@ -1975,9 +1975,10 @@ $ tctl status \
 
 ### tctl alerts create
 
-Creates cluster alerts
+Creates cluster alerts. Cluster alerts can be displayed to Teleport users
+in the web UI or upon logging via `tsh`.
 
-```$ code
+```code
 $ tctl alerts create [<flags>] <message>
 ```
 
@@ -1991,12 +1992,15 @@ $ tctl alerts create [<flags>] <message>
 | - | - | - | - |
 | `--severity` | `low` | `low`, `medium`, `high` | Alert severity |
 | `--ttl` | none | Any duration | Optional expiry for alert (alert does not expire if no TTL is specified) |
-| `--labels` | none | any | A list of labels to attach to the alert. Labels can be used to tweak alert behavior |
+| `--labels` | none | any | A list of labels to attach to the alert. |
 
-If no labels are specified, `tctl` will add the following labels:
+While any labels can be applied to an alert, there are several internal labels that can be used to configure
+the behavior of alerts:
 
 - `teleport.internal/alert-on-login: yes`: ensures that the alert is displayed to users upon login
 - `teleport.internal/alert-permit-all: yes`: ensures that the alert is displayed to all users
+
+If no labels are specified, `tctl` will automatically add both of these labels.
 
 #### Examples
 
