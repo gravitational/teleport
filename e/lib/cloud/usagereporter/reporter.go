@@ -18,7 +18,6 @@ type UsageReporter struct {
 }
 
 const buyTeleportAlertName = "upgrade-to-paid-plan"
-const trialProductName = "Teleport 14 Day Trial"
 
 // New instantiates a new pro/enterprise teleport process
 func New(config Config) (*UsageReporter, error) {
@@ -152,6 +151,11 @@ func (r *UsageReporter) checkClusterAlert(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	if !b.SelfEnrolled {
+		// if user did not sign themselves up for their trial account, do not create/clear alerts
+		return nil
+	}
+
 	alerts, err := r.ResourceGetter.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		AlertID: buyTeleportAlertName,
 	})
@@ -159,13 +163,13 @@ func (r *UsageReporter) checkClusterAlert(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if b.ProductName == trialProductName && len(alerts) == 0 {
+	if b.Trial && len(alerts) == 0 {
 		if err := r.tryCreateBuyTeleportAlert(ctx); err != nil {
 			r.Log.WithError(err).Error("Failed to try/create cluster alert for trial.")
 		}
 	}
 
-	if b.ProductName != trialProductName && len(alerts) != 0 {
+	if !b.Trial && len(alerts) != 0 {
 		if err := r.tryRemoveBuyTeleportAlert(ctx); err != nil {
 			r.Log.WithError(err).Error("Failed to try/remove cluster alert for trial.")
 		}
