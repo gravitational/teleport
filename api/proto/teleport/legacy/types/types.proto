@@ -4287,8 +4287,6 @@ message ClusterAlertSpec {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // InstanceName is the name of the instance that the alert applies to.
-  string InstanceName = 4 [(gogoproto.jsontag) = "instance_name"];
 }
 
 // GetClusterAlertsRequest matches cluster alerts.
