@@ -104,7 +104,7 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 // allowing the underlying ssh.Channel to be closed when the agent
 // is no longer needed.
 type agentChannel struct {
-	agent.Agent
+	agent.ExtendedAgent
 	ch ssh.Channel
 }
 
@@ -141,8 +141,8 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &agentChannel{
-		Agent: agent.NewClient(ch),
-		ch:    ch,
+		ExtendedAgent: agent.NewClient(ch),
+		ch:            ch,
 	}, nil
 }
 
