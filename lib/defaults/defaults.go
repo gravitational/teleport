@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -290,11 +291,6 @@ const (
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
 	AbandonedUploadPollingRate = defaults.SessionTrackerTTL / 6
-
-	// UploadGracePeriod is a period after which non-completed
-	// upload is considered abandoned and will be completed by the reconciler
-	// DELETE IN 11.0.0
-	UploadGracePeriod = 24 * time.Hour
 
 	// ProxyPingInterval is the interval ping messages are going to be sent.
 	// This is only applicable for TLS routing protocols that support ping
@@ -821,7 +817,26 @@ const (
 	TeleportConfigVersionV1 string = "v1"
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
+	// TeleportConfigVersionV3 is the teleport proxy configuration v3 version.
+	TeleportConfigVersionV3 string = "v3"
 )
+
+// TeleportConfigVersions is an exported slice of the allowed versions in the config file,
+// for convenience (looping through, etc)
+var TeleportConfigVersions = []string{
+	TeleportConfigVersionV1,
+	TeleportConfigVersionV2,
+	TeleportConfigVersionV3,
+}
+
+func ValidateConfigVersion(version string) error {
+	hasVersion := apiutils.SliceContainsStr(TeleportConfigVersions, version)
+	if !hasVersion {
+		return trace.BadParameter("version must be one of %s", strings.Join(TeleportConfigVersions, ", "))
+	}
+
+	return nil
+}
 
 // Default values for tsh and tctl commands.
 const (

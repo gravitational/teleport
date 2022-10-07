@@ -7,6 +7,16 @@ resource "aws_dynamodb_table" "locks" {
   write_capacity = 10
   hash_key       = "Lock"
 
+  // For demo purposes, CMK isn't necessary
+  // tfsec:ignore:aws-dynamodb-table-customer-key
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
   attribute {
     name = "Lock"
     type = "S"
@@ -21,4 +31,3 @@ resource "aws_dynamodb_table" "locks" {
     TeleportCluster = var.cluster_name
   }
 }
-

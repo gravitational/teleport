@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	log "github.com/sirupsen/logrus"
@@ -59,8 +60,6 @@ type AuthPreference interface {
 	IsSecondFactorEnforced() bool
 	// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
 	IsSecondFactorTOTPAllowed() bool
-	// IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
-	IsSecondFactorU2FAllowed() bool
 	// IsSecondFactorWebauthnAllowed checks if users are allowed to register
 	// Webauthn devices.
 	IsSecondFactorWebauthnAllowed() bool
@@ -90,6 +89,8 @@ type AuthPreference interface {
 
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
+	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -240,10 +241,8 @@ func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 	switch sf := c.GetSecondFactor(); sf {
 	case constants.SecondFactorOff:
 		return "" // Nothing to suggest.
-	case constants.SecondFactorOTP:
+	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
 		return sf // Single method.
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
-		return constants.SecondFactorWebauthn // Always WebAuthn.
 	case constants.SecondFactorOn, constants.SecondFactorOptional:
 		// In order of preference:
 		// 1. WebAuthn (public-key based)
@@ -270,11 +269,6 @@ func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
 		c.Spec.SecondFactor == constants.SecondFactorOn
 }
 
-// IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
-func (c *AuthPreferenceV2) IsSecondFactorU2FAllowed() bool {
-	return false // Never allowed, marked for removal.
-}
-
 // IsSecondFactorWebauthnAllowed checks if users are allowed to register
 // Webauthn devices.
 func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
@@ -288,8 +282,7 @@ func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	}
 
 	// Are second factor settings in accordance?
-	return c.Spec.SecondFactor == constants.SecondFactorU2F ||
-		c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
+	return c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
 		c.Spec.SecondFactor == constants.SecondFactorOptional ||
 		c.Spec.SecondFactor == constants.SecondFactorOn
 }
@@ -341,6 +334,18 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
 	return c.Spec.RequireMFAType
+}
+
+// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	switch c.Spec.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return keys.PrivateKeyPolicyHardwareKey
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -430,7 +435,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
 	if c.Spec.SecondFactor == constants.SecondFactorU2F {
 		log.Warnf(`` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +

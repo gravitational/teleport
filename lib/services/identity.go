@@ -22,11 +22,13 @@ package services
 
 import (
 	"context"
+	"crypto"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
@@ -248,6 +250,12 @@ type Identity interface {
 
 	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
 	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
+
+	// UpsertKeyAttestationData upserts a verified public key attestation response.
+	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
+
+	// GetKeyAttestationData gets a verified public key attestation response.
+	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

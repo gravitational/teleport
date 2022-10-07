@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -39,8 +40,9 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 )
 
-// ValidateSAMLConnector validates the SAMLConnector and sets default values
-func ValidateSAMLConnector(sc types.SAMLConnector) error {
+// ValidateSAMLConnector validates the SAMLConnector and sets default values.
+// If a remote to fetch roles is specified, roles will be validated to exist.
+func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 	if err := sc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -97,6 +99,20 @@ func ValidateSAMLConnector(sc types.SAMLConnector) error {
 
 	if len(sc.GetAttributesToRoles()) == 0 {
 		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never assign any roles")
+	}
+
+	if rg != nil {
+		for _, mapping := range sc.GetAttributesToRoles() {
+			for _, role := range mapping.Roles {
+				_, err := rg.GetRole(context.Background(), role)
+				switch {
+				case trace.IsNotFound(err):
+					return trace.BadParameter("role %q specified in attributes_to_roles not found", role)
+				case err != nil:
+					return trace.Wrap(err)
+				}
+			}
+		}
 	}
 
 	log.Debugf("[SAML] SSO: %v", sc.GetSSO())
@@ -267,7 +283,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.BadParameter(err.Error())
 		}
 
-		if err := ValidateSAMLConnector(&c); err != nil {
+		if err := ValidateSAMLConnector(&c, nil); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -286,7 +302,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
 func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateSAMLConnector(samlConnector); err != nil {
+	if err := ValidateSAMLConnector(samlConnector, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

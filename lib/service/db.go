@@ -67,7 +67,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 		// run the resolver. this will check configuration for errors.
-		_, err := tunnelAddrResolver(process.ExitContext())
+		_, _, err := tunnelAddrResolver(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -125,6 +125,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					Krb5File:   db.AD.Krb5File,
 					Domain:     db.AD.Domain,
 					SPN:        db.AD.SPN,
+				},
+				Azure: types.Azure{
+					ResourceID: db.Azure.ResourceID,
 				},
 			})
 		if err != nil {
