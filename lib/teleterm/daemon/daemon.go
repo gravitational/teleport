@@ -378,7 +378,7 @@ func (s *Service) Stop() {
 	}
 }
 
-func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress func(progress *api.FileTransferProgress) error) error {
+func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
 	cluster, err := s.ResolveCluster(request.GetClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
