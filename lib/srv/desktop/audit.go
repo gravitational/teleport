@@ -179,13 +179,13 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 	// Gather info from the audit cache
 	info, ok := s.auditCache.GetReadRequestInfo(sessionID(sid), completionID(m.CompletionID))
 	if ok {
+		did = info.directoryID
 		// Only search for the directory name if we retrieved the directoryID from the audit cache.
 		name, ok = s.auditCache.GetName(sessionID(sid), did)
 		if !ok {
 			name = events.UnknownEvent
 			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
 		}
-		did = info.directoryID
 		path = info.path
 		offset = info.offset
 	} else {

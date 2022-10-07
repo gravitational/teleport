@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -216,4 +217,175 @@ func TestSessionEndEvent(t *testing.T) {
 		Participants:          []string{"foo"},
 	}
 	require.Empty(t, cmp.Diff(expected, endEvent))
+}
+
+func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
+	sid := "session-0"
+	desktopAddr := "windows.example.com"
+	testDirName := "test-dir"
+	path := "test/path/test-file.txt"
+	var did uint32 = 2
+	var cid uint32 = 999
+	var offset uint64 = 500
+	var length uint32 = 1000
+
+	for _, test := range []struct {
+		name string
+		// sendsSda determines whether a SharedDirectoryAnnounce is sent.
+		sendsSda bool
+		// sendsReq determines whether a SharedDirectoryReadRequest is sent.
+		sendsReq bool
+		// errCode is the error code in the simulated SharedDirectoryReadResponse
+		errCode uint32
+		// expected returns the event we expect to be emitted by modifying baseEvent
+		// (which is passed in from the test body below).
+		expected func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead
+	}{
+		{
+			// when everything is working as expected
+			name:     "typical operation",
+			sendsSda: true,
+			sendsReq: true,
+			errCode:  tdp.ErrCodeNil,
+			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
+				return baseEvent
+			},
+		},
+		{
+			// the read operation failed
+			name:     "read failed",
+			sendsSda: true,
+			sendsReq: true,
+			errCode:  tdp.ErrCodeFailed,
+			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
+				baseEvent.Status.Success = false
+				baseEvent.Status.Error = failedStatusMessage
+				baseEvent.Status.UserMessage = failedStatusMessage
+				return baseEvent
+			},
+		},
+		{
+			// should never happen but just in case
+			name:     "directory name unknown",
+			sendsSda: false,
+			sendsReq: true,
+			errCode:  tdp.ErrCodeNil,
+			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
+				baseEvent.DirectoryName = events.UnknownEvent
+				return baseEvent
+			},
+		},
+		{
+			// should never happen but just in case
+			name:     "request info unknown",
+			sendsSda: true,
+			sendsReq: false,
+			errCode:  tdp.ErrCodeNil,
+			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
+				// resorts to default values for these
+				baseEvent.DirectoryID = 0
+				baseEvent.Offset = 0
+
+				// sets "unknown" for these
+				baseEvent.Path = events.UnknownEvent
+				// we can't retrieve the directory name because we don't have the directoryID
+				baseEvent.DirectoryName = events.UnknownEvent
+
+				return baseEvent
+			},
+		},
+		{
+			// should never happen but just in case
+			name:     "directory name and request info unknown",
+			sendsSda: false,
+			sendsReq: false,
+			errCode:  tdp.ErrCodeNil,
+			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
+				// resorts to default values for these
+				baseEvent.DirectoryID = 0
+				baseEvent.Offset = 0
+
+				// sets "unknown" for these
+				baseEvent.Path = events.UnknownEvent
+				baseEvent.DirectoryName = events.UnknownEvent
+
+				return baseEvent
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, id, emitter := setup()
+			recvHandler := s.makeTDPReceiveHandler(context.Background(),
+				emitter, func() int64 { return 0 },
+				id, sid, desktopAddr)
+			sendHandler := s.makeTDPSendHandler(context.Background(),
+				emitter, func() int64 { return 0 },
+				id, sid, desktopAddr)
+			if test.sendsSda {
+				// SharedDirectoryAnnounce initializes the nameCache.
+				sda := tdp.SharedDirectoryAnnounce{
+					DirectoryID: did,
+					Name:        testDirName,
+				}
+				recvHandler(sda)
+			}
+
+			if test.sendsReq {
+				// SharedDirectoryReadRequest initializes the readRequestCache.
+				req := tdp.SharedDirectoryReadRequest{
+					CompletionID: cid,
+					DirectoryID:  did,
+					Path:         path,
+					Offset:       offset,
+					Length:       length,
+				}
+				encoded, err := req.Encode()
+				require.NoError(t, err)
+				sendHandler(req, encoded)
+			}
+
+			// SharedDirectoryReadResponse causes the event to be emitted.
+			res := tdp.SharedDirectoryReadResponse{
+				CompletionID:   cid,
+				ErrCode:        test.errCode,
+				ReadDataLength: length,
+				ReadData:       []byte{}, // irrelevant in this context
+			}
+			recvHandler(res)
+
+			event := emitter.LastEvent()
+			require.NotNil(t, event)
+
+			readEvent, ok := event.(*events.DesktopSharedDirectoryRead)
+			require.True(t, ok)
+
+			baseEvent := &events.DesktopSharedDirectoryRead{
+				Metadata: events.Metadata{
+					Type:        libevents.DesktopSharedDirectoryReadEvent,
+					Code:        libevents.DesktopSharedDirectoryReadCode,
+					ClusterName: s.clusterName,
+					Time:        s.cfg.Clock.Now().UTC(),
+				},
+				UserMetadata: id.GetUserMetadata(),
+				SessionMetadata: events.SessionMetadata{
+					SessionID: sid,
+					WithMFA:   id.MFAVerified,
+				},
+				ConnectionMetadata: events.ConnectionMetadata{
+					LocalAddr:  id.ClientIP,
+					RemoteAddr: desktopAddr,
+					Protocol:   libevents.EventProtocolTDP,
+				},
+				Status:        statusFromErrCode(tdp.ErrCodeNil),
+				DesktopAddr:   desktopAddr,
+				DirectoryName: testDirName,
+				DirectoryID:   did,
+				Path:          path,
+				Length:        length,
+				Offset:        offset,
+			}
+
+			require.Empty(t, cmp.Diff(test.expected(baseEvent), readEvent))
+		})
+	}
 }
