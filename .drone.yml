@@ -1036,17 +1036,16 @@ steps:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Assume AWS Role
   commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > C:/Drone/Workspace/build-native-windows-amd64/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $AwsSharedCredentialsFile = "$Workspace/credentials"
+  - $SessionName = "drone-$Env:DRONE_REPO-$Env:DRONE_BUILD_NUMBER".replace("/", "-")
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Get-STSCallerIdentity
+  - Save-Role -RoleArn $Env:AWS_ROLE -RoleSessionName $SessionName -FilePath $AwsSharedCredentialsFile
+  - 'Get-ChildItem -Path Env: | Where-Object {($_.Name -Like "AWS_SECRET_ACCESS_KEY")
+    -or ($_.Name -Like "AWS_ACCESS_KEY_ID") } | Remove-Item'
+  - Get-STSCallerIdentity -ProfileLocation $AwsSharedCredentialsFile
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
@@ -1054,12 +1053,14 @@ steps:
       from_secret: AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Upload Artifacts
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
+  - $AwsSharedCredentialsFile = "$Workspace/credentials"
   - $OutputsDir="$Workspace/outputs"
   - New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null
   - Get-ChildItem "$WebappsSrc/packages/teleterm/build/release
@@ -1067,12 +1068,12 @@ steps:
     Setup*.exe" -Destination $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
-  - Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"
+  - Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket
+    $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"
   environment:
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: C:/Drone/Workspace/build-native-windows-amd64/credentials
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Register artifacts
   commands:
@@ -7893,6 +7894,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: f9906d696857c87bbe0b4a46db85250781a4b8c0bd7af043ddecd4b36eafebdf
+hmac: 6c3bd1f8d5dcf1c6d9e492f0b81b864db69579ed4646ab924aebc9781fc88641
 
 ...

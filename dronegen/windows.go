@@ -16,7 +16,6 @@ package main
 
 import (
 	"path"
-	"path/filepath"
 )
 
 const (
@@ -39,7 +38,6 @@ func newWindowsPipeline(name string) pipeline {
 
 func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
-	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = triggerTag
@@ -51,34 +49,46 @@ func windowsTagPipeline() pipeline {
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
-		windowsAssumeAwsRoleStep(windowsRoleSettings{
-			awsRoleSettings: awsRoleSettings{
-				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
-				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				role:               value{fromSecret: "AWS_ROLE"},
+		{
+			Name: "Assume AWS Role",
+			Environment: map[string]value{
+				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
+				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"AWS_ROLE":              {fromSecret: "AWS_ROLE"},
 			},
-			configPath: awsConfigPath,
-		}),
+			Commands: []string{
+				`$Workspace = "` + perBuildWorkspace + `"`,
+				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+				`$AwsSharedCredentialsFile = "$Workspace/credentials"`,
+				`$SessionName = "drone-$Env:DRONE_REPO-$Env:DRONE_BUILD_NUMBER".replace("/", "-")`,
+				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+				`Get-STSCallerIdentity`,
+				`Save-Role -RoleArn $Env:AWS_ROLE -RoleSessionName $SessionName -FilePath $AwsSharedCredentialsFile`,
+				`Get-ChildItem -Path Env: | Where-Object {($_.Name -Like "AWS_SECRET_ACCESS_KEY") -or ($_.Name -Like "AWS_ACCESS_KEY_ID") } | Remove-Item`,
+				`Get-STSCallerIdentity -ProfileLocation $AwsSharedCredentialsFile`,
+			},
+		},
 		{
 			Name: "Upload Artifacts",
 			Environment: map[string]value{
-				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
-				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
-				"AWS_REGION":                  {raw: "us-west-2"},
-				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"AWS_REGION":    {raw: "us-west-2"},
+				"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
 				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 				`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
+				`$AwsSharedCredentialsFile = "$Workspace/credentials"`,
 				`$OutputsDir="$Workspace/outputs"`,
 				`New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null`,
 				`Get-ChildItem "$WebappsSrc/packages/teleterm/build/release`,
 				`Copy-Item -Path "$WebappsSrc/packages/teleterm/build/release/Teleport Connect Setup*.exe" -Destination $OutputsDir`,
 				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 				`Format-FileHashes -PathGlob "$OutputsDir/*.exe"`,
-				`Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
+				`Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
 			},
 		},
 		windowsRegisterArtifactsStep(p.Workspace.Path),
