@@ -57,8 +57,10 @@ service TerminalService {
   rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
   // AssumeRole assumes the role of the given access request
   rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
-  // ListKubes list kubes
-  rpc ListKubes(ListKubesRequest) returns (ListKubesResponse);
+  // GetAllKubes list kubes
+  rpc GetAllKubes(GetAllKubesRequest) returns (GetAllKubesResponse);
+  // GetKubes list kubes
+  rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
   // ListApps list apps
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // AddCluster adds a cluster to profile
@@ -282,10 +284,6 @@ message AddClusterRequest {
   string name = 1;
 }
 
-message ListKubesRequest {
-  string cluster_uri = 1;
-}
-
 message ListAppsRequest {
   string cluster_uri = 1;
 }
@@ -389,8 +387,28 @@ message GetDatabasesResponse {
   string start_key = 3;
 }
 
-message ListKubesResponse {
+message GetAllKubesRequest {
+  string cluster_uri = 1;
+}
+
+message GetAllKubesResponse {
   repeated Kube kubes = 1;
+}
+
+message GetKubesRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetKubesResponse {
+  repeated Kube agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
 }
 
 message ListAppsResponse {

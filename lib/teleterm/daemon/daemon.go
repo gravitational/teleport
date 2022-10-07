@@ -475,19 +475,34 @@ func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.A
 	return apps, nil
 }
 
-// ListKubes lists kubernetes clusters
-func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
+// GetAllKubes lists kubernetes clusters
+func (s *Service) GetAllKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	kubes, err := cluster.GetKubes(ctx)
+	kubes, err := cluster.GetAllKubes(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return kubes, nil
+}
+
+// GetKubes accepts parameterized input to enable searching, sorting, and pagination.
+func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
+	cluster, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetKubes(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
 }
 
 // Stop terminates all cluster open connections
