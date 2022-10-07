@@ -371,16 +371,14 @@ func (d *DatabaseV3) IsMemoryDB() bool {
 	return d.GetType() == DatabaseTypeMemoryDB
 }
 
-// IsAWSCassandra returns true if this is an AWS hosted Cassandra database.
-func (d *DatabaseV3) IsAWSCassandra() bool {
-	return d.Spec.Protocol == DatabaseTypeAWSKeyspace &&
-		d.GetAWS().AccountID != "" &&
-		d.GetAWS().Region != ""
+// IsAWSKeyspaces returns true if this is an AWS hosted Cassandra database.
+func (d *DatabaseV3) IsAWSKeyspaces() bool {
+	return d.GetType() == DatabaseTypeAWSKeyspaces
 }
 
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB() || d.IsAWSCassandra()
+	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB() || d.IsAWSKeyspaces()
 }
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
@@ -391,10 +389,9 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
-	if d.GetAWS().AccountID != "" && d.Spec.Protocol == DatabaseTypeAWSKeyspace {
-		return DatabaseTypeAWSKeyspace
+	if d.GetAWS().AccountID != "" && d.Spec.Protocol == DatabaseTypeCassandra {
+		return DatabaseTypeAWSKeyspaces
 	}
-
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
@@ -465,7 +462,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	}
 	if d.Spec.URI == "" {
 		switch {
-		case d.IsAWSCassandra() && d.GetAWS().Region != "":
+		case d.IsAWSKeyspaces() && d.GetAWS().Region != "":
 			// In case of AWS Hosted Cassandra allow to omit URI.
 			// The URL will be constructed from the database resource based on the region and account ID.
 			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
@@ -537,6 +534,17 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
+		}
+	case strings.Contains(d.Spec.URI, awsutils.AWSEndpointSuffix) || strings.Contains(d.Spec.URI, awsutils.AWSCNEndpointSuffix):
+		if d.Spec.AWS.AccountID == "" {
+			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
+		}
+		if d.Spec.AWS.Region == "" {
+			region, err := awsutils.CassandraEndpointRegion(d.Spec.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			d.Spec.AWS.Region = region
 		}
 	}
 	return nil
@@ -691,8 +699,10 @@ const (
 	DatabaseTypeElastiCache = "elasticache"
 	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
 	DatabaseTypeMemoryDB = "memorydb"
-	// DatabaseTypeAWSKeyspace is AWS-hosted Keyspace database.
-	DatabaseTypeAWSKeyspace = "cassandra"
+	// DatabaseTypeAWSKeyspaces is AWS-hosted Keyspaces database (Cassandra).
+	DatabaseTypeAWSKeyspaces = "keyspace"
+	// DatabaseTypeCassandra is AWS-hosted Keyspace database.
+	DatabaseTypeCassandra = "cassandra"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

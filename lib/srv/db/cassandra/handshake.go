@@ -324,7 +324,7 @@ func (a *authAWSSigV4Auth) handleAuth(_, serverConn *protocol.Conn, fr *frame.Fr
 	}
 	awsAuth, err := a.getSigV4Authenticator(a.ses.DatabaseUser)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.NewAggregate(err)
 	}
 
 	data, challenger, err := awsAuth.Challenge([]byte(authMsg.Authenticator))

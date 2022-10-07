@@ -18,7 +18,6 @@ package cassandra
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
@@ -51,7 +50,7 @@ func convBatchChildValues(values []*primitive.Value) []*events.CassandraBatch_Ba
 	for _, v := range values {
 		out = append(out, &events.CassandraBatch_BatchChild_Value{
 			Type:     uint32(v.Type),
-			Contents: fmt.Sprintf("%+v", v.Contents),
+			Contents: v.Contents,
 		})
 	}
 	return out

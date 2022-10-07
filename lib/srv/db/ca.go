@@ -49,7 +49,7 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure,
-		types.DatabaseTypeAWSKeyspace:
+		types.DatabaseTypeAWSKeyspaces:
 	default:
 		return nil
 	}
@@ -136,8 +136,8 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 	case types.DatabaseTypeAzure:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
 
-	case types.DatabaseTypeAWSKeyspace:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspaceCAURL)), nil
+	case types.DatabaseTypeAWSKeyspaces:
+		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspacesCAURL)), nil
 	}
 
 	return "", trace.BadParameter("%v doesn't support automatic CA download", database)
@@ -172,8 +172,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
 		return d.downloadFromURL(azureCAURL)
-	case types.DatabaseTypeAWSKeyspace:
-		return d.downloadFromURL(amazonKeyspaceCAURL)
+	case types.DatabaseTypeAWSKeyspaces:
+		return d.downloadFromURL(amazonKeyspacesCAURL)
 	}
 	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
@@ -286,10 +286,10 @@ const (
 	// cloudSQLDownloadError is the error message that gets returned when
 	// we failed to download root certificate for Cloud SQL instance.
 
-	// amazonKeyspaceCAURL is the URL of the CA certicated fo validating certificates
+	// amazonKeyspacesCAURL is the URL of the CA certificate for validating certificates
 	// presented by AWS Keyspace. See:
 	// https://docs.aws.amazon.com/keyspaces/latest/devguide/using_go_driver.html
-	amazonKeyspaceCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
+	amazonKeyspacesCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
 
 	cloudSQLDownloadError = `Could not download Cloud SQL CA certificate for database %v due to the following error:
 

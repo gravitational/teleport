@@ -475,7 +475,25 @@ const (
 func CassandraEndpointURLForRegion(region string) string {
 	switch strings.ToLower(region) {
 	case "cn-north-1", "cn-northwest-1":
-		return fmt.Sprintf("cassandra.%s.%s:9142", region, AWSCNEndpointSuffix)
+		return fmt.Sprintf("cassandra.%s%s:9142", region, AWSCNEndpointSuffix)
 	}
-	return fmt.Sprintf("cassandra.%s.%s:9142", region, AWSEndpointSuffix)
+	return fmt.Sprintf("cassandra.%s%s:9142", region, AWSEndpointSuffix)
+}
+
+// CassandraEndpointRegion returns an AWS region from cassandra endpoint:
+// where endpoint looks like cassandra.us-east-2.amazonaws.com
+// https://docs.aws.amazon.com/keyspaces/latest/devguide/programmatic.endpoints.html
+func CassandraEndpointRegion(endpoint string) (string, error) {
+	endpoint, err := removeSchemaAndPort(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	endpoint = strings.TrimSuffix(endpoint, AWSCNEndpointSuffix)
+	endpoint = strings.TrimSuffix(endpoint, AWSEndpointSuffix)
+	parts := strings.Split(endpoint, ".")
+	if len(parts) != 2 {
+		return "", trace.BadParameter("invalid Cassandra endpoint")
+	}
+	return parts[1], nil
 }
