@@ -4,13 +4,13 @@ description: How to use JetBrains IDE to browse remote host with Teleport
 h1: SFTP with JetBrains IDE
 ---
 
-This guide explains how to use Teleport and JetBrains IDE to access files with SFTP.
+This guide explains how to use Teleport and a JetBrains IDE to access files with SFTP.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- JetBrains IDE like PyCharm, IntelliJ, Goland etc. [Products](https://www.jetbrains.com/products/#type=ide)
+- JetBrains IDE like PyCharm, IntelliJ, Goland etc. See [Products](https://www.jetbrains.com/products/#type=ide) for a full list of JetBrains IDEs.
 - One or more Teleport Nodes with Server Access enabled. If you have not yet
 done this, read the [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
 
@@ -48,7 +48,7 @@ in the path below:
   </TabItem>
 </Tabs>
 
-You should be able to connect to the desired node using following command, replacing `user` with the username you would like to assume on the node.
+You should be able to connect to the desired Node using following command, replacing `user` with the username you would like to assume on the Node:
 
 ```code
 $ ssh user@[node name].[cluster name]
@@ -73,13 +73,13 @@ $ ssh user@[node name].[cluster name]
   When you see this error, re-run `tsh login` to refresh your local certificate.
 </Admonition>
 
-## Step 2/3. Configure JetBrains IDE
+## Step 2/3. Configure your JetBrains IDE
 
 After opening your IDE go to `Tools` -> `Deployment` -> `Browse Remote Host`.
 
 ![Deployment](../../../img/jetbrains-sftp/deployment-main.png)
 
-Then click plus sign in the left top corner to add a new server.
+Then click the plus sign in the top-left corner to add a new server.
 
 ![Add server](../../../img/jetbrains-sftp/add-server.png)
 
@@ -87,14 +87,14 @@ Enter a name for your new server.
 
 ![New Deployment](../../../img/jetbrains-sftp/deployment-added.png)
 
-Click three dots next to `SSH configuration` as in the picture above.
+Click the three dots next to `SSH configuration` as in the picture above.
 
 ![SSH Configuration](../../../img/jetbrains-sftp/ssh-configurations.png)
 
-Create a new configuration by clicking plus sign on the left top and providing:
+Create a new configuration by clicking the plus sign on the top left and providing:
 
-* `Host` - name of the Teleport node.
-* `Port` - is the SSH node port (3022 by default).
+* `Host` - name of the Teleport Node.
+* `Port` - is the Teleport Node's SSH port (3022 by default).
 * `Username` - is the system username.
 
 As an `Authentication type` pick `OpenSSH config and authentication agent`.
@@ -102,7 +102,7 @@ Next, you can click `Test Connection`.
 
 ![Successfully Connected](../../../img/jetbrains-sftp/successfully-connected.png)
 
-## Step 3/3. Browse remote host
+## Step 3/3. Browse a remote host
 
 After closing the SSH configuration window, you should see `Remote Host` menu in your IDE.
 
