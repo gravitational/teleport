@@ -81,6 +81,11 @@ func GetDefaultContentSecurityPolicy() string {
 	}, ";")
 }
 
+// SetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
+func SetDefaultContentSecurityPolicy(h http.Header) {
+	h.Set("Content-Security-Policy", GetDefaultContentSecurityPolicy())
+}
+
 // SetWebConfigHeaders sets headers for webConfig.js
 func SetWebConfigHeaders(h http.Header) {
 	h.Set("Content-Type", "application/javascript")
