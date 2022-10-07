@@ -128,6 +128,9 @@ func TestSSHConfig_GetSSHConfig(t *testing.T) {
 
 			sb := &strings.Builder{}
 			err := c.GetSSHConfig(sb, tt.config)
+			if golden.ShouldSet() {
+				golden.Set(t, []byte(sb.String()))
+			}
 			require.NoError(t, err)
 			require.Equal(t, string(golden.Get(t)), sb.String())
 		})
