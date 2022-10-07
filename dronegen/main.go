@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -108,6 +109,16 @@ func writePipelines(path string, newPipelines []pipeline) error {
 	return os.WriteFile(path, configData, 0664)
 }
 
+func unmarshalStrict(data []byte, p any) error {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&p); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
 // parsedPipeline is a single pipeline parsed from .drone.yml along with its
 // unparsed form. It's used to preserve YAML comments and minimize diffs due to
 // formatting.
@@ -128,7 +139,7 @@ func parsePipelines(data []byte) ([]parsedPipeline, error) {
 			continue
 		}
 		var p pipeline
-		if err := yaml.UnmarshalStrict(c, &p); err != nil {
+		if err := unmarshalStrict(c, &p); err != nil {
 			return nil, err
 		}
 		pipelines = append(pipelines, parsedPipeline{pipeline: p, raw: c})
