@@ -16,18 +16,25 @@ import (
 )
 
 func TestProxyWithoutLicense(t *testing.T) {
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{})
+	require.NoError(t, err)
+
 	config := &service.Config{
 		DataDir: t.TempDir(),
 		Proxy: service.ProxyConfig{
 			Enabled: true,
+		},
+		Auth: service.AuthConfig{
+			Enabled:    false,
+			Preference: authPreference,
 		},
 		Log: utils.WrapLogger(logrus.WithField("test", t.Name())),
 	}
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
 
-	_, err := NewTeleport(config)
-	require.Nil(t, err)
+	_, err = NewTeleport(config)
+	require.NoError(t, err)
 }
 
 func TestMissingLicenseError(t *testing.T) {
