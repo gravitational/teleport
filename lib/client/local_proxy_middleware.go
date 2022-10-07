@@ -120,7 +120,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
 
-	msg := fmt.Sprintf("MFA is required to access database %q", c.dbRoute.ServiceName)
+	hint := fmt.Sprintf("MFA is required to access database %q", c.dbRoute.ServiceName)
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.tc, func() error {
 		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
@@ -133,7 +133,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 			},
 			AccessRequests: accessRequests,
 		}, func(opts *PromptMFAChallengeOpts) {
-			opts.BeforePrompt = msg
+			opts.HintBeforePrompt = hint
 		})
 		key = newKey
 		return trace.Wrap(err)

@@ -50,10 +50,10 @@ func (p *mfaPrompt) PromptPIN() (string, error) {
 
 // PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
 type PromptMFAChallengeOpts struct {
-	// BeforePrompt is an optional method to print before the prompt.
+	// HintBeforePrompt is an optional hint message to print before an MFA prompt.
 	// It is used to provide context about why the user is being prompted where it may
 	// not be obvious.
-	BeforePrompt string
+	HintBeforePrompt string
 	// PromptDevicePrefix is an optional prefix printed before "security key" or
 	// "device". It is used to emphasize between different kinds of devices, like
 	// registered vs new.
@@ -109,9 +109,9 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	if opts == nil {
 		opts = &PromptMFAChallengeOpts{}
 	}
-	if opts.BeforePrompt != "" {
-		// print a message before any prompt or error message to provide context
-		fmt.Println(opts.BeforePrompt)
+	writer := os.Stderr
+	if opts.HintBeforePrompt != "" {
+		fmt.Fprintln(writer, opts.HintBeforePrompt)
 	}
 	promptDevicePrefix := opts.PromptDevicePrefix
 	quiet := opts.Quiet
@@ -183,7 +183,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 			}
 
-			otp, err := prompt.Password(otpCtx, os.Stderr, prompt.Stdin(), msg)
+			otp, err := prompt.Password(otpCtx, writer, prompt.Stdin(), msg)
 			if err != nil {
 				respC <- response{kind: kind, err: err}
 				return
@@ -210,7 +210,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
-			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
+			prompt := wancli.NewDefaultPrompt(ctx, writer)
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
 			switch {
 			case quiet:
