@@ -109,10 +109,7 @@ func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.Telepor
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxy.CurrentCluster()
 
 	return site.GetSessionTracker(ctx, c.session)
 }
@@ -500,11 +497,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	site := proxy.CurrentCluster()
 	sessions, err := site.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -942,36 +935,17 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
+		ac := pc.CurrentCluster()
 		defer ac.Close()
 
-		cn, err := ac.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		teleportCluster = cn.GetClusterName()
-
+		teleportCluster = pc.ClusterName()
 		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, ac, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,
 		})
 		if err != nil {
-			// ListResources for kube service not available, provide fallback.
-			// Fallback does not support filters, so if users
-			// provide them, it does nothing.
-			//
-			// DELETE IN 11.0.0
-			if trace.IsNotImplemented(err) {
-				kubeClusters, err = kubeutils.KubeClusters(ctx, ac)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return nil
-			}
 			return trace.Wrap(err)
 		}
 
@@ -1110,7 +1084,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
 	}
 
-	return trace.Wrap(kubeconfig.Update(path, *values))
+	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
 }
 
 // Required magic boilerplate to use the k8s encoder.

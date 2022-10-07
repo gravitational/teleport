@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Config specifies information when building requests with the
@@ -388,11 +389,15 @@ type AuthenticationSettings struct {
 	SAML *SAMLSettings `json:"saml,omitempty"`
 	// Github contains Github connector settings needed for authentication.
 	Github *GithubSettings `json:"github,omitempty"`
+	// PrivateKeyPolicy contains the cluster-wide private key policy.
+	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+	// LoadAllCAs tells tsh to load CAs for all clusters when trying to ssh into a node.
+	LoadAllCAs bool `json:"load_all_cas,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.

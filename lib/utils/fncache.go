@@ -46,10 +46,12 @@ type FnCache struct {
 	entries     map[any]*fnCacheEntry
 }
 
-// cleanupMultiplier is an arbitrary multiplier used to derive the schedule for
-// periodic lazy cleanup of expired entries.  This cache is meant to be used to
+// cleanupMultiplier is an arbitrary multiplier used to derive the default interval
+// for periodic lazy cleanup of expired entries. This cache is typically used to
 // store a small number of regularly read keys, so most old values aught to be
-// removed upon subsequent reads of the same key.
+// removed upon subsequent reads of the same key. If the cache is being used in a
+// context where keys might become regularly orphaned (no longer read), then a
+// custom CleanupInterval should be provided.
 const cleanupMultiplier time.Duration = 16
 
 type FnCacheConfig struct {
@@ -60,6 +62,16 @@ type FnCacheConfig struct {
 	// Context is the context used to cancel the cache. All loadfns
 	// will be provided this context.
 	Context context.Context
+	// ReloadOnErr causes entries to be reloaded immediately if
+	// the currently loaded value is an error. Note that all concurrent
+	// requests registered before load completes still observe the
+	// same error. This option is only really useful for longer TTLs.
+	ReloadOnErr bool
+	// CleanupInterval is the interval at which cleanups occur (defaults to
+	// 16x the supplied TTL). Longer cleanup intervals are appropriate for
+	// caches where keys are unlikely to become orphaned. Shorter cleanup
+	// intervals should be used when keys regularly become orphaned.
+	CleanupInterval time.Duration
 }
 
 func (c *FnCacheConfig) CheckAndSetDefaults() error {
@@ -73,6 +85,10 @@ func (c *FnCacheConfig) CheckAndSetDefaults() error {
 
 	if c.Context == nil {
 		c.Context = context.Background()
+	}
+
+	if c.CleanupInterval <= 0 {
+		c.CleanupInterval = c.TTL * cleanupMultiplier
 	}
 
 	return nil
@@ -149,7 +165,7 @@ func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Cont
 	// check if we need to perform periodic cleanup
 	if now.After(c.nextCleanup) {
 		c.removeExpiredLocked(now)
-		c.nextCleanup = now.Add(c.cfg.TTL * cleanupMultiplier)
+		c.nextCleanup = now.Add(c.cfg.CleanupInterval)
 	}
 
 	entry := c.entries[key]
@@ -160,6 +176,9 @@ func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Cont
 		select {
 		case <-entry.loaded:
 			needsReload = now.After(entry.t.Add(c.cfg.TTL))
+			if c.cfg.ReloadOnErr && entry.e != nil {
+				needsReload = true
+			}
 		default:
 			// reload is already in progress
 			needsReload = false

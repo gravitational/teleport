@@ -1492,7 +1492,7 @@ func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resou
 func anyNameMatcher(names []string) string {
 	matchers := make([]string, len(names))
 	for i := range names {
-		matchers[i] = fmt.Sprintf(`name == %q`, names[i])
+		matchers[i] = fmt.Sprintf(`resource.metadata.name == %q`, names[i])
 	}
 	return strings.Join(matchers, " || ")
 }

@@ -289,7 +289,13 @@ const (
 	ResourceIdentifier = "resource"
 	// ResourceLabelsIdentifier refers to the static and dynamic labels in a resource.
 	ResourceLabelsIdentifier = "labels"
-	// ResourceNameIdentifier refers to the metadata name field for a resource.
+	// ResourceNameIdentifier refers to two different fields depending on the kind of resource:
+	//   - KindNode will refer to its resource.spec.hostname field
+	//   - All other kinds will refer to its resource.metadata.name field
+	// It refers to two different fields because the way this shorthand is being used,
+	// implies it will return the name of the resource where users identifies nodes
+	// by its hostname and all other resources that can be `ls` queried is identified
+	// by its metadata name.
 	ResourceNameIdentifier = "name"
 	// SessionIdentifier refers to a session (recording) in the rules.
 	SessionIdentifier = "session"
@@ -716,9 +722,10 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 // NewResourceParser returns a parser made for boolean expressions based on a
 // json-serialiable resource. Customized to allow short identifiers common in all
 // resources:
-//   - `metadata.name` can be referenced with `name` ie: `name == "jenkins"“
-//   - `metadata.labels + spec.dynamic_labels` can be referenced with `labels`
-//     ie: `labels.env == "prod"`
+//   - shorthand `name` refers to `resource.spec.hostname` for node resources or it refers
+//     to `resource.metadata.name` for all other resources eg: `name == "app-name-jenkins"`
+//   - shorthand `labels` refers to resource `resource.metadata.labels + resource.spec.dynamic_labels`
+//     eg: `labels.env == "prod"`
 //
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
@@ -786,6 +793,14 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 				if len(fields) > 1 {
 					return nil, trace.BadParameter("only one field are supported with identifier %q, got %d: %v", ResourceNameIdentifier, len(fields), fields)
 				}
+
+				// For nodes, the resource "name" that user expects is the
+				// nodes hostname, not its UUID. Currently for other resources,
+				// the metadata.name returns the name as expected.
+				if server, ok := resource.(types.Server); ok {
+					return server.GetHostname(), nil
+				}
+
 				return resource.GetName(), nil
 			case ResourceIdentifier:
 				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])

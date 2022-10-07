@@ -125,6 +125,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					Domain:     db.AD.Domain,
 					SPN:        db.AD.SPN,
 				},
+				Azure: types.Azure{
+					ResourceID: db.Azure.ResourceID,
+				},
 			})
 		if err != nil {
 			return trace.Wrap(err)
