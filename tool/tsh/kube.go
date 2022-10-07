@@ -656,6 +656,7 @@ type kubeLSCommand struct {
 	format         string
 	listAll        bool
 	siteName       string
+	verbose        bool
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
@@ -668,6 +669,7 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("all", "List kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
+	c.Flag("verbose", "Print full list of labels.").Short('v').BoolVar(&c.verbose)
 	return c
 }
 
@@ -732,19 +734,27 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(2)
-		} else {
-			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Labels", "Selected"})
-		}
+		var (
+			t       asciitable.Table
+			columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+			rows    [][]string
+		)
+
 		for _, cluster := range kubeClusters {
 			var selectedMark string
 			if cluster.GetName() == selectedCluster {
 				selectedMark = "*"
 			}
 
-			t.AddRow([]string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
+			rows = append(rows, []string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
+		}
+
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(2)
+		} else if c.verbose {
+			t = asciitable.MakeTable(columns, rows...)
+		} else {
+			t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
