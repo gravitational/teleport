@@ -437,7 +437,7 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	certBlock, _ := pem.Decode(cfg.Key.TLSCert)
 	privBlock, _ := pem.Decode(cfg.Key.PrivateKeyPEM())
 
-	privKey, err := x509.ParsePKCS8PrivateKey(privBlock.Bytes)
+	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

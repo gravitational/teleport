@@ -263,7 +263,13 @@ func (a *authAWSSigV4Auth) handleStartupMessage(clientConn, serverConn *protocol
 		return trace.Wrap(err)
 	}
 	if err := a.handleAuth(clientConn, serverConn, authFrame.Frame()); err != nil {
-		return trace.Wrap(err)
+		// Likely the agent is not authorized to access AWS resources or
+		// the AWS configuration doesn't allow the agent to assume the role.
+		userErr := trace.AccessDenied(
+			"failed to authenticate to AWS Keyspaces with %s user, contact your administrator for help",
+			a.ses.DatabaseUser,
+		)
+		return trace.NewAggregate(err, sendAuthenticationErrorMessage(userErr, clientConn, authResp.Frame()))
 	}
 
 	readyFrame := frame.NewFrame(authResp.Header().Version, authResp.Header().StreamId, &message.AuthSuccess{})
@@ -324,7 +330,7 @@ func (a *authAWSSigV4Auth) handleAuth(_, serverConn *protocol.Conn, fr *frame.Fr
 	}
 	awsAuth, err := a.getSigV4Authenticator(a.ses.DatabaseUser)
 	if err != nil {
-		return trace.NewAggregate(err)
+		return trace.Wrap(err)
 	}
 
 	data, challenger, err := awsAuth.Challenge([]byte(authMsg.Authenticator))
