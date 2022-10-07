@@ -16,6 +16,13 @@ Here's an overview of what you will do:
 
 ## Prerequisites
 
+<Admonition type="note" title="Supported versions">
+
+Machine ID is available starting from the `9.0.0` Teleport
+release.
+
+</Admonition>
+
 - A host that you wish to assign an identity to using Machine ID.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -55,9 +62,9 @@ binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
 - `tsh` is the client tool you will use to log in to the Teleport Cluster (steps 2/4 and 4/4)
 - `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
 
-Machine ID is available starting from the Teleport `9.0.0` release. Download
-the appropriate Teleport package for your platform from our
-[downloads page](https://goteleport.com/teleport/download).
+Install Teleport on the host where you will run Machine ID:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 ## Step 2/4. Create a bot user
 
@@ -161,7 +168,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=(=presets.tokens.first=) \
@@ -174,7 +181,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["cloud"]}>
 
   ```code
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=(=presets.tokens.first=) \
@@ -191,7 +198,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=iam-token \
@@ -204,7 +211,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["cloud"]}>
 
   ```code
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=iam-token \
@@ -287,7 +294,7 @@ To use Machine ID with the OpenSSH integration, run the following command to
 connect to `node-name` within cluster `example.com`.
 
 ```
-ssh -F /opt/machine-id/ssh_config root@node-name.example.com
+sudo ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 ```
 
 <Admonition type="note" title="Roles must have logins defined">
@@ -295,7 +302,7 @@ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
   a node as the requested user:
 
   ```code
-  $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
+  $ sudo ssh -F /opt/machine-id/ssh_config root@node-name.example.com
   root@node-name: Permission denied (publickey).
   kex_exchange_identification: Connection closed by remote host
   ```

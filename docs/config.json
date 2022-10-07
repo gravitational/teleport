@@ -828,28 +828,6 @@
           "slug": "/machine-id/getting-started/"
         },
         {
-          "title": "Troubleshooting",
-          "slug": "/machine-id/troubleshooting/"
-        },
-        {
-          "title": "FAQ",
-          "slug": "/machine-id/faq/"
-        },
-        {
-          "title": "Reference",
-          "slug": "/machine-id/reference/",
-          "entries": [
-            {
-              "title": "Configuration",
-              "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
-            }
-          ]
-        },
-        {
           "title": "Guides",
           "slug": "/machine-id/guides/",
           "entries": [
@@ -874,6 +852,32 @@
               "slug": "/machine-id/guides/applications/"
             }
           ]
+        },
+        {
+          "title": "Architecture",
+          "slug": "/machine-id/architecture/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/machine-id/reference/cli/"
+            }
+          ]
+        },
+        {
+          "title": "FAQ",
+          "slug": "/machine-id/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/machine-id/troubleshooting/"
         }
       ]
     },
