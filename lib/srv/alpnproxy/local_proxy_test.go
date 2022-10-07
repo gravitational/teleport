@@ -159,7 +159,7 @@ func (m *mockMiddlewareCounter) onStateChange() {
 func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
 	m.Lock()
 	defer m.Unlock()
-	m.connCount += 1
+	m.connCount++
 	m.onStateChange()
 	return nil
 }
@@ -167,7 +167,7 @@ func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy
 func (m *mockMiddlewareCounter) OnStart(_ context.Context, _ *LocalProxy) error {
 	m.Lock()
 	defer m.Unlock()
-	m.startCount += 1
+	m.startCount++
 	m.onStateChange()
 	return nil
 }
