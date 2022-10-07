@@ -20,8 +20,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/config/openssh"
+
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/lib/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +47,7 @@ Host *.test-cluster !localhost
 `
 
 	var sb strings.Builder
-	err := writeSSHConfig(&sb, &config.SSHConfigParameters{
+	err := writeSSHConfig(&sb, &openssh.SSHConfigParameters{
 		AppName:             "tsh",
 		ClusterNames:        []string{"test-cluster"},
 		KnownHostsPath:      "/tmp/know_host",
