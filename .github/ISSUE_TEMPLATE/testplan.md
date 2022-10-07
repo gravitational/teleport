@@ -884,19 +884,16 @@ Perform all tests on the following configurations:
  - [ ] etcd
  - [ ] DynamoDB
  - [ ] Firestore
- - [ ] Postgres
 
 * Cluster with 10K reverse tunnel nodes:
  - [ ] etcd
  - [ ] DynamoDB
  - [ ] Firestore
- - [ ] Postgres
 
 * Cluster with 500 trusted clusters:
 - [ ] etcd
 - [ ] DynamoDB
 - [ ] Firestore
-- [ ] Postgres
 
 ### Soak Test
 
