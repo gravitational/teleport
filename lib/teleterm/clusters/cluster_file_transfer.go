@@ -27,7 +27,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress func(progress *api.FileTransferProgress) error) error {
+type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
+
+func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
 	var config *sftp.Config
 	var configErr error
 
@@ -57,7 +59,7 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 	return trace.Wrap(err)
 }
 
-func newFileTransferProgress(fileSize int64, sendProgress func(progress *api.FileTransferProgress) error) io.Writer {
+func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.Writer {
 	return &fileTransferProgress{
 		sendProgress: sendProgress,
 		sentSize:     0,
@@ -66,7 +68,7 @@ func newFileTransferProgress(fileSize int64, sendProgress func(progress *api.Fil
 }
 
 type fileTransferProgress struct {
-	sendProgress       func(progress *api.FileTransferProgress) error
+	sendProgress       FileTransferProgressSender
 	sentSize           int64
 	fileSize           int64
 	lastSentPercentage uint32
