@@ -4240,8 +4240,8 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered.`,
-					Error:   "kubernetes cluster \"notregistered\" is not registered",
+					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online.`,
+					Error:   "kubernetes cluster \"notregistered\" is not registered or is offline",
 				},
 			},
 		},
@@ -4259,8 +4259,8 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered.`,
-					Error:   fmt.Sprintf("kubernetes cluster %q is not registered", disconnectedKubeClustername),
+					Details: `Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online.`,
+					Error:   fmt.Sprintf("kubernetes cluster %q is not registered or is offline", disconnectedKubeClustername),
 				},
 			},
 		},
@@ -5527,7 +5527,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
 		OnHeartbeat: func(err error) {
-			require.NoError(t, err)
 			select {
 			case heartbeatsWaitChannel <- struct{}{}:
 			default:
@@ -5553,7 +5552,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	}()
 
 	// Waits for len(clusters) heartbeats to start
-	for i := 0; i < len(cfg.clusters); i++ {
+	heartbeatsToExpect := len(cfg.clusters)
+	for i := 0; i < heartbeatsToExpect; i++ {
 		<-heartbeatsWaitChannel
 	}
 

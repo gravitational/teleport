@@ -109,7 +109,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 	}
 
 	tlsCfg, err := s.genKubeRestTLSClientConfig(ctx, connectionDiagnosticID, req.ResourceName, currentUser.GetName())
-	diag, diagErr := s.handleUserGenCertsErr(ctx, connectionDiagnosticID, err)
+	diag, diagErr := s.handleUserGenCertsErr(ctx, req.ResourceName, connectionDiagnosticID, err)
 	if err != nil || diagErr != nil {
 		return diag, diagErr
 	}
@@ -122,7 +122,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 	ctxWithTimeout, cancelFunc := context.WithTimeout(ctx, req.DialTimeout)
 	defer cancelFunc()
 	_, err = client.CoreV1().Pods(req.KubernetesNamespace).List(ctxWithTimeout, v1.ListOptions{})
-	diag, diagErr = s.handleErrFromKube(ctx, connectionDiagnosticID, err, req.KubernetesNamespace)
+	diag, diagErr = s.handleErrFromKube(ctx, req.ResourceName, connectionDiagnosticID, err, req.KubernetesNamespace)
 	if err != nil || diagErr != nil {
 		return diag, diagErr
 	}
@@ -198,22 +198,23 @@ func (s KubeConnectionTester) getKubeClient(tlsCfg rest.TLSClientConfig) (kubern
 
 // handleErrFromKube parses the errors received from the Teleport when generating
 // user credentials to access the cluster.
-func (s KubeConnectionTester) handleUserGenCertsErr(ctx context.Context, connectionDiagnosticID string, actionErr error) (types.ConnectionDiagnostic, error) {
+func (s KubeConnectionTester) handleUserGenCertsErr(ctx context.Context, clusterName string, connectionDiagnosticID string, actionErr error) (types.ConnectionDiagnostic, error) {
 	if trace.IsBadParameter(actionErr) {
-		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered."
+		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
-		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+		err := fmt.Errorf("kubernetes cluster %q is not registered or is offline", clusterName)
+		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
 	} else if actionErr != nil {
 		return nil, trace.Wrap(actionErr)
 	}
-	message := "Kubernetes Cluster is registered in Teleport."
-	traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
-	return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, nil)
+	// success message is delayed until we reach kube proxy since the agent can be
+	// registered but unreachable
+	return nil, nil
 }
 
 // handleErrFromKube parses the errors received from the Teleport and marks the
 // steps according to the given error.
-func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionDiagnosticID string, actionErr error, namespace string) (types.ConnectionDiagnostic, error) {
+func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName string, connectionDiagnosticID string, actionErr error, namespace string) (types.ConnectionDiagnostic, error) {
 	var kubeErr *kubeerrors.StatusError
 	if actionErr != nil && !errors.As(actionErr, &kubeErr) {
 		traceType := types.ConnectionDiagnosticTrace_UNKNOWN_ERROR
@@ -222,20 +223,33 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, connectionD
 		return connDiag, trace.Wrap(err)
 	}
 
-	// WARNING: Check compatibility between this error message in the current version of
-	// Teleport and the previous version so that old agents connected to the
-	// Teleport cluster continue to be supported.
-	noAssignedGroups := strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users")
-	if kubeErr != nil && noAssignedGroups {
-		message := `User-associated roles do not configure "kubernetes_groups" or "kubernetes_users". Make sure that at least one is configured for the user.`
-		traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
-
-		connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
-		return connDiag, trace.Wrap(err)
+	// check the the cluster is registered but offline
+	if kubeErr != nil && strings.Contains(kubeErr.ErrStatus.Message, "This usually means that the agent is offline or has disconnected") {
+		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online."
+		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
+		err := fmt.Errorf("kubernetes cluster %q is not registered or is offline", clusterName)
+		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
 	}
 
-	message := "User-associated roles define valid Kubernetes principals."
-	traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+	message := "Kubernetes Cluster is registered in Teleport."
+	traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
+	s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, nil)
+
+	if kubeErr != nil {
+		// WARNING: Check compatibility between this error message in the current version of
+		// Teleport and the previous version so that old agents connected to the
+		// Teleport cluster continue to be supported.
+		noAssignedGroups := strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users")
+		if noAssignedGroups {
+			message := `User-associated roles do not configure "kubernetes_groups" or "kubernetes_users". Make sure that at least one is configured for the user.`
+			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+	}
+	message = "User-associated roles define valid Kubernetes principals."
+	traceType = types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 
 	_, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, nil)
 	if err != nil {
