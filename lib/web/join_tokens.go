@@ -319,7 +319,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	publicAddr := proxyServers[0].GetPublicAddr()
 	if publicAddr == "" {
-		publicAddr = defaults.ProxyWebListenAddr().Addr
+		return "", trace.Errorf("proxy public_addr is not set, you must set proxy_service.public_addr to the publicly reachable address of the proxy before you can generate a node join script")
 	}
 
 	hostname, portStr, err := utils.SplitHostPort(publicAddr)
