@@ -446,7 +446,9 @@ func createAgent(t *testing.T) string {
 	sockDir := "test"
 	sockName := "agent.sock"
 
-	keyring := agent.NewKeyring()
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(keyring), nil
 	})
