@@ -648,7 +648,7 @@ const (
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: teleport-role
+  name: teleport
 rules:
 - apiGroups:
   - ""
@@ -676,11 +676,11 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: teleport-crb
+  name: teleport
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: teleport-role
+  name: teleport
 subjects:
 - kind: Group
   name: group_name

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -148,9 +147,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		}
 	}
 
-	if err := s.initTeleportResourceWatchers(s.cloudWatcher != nil); err != nil {
-		return nil, trace.Wrap(err)
+	if s.cloudWatcher != nil {
+		if err := s.initTeleportNodeWatcher(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	return s, nil
 }
 
@@ -219,6 +221,11 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 }
 
 func (s *Server) handleEC2Discovery() {
+	if err := s.nodeWatcher.WaitInitialization(); err != nil {
+		s.Log.WithError(err).Error("Failed to initialize nodeWatcher.")
+		return
+	}
+
 	go s.cloudWatcher.Run()
 	for {
 		select {
@@ -282,10 +289,7 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 	return subscriptionIds, nil
 }
 
-func (s *Server) initTeleportResourceWatchers(initNode bool) (err error) {
-	if !initNode {
-		return nil
-	}
+func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDiscovery,
@@ -293,28 +297,6 @@ func (s *Server) initTeleportResourceWatchers(initNode bool) (err error) {
 			Client:    s.AccessPoint,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	// wait for nodeWatcher to complete initialization so the
-	// discovery server doesn't get an empty list of nodes and attempt
-	// to perform an installation on all the nodes that do actually
-	// exist.
-	t := time.NewTicker(500 * time.Millisecond)
-	defer t.Stop()
-	for initNode {
-		select {
-		case <-t.C:
-			if s.nodeWatcher.IsInitialized() {
-				return nil
-			}
-			s.Log.Debugf("nodeWatcher is not yet initialized")
-		case <-s.ctx.Done():
-			return trace.BadParameter("nodeWatcher failed to initialize")
-		}
-
-	}
-
-	return nil
+	return trace.Wrap(err)
 }

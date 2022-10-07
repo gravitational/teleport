@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -58,7 +59,7 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = logrus.WithField(trace.Component, "fetcher:aks")
 	}
 	return nil
 }
@@ -73,7 +74,6 @@ func NewAKSFetcher(cfg AKSFetcherConfig) (Fetcher, error) {
 }
 
 func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-
 	clusters, err := a.getAKSClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,20 +82,20 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 	var kubeClusters types.KubeClusters
 	for _, cluster := range clusters {
 		if !a.isRegionSupported(cluster.Location) {
-			a.Log.Debugf("cluster region %q does not match with allowed values", cluster.Location)
+			a.Log.Debugf("Cluster region %q does not match with allowed values.", cluster.Location)
 			continue
 		}
 		if match, reason, err := services.MatchLabels(a.FilterLabels, cluster.Tags); err != nil {
-			a.Log.WithError(err).Warnf("Unable to match AKS cluster labels against match labels")
+			a.Log.WithError(err).Warn("Unable to match AKS cluster labels against match labels.")
 			continue
 		} else if !match {
-			a.Log.Debugf("AKS cluster labels does not match the selector: %s", reason)
+			a.Log.Debugf("AKS cluster labels does not match the selector: %s.", reason)
 			continue
 		}
 
 		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
 		if err != nil {
-			a.Log.WithError(err).Warnf("Unable to create Kubernetes cluster from azure.AKSCluster")
+			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
 			continue
 		}
 		kubeClusters = append(kubeClusters, kubeCluster)
@@ -126,7 +126,7 @@ func (a *aksFetcher) getAKSClusters(ctx context.Context) ([]*azure.AKSCluster, e
 }
 
 func (a *aksFetcher) isRegionSupported(region string) bool {
-	return contains(a.Regions, types.Wildcard) || contains(a.Regions, region)
+	return utils.SliceContainsStr(a.Regions, types.Wildcard) || utils.SliceContainsStr(a.Regions, region)
 }
 
 func (a *aksFetcher) ResourceType() string {
@@ -134,13 +134,4 @@ func (a *aksFetcher) ResourceType() string {
 }
 func (a *aksFetcher) Cloud() string {
 	return Azure
-}
-
-func contains(sl []string, subset string) bool {
-	for _, s := range sl {
-		if s == subset {
-			return true
-		}
-	}
-	return false
 }

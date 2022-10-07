@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"sort"
 	"sync"
 
 	"github.com/gravitational/teleport"
@@ -286,7 +287,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 		addr = t.listener.Addr().String()
 	}
 
-	cluster, err := t.findKubeClusterByNameWithoutCredentials(name)
+	cluster, err := t.getSafeKubeClusterWithServiceLabels(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,22 +322,23 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	return srv, nil
 }
 
-// findKubeClusterByNameWithoutCredentials finds the kube cluster by name and strips the credentials
-// for Azure, AWS and Kubeconfig in order to avoid sharing them via heartbeat.
-func (t *TLSServer) findKubeClusterByNameWithoutCredentials(name string) (*types.KubernetesClusterV3, error) {
+// getSafeKubeClusterWithServiceLabels finds the kube cluster by name, strips the credentials
+// for Azure, AWS and Kubeconfig in order to avoid sharing them via heartbeat and
+// adds the service static and dynamic labels.
+func (t *TLSServer) getSafeKubeClusterWithServiceLabels(name string) (*types.KubernetesClusterV3, error) {
 	cluster, err := t.fwd.findKubeClusterByName(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterWithoutCreds, err := types.NewKubernetesClusterV3(
-		cluster.GetMetadata(),
-		types.KubernetesClusterSpecV3{
-			DynamicLabels: types.LabelsToV2(cluster.GetDynamicLabels()),
-		},
-	)
+	clusterWithoutCreds, err := types.NewKubernetesClusterV3WithoutSecrets(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return clusterWithoutCreds, trace.Wrap(err)
+	t.fwd.newKubernetesClusterV3WithServiceLabels(cluster)
+
+	return clusterWithoutCreds, nil
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
@@ -463,9 +465,12 @@ func (t *TLSServer) legacyGetServerInfo() (types.Resource, error) {
 	}
 
 	kubeClusters := t.fwd.kubeClusters()
+	sort.Sort(kubeClusters)
+
 	legacyKubeClusters := make([]*types.KubernetesCluster, len(kubeClusters))
 
 	for i, kubeCluster := range kubeClusters {
+		t.fwd.newKubernetesClusterV3WithServiceLabels(kubeCluster)
 		legacyKubeClusters[i] = &types.KubernetesCluster{
 			Name:          kubeCluster.GetName(),
 			StaticLabels:  kubeCluster.GetStaticLabels(),

@@ -38,15 +38,15 @@ func (s *Server) startKubeWatchers() error {
 	var (
 		kubeResources types.ResourcesWithLabels
 		mu            sync.Mutex
-		t             = time.NewTicker(time.Minute)
 	)
+
 	watcher, err := services.NewReconciler(
 		services.ReconcilerConfig{
 			Matcher: func(_ types.ResourceWithLabels) bool { return true },
 			GetCurrentResources: func() types.ResourcesWithLabelsMap {
 				kcs, err := s.AccessPoint.GetKubernetesClusters(s.ctx)
 				if err != nil {
-					s.Log.WithError(err).Warnf("unable to get kubernetes clusters from cache")
+					s.Log.WithError(err).Warn("Unable to get Kubernetes clusters from cache.")
 					return nil
 				}
 
@@ -77,6 +77,8 @@ func (s *Server) startKubeWatchers() error {
 	}
 
 	go func() {
+		t := time.NewTicker(time.Minute)
+		defer t.Stop()
 		for {
 			newFetcherResources := s.fetchFetchersResources()
 			mu.Lock()
@@ -84,7 +86,7 @@ func (s *Server) startKubeWatchers() error {
 			mu.Unlock()
 
 			if err := watcher.Reconcile(s.ctx); err != nil {
-				s.Log.WithError(err).Warnf("unable to reconcile resources")
+				s.Log.WithError(err).Warn("Unable to reconcile resources.")
 			}
 
 			select {
@@ -110,7 +112,7 @@ func (s *Server) fetchFetchersResources() types.ResourcesWithLabels {
 		group.Go(func() error {
 			resources, err := lFetcher.Get(groupCtx)
 			if err != nil {
-				s.Log.WithError(err).Warnf("unable to fetch resources for %s at %s", lFetcher.ResourceType(), lFetcher.Cloud())
+				s.Log.WithError(err).Warnf("Unable to fetch resources for %s at %s.", lFetcher.ResourceType(), lFetcher.Cloud())
 				// never return the error otherwise it will impact other watchers.
 				return nil
 			}

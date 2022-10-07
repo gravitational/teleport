@@ -47,19 +47,27 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	}
 
 	go func() {
-		// this ticker is used to force reconciliation of resources that the agent
-		// does not have access to.
+		// reconcileTicker is used to force reconciliation when the watcher was
+		// previously informed that a `kube_cluster` resource exists/changed but the
+		// creation/update operation failed - e.g. login to AKS/EKS clusters can
+		// fail due to missing permissions.
+		// Once this happens, the state of the resource watcher won't change until
+		// a new update operation is triggered (which can take a lot of time).
+		// This results in the service not being able to enroll the failing cluster,
+		// even if the original issue was already fixed because we won't run reconciliation again.
+		// We force the reconciliation to make sure we don't drift from watcher state if
+		// the issue was fixed.
 		reconcileTicker := time.NewTicker(2 * time.Minute)
 		defer reconcileTicker.Stop()
 		for {
 			select {
 			case <-reconcileTicker.C:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Errorf("Failed to reconcile.")
+					s.log.WithError(err).Error("Failed to reconcile.")
 				}
 			case <-s.reconcileCh:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Errorf("Failed to reconcile.")
+					s.log.WithError(err).Error("Failed to reconcile.")
 				} else if s.OnReconcile != nil {
 					s.OnReconcile(s.fwd.kubeClusters())
 				}
@@ -95,22 +103,6 @@ func (s *TLSServer) startResourceWatcher(ctx context.Context) (*services.KubeClu
 		for {
 			select {
 			case clusters := <-watcher.KubeClustersC:
-				// include the service labels to avoid unecessary updates
-				// otherwise reconcyler will detect that static/dynamic labels differ
-				// because the service includes the labels when returning
-				// current resources.
-				for _, cluster := range clusters {
-					cluster.SetStaticLabels(s.fwd.getClusterStaticLabels(cluster))
-					cluster.SetDynamicLabels(
-						types.V2ToLabels(
-							s.fwd.getClusterDynamicLabels(
-								&kubeDetails{
-									kubeCluster: cluster,
-								},
-							),
-						),
-					)
-				}
 				s.monitoredKubeClusters.setResources(clusters)
 				select {
 				case s.reconcileCh <- struct{}{}:

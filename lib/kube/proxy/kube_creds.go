@@ -42,7 +42,7 @@ type kubeCreds interface {
 
 var (
 	_ kubeCreds = &staticKubeCreds{}
-	_ kubeCreds = &dynamicCreds{}
+	_ kubeCreds = &dynamicKubeCreds{}
 )
 
 // staticKubeCreds contain authentication-related fields from kubeconfig.
@@ -84,12 +84,17 @@ func (s *staticKubeCreds) close() error {
 	return nil
 }
 
-type dynamicCredsClient func(context.Context, types.KubeCluster) (*rest.Config, time.Time, error)
+// dynamicCredsClient defines the function signature used by `dynamicCreds`
+// to generate and renew short-lived credentials to access the cluster.
+type dynamicCredsClient func(ctx context.Context, cluster types.KubeCluster) (cfg *rest.Config, expirationTime time.Time, err error)
 
-type dynamicCreds struct {
+// dynamicKubeCreds contains short-lived credentials to access the cluster.
+// Unlike `staticKubeCreds`, `dynamicKubeCreds` extracts access credentials using the `client`
+// function and renews them whenever they are about to expire.
+type dynamicKubeCreds struct {
 	ctx         context.Context
 	renewTicker *time.Ticker
-	st          *staticKubeCreds
+	staticCreds *staticKubeCreds
 	log         logrus.FieldLogger
 	closeC      chan struct{}
 	client      dynamicCredsClient
@@ -97,8 +102,8 @@ type dynamicCreds struct {
 	sync.RWMutex
 }
 
-func newDynamicCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker ImpersonationPermissionsChecker) (*dynamicCreds, error) {
-	dyn := &dynamicCreds{
+func newDynamicCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+	dyn := &dynamicKubeCreds{
 		ctx:         ctx,
 		log:         log,
 		closeC:      make(chan struct{}),
@@ -117,7 +122,7 @@ func newDynamicCreds(ctx context.Context, kubeCluster types.KubeCluster, log log
 			return
 		case <-dyn.renewTicker.C:
 			if err := dyn.renewClientset(kubeCluster); err != nil {
-				log.WithError(err).Warnf("unable to renew cluster %q credentials", kubeCluster.GetName())
+				log.WithError(err).Warnf("Unable to renew cluster %q credentials.", kubeCluster.GetName())
 			}
 		}
 	}()
@@ -125,39 +130,39 @@ func newDynamicCreds(ctx context.Context, kubeCluster types.KubeCluster, log log
 	return dyn, nil
 }
 
-func (d *dynamicCreds) getTLSConfig() *tls.Config {
+func (d *dynamicKubeCreds) getTLSConfig() *tls.Config {
 	d.RLock()
 	defer d.RUnlock()
-	return d.st.tlsConfig
+	return d.staticCreds.tlsConfig
 }
-func (d *dynamicCreds) getTransportConfig() *transport.Config {
+func (d *dynamicKubeCreds) getTransportConfig() *transport.Config {
 	d.RLock()
 	defer d.RUnlock()
-	return d.st.transportConfig
+	return d.staticCreds.transportConfig
 }
-func (d *dynamicCreds) getTargetAddr() string {
+func (d *dynamicKubeCreds) getTargetAddr() string {
 	d.RLock()
 	defer d.RUnlock()
-	return d.st.targetAddr
+	return d.staticCreds.targetAddr
 }
-func (d *dynamicCreds) getKubeClient() *kubernetes.Clientset {
+func (d *dynamicKubeCreds) getKubeClient() *kubernetes.Clientset {
 	d.RLock()
 	defer d.RUnlock()
-	return d.st.kubeClient
+	return d.staticCreds.kubeClient
 }
-func (d *dynamicCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, error) {
+func (d *dynamicKubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, error) {
 	d.RLock()
 	defer d.RUnlock()
-	return d.st.wrapTransport(rt)
+	return d.staticCreds.wrapTransport(rt)
 }
 
-func (d *dynamicCreds) close() error {
+func (d *dynamicKubeCreds) close() error {
 	close(d.closeC)
 	return nil
 }
 
 // renewClientset generates the credentials required for accessing the cluster using the GetAuthConfig function provided by watcher.
-func (d *dynamicCreds) renewClientset(cluster types.KubeCluster) error {
+func (d *dynamicKubeCreds) renewClientset(cluster types.KubeCluster) error {
 	// get auth config
 	restConfig, exp, err := d.client(d.ctx, cluster)
 	if err != nil {
@@ -170,7 +175,7 @@ func (d *dynamicCreds) renewClientset(cluster types.KubeCluster) error {
 
 	d.Lock()
 	defer d.Unlock()
-	d.st = creds
+	d.staticCreds = creds
 	// prepares the next renew cycle
 	if !exp.IsZero() {
 		d.renewTicker.Reset(time.Until(exp) / 2)

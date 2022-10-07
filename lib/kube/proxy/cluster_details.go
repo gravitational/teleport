@@ -91,7 +91,7 @@ func getKubeClusterCredentials(ctx context.Context, cloudClients cloud.Clients, 
 }
 
 // getAzureCredentials creates a dynamicCreds that generates and updates the access credentials to a kubernetes cluster.
-func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicCreds, error) {
+func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
 	client := azureRestConfigClient(cloudClients)
 

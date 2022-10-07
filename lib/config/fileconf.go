@@ -449,16 +449,16 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if err := checkAndSetDefaultsForAWSmatchers(conf.Discovery.AWSMatchers); err != nil {
+	if err := checkAndSetDefaultsForAWSMatchers(conf.Discovery.AWSMatchers); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := checkAndSetDefaultsForAzurematchers(conf.Discovery.AzureMatchers); err != nil {
+	if err := checkAndSetDefaultsForAzureMatchers(conf.Discovery.AzureMatchers); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func checkAndSetDefaultsForAWSmatchers(matcherInput []AWSMatcher) error {
+func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
@@ -502,7 +502,7 @@ func checkAndSetDefaultsForAWSmatchers(matcherInput []AWSMatcher) error {
 	return nil
 }
 
-func checkAndSetDefaultsForAzurematchers(matcherInput []AzureMatcher) error {
+func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 

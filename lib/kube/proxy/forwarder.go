@@ -2067,13 +2067,40 @@ func (f *Forwarder) findKubeClusterByName(name string) (types.KubeCluster, error
 	return nil, trace.NotFound("cluster %s not found", name)
 }
 
-// newKubernetesClusterV3FromDetails copies the details.kubeCluster and populates it with the
-// kube_service's static and dynamic labels values.
+// newKubernetesClusterV3FromDetails clones the details.kubeCluster and replaces the cluster
+// dynamic labels with their latest value.
 func (f *Forwarder) newKubernetesClusterV3FromDetails(details *kubeDetails) (*types.KubernetesClusterV3, error) {
 	clonedCluster := details.kubeCluster.Copy()
-	clonedCluster.Metadata.Labels = f.getClusterStaticLabels(clonedCluster)
 	clonedCluster.Spec.DynamicLabels = f.getClusterDynamicLabels(details)
 	return clonedCluster, nil
+}
+
+// newKubernetesClusterV3WithServiceLabels clones the cluster and merges its labels
+// with the kubernetes_service labels. If the cluster and the service define overlapping labels
+// the service labels have precedence.
+// This function manipulates the original cluster.
+func (f *Forwarder) newKubernetesClusterV3WithServiceLabels(cluster types.KubeCluster) {
+	if len(f.getServiceStaticLabels()) > 0 {
+		staticLabels := cluster.GetStaticLabels()
+		if staticLabels == nil {
+			staticLabels = make(map[string]string)
+		}
+		// if cluster and service define the same static label key, service labels have precedence.
+		maps.Copy(staticLabels, f.getServiceStaticLabels())
+		cluster.SetStaticLabels(staticLabels)
+	}
+
+	if f.cfg.DynamicLabels != nil {
+		dstDynLabels := cluster.GetDynamicLabels()
+		if dstDynLabels == nil {
+			dstDynLabels = map[string]types.CommandLabel{}
+		}
+		// get service level dynamic labels.
+		serviceDynLabels := f.cfg.DynamicLabels.Get()
+		// if cluster and service define the same dynamic label key, service labels have precedence.
+		maps.Copy(dstDynLabels, serviceDynLabels)
+		cluster.SetDynamicLabels(dstDynLabels)
+	}
 }
 
 // upsertKubeDetails updates the details in f.ClusterDetails for key if they exist,
@@ -2105,32 +2132,6 @@ func (f *Forwarder) removeKubeDetails(name string) {
 func (f *Forwarder) getClusterDynamicLabels(details *kubeDetails) (dstDynLabels map[string]types.CommandLabelV2) {
 	if details.dynamicLabels != nil {
 		dstDynLabels = types.LabelsToV2(details.dynamicLabels.Get())
-	}
-
-	if f.cfg.DynamicLabels != nil {
-		if dstDynLabels == nil {
-			dstDynLabels = map[string]types.CommandLabelV2{}
-		}
-		// get service level dynamic labels.
-		serviceDynLabels := types.LabelsToV2(f.cfg.DynamicLabels.Get())
-		// if cluster and service define the same dynamic label key, service labels have precedence.
-		maps.Copy(dstDynLabels, serviceDynLabels)
-	}
-	return
-}
-
-// getClusterStaticLabels returns the cluster static labels and service labels merged together.
-func (f *Forwarder) getClusterStaticLabels(cluster types.KubeCluster) (dstLabels map[string]string) {
-	if cluster.GetStaticLabels() != nil {
-		dstLabels = maps.Clone(cluster.GetStaticLabels())
-	}
-
-	if len(f.getServiceStaticLabels()) > 0 {
-		if dstLabels == nil {
-			dstLabels = make(map[string]string)
-		}
-		// if cluster and service define the same static label key, service labels have precedence.
-		maps.Copy(dstLabels, f.getServiceStaticLabels())
 	}
 	return
 }

@@ -166,7 +166,7 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 
 const (
 	// labelTeleportKubeClusterName is the label key containing the kubernetes cluster name override.
-	labelTeleportKubeClusterName = types.TeleportNamespace + "/kubernetes_name"
+	labelTeleportKubeClusterName = types.TeleportNamespace + "/kubernetes-name"
 )
 
 // setKubeName modifies the types.Metadata argument in place, setting the kubernetes cluster name.
