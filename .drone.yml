@@ -1034,33 +1034,6 @@ steps:
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
-  - name: Build/push Teleport Lab Docker image
-    image: docker:git
-    environment:
-      OS: linux
-      ARCH: amd64
-    settings:
-      username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
-      - export TELEPORT_LAB_IMAGE_NAME="quay.io/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-       # Check out code
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin
-      - git checkout -qf ${DRONE_COMMIT_SHA}
-      # Build and push Teleport lab image
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME /go/src/github.com/gravitational/teleport/docker/sshd
-      - docker push $TELEPORT_LAB_IMAGE_NAME
-
 services:
   - name: Start Docker
     image: docker:dind
@@ -1121,22 +1094,66 @@ steps:
       # wait for Docker to be ready
       - sleep 3
 
+  - name: Configure Staging AWS Profile
+    image: amazon/aws-cli
+    commands:
+    - aws sts get-caller-identity
+    - |-
+      printf "[staging]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        $(aws sts assume-role \
+          --role-arn "$AWS_ROLE" \
+          --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+          --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+          --output text) \
+        > /root/.aws/credentials
+    - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+    - aws sts get-caller-identity --profile staging
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      AWS_ROLE:
+        from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+    volumes:
+    - name: awsconfig
+      path: /root/.aws
+
+  - name: Configure Production AWS Profile
+    image: amazon/aws-cli
+    commands:
+    - aws sts get-caller-identity
+    - |-
+      printf "[production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        $(aws sts assume-role \
+          --role-arn "$AWS_ROLE" \
+          --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+          --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+          --output text) \
+        >> /root/.aws/credentials
+    - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+    - aws sts get-caller-identity --profile production
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      AWS_ROLE:
+        from_secret: PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
   - name: Build and push Teleport containers (CURRENT_VERSION)
     image: docker
     environment:
       OS: linux
       ARCH: amd64
-      STAGING_AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      STAGING_AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-      PROD_AWS_ACCESS_KEY_ID:
-        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-      PROD_AWS_SECRET_ACCESS_KEY:
-        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache aws-cli
       - export VERSION_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
@@ -1150,9 +1167,7 @@ steps:
       - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
       - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
       # Authenticate to staging registry
-      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
-      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
-      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - aws ecr get-login-password --profile staging --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME_STAGE
@@ -1164,9 +1179,7 @@ steps:
       - docker push $ENT_FIPS_IMAGE_NAME_STAGE
       # Authenticate to production registry
       - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
-      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
-      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      - aws ecr-public get-login-password --profile production --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
       # Retag images
       - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
       - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
@@ -1181,17 +1194,11 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-      STAGING_AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      STAGING_AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-      PROD_AWS_ACCESS_KEY_ID:
-        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-      PROD_AWS_SECRET_ACCESS_KEY:
-        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache aws-cli
       - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
@@ -1205,9 +1212,7 @@ steps:
       - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
       - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
       # Authenticate to staging registry
-      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
-      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
-      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - aws ecr get-login-password --profile staging --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME_STAGE
@@ -1219,9 +1224,7 @@ steps:
       - docker push $ENT_FIPS_IMAGE_NAME_STAGE
       # Authenticate to production registry
       - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
-      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
-      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      - aws ecr-public get-login-password --profile production --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
       # Retag images
       - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
       - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
@@ -1236,17 +1239,11 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-      STAGING_AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      STAGING_AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-      PROD_AWS_ACCESS_KEY_ID:
-        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-      PROD_AWS_SECRET_ACCESS_KEY:
-        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache aws-cli
       - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
@@ -1260,9 +1257,7 @@ steps:
       - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
       - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
       # Authenticate to staging registry
-      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
-      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
-      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - aws ecr get-login-password --profile staging --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $OSS_IMAGE_NAME_STAGE
@@ -1274,9 +1269,7 @@ steps:
       - docker push $ENT_FIPS_IMAGE_NAME_STAGE
       # Authenticate to production registry
       - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
-      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
-      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      - aws ecr-public get-login-password --profile production --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
       # Retag images
       - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
       - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
@@ -1285,6 +1278,40 @@ steps:
       - docker push $ENT_IMAGE_NAME_PROD
       - docker push $OSS_IMAGE_NAME_PROD
       - docker push $ENT_FIPS_IMAGE_NAME_PROD
+
+  - name: Build/push Teleport Lab Docker image
+    image: docker:git
+    environment:
+      OS: linux
+      ARCH: amd64
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: awsconfig
+        path: /root/.aws
+    commands:
+      - apk add --no-cache aws-cli
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
+      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
+      - export TELEPORT_LAB_IMAGE_NAME_STAGING="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export TELEPORT_LAB_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+       # Check out code
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
+      # Authenticate to staging registry
+      - aws ecr get-login-password --profile staging --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      # Build and push image
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME_STAGING /go/src/github.com/gravitational/teleport/docker/sshd
+      - docker push $TELEPORT_LAB_IMAGE_NAME_STAGING
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - aws ecr-public get-login-password --profile production --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Push to production registry
+      - docker tag $TELEPORT_LAB_IMAGE_NAME_STAGING $TELEPORT_LAB_IMAGE_NAME_PROD
+      - docker push $TELEPORT_LAB_IMAGE_NAME_PROD
 
 services:
   - name: Start Docker
@@ -1296,6 +1323,8 @@ services:
 
 volumes:
   - name: dockersock
+    temp: {}
+  - name: awsconfig
     temp: {}
 
 ---
@@ -7419,6 +7448,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: f6f0575d4823f389956f93333d2aa91568a9b381556bdeab180470186c6dc036
+hmac: 5a08bab3fc2b867e0b77fa7a4eda91acb7b99531f342e27b63fa2fe50ad849f4
 
 ...
