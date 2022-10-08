@@ -4336,6 +4336,27 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
+- name: Assume AWS Role
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /tmp/build-darwin-amd64-pkg/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
 - name: Download built tarball artifacts from S3
   commands:
   - set -u
@@ -4346,13 +4367,10 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz
     $WORKSPACE_DIR/go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
@@ -4393,13 +4411,10 @@ steps:
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
 - name: Register artifacts
   commands:
@@ -4519,6 +4534,27 @@ steps:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
+- name: Assume AWS Role
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /tmp/build-darwin-amd64-pkg-tsh/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
 - name: Download built tarball artifacts from S3
   commands:
   - set -u
@@ -4529,13 +4565,10 @@ steps:
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz
     $WORKSPACE_DIR/go/artifacts/
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
@@ -4576,13 +4609,10 @@ steps:
   - cd $WORKSPACE_DIR/go/artifacts
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
       from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Register artifacts
   commands:
@@ -8000,6 +8030,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: c4f7854119458a7e487439d5f08e3d9fb3feb71efe6710a286fc783afc073c84
+hmac: 2329def4520700cea7b4778ef92c34fe3782877fc30a915f05e3531a8ef5ea64
 
 ...
