@@ -1980,7 +1980,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, sit
 		// Reuse the existing nodeClient we connected above.
 		return tc.runCommand(ctx, nodeClient, command)
 	}
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return tc.RunShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, siteName string, nodeAddrs []string, proxyClient *ProxyClient, command []string) error {
@@ -2008,7 +2008,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 			return trace.Wrap(err)
 		}
 		defer nodeClient.Close()
-		return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+		return tc.RunShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 	}
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes matched label selector, running command on all.\n")
 	return tc.runCommandOnNodes(ctx, siteName, nodeAddrs, proxyClient, command)
@@ -2118,7 +2118,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// running shell with a given session means "join" it:
-	err = tc.runShell(ctx, nc, mode, session, beforeStart)
+	err = tc.RunShell(ctx, nc, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2932,12 +2932,12 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 	return nil
 }
 
-// runShell starts an interactive SSH session/shell.
+// RunShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+func (tc *TeleportClient) RunShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/runShell",
+		"teleportClient/RunShell",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
@@ -37,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -45,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,7 +98,7 @@ type AuthProvider interface {
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext) (*TerminalHandler, error) {
+func NewTerminal(ctx context.Context, req TerminalRequest, router *proxy.Router, authProvider AuthProvider, sessCtx *SessionContext) (*TerminalHandler, error) {
 	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/NewTerminal")
 	defer span.End()
 
@@ -150,6 +154,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
 		join:         join,
+		router:       router,
 	}, nil
 }
 
@@ -202,6 +207,8 @@ type TerminalHandler struct {
 
 	// join is set if we're joining an existing session
 	join bool
+
+	router *proxy.Router
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -539,23 +546,63 @@ func promptMFAChallenge(
 func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
 	defer t.terminalCancel()
 
-	// Establish SSH connection to the server. This function will block until
-	// either an error occurs or it completes successfully.
-	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
-
-	// TODO IN: 5.0
-	//
-	// Make connecting by UUID the default instead of the fallback.
-	//
-	if err != nil && strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
-		t.log.Debugf("Ambiguous hostname %q, attempting to connect by UUID (%q).", t.hostName, t.hostUUID)
-		tc.Host = t.hostUUID
-		// We don't technically need to zero the HostPort, but future version won't look up
-		// HostPort when connecting by UUID, so its best to keep behavior consistent.
-		tc.HostPort = 0
-		err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	accessChecker, err := t.ctx.GetUserAccessChecker()
+	if err != nil {
+		t.log.Warnf("Unable to stream terminal: %v.", err)
+		er := t.writeError(err, ws)
+		if er != nil {
+			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+		}
+		return
 	}
 
+	conn, err := t.router.DialHost(t.terminalContext, ws.RemoteAddr(), t.hostUUID, strconv.Itoa(tc.HostPort), tc.SiteName, accessChecker, nil)
+	if err != nil {
+		t.log.Warnf("Unable to stream terminal: %v.", err)
+		er := t.writeError(err, ws)
+		if er != nil {
+			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+		}
+		return
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            tc.HostLogin,
+		Auth:            tc.AuthMethods,
+		HostKeyCallback: tc.HostKeyCallback,
+	}
+
+	sshConn, chans, reqs, err := tracessh.NewClientConn(t.terminalContext, conn, net.JoinHostPort(t.hostUUID, strconv.Itoa(tc.HostPort)), sshConfig, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
+	if err != nil {
+		t.log.Warnf("Unable to stream terminal: %v.", err)
+		er := t.writeError(err, ws)
+		if er != nil {
+			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+		}
+		return
+	}
+
+	// We pass an empty channel which we close right away to ssh.NewClient
+	// because the client need to handle requests itself.
+	emptyCh := make(chan *ssh.Request)
+	close(emptyCh)
+
+	nc := &client.NodeClient{
+		Client:      tracessh.NewClient(sshConn, chans, emptyCh),
+		Namespace:   apidefaults.Namespace,
+		TC:          tc,
+		Tracer:      tc.Tracer,
+		FIPSEnabled: false,
+	}
+
+	// Start a goroutine that will run for the duration of the client to process
+	// global requests from the client. Teleport clients will use this to update
+	// terminal sizes when the remote PTY size has changed.
+
+	go nc.HandleGlobalRequests(t.terminalContext, reqs)
+	// Establish SSH connection to the server. This function will block until
+	// either an error occurs or it completes successfully.
+	err = tc.RunShell(t.terminalContext, nc, types.SessionPeerMode, nil, nil)
 	if err != nil {
 		t.log.Warnf("Unable to stream terminal: %v.", err)
 		er := t.writeError(err, ws)

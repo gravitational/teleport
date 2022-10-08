@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
@@ -210,6 +211,8 @@ type Config struct {
 
 	// TraceClient is used to forward spans to the upstream collector for the webui
 	TraceClient otlptrace.Client
+
+	Router *proxy.Router
 }
 
 type APIHandler struct {
@@ -2289,7 +2292,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(r.Context(), *req, clt, ctx)
+	term, err := NewTerminal(r.Context(), *req, h.cfg.Router, clt, ctx)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
