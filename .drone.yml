@@ -5790,7 +5790,7 @@ steps:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
   - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin
+  - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
   depends_on:
   - Verify build is tagged
@@ -5932,7 +5932,7 @@ steps:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
   - git init && git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin
+  - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
   depends_on:
   - Verify build is tagged
@@ -6528,9 +6528,8 @@ volumes:
     medium: memory
 - name: dockersock
   temp: {}
-
 ---
 kind: signature
-hmac: 826bfb32ac20277b47cf7e7b09b06e7ae87d6f3ee9bd9710ddccebf90a1c2b71
+hmac: da4f80e4901a9cdf5a68b46497cafcbb811d155b3a35e8dc837d88b9447cba74
 
 ...
