@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package peer
 
 import (
 	"context"
@@ -20,12 +20,13 @@ import (
 	"crypto/x509"
 	"net"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // newProxyCredentials creates new proxyCredentials from the given transport credentials.

@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/proxy"
+	peer2 "github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
@@ -118,7 +118,7 @@ type localSite struct {
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
 
-	peerClient *proxy.Client
+	peerClient *peer2.Client
 }
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.

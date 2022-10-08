@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package peer
 
 import (
 	"crypto/tls"
@@ -20,10 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/connectivity"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/stretchr/testify/require"
 )

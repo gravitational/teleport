@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -3404,11 +3405,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
-	var peerClient *proxy.Client
+	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxy != nil {
-			peerClient, err = proxy.NewClient(proxy.ClientConfig{
+			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:     process.ExitContext(),
 				ID:          process.Config.HostUUID,
 				AuthClient:  conn.Client,
@@ -3469,6 +3470,24 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil
 		})
 	}
+
+	localSite, err := tsrv.GetSite(clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyRouter, err := proxy.NewRouter(proxy.RouterConfig{
+		ClusterName:    clusterName,
+		Log:            process.log.WithField(trace.Component, teleport.ComponentProxy),
+		AccessPoint:    accessPoint,
+		LocalSite:      localSite,
+		Tunnel:         tsrv,
+		TracerProvider: process.TracingProvider,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if !process.Config.Proxy.DisableTLS {
 		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
 		if err != nil {
@@ -3605,14 +3624,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddrString string
-	var proxyServer *proxy.Server
+	var proxyServer *peer.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
 		peerAddr, err := process.Config.Proxy.publicPeerAddr()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		peerAddrString = peerAddr.String()
-		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
+		proxyServer, err = peer.NewServer(peer.ServerConfig{
 			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
 			TLSConfig:     serverTLSConfig,
@@ -3648,7 +3667,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(peerAddrString, tsrv, accessPoint),
+		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		regular.SetMACAlgorithms(cfg.MACAlgorithms),

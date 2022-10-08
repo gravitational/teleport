@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package peer
 
 import (
 	"context"
@@ -21,10 +21,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockStream struct {

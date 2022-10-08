@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package peer
 
 import (
 	"context"
@@ -21,9 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 const (
