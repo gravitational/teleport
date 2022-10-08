@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/teleport/assets/backport/github"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -39,7 +40,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Getting the Github token from ~/.config/gh/hosts.yml
+	// Getting the GitHub token from ~/.config/gh/hosts.yml
 	token, err := getGithubToken()
 	if err != nil {
 		log.Fatal(err)
@@ -72,7 +73,7 @@ func main() {
 	fmt.Println("Backporting complete.")
 }
 
-// Config is used to unmarshal the Github
+// Config is used to unmarshal the GitHub
 // CLI config.
 type Config struct {
 	// Host is the host name of the
@@ -87,11 +88,11 @@ type Host struct {
 
 // githubConfigPath is the default config path
 // (relative to user's home directory) for the
-// Github CLI tool.
+// GitHub CLI tool.
 const githubConfigPath = ".config/gh/hosts.yml"
 
-// getGithubToken gets the Github auth token from
-// the Github CLI config.
+// getGithubToken gets the GitHub auth token from
+// the GitHub CLI config.
 func getGithubToken() (string, error) {
 	dirname, err := os.UserHomeDir()
 	if err != nil {
