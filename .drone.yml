@@ -6694,6 +6694,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Pull/retag Docker images
   image: docker
   commands:
@@ -6719,14 +6743,11 @@ steps:
   - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 services:
 - name: Start Docker
   image: docker:dind
@@ -6737,12 +6758,14 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: awsconfig
+  temp: {}
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:82
+# Generated at dronegen/promote.go:92
 ################################################
 
 kind: pipeline
@@ -6777,6 +6800,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Pull/retag Docker images
   image: docker
   commands:
@@ -6802,10 +6849,6 @@ steps:
   - docker push quay.io/gravitational/teleport-ent:$${VERSION}
   - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     QUAY_PASSWORD:
       from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
@@ -6813,6 +6856,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 services:
 - name: Start Docker
   image: docker:dind
@@ -6822,6 +6867,8 @@ services:
     path: /var/run
 volumes:
 - name: dockersock
+  temp: {}
+- name: awsconfig
   temp: {}
 
 ---
@@ -7203,6 +7250,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: adc928d31aeddae3db5a9fb1b367b895c7abd4f839c23ec78a363dbf28378520
+hmac: c1dff9458da3fead5862446e187ab5f982c83605df7efadbe6b51ff852ccc3e2
 
 ...
