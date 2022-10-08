@@ -1356,15 +1356,39 @@ steps:
       - mkdir -p /go/chart
       - cd /go/chart
 
+  - name: Assume AWS Role
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: PRODUCTION_CHARTS_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
   - name: Download chart repo contents
     image: amazon/aws-cli
     environment:
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - mkdir -p /go/chart
       # download all previously packaged chart versions from the S3 bucket
@@ -1383,19 +1407,17 @@ steps:
       - helm repo index /go/chart
 
   - name: Upload to S3
-    image: plugins/s3
-    settings:
-      bucket:
+    image: amazon/aws-cli
+    commands:
+      - cd /go/chart
+      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
+    environment:
+      AWS_REGION: us-east-2
+      AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      access_key:
-        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      secret_key:
-        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
-      region: us-east-2
-      acl: public-read
-      source: /go/chart/*
-      target: /
-      strip_prefix: /go/chart
+    volumes:
+    - name: awsconfig
+      path: /root/.aws
 
   - name: Send Slack notification
     image: plugins/slack
@@ -1412,6 +1434,9 @@ steps:
     when:
       status: [failure]
 
+volumes:
+  - name: awsconfig
+    temp: {}
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
@@ -7448,6 +7473,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 5a08bab3fc2b867e0b77fa7a4eda91acb7b99531f342e27b63fa2fe50ad849f4
+hmac: 3cd41b5f5c89d78cd6d1ccddf1a975f39a8bb567a26376c1c47d59e8b13ed98c
 
 ...
