@@ -166,8 +166,8 @@ that only have access to one environment. Let's say you create an intern role wi
 
 ### Example
 
-The role below allows access to all nodes labeled "env=stage" except those that
-also have "workload=database" or "workload=backup".
+The role below allows access to all nodes labeled "env: stage" except those that
+also have "workload: database" or "workload: backup".
 
 Access to any other nodes will be denied.
 
@@ -184,8 +184,8 @@ spec:
   deny:
     node_labels:
       # Multiple labels are interpreted as an "or" operation. In this case,
-      # Teleport will deny access to any node labeled as 'workload=database' or
-      # 'workload=backup'
+      # Teleport will deny access to any node labeled as 'workload: database' or
+      # 'workload: backup'
       'workload': ['database', 'backup']
 ```
 
