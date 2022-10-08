@@ -7120,34 +7120,81 @@ steps:
     commands:
       - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
 
-  - name: Download artifacts from S3
+  - name: Assume Download AWS Role
     image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
     environment:
-      AWS_S3_BUCKET:
-        from_secret: AWS_S3_BUCKET
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
+      AWS_ROLE:
+        from_secret: AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
+  - name: Download artifacts from S3
+    image: amazon/aws-cli
     commands:
       - mkdir -p /go/artifacts
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_REGION: us-west-2
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
+  - name: Assume Upload AWS Role
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: PRODUCTION_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
 
   - name: Upload artifacts to production S3
-    image: plugins/s3
-    settings:
-      bucket:
+    image: amazon/aws-cli
+    environment:
+      AWS_REGION:  us-east-1
+      AWS_S3_BUCKET:
         from_secret: PRODUCTION_AWS_S3_BUCKET
-      access_key:
-        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
-      secret_key:
-        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
-      region: us-east-1
-      acl: public-read
-      source: /go/artifacts/*
-      target: teleport/${DRONE_TAG##v}/
-      strip_prefix: /go/artifacts/
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+    commands:
+      - cd /go/artifacts/
+      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/teleport/${DRONE_TAG##v}
 
   - name: Check out code
     image: docker:git
@@ -7159,27 +7206,73 @@ steps:
         git fetch origin +refs/tags/${DRONE_TAG}:
         git checkout -qf FETCH_HEAD
 
-  - name: Download AMI timestamps
-    image: docker
+  - name: Assume AMI Download AWS Role
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
     environment:
-      AWS_S3_BUCKET:
-        from_secret: AWS_S3_BUCKET
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
+  - name: Download AMI timestamps
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
     commands:
-      - apk add --no-cache aws-cli
       - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ /go/src/github.com/gravitational/teleport/assets/aws/files/build
 
-  - name: Make AMIs public
-    image: docker
+  - name: Assume AMI Publish AWS Role
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: PRODUCTION_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
+  - name: Make AMIs public
+    image: docker
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache aws-cli bash jq make
       - cd /go/src/github.com/gravitational/teleport/assets/aws
@@ -7188,6 +7281,31 @@ steps:
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
+  - name: "Helm: Assume Download AWS Role"
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: PRODUCTION_CHARTS_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
   # Download all previously packaged charts. This is needed to rebuild the
   # index and re-publish the repository.
   - name: "Helm: Download chart repository"
@@ -7195,10 +7313,9 @@ steps:
     environment:
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - mkdir -p /go/chart
       - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
@@ -7216,20 +7333,43 @@ steps:
       - helm repo index /go/chart
       - ls /go/chart
 
-  - name: "Helm: Publish chart repository to S3"
-    image: plugins/s3
-    settings:
-      bucket:
-        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      access_key:
+  - name: "Helm: Assume Upload AWS Role"
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
+    environment:
+      AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      secret_key:
+      AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
-      region: us-east-2
-      acl: public-read
-      source: /go/chart/*
-      target: /
-      strip_prefix: /go/chart
+      AWS_ROLE:
+        from_secret: PRODUCTION_CHARTS_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
+  - name: "Helm: Publish chart repository to S3"
+    image: amazon/aws-cli
+    environment:
+      AWS_REGION:  us-east-2
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+    commands:
+      - cd /go/chart/
+      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
 
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
@@ -7248,18 +7388,41 @@ steps:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
       - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
 
+  - name: "RPM: Assume AWS Role"
+    image: amazon/aws-cli
+    commands:
+      - aws sts get-caller-identity
+      - |-
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+          $(aws sts assume-role \
+            --role-arn "$AWS_ROLE" \
+            --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+            --output text) \
+          > /root/.aws/credentials
+      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+      AWS_ROLE:
+        from_secret: RPMREPO_AWS_ROLE
+    volumes:
+      - name: awsconfig
+        path: /root/.aws
+
   - name: "RPM: Download RPM repository"
     image: amazon/aws-cli
     environment:
       AWS_S3_BUCKET:
         from_secret: RPMREPO_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
     volumes:
       - name: rpmrepo
         path: /rpmrepo
+      - name: awsconfig
+        path: /root/.aws
     commands:
     - mkdir -p /rpmrepo/teleport/cache
     # Explicitly delete anything present locally before copying over new assets
@@ -7318,13 +7481,11 @@ steps:
     environment:
       AWS_S3_BUCKET:
         from_secret: RPMREPO_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
     volumes:
       - name: rpmrepo
         path: /rpmrepo
+      - name: awsconfig
+        path: /root/.aws
     commands:
     - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
 
@@ -7341,6 +7502,8 @@ services:
         path: /tmpfs
 
 volumes:
+  - name: awsconfig
+    temp: {}
   - name: dockersock
     temp: {}
   - name: tmpfs
@@ -7473,6 +7636,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 3cd41b5f5c89d78cd6d1ccddf1a975f39a8bb567a26376c1c47d59e8b13ed98c
+hmac: c4e110e5e401a7c99722e316b77337087b35b36a3961c1ae7a1556b263795d2a
 
 ...
