@@ -23,10 +23,10 @@ COPY operator/main.go operator/main.go
 COPY operator/namespace.go operator/namespace.go
 
 # Build
-RUN GOOS=linux GOARCH=amd64 go build -a -o build/teleport-operator github.com/gravitational/teleport/operator
+RUN GOOS=linux GOARCH=amd64 go build -a -o /tmp/teleport-operator github.com/gravitational/teleport/operator
 
 FROM gcr.io/distroless/cc
 WORKDIR /
-COPY --from=builder /go/src/github.com/gravitational/teleport/build/teleport-operator .
+COPY --from=builder /tmp/teleport-operator .
 
 ENTRYPOINT ["/teleport-operator"]
