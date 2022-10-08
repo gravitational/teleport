@@ -828,6 +828,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Pull relcli
   image: docker:cli
   commands:
@@ -835,14 +859,12 @@ steps:
   - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull $RELCLI_IMAGE
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
     AWS_DEFAULT_REGION: us-west-2
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 - name: Clean up previously built artifacts
   image: docker:git
   commands:
@@ -863,10 +885,12 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
   volumes:
-  - name: tmpfs
-    path: /tmpfs
   - name: dockersock
     path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+  - name: awsconfig
+    path: /root/.aws
 services:
 - name: Start Docker
   image: docker:dind
@@ -877,10 +901,12 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: dockersock
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
-- name: dockersock
+- name: awsconfig
   temp: {}
 
 ---
@@ -6632,6 +6658,30 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Pull relcli
   image: docker:cli
   commands:
@@ -6639,14 +6689,12 @@ steps:
   - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker pull $RELCLI_IMAGE
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
     AWS_DEFAULT_REGION: us-west-2
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
   volumes:
   - name: dockersock
     path: /var/run
+  - name: awsconfig
+    path: /root/.aws
 - name: Publish in Release API
   image: docker:git
   commands:
@@ -6667,10 +6715,12 @@ steps:
     RELEASES_KEY:
       from_secret: RELEASES_KEY
   volumes:
-  - name: tmpfs
-    path: /tmpfs
   - name: dockersock
     path: /var/run
+  - name: tmpfs
+    path: /tmpfs
+  - name: awsconfig
+    path: /root/.aws
 services:
 - name: Start Docker
   image: docker:dind
@@ -6681,13 +6731,15 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: dockersock
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
-- name: dockersock
+- name: awsconfig
   temp: {}
 ---
 kind: signature
-hmac: 384b98cbd5c5b1ccb4ef73eb15064742dd4059dfe5db3670c3da8cf151b99d6d
+hmac: bc5aa7f573a15daf3f61baa06d646649e75b8a5e94dd924febaf085a9dc1dfde
 
 ...
