@@ -345,20 +345,8 @@ const (
 	// storage
 	SchemeGCS = "gs"
 
-	// SchemeAZBlob is the Azure Blob Storage scheme, used as the scheme in the
-	// session storage URI to identify a storage account accessed over https.
-	SchemeAZBlob = "azblob"
-
-	// SchemeAZBlobHTTP is the Azure Blob Storage scheme, used as the scheme in the
-	// session storage URI to identify a storage account accessed over http.
-	SchemeAZBlobHTTP = "azblob-http"
-
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
-
-	// AZBlobTestURI specifies the storage account URL to use for Azure Blob
-	// Storage tests.
-	AZBlobTestURI = "TEST_AZBLOB_URI"
 
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"

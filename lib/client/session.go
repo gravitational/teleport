@@ -267,14 +267,14 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the
 // server, if any.
-func selectKeyAgent(tc *TeleportClient) agent.Agent {
+func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.Debugf("Selecting system key agent.")
 		return tc.localAgent.sshAgent
 	case ForwardAgentLocal:
 		log.Debugf("Selecting local Teleport key agent.")
-		return tc.localAgent.Agent
+		return tc.localAgent.ExtendedAgent
 	default:
 		log.Debugf("No Key Agent selected.")
 		return nil
