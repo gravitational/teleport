@@ -1,3 +1,5 @@
+import { FileTransferListeners } from 'shared/components/FileTransfer';
+
 import apiCluster from './v1/cluster_pb';
 import apiDb from './v1/database_pb';
 import apigateway from './v1/gateway_pb';
@@ -27,6 +29,8 @@ export type Cluster = apiCluster.Cluster.AsObject;
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject;
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
+
+export type FileTransferRequest = apiService.FileTransferRequest.AsObject;
 
 export type WebauthnCredentialInfo = apiService.CredentialInfo.AsObject;
 export type WebauthnLoginPrompt =
@@ -88,6 +92,10 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => Promise<void>;
   logout: (clusterUri: string) => Promise<void>;
+  transferFile: (
+    options: FileTransferRequest,
+    abortSignal?: TshAbortSignal
+  ) => FileTransferListeners;
 };
 
 export type TshAbortController = {

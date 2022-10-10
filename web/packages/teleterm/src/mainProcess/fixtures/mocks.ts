@@ -34,6 +34,10 @@ export class MockMainProcessClient implements MainProcessClient {
 
   openTabContextMenu() {}
 
+  showFileSaveDialog() {
+    return Promise.resolve({ canceled: false, filePath: '' });
+  }
+
   configService = {
     get: () => ({
       keyboardShortcuts: {},

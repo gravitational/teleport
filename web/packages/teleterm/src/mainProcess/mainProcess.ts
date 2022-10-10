@@ -7,6 +7,7 @@ import {
   app,
   ipcMain,
   shell,
+  dialog,
   Menu,
   MenuItemConstructorOptions,
 } from 'electron';
@@ -171,6 +172,12 @@ export default class MainProcess {
             }
           });
       }
+    );
+
+    ipcMain.handle('main-process-show-file-save-dialog', (_, filePath) =>
+      dialog.showSaveDialog({
+        defaultPath: path.basename(filePath),
+      })
     );
 
     subscribeToTerminalContextMenuEvent();

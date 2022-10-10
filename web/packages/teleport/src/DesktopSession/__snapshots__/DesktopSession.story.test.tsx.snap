@@ -242,10 +242,11 @@ exports[`connected settings false 1`] = `
 
 .c9:disabled {
   color: rgba(255,255,255,0.3);
+  cursor: default;
 }
 
-.c9:hover,
-.c9:focus {
+.c9:hover:enabled,
+.c9:focus:enabled {
   background: rgba(255,255,255,0.1);
 }
 
@@ -402,10 +403,11 @@ exports[`connected settings true 1`] = `
 
 .c9:disabled {
   color: rgba(255,255,255,0.3);
+  cursor: default;
 }
 
-.c9:hover,
-.c9:focus {
+.c9:hover:enabled,
+.c9:focus:enabled {
   background: rgba(255,255,255,0.1);
 }
 
@@ -764,10 +766,11 @@ exports[`disconnected 1`] = `
 
 .c9:disabled {
   color: rgba(255,255,255,0.3);
+  cursor: default;
 }
 
-.c9:hover,
-.c9:focus {
+.c9:hover:enabled,
+.c9:focus:enabled {
   background: rgba(255,255,255,0.1);
 }
 

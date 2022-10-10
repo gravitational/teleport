@@ -20,8 +20,15 @@ import * as Icons from 'design/Icon';
 import { Indicator, Text, Box, ButtonPrimary } from 'design';
 import * as Alerts from 'design/Alert';
 
+import {
+  FileTransferActionBar,
+  FileTransfer,
+  FileTransferContextProvider,
+} from 'shared/components/FileTransfer';
+
 import cfg from 'teleport/config';
 import * as stores from 'teleport/Console/stores';
+import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
@@ -29,18 +36,15 @@ import useWebAuthn from 'teleport/lib/useWebAuthn';
 import Document from '../Document';
 
 import Terminal from './Terminal';
-import FileTransfer, { useFileTransferDialogs } from './../FileTransfer';
 import useSshSession from './useSshSession';
-import ActionBar from './ActionBar';
+import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
-  const scpDialogs = useFileTransferDialogs();
   const { tty, status, statusText, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
 
-  function onCloseScpDialogs() {
-    scpDialogs.close();
+  function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
   }
 
@@ -53,42 +57,62 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
 
   return (
     <Document visible={visible} flexDirection="column">
-      <ActionBar
-        isConnected={doc.status === 'connected'}
-        isDownloadOpen={scpDialogs.isDownloadOpen}
-        isUploadOpen={scpDialogs.isUploadOpen}
-        onOpenDownload={scpDialogs.openDownload}
-        onOpenUpload={scpDialogs.openUpload}
-      />
-      {status === 'loading' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
-      {status === 'error' && (
-        <Alerts.Danger mx="10" mt="5">
-          Connection error: {statusText}
-        </Alerts.Danger>
-      )}
-      {status === 'notfound' && (
-        <SidNotFoundError sid={doc.sid} clusterId={doc.clusterId} />
-      )}
-      {webauthn.requested && (
-        <AuthnDialog
-          onContinue={webauthn.authenticate}
-          onCancel={closeDocument}
-          errorText={webauthn.errorText}
+      <FileTransferContextProvider>
+        <FileTransferActionBar isConnected={doc.status === 'connected'} />
+        {status === 'loading' && (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        )}
+        {status === 'error' && (
+          <Alerts.Danger mx="10" mt="5">
+            Connection error: {statusText}
+          </Alerts.Danger>
+        )}
+        {status === 'notfound' && (
+          <SidNotFoundError sid={doc.sid} clusterId={doc.clusterId} />
+        )}
+        {webauthn.requested && (
+          <AuthnDialog
+            onContinue={webauthn.authenticate}
+            onCancel={closeDocument}
+            errorText={webauthn.errorText}
+          />
+        )}
+        {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
+        <FileTransfer
+          beforeClose={() =>
+            window.confirm('Are you sure you want to cancel file transfers?')
+          }
+          afterClose={handleCloseFileTransfer}
+          backgroundColor={colors.terminalDark}
+          transferHandlers={{
+            getDownloader: async (location, abortController) =>
+              getHttpFileTransferHandlers().download(
+                cfg.getScpUrl({
+                  location,
+                  clusterId: doc.clusterId,
+                  serverId: doc.serverId,
+                  login: doc.login,
+                  filename: location,
+                }),
+                abortController
+              ),
+            getUploader: async (location, file, abortController) =>
+              getHttpFileTransferHandlers().upload(
+                cfg.getScpUrl({
+                  location,
+                  clusterId: doc.clusterId,
+                  serverId: doc.serverId,
+                  login: doc.login,
+                  filename: file.name,
+                }),
+                file,
+                abortController
+              ),
+          }}
         />
-      )}
-      {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
-      <FileTransfer
-        clusterId={doc.clusterId}
-        serverId={doc.serverId}
-        login={doc.login}
-        isDownloadOpen={scpDialogs.isDownloadOpen}
-        isUploadOpen={scpDialogs.isUploadOpen}
-        onClose={onCloseScpDialogs}
-      />
+      </FileTransferContextProvider>
     </Document>
   );
 }
