@@ -25,6 +25,7 @@ import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
+import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -38,6 +39,7 @@ export interface IAppContext {
   mainProcessClient: MainProcessClient;
   commandLauncher: CommandLauncher;
   connectionTracker: ConnectionTrackerService;
+  fileTransferService: FileTransferService;
 
   init(): Promise<void>;
 }

@@ -22,9 +22,9 @@ import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker
 import { QuickInputService } from 'teleterm/ui/services/quickInput';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
-
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 
 import { CommandLauncher } from './commandLauncher';
 import { IAppContext } from './types';
@@ -41,10 +41,12 @@ export default class AppContext implements IAppContext {
   mainProcessClient: MainProcessClient;
   commandLauncher: CommandLauncher;
   connectionTracker: ConnectionTrackerService;
+  fileTransferService: FileTransferService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.mainProcessClient = mainProcessClient;
+    this.fileTransferService = new FileTransferService(tshClient);
     this.statePersistenceService = new StatePersistenceService(
       this.mainProcessClient.fileStorage
     );

@@ -29,6 +29,9 @@ export type MainProcessClient = {
   getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses>;
   openTerminalContextMenu(): void;
   openTabContextMenu(options: TabContextMenuOptions): void;
+  showFileSaveDialog(
+    filePath: string
+  ): Promise<{ canceled: boolean; filePath: string | undefined }>;
   configService: ConfigService;
   fileStorage: FileStorage;
   removeKubeConfig(options: {

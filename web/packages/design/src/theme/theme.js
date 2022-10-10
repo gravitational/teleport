@@ -32,6 +32,7 @@ const contrastThreshold = 3;
 
 const colors = {
   accent: '#651FFF',
+  progressBarColor: '#00BFA5',
 
   dark: '#000',
 
