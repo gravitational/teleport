@@ -132,7 +132,7 @@ type RegisterParams struct {
 	IDToken string
 	// Expires is an optional field for bots that specifies a time that the
 	// certificates that are returned by registering should expire at.
-	// It should not be specified for non-bot registrations/
+	// It should not be specified for non-bot registrations.
 	Expires *time.Time
 }
 
