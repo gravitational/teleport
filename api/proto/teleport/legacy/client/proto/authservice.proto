@@ -1548,6 +1548,8 @@ message PaginatedResource {
     types.KubernetesServerV3 KubernetesServer = 7 [(gogoproto.jsontag) = "kubernetes_server,omitempty"];
     // WindowsDesktopService represents a WindowsDesktopServiceV3 resource.
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
+    // Policy represents a PolicyV1 resource.
+    types.PolicyV1 Policy = 9 [(gogoproto.jsontag) = "policy,omitempty"];
   }
 }
 

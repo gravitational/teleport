@@ -23,8 +23,8 @@ import (
 )
 
 type Policy interface {
-	// Resource provides common resource properties
-	Resource
+	// ResourceWithLabels provides common resource properties
+	ResourceWithLabels
 	GetAllow() string
 	GetDeny() string
 	GetOptions() string
@@ -115,4 +115,35 @@ func (c *PolicyV1) GetDeny() string {
 
 func (c *PolicyV1) GetOptions() string {
 	return c.Spec.Options
+}
+
+func (c *PolicyV1) GetAllLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+func (c *PolicyV1) GetStaticLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+func (c *PolicyV1) SetStaticLabels(labels map[string]string) {
+	c.Metadata.Labels = labels
+}
+
+func (c *PolicyV1) MatchSearch(searchValues []string) bool {
+	return false
+}
+
+func (c *PolicyV1) Origin() string {
+	if c.Metadata.Labels == nil {
+		return ""
+	}
+	return c.Metadata.Labels[OriginLabel]
+}
+
+func (c *PolicyV1) SetOrigin(origin string) {
+	if c.Metadata.Labels == nil {
+		c.Metadata.Labels = make(map[string]string)
+	}
+
+	c.Metadata.Labels[OriginLabel] = origin
 }

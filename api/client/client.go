@@ -2658,6 +2658,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeCluster()
 		case types.KindKubeServer:
 			resources[i] = respResource.GetKubernetesServer()
+		case types.KindPolicy:
+			resources[i] = respResource.GetPolicy()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}

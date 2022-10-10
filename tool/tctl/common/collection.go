@@ -999,5 +999,5 @@ func (c *policyCollection) resources() []types.Resource {
 }
 
 func (c *policyCollection) writeText(w io.Writer) error {
-	return trace.NotImplemented("listing policies is not implemented")
+	return trace.NotImplemented("listing policddies is not implemented")
 }

@@ -146,6 +146,19 @@ func (r ResourcesWithLabels) AsServers() ([]Server, error) {
 	return servers, nil
 }
 
+// AsPolicies converts each resource into type Policy.
+func (r ResourcesWithLabels) AsPolicies() ([]Policy, error) {
+	policies := make([]Policy, 0, len(r))
+	for _, resource := range r {
+		policy, ok := resource.(Policy)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Policy, got: %T", resource)
+		}
+		policies = append(policies, policy)
+	}
+	return policies, nil
+}
+
 // AsDatabaseServers converts each resource into type DatabaseServer.
 func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	dbs := make([]DatabaseServer, 0, len(r))
