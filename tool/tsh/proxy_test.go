@@ -446,7 +446,9 @@ func createAgent(t *testing.T) string {
 	sockDir := "test"
 	sockName := "agent.sock"
 
-	keyring := agent.NewKeyring()
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(keyring), nil
 	})
@@ -702,7 +704,7 @@ Use one of the following commands to connect to the database:
 			templateArgs["database"] = "mydb"
 			templateArgs["cluster"] = "mycluster"
 			templateArgs["address"] = "127.0.0.1:64444"
-			templateArgs["type"] = dbProtocolToText(defaults.ProtocolMySQL)
+			templateArgs["type"] = defaults.ReadableDatabaseProtocol(defaults.ProtocolMySQL)
 
 			buf := new(bytes.Buffer)
 			err := tpl.Execute(buf, templateArgs)
