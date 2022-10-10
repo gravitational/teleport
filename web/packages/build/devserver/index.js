@@ -66,11 +66,33 @@ function getTargetOptions() {
 
 function getWebpackDevServerConfig() {
   const config = {
-    proxy: {
-      // teleport APIs
-      '/web/config.*': getTargetOptions(),
-      '/v1/*': getTargetOptions(),
-    },
+    proxy: [
+      {
+        ...getTargetOptions(),
+        context: function (pathname, req) {
+          const proxyHost = new URL('https://' + PROXY_TARGET).hostname;
+
+          // proxy requests to /web/config*
+          if (/^\/web\/config/.test(pathname)) {
+            return true;
+          }
+
+          // proxy requests to /v1/*
+          if (/^\/v1\//.test(pathname)) {
+            console.log('v1 url, proxying');
+            return true;
+          }
+
+          // Proxy requests to any hostname that does not match the proxy hostname
+          // This is to make application access work:
+          // - When proxying to https://go.teleport, we want to serve Webpack for
+          //   those requests.
+          // - When handling requests for https://dumper.go.teleport, we want to proxy
+          //   all requests through Webpack to that application
+          return req.headers.host !== proxyHost;
+        },
+      },
+    ],
     static: {
       serveIndex: false,
       publicPath: ROOT + '/app',
