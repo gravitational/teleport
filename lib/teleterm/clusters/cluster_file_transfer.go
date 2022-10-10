@@ -30,33 +30,31 @@ import (
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
 
 func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
-	var config *sftp.Config
-	var configErr error
-
-	direction := request.GetDirection()
-	if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UNSPECIFIED {
-		return trace.BadParameter("Unexpected file transfer direction: %q", direction)
-	}
-
-	if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD {
-		config, configErr = sftp.CreateDownloadConfig(request.GetSource(), request.GetDestination(), sftp.Options{})
-	}
-	if direction == api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD {
-		config, configErr = sftp.CreateUploadConfig([]string{request.GetSource()}, request.GetDestination(), sftp.Options{})
-	}
-	if configErr != nil {
-		return trace.Wrap(configErr)
+	config, err := getSftpConfig(request)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	config.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
 		return newFileTransferProgress(fileInfo.Size(), sendProgress)
 	}
 
-	err := addMetadataToRetryableError(ctx, func() error {
+	err = addMetadataToRetryableError(ctx, func() error {
 		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), request.GetHostname()+":0", config)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)
+}
+
+func getSftpConfig(request *api.FileTransferRequest) (*sftp.Config, error) {
+	switch request.GetDirection() {
+	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD:
+		return sftp.CreateDownloadConfig(request.GetSource(), request.GetDestination(), sftp.Options{})
+	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD:
+		return sftp.CreateUploadConfig([]string{request.GetSource()}, request.GetDestination(), sftp.Options{})
+	default:
+		return nil, trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
+	}
 }
 
 func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.Writer {
