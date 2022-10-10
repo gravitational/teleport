@@ -18,9 +18,10 @@ package auth
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/defaults"
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
