@@ -305,7 +305,7 @@ func (s *AccessService) CreatePolicy(ctx context.Context, policy types.Policy) e
 		Expires: policy.Expiry(),
 	}
 
-	_, err = s.Create(ctx, item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}

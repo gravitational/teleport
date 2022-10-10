@@ -1376,6 +1376,15 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	case types.KindPolicy:
+		if rc.ref.Name == "" {
+			return nil, trace.NotImplemented("listing policies is not implemented")
+		}
+		policy, err := client.GetPolicy(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &policyCollection{policies: []types.Policy{policy}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

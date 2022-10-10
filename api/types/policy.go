@@ -62,8 +62,8 @@ func (c *PolicyV1) SetResourceID(id int64) {
 
 // setStaticFields sets static resource header and metadata fields.
 func (c *PolicyV1) setStaticFields() {
-	c.Kind = KindRemoteCluster
-	c.Version = V3
+	c.Kind = KindPolicy
+	c.Version = V1
 }
 
 // CheckAndSetDefaults checks and sets default values
