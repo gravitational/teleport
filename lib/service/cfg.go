@@ -858,6 +858,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
 	SecretStore DatabaseAWSSecretStore
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -983,10 +985,13 @@ func (d *Database) CheckAndSetDefaults() error {
 		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
+	} else if d.Protocol == defaults.ProtocolCassandra && d.AWS.Region != "" && d.AWS.AccountID != "" {
+		// In case of cloud hosted Cassandra doesn't require URI validation.
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
 	}
+
 	if len(d.TLS.CACert) != 0 {
 		if _, err := tlsca.ParseCertificatePEM(d.TLS.CACert); err != nil {
 			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",

@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/web"
@@ -52,4 +53,12 @@ func verifyJWT(t *testing.T, pack *Pack, token, appURI string) {
 	require.NoError(t, err)
 	require.Equal(t, pack.username, claims.Username)
 	require.Equal(t, pack.user.GetRoles(), claims.Roles)
+
+	filteredTraits := wrappers.Traits{}
+	for trait, values := range pack.user.GetTraits() {
+		if len(values) > 0 {
+			filteredTraits[trait] = values
+		}
+	}
+	require.Equal(t, filteredTraits, claims.Traits)
 }
