@@ -1400,6 +1400,8 @@ type DatabaseAWS struct {
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
+	// AccountID is the AWS account ID.
+	AccountID string `yaml:"account_id,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.

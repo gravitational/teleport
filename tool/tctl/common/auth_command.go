@@ -72,6 +72,7 @@ type AuthCommand struct {
 	dbName                     string
 	dbUser                     string
 	signOverwrite              bool
+	jksPassword                string
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -338,6 +339,13 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
 		identityfile.FormatRedis, identityfile.FormatElasticsearch:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
+	case identityfile.FormatCassandra, identityfile.FormatScylla:
+		jskPass, err := utils.CryptoRandomHex(32)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.jksPassword = jskPass
+		return a.generateDatabaseKeys(ctx, clusterAPI)
 	case identityfile.FormatSnowflake:
 		return a.generateSnowflakeKey(ctx, clusterAPI)
 	}
@@ -381,7 +389,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 	}
 
 	return trace.Wrap(
-		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat),
+		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat, ""),
 	)
 }
 
@@ -505,13 +513,14 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		OutputLocation:     a.output,
 		TTL:                a.genTTL,
 		Key:                key,
+		JKSPassword:        a.jksPassword,
 	}
 	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat))
+	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.jksPassword))
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
@@ -521,9 +530,11 @@ var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Temp
 	identityfile.FormatRedis:         redisAuthSignTpl,
 	identityfile.FormatSnowflake:     snowflakeAuthSignTpl,
 	identityfile.FormatElasticsearch: elasticsearchAuthSignTpl,
+	identityfile.FormatCassandra:     cassandraAuthSignTpl,
+	identityfile.FormatScylla:        scyllaAuthSignTpl,
 }
 
-func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format) error {
+func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, jksPassword string) error {
 	if writer == nil {
 		return nil
 	}
@@ -534,10 +545,10 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-
 	tplVars := map[string]interface{}{
-		"files":  strings.Join(filesWritten, ", "),
-		"output": output,
+		"files":       strings.Join(filesWritten, ", "),
+		"jksPassword": jksPassword,
+		"output":      output,
 	}
 
 	return trace.Wrap(tpl.Execute(writer, tplVars))
@@ -619,6 +630,39 @@ xpack.security.authc.realms.pki.pki1:
 
 For more information on configuring security settings in Elasticsearch, see:
 https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
+`))
+
+	cassandraAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Cassandra server, add the following to your
+cassandra.yaml configuration file:
+
+client_encryption_options:
+   enabled: true
+   optional: false
+   keystore: /path/to/{{.output}}.keystore
+   keystore_password: "{{.jksPassword}}"
+
+   require_client_auth: true
+   truststore: /path/to/{{.output}}.truststore
+   truststore_password: "{{.jksPassword}}"
+   protocol: TLS
+   algorithm: SunX509
+   store_type: JKS
+   cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
+`))
+
+	scyllaAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Scylla server, add the following to your
+scylla.yaml configuration file:
+
+client_encryption_options:
+   enabled: true
+   certificate: /path/to/{{.output}}.crt
+   keyfile: /path/to/{{.output}}.key
+   truststore:  /path/to/{{.output}}.cas
+   require_client_auth: True
 `))
 )
 

@@ -367,3 +367,45 @@ func TestParseMemoryDBEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestCassandraEndpointRegion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		inputURI    string
+		wantRegion  string
+		expectError bool
+	}{
+		{
+			name:        "us-east-1",
+			inputURI:    "cassandra.us-east-1.amazonaws.com",
+			wantRegion:  "us-east-1",
+			expectError: false,
+		},
+		{
+			name:        "cn-north-1.",
+			inputURI:    "cassandra.cn-north-1.amazonaws.com.cn",
+			wantRegion:  "cn-north-1",
+			expectError: false,
+		},
+		{
+			name:        "invalid uri",
+			inputURI:    "foo.cassandra.us-east-1.amazonaws.com",
+			wantRegion:  "us-east-1",
+			expectError: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := CassandraEndpointRegion(test.inputURI)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, got, test.wantRegion)
+			}
+		})
+	}
+
+}
