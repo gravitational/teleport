@@ -43,7 +43,7 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 			"QUAYIO_DOCKER_USERNAME": {fromSecret: "QUAYIO_DOCKER_USERNAME"},
 			"QUAYIO_DOCKER_PASSWORD": {fromSecret: "QUAYIO_DOCKER_PASSWORD"},
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{volumeRefDocker},
 		Commands: []string{
 			`apk add --no-cache make`,
 			`chown -R $UID:$GID /go`,
@@ -68,7 +68,7 @@ func buildboxPipeline() pipeline {
 	}
 
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
-	p.Volumes = dockerVolumes()
+	p.Volumes = []volume{volumeDocker}
 	p.Services = []service{
 		dockerService(),
 	}
