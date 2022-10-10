@@ -464,7 +464,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 }
 
 func maybeAddDBUserPassword(db types.Database, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
-	if db.GetProtocol() == defaults.ProtocolCassandra && db.IsAWSHosted() {
+	if db != nil && db.GetProtocol() == defaults.ProtocolCassandra && db.IsAWSHosted() {
 		// Cassandra client always prompt for password, so we need to provide it
 		// Provide an auto generated random password to skip the prompt in case of
 		// connection to AWS hosted cassandra.
