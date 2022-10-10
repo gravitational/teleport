@@ -42,7 +42,7 @@ func (s *Handler) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 
 	response := &api.GetAccessRequestsResponse{}
 	for _, req := range requests {
-		response.Requests = append(response.Requests, newApiAccessRequest(req))
+		response.Requests = append(response.Requests, newAPIAccessRequest(req))
 	}
 
 	return response, nil
@@ -56,7 +56,7 @@ func (s *Handler) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 	}
 
 	response := &api.GetAccessRequestResponse{}
-	response.Request = newApiAccessRequest(requests[0])
+	response.Request = newAPIAccessRequest(requests[0])
 
 	return response, nil
 }
@@ -69,7 +69,7 @@ func (s *Handler) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	}
 
 	createdRequest := &api.CreateAccessRequestResponse{
-		Request: newApiAccessRequest(*request),
+		Request: newAPIAccessRequest(*request),
 	}
 	return createdRequest, nil
 }
@@ -100,13 +100,13 @@ func (s *Handler) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		return nil, trace.Wrap(err)
 	}
 	response := &api.ReviewAccessRequestResponse{
-		Request: newApiAccessRequest(*request),
+		Request: newAPIAccessRequest(*request),
 	}
 	return response, nil
 
 }
 
-func newApiAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
+func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	reviews := []*api.AccessRequestReview{}
 	requestReviews := req.GetReviews()
 	for _, rev := range requestReviews {

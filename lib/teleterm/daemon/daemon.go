@@ -425,6 +425,10 @@ func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		return nil, trace.Wrap(err)
 	}
 	response, err := cluster.ReviewAccessRequest(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return response, nil
 }
 

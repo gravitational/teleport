@@ -112,9 +112,7 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context) ([]string, error) {
 			return trace.Wrap(err)
 		}
 
-		for _, role := range response.RequestableRoles {
-			results = append(results, role)
-		}
+		results = append(results, response.RequestableRoles...)
 
 		return nil
 	})
