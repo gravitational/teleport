@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package teleport.devicetrust.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
+
+// OSType represents the operating system of a device.
+enum OSType {
+  OS_TYPE_UNSPECIFIED = 0;
+  // Linux.
+  OS_TYPE_LINUX = 1;
+  // macOS.
+  OS_TYPE_MACOS = 2;
+  // Windows.
+  OS_TYPE_WINDOWS = 3;
+}
