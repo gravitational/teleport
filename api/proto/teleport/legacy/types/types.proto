@@ -2096,6 +2096,33 @@ message CertExtension {
   string Value = 4 [(gogoproto.jsontag) = "value"];
 }
 
+// PolicyV1 is a predicate policy used for RBAC, not dissimilar to Role.
+message PolicyV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is resource metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is a policy specification.
+  PolicySpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// PolicySpecV1 is a predicate policy specification used for RBAC, not dissimilar to Role.
+message PolicySpecV1 {
+  string Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  string Deny = 2 [(gogoproto.jsontag) = "deny,omitempty"];
+  string Options = 3 [(gogoproto.jsontag) = "options,omitempty"];
+}
+
 // RoleConditions is a set of conditions that must all match to be allowed or
 // denied access.
 message RoleConditions {

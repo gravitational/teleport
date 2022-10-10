@@ -273,6 +273,9 @@ const (
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
+	// KindPolicy is an RBAC policy resource.
+	KindPolicy = "policy"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
