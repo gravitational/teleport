@@ -1167,12 +1167,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 }
 
 // createRemoteAccessPoint creates a new access point for the remote cluster.
-// Checks if the cluster that is connecting is a pre-v8 cluster. If it is,
-// don't assume the newer organization of cluster configuration resources
-// (RFD 28) because older proxy servers will reject that causing the cache
-// to go into a re-sync loop.
+// Checks if the cluster that is connecting is a pre-v11 cluster. If it is,
+// we disable the watcher for types.KindKubeServer and types.KindKubeCluster resources
+// since both resources are not supported in a v10 leaf cluster.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
-	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("8.0.0"))
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("11.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
