@@ -834,7 +834,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -1975,7 +1975,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -2160,7 +2160,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -2358,7 +2358,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -2541,7 +2541,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -2695,7 +2695,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -2912,7 +2912,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -3132,7 +3132,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -3335,7 +3335,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -3564,7 +3564,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -3718,7 +3718,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -3935,7 +3935,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -4199,7 +4199,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /tmp/build-darwin-amd64/credentials
@@ -4368,7 +4368,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /tmp/build-darwin-amd64-pkg/credentials
@@ -4566,7 +4566,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /tmp/build-darwin-amd64-pkg-tsh/credentials
@@ -4789,7 +4789,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -4972,7 +4972,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -5126,7 +5126,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -5329,7 +5329,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -5532,7 +5532,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -5749,7 +5749,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -5998,7 +5998,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -6863,7 +6863,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -6909,7 +6909,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -7060,7 +7060,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -7106,7 +7106,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -7221,7 +7221,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -7331,7 +7331,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -7974,7 +7974,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /root/.aws/credentials
@@ -8140,7 +8140,7 @@ steps:
     printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
       $(aws sts assume-role \
         --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
         --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
         --output text) \
       > /tmp/build-darwin-amd64-connect/credentials
@@ -8286,6 +8286,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 75ce8f5e6dfb0718d78257af25dee34a8ac146634d6d31bac2f37ee79f810071
+hmac: a08e2c1c6fb4954f4328847910c8034fd9e3bcb8d8eb230880c4fdb8cf71b7f4
 
 ...
