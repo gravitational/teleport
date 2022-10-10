@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/trace"
 
 	logrus "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/net/http2"
 )
 
@@ -68,6 +70,23 @@ type TLSServerConfig struct {
 	OnReconcile func(types.KubeClusters)
 	// CloudClients is a set of cloud clients that Teleport supports.
 	CloudClients cloud.Clients
+	//StaticLabels is a map of static labels associated with this service.
+	// Each cluster advertised by this kubernetes_service will include these static labels.
+	// If the service and a cluster define labels with the same key,
+	// service labels take precedence over cluster labels.
+	// Used for RBAC.
+	StaticLabels map[string]string
+	// DynamicLabels define the dynamic labels associated with this service.
+	// Each cluster advertised by this kubernetes_service will include these dynamic labels.
+	// If the service and a cluster define labels with the same key,
+	// service labels take precedence over cluster labels.
+	// Used for RBAC.
+	DynamicLabels *labels.Dynamic
+	// CloudLabels is a map of static labels imported from a cloud provider associated with this
+	// service. Used for RBAC.
+	// If StaticLabels and CloudLabels define labels with the same key,
+	// StaticLabels take precedence over CloudLabels.
+	CloudLabels labels.Importer
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -287,7 +306,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 		addr = t.listener.Addr().String()
 	}
 
-	cluster, err := t.getSafeKubeClusterWithServiceLabels(name)
+	cluster, err := t.getKubeClusterForHeartbeat(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -322,21 +341,30 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	return srv, nil
 }
 
-// getSafeKubeClusterWithServiceLabels finds the kube cluster by name, strips the credentials
-// for Azure, AWS and Kubeconfig in order to avoid sharing them via heartbeat and
-// adds the service static and dynamic labels.
-func (t *TLSServer) getSafeKubeClusterWithServiceLabels(name string) (*types.KubernetesClusterV3, error) {
-	cluster, err := t.fwd.findKubeClusterByName(name)
+// getKubeClusterForHeartbeat finds the kube cluster by name, strips the credentials,
+// replaces the cluster dynamic labels with their latest value available and updates
+// the cluster with the service dynamic and static labels.
+// We strip the Azure, AWS and Kubeconfig credentials so they are not leaked when
+// heartbeating the cluster.
+func (t *TLSServer) getKubeClusterForHeartbeat(name string) (*types.KubernetesClusterV3, error) {
+	// it is safe do read from details since the structure is never updated.
+	// we replace the whole structure each time an update happens to a dynamic cluster.
+	details, err := t.fwd.findKubeDetailsByClusterName(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// NewKubernetesClusterV3WithoutSecrets creates a copy of details.kubeCluster without
+	// any credentials or cloud access details.
+	clusterWithoutCreds, err := types.NewKubernetesClusterV3WithoutSecrets(details.kubeCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterWithoutCreds, err := types.NewKubernetesClusterV3WithoutSecrets(cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if details.dynamicLabels != nil {
+		clusterWithoutCreds.SetDynamicLabels(details.dynamicLabels.Get())
 	}
 
-	t.fwd.newKubernetesClusterV3WithServiceLabels(cluster)
+	t.setServiceLabels(clusterWithoutCreds)
 
 	return clusterWithoutCreds, nil
 }
@@ -468,13 +496,17 @@ func (t *TLSServer) legacyGetServerInfo() (types.Resource, error) {
 	sort.Sort(kubeClusters)
 
 	legacyKubeClusters := make([]*types.KubernetesCluster, len(kubeClusters))
-
-	for i, kubeCluster := range kubeClusters {
-		t.fwd.newKubernetesClusterV3WithServiceLabels(kubeCluster)
+	for i := range kubeClusters {
+		clusterName := kubeClusters[i].GetName()
+		heartbeatCluster, err := t.getKubeClusterForHeartbeat(clusterName)
+		if err != nil {
+			t.Log.WithError(err).Warnf("Unable to find %q cluster.", clusterName)
+			continue
+		}
 		legacyKubeClusters[i] = &types.KubernetesCluster{
-			Name:          kubeCluster.GetName(),
-			StaticLabels:  kubeCluster.GetStaticLabels(),
-			DynamicLabels: types.LabelsToV2(kubeCluster.GetDynamicLabels()),
+			Name:          heartbeatCluster.GetName(),
+			StaticLabels:  heartbeatCluster.GetStaticLabels(),
+			DynamicLabels: types.LabelsToV2(heartbeatCluster.GetDynamicLabels()),
 		}
 	}
 
@@ -495,4 +527,46 @@ func (t *TLSServer) legacyGetServerInfo() (types.Resource, error) {
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	return srv, nil
+}
+
+// getServiceStaticLabels gets the labels that the server should present as static,
+// which includes Cloud labels if available.
+func (t *TLSServer) getServiceStaticLabels() map[string]string {
+	if t.CloudLabels == nil {
+		return t.StaticLabels
+	}
+	labels := maps.Clone(t.CloudLabels.Get())
+	// Let static labels override ec2 labels.
+	for k, v := range t.StaticLabels {
+		labels[k] = v
+	}
+	return labels
+}
+
+// setServiceLabels updates the the cluster labels with the kubernetes_service labels.
+// If the cluster and the service define overlapping labels the service labels take precedence.
+// This function manipulates the original cluster.
+func (t *TLSServer) setServiceLabels(cluster types.KubeCluster) {
+	serviceStaticLabels := t.getServiceStaticLabels()
+	if len(serviceStaticLabels) > 0 {
+		staticLabels := cluster.GetStaticLabels()
+		if staticLabels == nil {
+			staticLabels = make(map[string]string)
+		}
+		// if cluster and service define the same static label key, service labels have precedence.
+		maps.Copy(staticLabels, serviceStaticLabels)
+		cluster.SetStaticLabels(staticLabels)
+	}
+
+	if t.DynamicLabels != nil {
+		dstDynLabels := cluster.GetDynamicLabels()
+		if dstDynLabels == nil {
+			dstDynLabels = map[string]types.CommandLabel{}
+		}
+		// get service level dynamic labels.
+		serviceDynLabels := t.DynamicLabels.Get()
+		// if cluster and service define the same dynamic label key, service labels have precedence.
+		maps.Copy(dstDynLabels, serviceDynLabels)
+		cluster.SetDynamicLabels(dstDynLabels)
+	}
 }

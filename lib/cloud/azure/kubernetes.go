@@ -191,7 +191,7 @@ func (c *aksClient) ListAll(ctx context.Context) ([]*AKSCluster, error) {
 		for _, s := range page.Value {
 			cluster, err := AKSClusterFromManagedCluster(s)
 			if err != nil {
-				logrus.WithError(err).Debugf("cluster %s not discovered", StringVal(s.Name))
+				logrus.WithError(err).Debugf("Failed to convert discovered AKS cluster %q to Teleport internal representation.", StringVal(s.Name))
 				continue
 			}
 			servers = append(servers, cluster)
@@ -213,7 +213,7 @@ func (c *aksClient) ListWithinGroup(ctx context.Context, group string) ([]*AKSCl
 		for _, s := range page.Value {
 			cluster, err := AKSClusterFromManagedCluster(s)
 			if err != nil {
-				logrus.WithError(err).Debugf("cluster %s not discovered", StringVal(s.Name))
+				logrus.WithError(err).Debugf("Failed to convert discovered AKS cluster %q to Teleport internal representation.", StringVal(s.Name))
 				continue
 			}
 			servers = append(servers, cluster)
@@ -520,7 +520,7 @@ func (c *aksClient) upsertClusterRoleBindingWithAdminCredentials(ctx context.Con
 	return trace.Wrap(err)
 }
 
-// grantAccessWithAdminCredentials tries to create the ClusterRole and ClusterRoleBinding into the AKS cluster
+// grantAccessWithCommand tries to create the ClusterRole and ClusterRoleBinding into the AKS cluster
 // using remote kubectl command.
 func (c *aksClient) grantAccessWithCommand(ctx context.Context, resourceGroupName, resourceName, tentantID, groupID string) error {
 	token, _, err := c.genAzureToken(ctx, tentantID)

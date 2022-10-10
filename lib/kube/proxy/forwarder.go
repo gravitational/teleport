@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -69,7 +68,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/net/http2"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -140,15 +138,6 @@ type ForwarderConfig struct {
 	ConnPingPeriod time.Duration
 	// Component name to include in log output.
 	Component string
-	// StaticLabels is map of static labels associated with this cluster.
-	// Used for RBAC.
-	StaticLabels map[string]string
-	// DynamicLabels is map of dynamic labels associated with this cluster.
-	// Used for RBAC.
-	DynamicLabels *labels.Dynamic
-	// CloudLabels is a map of labels imported from a cloud provider associated with this
-	// cluster. Used for RBAC.
-	CloudLabels labels.Importer
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default
@@ -2023,31 +2012,13 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// getServiceStaticLabels gets the labels that the forwarder should present as static,
-// which includes EC2 labels if available.
-func (f *Forwarder) getServiceStaticLabels() map[string]string {
-	if f.cfg.CloudLabels == nil {
-		return f.cfg.StaticLabels
-	}
-	labels := maps.Clone(f.cfg.CloudLabels.Get())
-	// Let static labels override ec2 labels.
-	for k, v := range f.cfg.StaticLabels {
-		labels[k] = v
-	}
-	return labels
-}
-
 // kubeClusters returns the list of available clusters
 func (f *Forwarder) kubeClusters() types.KubeClusters {
 	f.rwMutexDetails.RLock()
 	defer f.rwMutexDetails.RUnlock()
 	res := make(types.KubeClusters, 0, len(f.clusterDetails))
-	for n, cred := range f.clusterDetails {
-		cluster, err := f.newKubernetesClusterV3FromDetails(cred)
-		if err != nil {
-			f.log.WithError(err).Warnf("Error while creating *types.KubernetesClusterV3 for cluster %q", n)
-			continue
-		}
+	for _, cred := range f.clusterDetails {
+		cluster := cred.kubeCluster.Copy()
 		res = append(res,
 			cluster,
 		)
@@ -2055,52 +2026,16 @@ func (f *Forwarder) kubeClusters() types.KubeClusters {
 	return res
 }
 
-// findKubeClusterByName searches for the cluster otherwise returns a trace.NotFound error.
-func (f *Forwarder) findKubeClusterByName(name string) (types.KubeCluster, error) {
+// findKubeDetailsByClusterName searches for the cluster details otherwise returns a trace.NotFound error.
+func (f *Forwarder) findKubeDetailsByClusterName(name string) (*kubeDetails, error) {
 	f.rwMutexDetails.RLock()
 	defer f.rwMutexDetails.RUnlock()
 
 	if creds, ok := f.clusterDetails[name]; ok {
-		return f.newKubernetesClusterV3FromDetails(creds)
+		return creds, nil
 	}
 
 	return nil, trace.NotFound("cluster %s not found", name)
-}
-
-// newKubernetesClusterV3FromDetails clones the details.kubeCluster and replaces the cluster
-// dynamic labels with their latest value.
-func (f *Forwarder) newKubernetesClusterV3FromDetails(details *kubeDetails) (*types.KubernetesClusterV3, error) {
-	clonedCluster := details.kubeCluster.Copy()
-	clonedCluster.Spec.DynamicLabels = f.getClusterDynamicLabels(details)
-	return clonedCluster, nil
-}
-
-// newKubernetesClusterV3WithServiceLabels clones the cluster and merges its labels
-// with the kubernetes_service labels. If the cluster and the service define overlapping labels
-// the service labels have precedence.
-// This function manipulates the original cluster.
-func (f *Forwarder) newKubernetesClusterV3WithServiceLabels(cluster types.KubeCluster) {
-	if len(f.getServiceStaticLabels()) > 0 {
-		staticLabels := cluster.GetStaticLabels()
-		if staticLabels == nil {
-			staticLabels = make(map[string]string)
-		}
-		// if cluster and service define the same static label key, service labels have precedence.
-		maps.Copy(staticLabels, f.getServiceStaticLabels())
-		cluster.SetStaticLabels(staticLabels)
-	}
-
-	if f.cfg.DynamicLabels != nil {
-		dstDynLabels := cluster.GetDynamicLabels()
-		if dstDynLabels == nil {
-			dstDynLabels = map[string]types.CommandLabel{}
-		}
-		// get service level dynamic labels.
-		serviceDynLabels := f.cfg.DynamicLabels.Get()
-		// if cluster and service define the same dynamic label key, service labels have precedence.
-		maps.Copy(dstDynLabels, serviceDynLabels)
-		cluster.SetDynamicLabels(dstDynLabels)
-	}
 }
 
 // upsertKubeDetails updates the details in f.ClusterDetails for key if they exist,
@@ -2125,15 +2060,6 @@ func (f *Forwarder) removeKubeDetails(name string) {
 		oldDetails.Close()
 	}
 	delete(f.clusterDetails, name)
-}
-
-// getClusterDynamicLabels returns the cluster dynamic labels and service labels merged together.
-// if cluster and service define the same dynamic label key, service labels have precedence.
-func (f *Forwarder) getClusterDynamicLabels(details *kubeDetails) (dstDynLabels map[string]types.CommandLabelV2) {
-	if details.dynamicLabels != nil {
-		dstDynLabels = types.LabelsToV2(details.dynamicLabels.Get())
-	}
-	return
 }
 
 type responseStatusRecorder struct {

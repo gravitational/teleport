@@ -132,7 +132,7 @@ func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
 	}
-	s.Log.Debugf("creating kube_cluster %s", kubeCluster.GetName())
+	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster))
 }
 
@@ -141,7 +141,7 @@ func (s *Server) onKubeUpdate(ctx context.Context, rwl types.ResourceWithLabels)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
 	}
-	s.Log.Debugf("updating kube_cluster %s", kubeCluster.GetName())
+	s.Log.Debugf("Updating kube_cluster %s.", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateKubernetesCluster(ctx, kubeCluster))
 }
 
@@ -150,6 +150,6 @@ func (s *Server) onKubeDelete(ctx context.Context, rwl types.ResourceWithLabels)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
 	}
-	s.Log.Debugf("deleting kube_cluster %s", kubeCluster.GetName())
+	s.Log.Debugf("Deleting kube_cluster %s.", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteKubernetesCluster(ctx, kubeCluster.GetName()))
 }
