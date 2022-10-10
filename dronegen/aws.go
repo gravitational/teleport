@@ -21,7 +21,7 @@ import "path/filepath"
 // This is intended to be imbedded, please use the kubernetes/mac/windows versions
 // with their corresponding pipelines.
 type awsRoleSettings struct {
-	awsAccessKeyId     value
+	awsAccessKeyID     value
 	awsSecretAccessKey value
 	role               value
 }
@@ -71,7 +71,7 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 		Name:  "Assume AWS Role",
 		Image: "amazon/aws-cli",
 		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyId,
+			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
 			"AWS_ROLE":              s.role,
 		},
@@ -85,7 +85,7 @@ func macAssumeAwsRoleStep(s macRoleSettings) step {
 	return step{
 		Name: "Assume AWS Role",
 		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":           s.awsAccessKeyId,
+			"AWS_ACCESS_KEY_ID":           s.awsAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY":       s.awsSecretAccessKey,
 			"AWS_ROLE":                    s.role,
 			"AWS_SHARED_CREDENTIALS_FILE": value{raw: s.configPath},

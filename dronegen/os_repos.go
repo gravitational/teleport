@@ -112,7 +112,7 @@ type RepoBucketSecrets struct {
 func NewRepoBucketSecrets(bucketName, accessKeyID, secretAccessKey, role string) *RepoBucketSecrets {
 	return &RepoBucketSecrets{
 		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyId:     value{fromSecret: accessKeyID},
+			awsAccessKeyID:     value{fromSecret: accessKeyID},
 			awsSecretAccessKey: value{fromSecret: secretAccessKey},
 			role:               value{fromSecret: role},
 		},
@@ -362,7 +362,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 
 	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
 			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
 			role:               value{fromSecret: "AWS_ROLE"},
 		},
