@@ -26,7 +26,7 @@ type awsRoleSettings struct {
 	role               value
 }
 
-// kuberentesRoleSettings contains the info necessary to assume an AWS role and save the credentials to a volume that later steps can use
+// kubernetesRoleSettings contains the info necessary to assume an AWS role and save the credentials to a volume that later steps can use
 type kubernetesRoleSettings struct {
 	awsRoleSettings
 	configVolume volumeRef
