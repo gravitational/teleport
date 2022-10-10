@@ -345,20 +345,8 @@ const (
 	// storage
 	SchemeGCS = "gs"
 
-	// SchemeAZBlob is the Azure Blob Storage scheme, used as the scheme in the
-	// session storage URI to identify a storage account accessed over https.
-	SchemeAZBlob = "azblob"
-
-	// SchemeAZBlobHTTP is the Azure Blob Storage scheme, used as the scheme in the
-	// session storage URI to identify a storage account accessed over http.
-	SchemeAZBlobHTTP = "azblob-http"
-
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
-
-	// AZBlobTestURI specifies the storage account URL to use for Azure Blob
-	// Storage tests.
-	AZBlobTestURI = "TEST_AZBLOB_URI"
 
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
@@ -474,6 +462,9 @@ const (
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
+	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
+	// private key policy.
+	CertExtensionPrivateKeyPolicy = "private-key-policy"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -753,6 +744,12 @@ const (
 
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
+)
+
+const (
+	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
+	// uses to get the home directory of a remote user.
+	GetHomeDirSubsystem = "gethomedir"
 )
 
 // A principal name for use in SSH certificates.

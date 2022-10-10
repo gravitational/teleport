@@ -16,7 +16,14 @@ limitations under the License.
 
 package modules
 
-import "testing"
+import (
+	"context"
+	"crypto"
+	"testing"
+	"time"
+
+	"github.com/gravitational/teleport/api/utils/keys"
+)
 
 // TestModules implements the Modules interface for testing.
 //
@@ -74,4 +81,9 @@ func (m *TestModules) Features() Features {
 // BuildType returns build type (OSS or Enterprise).
 func (m *TestModules) BuildType() string {
 	return m.TestBuildType
+}
+
+// AttestHardwareKey attests a hardware key.
+func (m *TestModules) AttestHardwareKey(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+	return policy, nil
 }

@@ -86,9 +86,9 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
 	case useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("either set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out, but don't set both")
+		return trace.BadParameter("either set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out, but don't set both")
 	case !useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out")
+		return trace.BadParameter("set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out")
 
 	// Start a local listener and let proxies dial in.
 	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():

@@ -264,6 +264,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	customizedOpts := &client.PromptMFAChallengeOpts{
+		HintBeforePrompt:        "some hint explaining the imminent prompt",
 		PromptDevicePrefix:      "llama",
 		Quiet:                   true,
 		AllowStdinHijack:        true,
@@ -370,7 +371,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{randomAddr} // must be present
+	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -453,7 +454,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.WebAddr = randomAddr

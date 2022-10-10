@@ -359,7 +359,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// xauthority files is put into the correct place ($HOME/.Xauthority)
 		// with the right permissions.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		removeCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		removeCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		removeCmd.Env = cmd.Env
 		removeCmd.Dir = cmd.Dir
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
@@ -367,7 +370,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		addCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		addCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		addCmd.Env = cmd.Env
 		addCmd.Dir = cmd.Dir
 		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
@@ -666,7 +672,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	exists, err := checkHomeDir(localUser)
+	exists, err := CheckHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if exists {
@@ -804,8 +810,8 @@ func copyCommand(ctx *ServerContext, cmdbytes []byte) {
 	}
 }
 
-// checkHomeDir checks if the user's home dir exists
-func checkHomeDir(localUser *user.User) (bool, error) {
+// CheckHomeDir checks if the user's home dir exists
+func CheckHomeDir(localUser *user.User) (bool, error) {
 	if fi, err := os.Stat(localUser.HomeDir); err == nil {
 		return fi.IsDir(), nil
 	}
