@@ -3925,6 +3925,13 @@ message RegisterUsingTokenRequest {
   // IDToken is a token provided by a workload identity provider as part of
   // OIDC join types such as GitHub.
   string IDToken = 11 [(gogoproto.jsontag) = "id_token"];
+  // Expires is a desired time of the expiry of user certificates returned by
+  // registration. This only applies to bot joining, and will be ignored by
+  // node joining.
+  google.protobuf.Timestamp Expires = 12 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "expires,omitempty"
+  ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
