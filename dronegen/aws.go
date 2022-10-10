@@ -51,7 +51,7 @@ func assumeRoleCommands(configPath string) []string {
 	assumeRoleCmd := `printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
   $(aws sts assume-role \
     --role-arn "$AWS_ROLE" \
-    --role-session-name $(echo "drone-${DRONE_REPO}/${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+    --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
     --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
     --output text) \
   > ` + configPath
