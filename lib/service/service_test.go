@@ -30,10 +30,11 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -43,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -501,6 +501,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
@@ -512,6 +513,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-cassandra",
 				"teleport-elasticsearch",
 			},
 		},
@@ -525,6 +527,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
 				// Ensure h2 has precedence over http/1.1.
 				"h2",
@@ -539,6 +542,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-cassandra",
 				"teleport-elasticsearch",
 			},
 		},
