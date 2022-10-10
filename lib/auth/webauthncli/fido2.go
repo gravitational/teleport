@@ -330,8 +330,17 @@ func fido2Register(
 		return nil, trace.BadParameter("credential creation relying party ID required")
 	}
 
-	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	var rrk bool
+	switch cc.Response.AuthenticatorSelection.ResidentKey {
+	case "":
+		// If ResidentKey is not set, then fallback to the legacy RequireResidentKey
+		// field.
+		rrk = cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	case protocol.ResidentKeyRequirementRequired:
+		rrk = true
+	}
 	log.Debugf("FIDO2: registration: resident key=%v", rrk)
+
 	if rrk {
 		// Be more pedantic with resident keys, some of this info gets recorded with
 		// the credential.
@@ -416,11 +425,19 @@ func fido2Register(
 		}); {
 		case errors.Is(err, libfido2.ErrNoCredentials):
 			return true, nil
-		case err == nil:
+		case errors.Is(err, libfido2.ErrUserPresenceRequired):
+			// Yubikey4 does this when the credential exists.
+			return false, nil
+		case err != nil:
+			// Swallow unexpected errors: a double registration is better than
+			// aborting the ceremony.
+			log.Debugf(
+				"FIDO2: Device %v: excluded credential assertion failed, letting device through: err=%q",
+				info.path, err)
+			return true, nil
+		default:
 			log.Debugf("FIDO2: Device %v: filtered due to presence of excluded credential", info.path)
 			return false, nil
-		default: // unexpected error
-			return false, trace.Wrap(err)
 		}
 	}
 
@@ -650,6 +667,7 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		}
 
 		var info *libfido2.DeviceInfo
+		var u2f bool
 		const infoAttempts = 3
 		for i := 0; i < infoAttempts; i++ {
 			info, err = dev.Info()
@@ -659,6 +677,7 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 				// A FIDO/U2F device has no capabilities beyond MFA
 				// registrations/assertions.
 				info = &libfido2.DeviceInfo{}
+				u2f = true
 			case errors.Is(err, libfido2.ErrTX):
 				// Happens occasionally, give the device a short grace period and retry.
 				time.Sleep(1 * time.Millisecond)
@@ -673,7 +692,7 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		}
 		log.Debugf("FIDO2: Info for device %v: %#v", path, info)
 
-		di := makeDevInfo(path, info)
+		di := makeDevInfo(path, info, u2f)
 		switch ok, err := filter(dev, di); {
 		case err != nil:
 			return nil, trace.Wrap(err, "device %v: filter", path)
@@ -838,6 +857,7 @@ func selectDevice(
 // https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.
 type deviceInfo struct {
 	path                           string
+	u2f                            bool
 	plat                           bool
 	rk                             bool
 	clientPinCapable, clientPinSet bool
@@ -850,8 +870,17 @@ func (di *deviceInfo) uvCapable() bool {
 	return di.uv || di.clientPinSet
 }
 
-func makeDevInfo(path string, info *libfido2.DeviceInfo) *deviceInfo {
-	di := &deviceInfo{path: path}
+func makeDevInfo(path string, info *libfido2.DeviceInfo, u2f bool) *deviceInfo {
+	di := &deviceInfo{
+		path: path,
+		u2f:  u2f,
+	}
+
+	// U2F devices don't respond to dev.Info().
+	if u2f {
+		return di
+	}
+
 	for _, opt := range info.Options {
 		// See
 		// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.

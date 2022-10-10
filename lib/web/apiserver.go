@@ -614,6 +614,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
+	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
@@ -2818,19 +2819,77 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			clusterName = res.GetClusterName()
 		}
 
-		proxy, err := h.ProxyWithRoles(ctx)
+		site, err := h.getSite(ctx, clusterName)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to get proxy with roles.")
-			return nil, trace.Wrap(err)
-		}
-
-		site, err := proxy.GetSite(clusterName)
-		if err != nil {
-			h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
 			return nil, trace.Wrap(err)
 		}
 
 		return fn(w, r, p, ctx, site)
+	})
+}
+
+func (h *Handler) getSite(ctx *SessionContext, clusterName string) (reversetunnel.RemoteSite, error) {
+	proxy, err := h.ProxyWithRoles(ctx)
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to get proxy with roles.")
+		return nil, trace.Wrap(err)
+	}
+
+	site, err := proxy.GetSite(clusterName)
+	if err != nil {
+		h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
+		return nil, trace.Wrap(err)
+	}
+
+	return site, nil
+}
+
+// ClusterClientProvider is an interface for a type which can provide
+// authenticated clients to remote clusters.
+type ClusterClientProvider interface {
+	// UserClientForCluster returns a client to the local or remote cluster
+	// identified by clusterName and is authenticated with the identity of the
+	// user.
+	UserClientForCluster(clusterName string) (auth.ClientI, error)
+}
+
+type clusterClientProvider struct {
+	h   *Handler
+	ctx *SessionContext
+}
+
+// UserClientForCluster returns a client to the local or remote cluster
+// identified by clusterName and is authenticated with the identity of the user.
+func (r clusterClientProvider) UserClientForCluster(clusterName string) (auth.ClientI, error) {
+	site, err := r.h.getSite(r.ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := r.ctx.GetUserClient(site)
+	return clt, trace.Wrap(err)
+}
+
+// ClusterClientHandler is an authenticated handler which can get a client for
+// any remote cluster.
+type ClusterClientHandler func(http.ResponseWriter, *http.Request, httprouter.Params, *SessionContext, ClusterClientProvider) (interface{}, error)
+
+// WithClusterClientProvider wraps a ClusterClientHandler to ensure that a
+// request is authenticated to this proxy (the same as WithAuth), and passes a
+// ClusterClientProvider so that the handler can access remote clusters. Use
+// this instead of WithClusterAuth when the remote cluster cannot be encoded in
+// the path or multiple clusters may need to be accessed from a single handler.
+func (h *Handler) WithClusterClientProvider(fn ClusterClientHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		ctx, err := h.AuthenticateRequest(w, r, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		g := clusterClientProvider{
+			h:   h,
+			ctx: ctx,
+		}
+		return fn(w, r, p, ctx, g)
 	})
 }
 

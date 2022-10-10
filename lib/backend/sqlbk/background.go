@@ -21,11 +21,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/trace"
 )
 
 // start background goroutine to track expired leases, emit events, and purge records.
@@ -66,7 +68,7 @@ func (b *Backend) initLastEventID(ctx context.Context) (lastEventID int64, err e
 			periodic = interval.New(interval.Config{
 				Duration:      b.PollStreamPeriod,
 				FirstDuration: utils.HalfJitter(b.PollStreamPeriod),
-				Jitter:        utils.NewSeventhJitter(),
+				Jitter:        retryutils.NewSeventhJitter(),
 			})
 			defer periodic.Stop()
 		}
@@ -93,14 +95,14 @@ func (b *Backend) run(eventID int64) {
 	pollPeriodic := interval.New(interval.Config{
 		Duration:      b.PollStreamPeriod,
 		FirstDuration: utils.HalfJitter(b.PollStreamPeriod),
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer pollPeriodic.Stop()
 
 	purgePeriodic := interval.New(interval.Config{
 		Duration:      b.PurgePeriod,
 		FirstDuration: utils.HalfJitter(b.PurgePeriod),
-		Jitter:        utils.NewSeventhJitter(),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer purgePeriodic.Stop()
 

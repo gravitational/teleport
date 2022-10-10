@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -238,7 +239,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 	// Cloud SQL will return 409 to a user update operation if there is another
 	// one in progress, so retry upon encountering it. Also, be nice to the API
 	// and retry with a backoff.
-	retry, err := utils.NewConstant(time.Second)
+	retry, err := retryutils.NewConstant(time.Second)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -249,7 +250,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 			Password: token,
 		})
 		if err != nil && !trace.IsCompareFailed(ConvertError(err)) { // We only want to retry on 409.
-			return utils.PermanentRetryError(err)
+			return retryutils.PermanentRetryError(err)
 		}
 		return trace.Wrap(err)
 	})

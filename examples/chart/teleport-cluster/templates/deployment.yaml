@@ -28,6 +28,7 @@ metadata:
 spec:
   {{- if not (eq .Values.chartMode "standalone") }}
   replicas: {{ .Values.highAvailability.replicaCount }}
+  minReadySeconds: {{ .Values.highAvailability.minReadySeconds }}
   {{- else }}
   replicas: 1
   {{- end }}
@@ -250,7 +251,7 @@ spec:
         secret:
           secretName: "license"
 {{- end }}
-{{- if .Values.gcp.credentialSecretName }}
+{{- if (eq .Values.chartMode "gcp") }}
       - name: gcp-credentials
         secret:
           secretName: {{ required "gcp.credentialSecretName is required in chart values" .Values.gcp.credentialSecretName }}
