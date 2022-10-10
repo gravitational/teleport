@@ -185,6 +185,7 @@ func ForRemoteProxy(cfg Config) Config {
 }
 
 // ForOldRemoteProxy sets up watch configuration for older remote proxies.
+// The Watches defined here are a copy of those defined in ForRemoteProxy in the v10 branch.
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
