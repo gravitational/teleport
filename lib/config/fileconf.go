@@ -458,8 +458,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
+// and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
-
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
 		for _, serviceType := range matcher.Types {
@@ -502,6 +503,8 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 	return nil
 }
 
+// checkAndSetDefaultsForAzureMatchers sets the default values for discovery Azure matchers
+// and validates the provided types.
 func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 	for i := range matcherInput {
 		matcher := &matcherInput[i]

@@ -77,12 +77,12 @@ func (s *Server) startKubeWatchers() error {
 	}
 
 	go func() {
-		t := time.NewTicker(time.Minute)
+		t := time.NewTicker(5 * time.Minute)
 		defer t.Stop()
 		for {
-			newFetcherResources := s.fetchFetchersResources()
+			newResources := s.fetchFetchersResources()
 			mu.Lock()
-			kubeResources = newFetcherResources
+			kubeResources = newResources
 			mu.Unlock()
 
 			if err := watcher.Reconcile(s.ctx); err != nil {

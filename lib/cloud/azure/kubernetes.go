@@ -55,9 +55,9 @@ const (
 	LocalAccounts
 )
 
-// AKSCluster represents an AKS cluster
+// AKSCluster represents an AKS cluster.
 type AKSCluster struct {
-	// Name is the name of the cluster
+	// Name is the name of the cluster.
 	Name string
 	// GroupName is the resource group name.
 	GroupName string
@@ -265,8 +265,9 @@ func (c *aksClient) ClusterCredentials(ctx context.Context, cfg ClusterCredentia
 }
 
 // getAzureRBACCredentials generates a config to access the cluster.
-// When AzureRBAC is enabled, the authentication happens with a BearerToken and the principal role
-// grants has the access rules to the cluster. If checkPermissions fails we cannot do anything.
+// When AzureRBAC is enabled, the authentication happens with a BearerToken and the agent's Active Directory
+// group has the access rules to access the cluster. If checkPermissions fails we cannot do anything
+// and the user has to manually edit the agent's group permissions.
 func (c *aksClient) getAzureRBACCredentials(ctx context.Context, cluster ClusterCredentialsConfig) (*rest.Config, time.Time, error) {
 	cfg, err := c.getUserCredentials(ctx, cluster)
 	if err != nil {
@@ -279,7 +280,7 @@ func (c *aksClient) getAzureRBACCredentials(ctx context.Context, cluster Cluster
 
 	if err := c.checkAccessPermissions(ctx, cfg, cluster); err != nil {
 		return nil, time.Time{}, trace.WrapWithMessage(err, `Azure RBAC rules have not been configured for the agent. 
-		Please check that you have configured correctly.`)
+		Please check that you have configured them correctly.`)
 	}
 
 	return cfg, expiresOn, nil
@@ -528,7 +529,7 @@ func (c *aksClient) grantAccessWithCommand(ctx context.Context, resourceGroupNam
 	}
 	cmd, err := c.api.BeginRunCommand(ctx, resourceGroupName, resourceName, armcontainerservice.RunCommandRequest{
 		ClusterToken: to.Ptr(token),
-		Command:      to.Ptr(fmt.Sprintf("%s\n---\n%s", clusterRoleTemplate, strings.ReplaceAll(clusterRoleBindingTemplate, "group_name", groupID))),
+		Command:      to.Ptr(kubectlApplyString(groupID)),
 	}, &armcontainerservice.ManagedClustersClientBeginRunCommandOptions{})
 	if err != nil {
 		return trace.Wrap(ConvertResponseError(err))
@@ -686,3 +687,64 @@ subjects:
   name: group_name
   apiGroup: rbac.authorization.k8s.io`
 )
+
+// kubectlApplyString generates a kubectl apply command to create the ClusterRole
+// and ClusterRoleBinding.
+// cat <<EOF | kubectl apply -f -
+// apiVersion: rbac.authorization.k8s.io/v1
+// kind: ClusterRole
+// metadata:
+//
+//	name: teleport
+//
+// rules:
+// - apiGroups:
+//   - ""
+//     resources:
+//   - users
+//   - groups
+//   - serviceaccounts
+//     verbs:
+//   - impersonate
+//
+// - apiGroups:
+//   - ""
+//     resources:
+//   - pods
+//     verbs:
+//   - get
+//
+// - apiGroups:
+//   - "authorization.k8s.io"
+//     resources:
+//   - selfsubjectaccessreviews
+//   - selfsubjectrulesreviews
+//     verbs:
+//   - create
+//
+// ---
+// apiVersion: rbac.authorization.k8s.io/v1
+// kind: ClusterRoleBinding
+// metadata:
+//
+//	name: teleport
+//
+// roleRef:
+//
+//	apiGroup: rbac.authorization.k8s.io
+//	kind: ClusterRole
+//	name: teleport
+//
+// subjects:
+//   - kind: Group
+//     name: group
+//     apiGroup: rbac.authorization.k8s.io
+//
+// EOF
+func kubectlApplyString(group string) string {
+	return fmt.Sprintf(`cat <<EOF | kubectl apply -f -
+%s
+---
+%s
+EOF`, clusterRoleTemplate, strings.ReplaceAll(clusterRoleBindingTemplate, "group_name", group))
+}

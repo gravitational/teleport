@@ -183,7 +183,7 @@ func (p *resourceWatcher) WaitInitialization() error {
 		case <-t.C:
 			p.Log.Debugf("ResourceWatcher %s is not yet initialized.", p.collector.resourceKind())
 		case <-p.ctx.Done():
-			return trace.BadParameter("ResourceWatcher %s failed to initialize.")
+			return trace.BadParameter("ResourceWatcher %s failed to initialize.", p.collector.resourceKind())
 		}
 	}
 }

@@ -102,7 +102,9 @@ type dynamicKubeCreds struct {
 	sync.RWMutex
 }
 
-func newDynamicCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+// newDynamicKubeCreds creates a new dynamicKubeCreds refresher and starts the
+// credentials refresher mechanism to renew them once they are about to expire.
+func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
 	dyn := &dynamicKubeCreds{
 		ctx:         ctx,
 		log:         log,
@@ -161,7 +163,7 @@ func (d *dynamicKubeCreds) close() error {
 	return nil
 }
 
-// renewClientset generates the credentials required for accessing the cluster using the GetAuthConfig function provided by watcher.
+// renewClientset generates the credentials required for accessing the cluster using the client function.
 func (d *dynamicKubeCreds) renewClientset(cluster types.KubeCluster) error {
 	// get auth config
 	restConfig, exp, err := d.client(d.ctx, cluster)

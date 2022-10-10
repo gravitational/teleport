@@ -84,7 +84,7 @@ func NewKubernetesClusterV3FromLegacyCluster(namespace string, cluster *Kubernet
 }
 
 // NewKubernetesClusterV3WithoutSecrets creates a new copy of the provided cluster
-// but without credentials secrets.
+// but without secrets/credentials.
 func NewKubernetesClusterV3WithoutSecrets(cluster KubeCluster) (*KubernetesClusterV3, error) {
 	clusterWithoutCreds, err := NewKubernetesClusterV3(
 		cluster.GetMetadata(),

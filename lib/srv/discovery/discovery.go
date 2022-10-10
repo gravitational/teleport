@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
@@ -34,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 // Config provides configuration for the discovery server.
@@ -277,7 +277,7 @@ func (s *Server) Wait() error {
 
 func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]string, error) {
 	subscriptionIds := subs
-	if slices.Contains(subs, types.Wildcard) {
+	if utils.SliceContainsStr(subs, types.Wildcard) {
 		subsClient, err := s.Clients.GetAzureSubscriptionClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
