@@ -3806,7 +3806,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,
-					alpncommon.ProtocolSQLServer),
+					alpncommon.ProtocolSQLServer,
+					alpncommon.ProtocolCassandra),
 			})
 		}
 
