@@ -1172,7 +1172,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 // (RFD 28) because older proxy servers will reject that causing the cache
 // to go into a re-sync loop.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
-	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("8.0.0"))
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("11.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
