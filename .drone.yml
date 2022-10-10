@@ -6249,6 +6249,93 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
+# Generated at dronegen/promote.go (main.buildDockerPromotionPipelineECR)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-docker-ecr
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-docker
+    - promote-docker-ecr
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Pull/retag Docker images
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - export VERSION=${DRONE_TAG##v}
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - echo "---> Pulling images for $${VERSION}"
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+  - echo "---> Tagging images for $${VERSION}"
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+    public.ecr.aws/gravitational/teleport:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+    public.ecr.aws/gravitational/teleport-ent:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+    public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+    public.ecr.aws/gravitational/teleport-operator:$${VERSION}
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - echo "---> Pushing images for $${VERSION}"
+  - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
+  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
+  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker push public.ecr.aws/gravitational/teleport-operator:$${VERSION}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
 # Generated at dronegen/promote.go (main.buildDockerPromotionPipelineQuay)
 ################################################
 
@@ -6321,93 +6408,6 @@ steps:
       from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
       from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/promote.go (main.buildDockerPromotionPipelineECR)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: promote-docker-ecr
-trigger:
-  event:
-    include:
-    - promote
-  target:
-    include:
-    - production
-    - promote-docker
-    - promote-docker-ecr
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Verify build is tagged
-  image: alpine:latest
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Pull/retag Docker images
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - export VERSION=${DRONE_TAG##v}
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - echo "---> Pulling images for $${VERSION}"
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
-  - echo "---> Tagging images for $${VERSION}"
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
-    public.ecr.aws/gravitational/teleport:$${VERSION}
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
-    public.ecr.aws/gravitational/teleport-ent:$${VERSION}
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-    public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
-    public.ecr.aws/gravitational/teleport-operator:$${VERSION}
-  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
-  - echo "---> Pushing images for $${VERSION}"
-  - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
-  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
-  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
-  - docker push public.ecr.aws/gravitational/teleport-operator:$${VERSION}
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7085,6 +7085,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: bec18a0a480759e7187aee70e923cc41243841e22b690466946a66b480749494
+hmac: 8be241fd9eec8e795af521e656e0fa089c9a0b18b70c9ac193e11bacaa0f5e88
 
 ...
