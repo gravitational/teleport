@@ -35,6 +35,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Unsuccessfully connect to a node in a role restricting access by invalid SSH login
   - [ ] Allow/deny role option: SSH agent forwarding
   - [ ] Allow/deny role option: Port forwarding
+  - [ ] Allow/deny role option: SSH file copying
 
 - [ ] Verify that custom PAM environment variables are available as expected.
 
@@ -314,6 +315,15 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] OIDC install instructions work
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
+
+### GitHub External SSO
+
+- [ ] Teleport OSS
+    - [ ] GitHub organization without external SSO succeeds
+    - [ ] GitHub organization with external SSO fails
+- [ ] Teleport Enterprise
+    - [ ] GitHub organization without external SSO succeeds
+    - [ ] GitHub organization with external SSO succeeds
 
 ### `tctl sso` family of commands
 
