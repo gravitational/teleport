@@ -224,6 +224,9 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 	}
 
 	// check the the cluster is registered but offline
+	// WARNING: Check compatibility between this error message in the current version of
+	// Teleport and the previous version so that old agents connected to the
+	// Teleport cluster continue to be supported.
 	if kubeErr != nil && strings.Contains(kubeErr.ErrStatus.Message, "This usually means that the agent is offline or has disconnected") {
 		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
