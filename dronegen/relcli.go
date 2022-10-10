@@ -33,7 +33,7 @@ func relcliPipeline(trigger trigger, name string, stepName string, command strin
 		waitForDockerStep(),
 		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 			awsRoleSettings: awsRoleSettings{
-				awsAccessKeyId:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+				awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
 				awsSecretAccessKey: value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
 				role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
 			},

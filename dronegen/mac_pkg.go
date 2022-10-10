@@ -41,7 +41,7 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string, extraQualific
 		},
 		macAssumeAwsRoleStep(macRoleSettings{
 			awsRoleSettings: awsRoleSettings{
-				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
 				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
 				role:               value{fromSecret: "AWS_ROLE"},
 			},
