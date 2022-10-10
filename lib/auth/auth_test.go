@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -74,7 +75,9 @@ type testPack struct {
 	mockEmitter *eventstest.MockEmitter
 }
 
-func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
+func newTestPack(
+	ctx context.Context, dataDir string, opts ...ServerOption,
+) (testPack, error) {
 	var (
 		p   testPack
 		err error
@@ -94,8 +97,11 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
-	p.a, err = NewServer(authConfig)
+	p.a, err = NewServer(authConfig, opts...)
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
@@ -301,10 +307,11 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:          gotTLSCert.NotAfter,
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login to the leaf cluster.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -333,6 +340,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -378,6 +386,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -411,6 +420,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -453,6 +463,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -486,6 +497,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -866,6 +878,9 @@ func TestUpdateConfig(t *testing.T) {
 		Backend:                s.bk,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
 	}
 	authServer, err := NewServer(authConfig)
 	require.NoError(t, err)
@@ -2041,7 +2056,7 @@ func TestCAGeneration(t *testing.T) {
 	)
 	native.PrecomputeKeys()
 	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := native.GenerateKeyPair()
+	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{

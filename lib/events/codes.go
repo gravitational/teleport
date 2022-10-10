@@ -172,6 +172,18 @@ const (
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
 	SQLServerRPCRequestCode = "TMS00I"
 
+	// CassandraBatchEventCode is the db.session.cassandra.batch event code.
+	CassandraBatchEventCode = "TCA01I"
+	// CassandraPrepareEventCode is the db.session.cassandra.prepare event code.
+	CassandraPrepareEventCode = "TCA02I"
+	// CassandraExecuteEventCode is the db.session.cassandra.execute event code.
+	CassandraExecuteEventCode = "TCA03I"
+	// CassandraRegisterEventCode is the db.session.cassandra.register event code.
+	CassandraRegisterEventCode = "TCA04I"
+
+	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
+	ElasticsearchRequestCode = "TES00I"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
@@ -337,6 +349,11 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+
+	// SSMRunSuccessCode is the discovery script success code.
+	SSMRunSuccessCode = "TDS00I"
+	// SSMRunFailCode is the discovery script success code.
+	SSMRunFailCode = "TDS00W"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

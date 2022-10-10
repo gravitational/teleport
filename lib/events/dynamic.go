@@ -211,6 +211,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLRefresh{}
 	case DatabaseSessionSQLServerRPCRequestEvent:
 		e = &events.SQLServerRPCRequest{}
+	case DatabaseSessionElasticsearchRequestEvent:
+		e = &events.ElasticsearchRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -251,8 +253,27 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UpgradeWindowStartUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
+	case SSMRunEvent:
+		e = &events.SSMRun{}
+	case KubernetesClusterCreateEvent:
+		e = &events.KubernetesClusterCreate{}
+	case KubernetesClusterUpdateEvent:
+		e = &events.KubernetesClusterUpdate{}
+	case KubernetesClusterDeleteEvent:
+		e = &events.KubernetesClusterDelete{}
 	case UnknownEvent:
 		e = &events.Unknown{}
+
+	// Cassandra events.
+	case CassandraBatchEventCode:
+		e = &events.CassandraBatch{}
+	case CassandraRegisterEventCode:
+		e = &events.CassandraRegister{}
+	case CassandraPrepareEventCode:
+		e = &events.CassandraPrepare{}
+	case CassandraExecuteEventCode:
+		e = &events.CassandraExecute{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
 		unknown := &events.Unknown{}

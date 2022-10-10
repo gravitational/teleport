@@ -101,7 +101,7 @@ func makeFileInfo(filePath string) (FileInfo, error) {
 	return &localFileInfo{
 		filePath:   filePath,
 		fileInfo:   f,
-		accessTime: atime(f),
+		accessTime: GetAtime(f),
 	}, nil
 }
 

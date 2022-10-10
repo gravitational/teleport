@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -37,7 +38,27 @@ const (
 	JoinMethodEC2 JoinMethod = "ec2"
 	// JoinMethodIAM indicates that the node will join with the IAM join method.
 	JoinMethodIAM JoinMethod = "iam"
+	// JoinMethodGitHub indicates that the node will join with the GitHub join
+	// method. Documentation regarding the implementation of this can be found
+	// in lib/githubactions
+	JoinMethodGitHub JoinMethod = "github"
 )
+
+var JoinMethods = []JoinMethod{
+	JoinMethodToken,
+	JoinMethodEC2,
+	JoinMethodIAM,
+	JoinMethodGitHub,
+}
+
+func ValidateJoinMethod(method JoinMethod) error {
+	hasJoinMethod := apiutils.SliceContainsStr(JoinMethods, method)
+	if !hasJoinMethod {
+		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
+	}
+
+	return nil
+}
 
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
@@ -174,6 +195,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" {
 				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_arn"`, JoinMethodEC2)
 			}
+		}
+	case JoinMethodGitHub:
+		providerCfg := p.Spec.GitHub
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"github" configuration must be provided for join method %q`,
+				JoinMethodGitHub,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -359,4 +391,22 @@ func (p ProvisionTokenV1) String() string {
 	}
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)",
 		p.Roles, expires)
+}
+
+func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodGitHub)
+	}
+	for _, rule := range a.Allow {
+		repoSet := rule.Repository != ""
+		ownerSet := rule.RepositoryOwner != ""
+		subSet := rule.Sub != ""
+		if !(subSet || ownerSet || repoSet) {
+			return trace.BadParameter(
+				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
+				JoinMethodGitHub,
+			)
+		}
+	}
+	return nil
 }

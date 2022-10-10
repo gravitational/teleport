@@ -71,10 +71,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -87,7 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/labels/ec2"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -146,6 +144,9 @@ const (
 	// Server.
 	WindowsDesktopIdentityEvent = "WindowsDesktopIdentity"
 
+	// DiscoveryIdentityEvent is generated when the identity of the
+	DiscoveryIdentityEvent = "DiscoveryIdentityEvent"
+
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"
@@ -201,6 +202,10 @@ const (
 	// InstanceReady is generated when the teleport instance control handle has
 	// been set up.
 	InstanceReady = "InstanceReady"
+
+	// DiscoveryReady is generated when the Teleport database proxy service
+	// is ready to start accepting connections.
+	DiscoveryReady = "DiscoveryReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -383,13 +388,13 @@ type keyPairKey struct {
 
 // newTeleportConfig provides extra options to NewTeleport().
 type newTeleportConfig struct {
-	imdsClient aws.InstanceMetadata
+	imdsClient cloud.InstanceMetadata
 }
 
 type NewTeleportOption func(*newTeleportConfig)
 
 // WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
-func WithIMDSClient(client aws.InstanceMetadata) NewTeleportOption {
+func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
 	return func(c *newTeleportConfig) {
 		c.imdsClient = client
 	}
@@ -794,6 +799,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
+	switch cfg.Auth.Preference.GetRequireMFAType() {
+	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		}
+	}
+
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
@@ -806,12 +818,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
-	// TODO(espadolini): DELETE IN 11.0, replace with
-	// os.RemoveAll(filepath.Join(cfg.DataDir, "cache")), because no stable v10
-	// should ever use the cache directory, and 11 requires upgrading from 10
-	if fi, err := os.Stat(filepath.Join(cfg.DataDir, "cache")); err == nil && fi.IsDir() {
-		cfg.Log.Warnf("An old cache directory exists at %q. It can be safely deleted after ensuring that no other Teleport instance is running.", filepath.Join(cfg.DataDir, "cache"))
-	}
+	// no stable v10 should ever use the cache directory, and 11 requires
+	// upgrading from 10, so any leftover "cache" directory is not in active use
+	// and can be deleted
+	// TODO(espadolini): DELETE IN 12.0, v11 will have deleted any "cache"
+	// directory by then
+	_ = os.RemoveAll(filepath.Join(cfg.DataDir, "cache"))
 
 	if len(cfg.FileDescriptors) == 0 {
 		cfg.FileDescriptors, err = importFileDescriptors(cfg.Log)
@@ -835,7 +847,10 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
 			switch cfg.JoinMethod {
-			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
+			case types.JoinMethodToken,
+				types.JoinMethodUnspecified,
+				types.JoinMethodIAM,
+				types.JoinMethodGitHub:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
 				// Teleport starts very early in the node initialization cycle and /dev/urandom
@@ -887,39 +902,38 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	var cloudLabels labels.Importer
 
-	// Check if we're on an EC2 instance, and if we should override the node's hostname.
+	// Check if we're on a cloud instance, and if we should override the node's hostname.
 	imClient := newTeleportConf.imdsClient
 	if imClient == nil {
-		imClient, err = utils.NewInstanceMetadataClient(supervisor.ExitContext())
-		if err != nil {
+		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if imClient.IsAvailable(supervisor.ExitContext()) {
-		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
+	if imClient != nil {
+		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
-			ec2Hostname = strings.ReplaceAll(ec2Hostname, " ", "_")
-			if utils.IsValidHostname(ec2Hostname) {
-				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
-				cfg.Hostname = ec2Hostname
+			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")
+			if utils.IsValidHostname(cloudHostname) {
+				cfg.Log.Infof("Found %q tag in cloud instance. Using %q as hostname.", types.CloudHostnameTag, cloudHostname)
+				cfg.Hostname = cloudHostname
 
-				// ec2Hostname exists but is not a valid hostname.
-			} else if ec2Hostname != "" {
-				cfg.Log.Infof("Found %q tag in EC2 instance, but %q is not a valid hostname.", types.EC2HostnameTag, ec2Hostname)
+				// cloudHostname exists but is not a valid hostname.
+			} else if cloudHostname != "" {
+				cfg.Log.Infof("Found %q tag in cloud instance, but %q is not a valid hostname.", types.CloudHostnameTag, cloudHostname)
 			}
 		} else if !trace.IsNotFound(err) {
-			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
+			return nil, trace.Wrap(err)
 		}
 
-		ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.Config{
+		cloudLabels, err = labels.NewCloudImporter(supervisor.ExitContext(), &labels.CloudConfig{
 			Client: imClient,
 			Clock:  cfg.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cloudLabels = ec2Labels
 	}
 
 	if cloudLabels != nil {
@@ -961,15 +975,15 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
-	if process.Config.Auth.Enabled && len(process.Config.AuthServers) == 0 {
-		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.ListenAddr}
+	if process.Config.Auth.Enabled && len(process.Config.AuthServerAddresses()) == 0 {
+		process.Config.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	}
 
-	if len(process.Config.AuthServers) != 0 && process.Config.AuthServers[0].Port(0) == 0 {
+	if len(process.Config.AuthServerAddresses()) != 0 && process.Config.AuthServerAddresses()[0].Port(0) == 0 {
 		// port appears undefined, attempt early listener creation so that we can get the real port
 		listener, err := process.importOrCreateListener(ListenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
-			process.Config.AuthServers = []utils.NetAddr{utils.FromAddr(listener.Addr())}
+			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
 		}
 	}
 
@@ -1046,6 +1060,9 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if cfg.Tracing.Enabled {
 		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
+	if cfg.Discovery.Enabled {
+		eventMapping.In = append(eventMapping.In, DiscoveryReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -1120,7 +1137,19 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.log)
 	}
 
+	if process.shouldInitDiscovery() {
+		process.initDiscovery()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
+	}
+
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
+
+	// run one upload completer per-process
+	// even in sync recording modes, since the recording mode can be changed
+	// at any time with dynamic configuration
+	process.RegisterFunc("common.upload", process.initUploaderService)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
@@ -1252,8 +1281,11 @@ func adminCreds() (*int, *int, error) {
 	return &uid, &gid, nil
 }
 
-// initUploadHandler initializes upload handler based on the config settings,
-func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
+// initAuthUploadHandler initializes the auth server's upload handler based upon the configuration.
+// When configured to store session recordings in external storage, this will be an API client for
+// cloud-provider storage. Otherwise a local file-based handler is used which stores the recordings
+// on disk.
+func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
 	if !auditConfig.ShouldUploadSessions() {
 		recordsDir := filepath.Join(dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
@@ -1313,9 +1345,8 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 	}
 }
 
-// initExternalLog initializes external storage, if the storage is not
-// setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, log logrus.FieldLogger) (events.IAuditLog, error) {
+// initAuthAuditLog initializes the auth server's audit log.
+func initAuthAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend) (events.IAuditLog, error) {
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
@@ -1448,7 +1479,7 @@ func (process *TeleportProcess) initAuthService() error {
 			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
 		}
 
-		uploadHandler, err = initUploadHandler(
+		uploadHandler, err = initAuthUploadHandler(
 			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -1463,7 +1494,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log)
+		externalLog, err := initAuthAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1564,6 +1595,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
 		FIPS:                    cfg.FIPS,
+		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1605,8 +1637,10 @@ func (process *TeleportProcess) initAuthService() error {
 
 	process.setLocalAuth(authServer)
 
-	// Upload completer is responsible for checking for initiated but abandoned
-	// session uploads and completing them. it will be closed once the process exits.
+	// The auth server runs its own upload completer, which is necessary in sync recording modes where
+	// a node can abandon an upload before it is competed.
+	// (In async recording modes, auth only ever sees completed uploads, as the node's upload completer
+	// packages up the parts into a single upload before sending to auth)
 	if uploadHandler != nil {
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
@@ -1614,10 +1648,6 @@ func (process *TeleportProcess) initAuthService() error {
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
 			ClusterName:    clusterName,
-			// DELETE IN 11.0.0
-			// Provide a grace period so that Auth does not prematurely upload
-			// sessions which don't have a session tracker (v9.2 and earlier)
-			GracePeriod: defaults.UploadGracePeriod,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1973,6 +2003,19 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cache
 	return auth.NewDatabaseWrapper(clt, cache), nil
 }
 
+// newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
+func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+	cache, err := process.newLocalCache(clt, cache.ForDiscovery, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.NewDiscoveryWrapper(clt, cache), nil
+}
+
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.ProxyAccessPoint, error) {
 	// if caching is disabled, return access point
@@ -2199,7 +2242,11 @@ func (process *TeleportProcess) initSSH() error {
 		}
 		// TODO: are we missing rm.Close()
 
-		// make sure the namespace exists
+		// make sure the default namespace is used
+		if ns := cfg.SSH.Namespace; ns != "" && ns != apidefaults.Namespace {
+			return trace.BadParameter("cannot start with custom namespace %q, custom namespaces are deprecated. "+
+				"use builtin namespace %q, or omit the 'namespace' config option.", ns, apidefaults.Namespace)
+		}
 		namespace := types.ProcessNamespace(cfg.SSH.Namespace)
 		_, err = authClient.GetNamespace(namespace)
 		if err != nil {
@@ -2300,29 +2347,11 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
-			regular.SetAWSMatchers(cfg.SSH.AWSMatchers),
 		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer func() { warnOnErr(s.Close(), log) }()
-
-		// init uploader service for recording SSH node, if proxy is not
-		// enabled on this node, because proxy stars uploader service as well
-		if !cfg.Proxy.Enabled {
-			uploaderCfg := filesessions.UploaderConfig{
-				Streamer: authClient,
-				AuditLog: conn.Client,
-			}
-			completerCfg := events.UploadCompleterConfig{
-				SessionTracker: conn.Client,
-				GracePeriod:    defaults.UploadGracePeriod,
-				ClusterName:    conn.ServerIdentity.ClusterName,
-			}
-			if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-				return trace.Wrap(err)
-			}
-		}
 
 		var agentPool *reversetunnel.AgentPool
 		if !conn.UseTunnel() {
@@ -2422,12 +2451,43 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 	})
 }
 
-// initUploadService starts a file-based uploader that scans the local streaming logs directory
+// initUploaderService starts a file-based uploader that scans the local streaming logs directory
 // (data/log/upload/streaming/default/)
-func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.UploaderConfig, completerCfg events.UploadCompleterConfig) error {
+func (process *TeleportProcess) initUploaderService() error {
 	log := process.log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
+		trace.Component: teleport.Component(teleport.ComponentUpload, process.id),
 	})
+
+	if _, err := process.WaitForEvent(process.ExitContext(), TeleportReadyEvent); err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("starting upload completer service")
+
+	connectors := process.getConnectors()
+	var conn *Connector
+	for _, c := range connectors {
+		if c.Client != nil {
+			conn = c
+			log.Debugf("upload completer will use role %v", c.ServerIdentity.ID.Role)
+			break
+		}
+	}
+
+	// The auth service's upload completer is initialized separately.
+	// The only circumstance in which we would expect not to have found
+	// a connector is if the auth service is the only service running in
+	// this process. In that case, there's nothing to do here and we can
+	// safely return.
+	if conn == nil {
+		for _, localService := range types.LocalServiceMappings() {
+			if localService != types.RoleAuth && process.instanceRoleExpected(localService) {
+				return trace.BadParameter("no connectors found")
+			}
+		}
+		return nil
+	}
+
 	// create folder for uploads
 	uid, gid, err := adminCreds()
 	if err != nil {
@@ -2455,9 +2515,13 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 		}
 	}
 
-	uploaderCfg.ScanDir = filepath.Join(path...)
-	uploaderCfg.EventsC = process.Config.UploadEventsC
-	fileUploader, err := filesessions.NewUploader(uploaderCfg)
+	uploadsDir := filepath.Join(path...)
+
+	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
+		Streamer: conn.Client,
+		ScanDir:  uploadsDir,
+		EventsC:  process.Config.UploadEventsC,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2480,16 +2544,17 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 	// upload completer scans for uploads that have been initiated, but not completed
 	// by the client (aborted or crashed) and completes them. It will be closed once
 	// the uploader context is closed.
-	handler, err := filesessions.NewHandler(filesessions.Config{
-		Directory: filepath.Join(path...),
-	})
+	handler, err := filesessions.NewHandler(filesessions.Config{Directory: uploadsDir})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	completerCfg.Uploader = handler
-	completerCfg.AuditLog = uploaderCfg.AuditLog
-	uploadCompleter, err := events.NewUploadCompleter(completerCfg)
+	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Uploader:       handler,
+		AuditLog:       conn.Client,
+		SessionTracker: conn.Client,
+		ClusterName:    conn.ServerIdentity.ClusterName,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3384,7 +3449,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NodeWatcher:                   nodeWatcher,
 				CertAuthorityWatcher:          caWatcher,
 				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
+				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3435,7 +3500,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webConfig := web.Config{
 			Proxy:            tsrv,
-			AuthServers:      cfg.AuthServers[0],
+			AuthServers:      cfg.AuthServerAddresses()[0],
 			DomainName:       cfg.Hostname,
 			ProxyClient:      conn.Client,
 			ProxySSHAddr:     proxySSHAddr,
@@ -3604,7 +3669,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 		Log:                 rcWatchLog,
-		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServers),
+		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3735,7 +3800,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,
-					alpncommon.ProtocolSQLServer),
+					alpncommon.ProtocolSQLServer,
+					alpncommon.ProtocolCassandra),
 			})
 		}
 
@@ -3801,7 +3867,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServerAddresses()))
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
@@ -3918,17 +3984,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Infof("Exited.")
 	})
 
-	uploaderCfg := filesessions.UploaderConfig{
-		Streamer: accessPoint,
-		AuditLog: conn.Client,
-	}
-	completerCfg := events.UploadCompleterConfig{
-		SessionTracker: conn.Client,
-		ClusterName:    clusterName,
-	}
-	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -4196,6 +4251,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *Config) {
 	if cfg.WindowsDesktop.Enabled {
 		process.setExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	}
+
+	if cfg.Discovery.Enabled {
+		process.setExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
+	}
 }
 
 // appDependEvents is a list of events that the application service depends on.
@@ -4262,7 +4321,7 @@ func (process *TeleportProcess) initApps() {
 			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 			// run the resolver. this will check configuration for errors.
-			_, err := tunnelAddrResolver(process.ExitContext())
+			_, _, err := tunnelAddrResolver(process.ExitContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -4274,20 +4333,6 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		clusterName := conn.ServerIdentity.ClusterName
-
-		// Start uploader that will scan a path on disk and upload completed
-		// sessions to the Auth Server.
-		uploaderCfg := filesessions.UploaderConfig{
-			Streamer: accessPoint,
-			AuditLog: conn.Client,
-		}
-		completerCfg := events.UploadCompleterConfig{
-			SessionTracker: conn.Client,
-			ClusterName:    clusterName,
-		}
-		if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
-			return trace.Wrap(err)
-		}
 
 		// Start header dumping debugging application if requested.
 		if process.Config.Apps.DebugApp {
@@ -4487,9 +4532,6 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	// etcd backend.
 	case etcdbk.GetName():
 		bk, err = etcdbk.New(ctx, bc.Params)
-	// PostgreSQL backend
-	case postgres.GetName():
-		bk, err = postgres.New(ctx, bc.Params)
 	default:
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}
@@ -4598,47 +4640,6 @@ func (process *TeleportProcess) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled {
-		return trace.BadParameter(
-			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service or windows_desktop_service")
-	}
-
-	if cfg.DataDir == "" {
-		return trace.BadParameter("config: please supply data directory")
-	}
-
-	if cfg.Console == nil {
-		cfg.Console = io.Discard
-	}
-
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger()
-	}
-
-	if len(cfg.AuthServers) == 0 {
-		return trace.BadParameter("auth_servers is empty")
-	}
-	for i := range cfg.Auth.Authorities {
-		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	for _, tun := range cfg.ReverseTunnels {
-		if err := services.ValidateReverseTunnel(tun); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if cfg.PollingPeriod == 0 {
-		cfg.PollingPeriod = defaults.LowResPollingPeriod
-	}
-
-	cfg.SSH.Namespace = types.ProcessNamespace(cfg.SSH.Namespace)
-
-	return nil
-}
-
 // initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
 // to the proxy server.
 func initSelfSignedHTTPSCert(cfg *Config) (err error) {
@@ -4693,12 +4694,12 @@ func (process *TeleportProcess) initDebugApp() {
 // singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
-	return func(context.Context) (*utils.NetAddr, error) {
+	return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
-			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
+			return nil, mode, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
 		}
-		return addr, nil
+		return addr, mode, nil
 	}
 }
 
@@ -4783,8 +4784,8 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
 	if !isDebugMode() {
-		fs, err := web.NewStaticFileSystem() //nolint:staticcheck
-		if err != nil {                      //nolint:staticcheck
+		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck
+		if err != nil {                              //nolint:staticcheck
 			return nil, trace.Wrap(err)
 		}
 		return fs, nil

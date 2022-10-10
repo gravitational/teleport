@@ -596,13 +596,18 @@ func GetTraitMappings(cms []types.ClaimMapping) types.TraitMappingSet {
 	return types.TraitMappingSet(tm)
 }
 
+// ResourceLister is an interface which can list resources.
+type ResourceLister interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
 // RequestValidatorGetter is the interface required by the request validation
 // functions used to get necessary resources.
 type RequestValidatorGetter interface {
 	UserGetter
 	RoleGetter
+	ResourceLister
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 }
 
@@ -1356,7 +1361,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := getResources(ctx, m.getter, resourceIDs)
+	resources, err := GetResourcesByResourceIDs(ctx, m.getter, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1455,7 +1460,7 @@ func roleAllowsResource(
 	return true, nil
 }
 
-func getResources(ctx context.Context, getter RequestValidatorGetter, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
 		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
@@ -1467,7 +1472,7 @@ func getResources(ctx context.Context, getter RequestValidatorGetter, resourceID
 			PredicateExpression: anyNameMatcher(resourceNames),
 			Limit:               int32(len(resourceNames)),
 		}
-		resp, err := getter.ListResources(ctx, req)
+		resp, err := lister.ListResources(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1487,7 +1492,7 @@ func getResources(ctx context.Context, getter RequestValidatorGetter, resourceID
 func anyNameMatcher(names []string) string {
 	matchers := make([]string, len(names))
 	for i := range names {
-		matchers[i] = fmt.Sprintf(`name == %q`, names[i])
+		matchers[i] = fmt.Sprintf(`resource.metadata.name == %q`, names[i])
 	}
 	return strings.Join(matchers, " || ")
 }

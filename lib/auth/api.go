@@ -56,11 +56,6 @@ type Announcer interface {
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
-	// UpsertAppServer adds an application server.
-	//
-	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
-
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 
@@ -228,11 +223,6 @@ type ReadProxyAccessPoint interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
@@ -369,11 +359,6 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
-
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -676,6 +661,46 @@ type WindowsDesktopAccessPoint interface {
 	accessPoint
 }
 
+// ReadDiscoveryAccessPoint is a read only API interface to be
+// used by a teleport.ComponentDiscovery.
+//
+// NOTE: This interface must match the resources replicated in cache.ForDiscovery.
+type ReadDiscoveryAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
+	// GetNodes returns a list of registered servers for this cluster.
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+}
+
+// DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentDiscovery
+type DiscoveryAccessPoint interface {
+	// ReadDiscoveryAccessPoint provides methods to read data
+	ReadDiscoveryAccessPoint
+
+	// accessPoint provides common access point functionality
+	accessPoint
+}
+
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
@@ -766,11 +791,6 @@ type Cache interface {
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
 
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
@@ -852,6 +872,8 @@ type Cache interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// ListWindowsDesktops returns a paginated list of windows desktops.
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+	// ListWindowsDesktopServices returns a paginated list of windows desktops.
+	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 
 	// GetInstaller gets installer resource for this cluster
 	GetInstaller(ctx context.Context, name string) (types.Installer, error)
@@ -1009,6 +1031,27 @@ func NewWindowsDesktopWrapper(base WindowsDesktopAccessPoint, cache ReadWindowsD
 func (w *WindowsDesktopWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadWindowsDesktopAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type DiscoveryWrapper struct {
+	ReadDiscoveryAccessPoint
+	accessPoint
+	NoCache DiscoveryAccessPoint
+}
+
+func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoint) DiscoveryAccessPoint {
+	return &DiscoveryWrapper{
+		NoCache:                  base,
+		accessPoint:              base,
+		ReadDiscoveryAccessPoint: cache,
+	}
+}
+
+// Close closes all associated resources
+func (w *DiscoveryWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadDiscoveryAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

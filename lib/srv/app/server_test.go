@@ -31,6 +31,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
@@ -51,7 +52,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 func TestMain(m *testing.M) {
@@ -90,7 +90,7 @@ func (s *Suite) TearDown(t *testing.T) {
 
 	s.testhttp.Close()
 
-	err = s.tlsServer.Auth().DeleteAllAppServers(s.closeContext, defaults.Namespace)
+	err = s.tlsServer.Auth().DeleteAllApplicationServers(s.closeContext, defaults.Namespace)
 	require.NoError(t, err)
 
 	s.closeFunc()
@@ -215,7 +215,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,
@@ -229,7 +229,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Generate certificate for AWS console application.
-	privateKey, publicKey, err = native.GenerateKeyPair()
+	privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err = s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,
@@ -471,12 +471,12 @@ func TestRequestAuditEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	requestEventsReceived := atomic.NewUint64(0)
+	var requestEventsReceived atomic.Uint64
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: events.NewDiscardEmitter(),
 		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
 			if event.GetType() == events.AppSessionRequestEvent {
-				requestEventsReceived.Inc()
+				requestEventsReceived.Add(1)
 
 				expectedEvent := &apievents.AppSessionRequest{
 					Metadata: apievents.Metadata{
