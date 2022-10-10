@@ -1237,6 +1237,8 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
     start (due to RBAC, for example)
+  - [ ] `client.disconnect` (`T3006I`) emitted when session is terminated by or fails
+    to start due to lock
   - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
   - [ ] `desktop.clipboard.send` (`TDP02I`) emitted for local copy -> remote
     paste
