@@ -50,6 +50,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 type testConfigFiles struct {
@@ -786,10 +787,10 @@ func TestApplyConfig(t *testing.T) {
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOTP,
-			U2F: &types.U2F{
-				AppID: "app-id",
-				DeviceAttestationCAs: []string{
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "goteleport.com",
+				AttestationAllowedCAs: []string{
 					string(u2fCAFromFile),
 					`-----BEGIN CERTIFICATE-----
 MIIDFzCCAf+gAwIBAgIDBAZHMA0GCSqGSIb3DQEBCwUAMCsxKTAnBgNVBAMMIFl1
@@ -816,9 +817,9 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
-			AllowPasswordless:     types.NewBoolOption(false),
+			AllowPasswordless:     types.NewBoolOption(true),
 		},
-	}))
+	}, protocmp.Transform()))
 
 	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.Path)
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)

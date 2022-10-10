@@ -118,6 +118,10 @@ type TLSServer struct {
 	// reconcileCh triggers reconciliation of proxied kube_clusters.
 	reconcileCh chan struct{}
 	log         *logrus.Entry
+	// legacyHeartbeat is used to heartbeat clusters as KindKubeService in order to support older
+	// clients that do not support new KindKubeServer
+	// DELETE IN 12.0.0
+	legacyHeartbeat *srv.Heartbeat
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -231,6 +235,10 @@ func (t *TLSServer) Close() error {
 	var (
 		errs []error
 	)
+	// Stop the legacy heartbeat resource watcher.
+	if t.legacyHeartbeat != nil {
+		errs = append(errs, t.legacyHeartbeat.Close())
+	}
 	for _, kubeCluster := range t.fwd.kubeClusters() {
 		errs = append(errs, t.unregisterKubeCluster(t.closeContext, kubeCluster.GetName()))
 	}
@@ -359,6 +367,11 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 				return trace.Wrap(err)
 			}
 		}
+		// start a legacy heartbeat
+		// DELETE in 12.0.0
+		if err := t.startLegacyHeartbeat(); err != nil {
+			return trace.Wrap(err)
+		}
 	} else {
 		t.log.Debug("No local kube credentials on proxy, will not start kubernetes_service heartbeats")
 	}
@@ -376,4 +389,82 @@ func (t *TLSServer) stopHeartbeat(name string) error {
 	}
 	delete(t.heartbeats, name)
 	return trace.Wrap(heartbeat.Close())
+}
+
+// startLegacyHeartbeat starts an heartbeat for a legacy KubernetesService
+// so older clients can still look into kube clusters.
+// DELETE IN 12.0.0
+func (t *TLSServer) startLegacyHeartbeat() (err error) {
+	t.legacyHeartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
+		Mode:            srv.HeartbeatModeKube,
+		Context:         t.Context,
+		Component:       t.Component,
+		Announcer:       t.AuthClient,
+		GetServerInfo:   t.legacyGetServerInfo,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		Clock:           t.Clock,
+		OnHeartbeat:     t.OnHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go t.legacyHeartbeat.Run()
+	return nil
+}
+
+// legacyGetServerInfo is used to heartbeat the clusters monitored by this service
+// as old kubeServices so older clients can still look into kube clusters.
+// DELETE IN 12.0.0
+func (t *TLSServer) legacyGetServerInfo() (types.Resource, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var addr string
+	if t.TLSServerConfig.ForwarderConfig.PublicAddr != "" {
+		addr = t.TLSServerConfig.ForwarderConfig.PublicAddr
+	} else if t.listener != nil {
+		addr = t.listener.Addr().String()
+	}
+
+	// Both proxy and kubernetes services can run in the same instance (same
+	// HostID). Add a name suffix to make them distinct.
+	//
+	// Note: we *don't* want to add suffix for kubernetes_service!
+	// This breaks reverse tunnel routing, which uses server.Name.
+	name := t.HostID
+	if t.KubeServiceType != KubeService {
+		name += "-proxy_service"
+	}
+
+	kubeClusters := t.fwd.kubeClusters()
+	legacyKubeClusters := make([]*types.KubernetesCluster, len(kubeClusters))
+
+	for i, kubeCluster := range kubeClusters {
+		legacyKubeClusters[i] = &types.KubernetesCluster{
+			Name:          kubeCluster.GetName(),
+			StaticLabels:  kubeCluster.GetStaticLabels(),
+			DynamicLabels: types.LabelsToV2(kubeCluster.GetDynamicLabels()),
+		}
+	}
+
+	srv := &types.ServerV2{
+		Kind:    types.KindKubeService,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      name,
+			Namespace: t.Namespace,
+		},
+		Spec: types.ServerSpecV2{
+			Addr:               addr,
+			Version:            teleport.Version,
+			KubernetesClusters: legacyKubeClusters,
+			ProxyIDs:           t.ConnectedProxyGetter.GetProxyIDs(),
+		},
+	}
+	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+
+	return srv, nil
 }

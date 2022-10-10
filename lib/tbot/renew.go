@@ -464,7 +464,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		ID: auth.IdentityID{
 			Role: types.RoleBot,
 		},
-		Servers:            []utils.NetAddr{*addr},
+		AuthServers:        []utils.NetAddr{*addr},
 		PublicTLSKey:       tlsPublicKey,
 		PublicSSHKey:       sshPublicKey,
 		CAPins:             b.cfg.Onboarding.CAPins,
@@ -496,7 +496,9 @@ func (b *Bot) renewIdentityViaAuth(
 		joinMethod = b.cfg.Onboarding.JoinMethod
 	}
 	switch joinMethod {
-	case types.JoinMethodIAM:
+	// When using join methods that are repeatable - renew fully rather than
+	// renewing using existing credentials.
+	case types.JoinMethodIAM, types.JoinMethodGitHub:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
