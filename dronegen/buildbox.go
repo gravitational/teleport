@@ -54,7 +54,7 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 			"PROD_AWS_ACCESS_KEY_ID":        {fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY"},
 			"PROD_AWS_SECRET_ACCESS_KEY":    {fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET"},
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{volumeRefDocker},
 		Commands: []string{
 			`apk add --no-cache make aws-cli`,
 			`chown -R $UID:$GID /go`,
@@ -88,7 +88,7 @@ func buildboxPipeline() pipeline {
 	}
 	p.Trigger = pushTriggerFor("master", "branch/v9")
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
-	p.Volumes = dockerVolumes()
+	p.Volumes = []volume{volumeDocker}
 	p.Services = []service{
 		dockerService(),
 	}
