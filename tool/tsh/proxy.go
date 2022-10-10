@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -189,7 +190,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}
 
 	defer lp.Close()
-	if err := lp.Start(cf.Context); err != nil {
+	// To avoid termination of background DB teleport proxy when a SIGINT is received don't use the cf.Context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := lp.Start(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
