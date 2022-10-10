@@ -234,7 +234,7 @@ func tagPipeline(b buildType) pipeline {
 		},
 		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 			awsRoleSettings: awsRoleSettings{
-				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
 				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
 				role:               value{fromSecret: "AWS_ROLE"},
 			},
@@ -430,7 +430,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		waitForDockerStep(),
 		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 			awsRoleSettings: awsRoleSettings{
-				awsAccessKeyId:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
 				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
 				role:               value{fromSecret: "AWS_ROLE"},
 			},
