@@ -202,10 +202,14 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
+		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
+		{Kind: types.KindApp},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabase},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
