@@ -45,7 +45,7 @@ func buildDockerPromotionPipelineECR() pipeline {
 	// Pull/Push Steps
 	dockerPipeline.Steps = append(dockerPipeline.Steps, kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyId:     value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
+			awsAccessKeyID:     value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
 			awsSecretAccessKey: value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET"},
 			role:               value{fromSecret: "PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE"},
 		},
@@ -112,7 +112,7 @@ func buildDockerPromotionPipelineQuay() pipeline {
 	// Pull/Push Steps
 	dockerPipeline.Steps = append(dockerPipeline.Steps, kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyId:     value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
+			awsAccessKeyID:     value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
 			awsSecretAccessKey: value{fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET"},
 			role:               value{fromSecret: "PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE"},
 		},
