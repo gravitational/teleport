@@ -354,7 +354,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	routeToDatabase, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -412,11 +412,18 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		var opts = []dbcmd.ConnectCommandFunc{
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
+		}
+		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
+			return trace.Wrap(err)
+		}
+
+		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
 			return trace.Wrap(err)
@@ -425,7 +432,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		// shared template arguments
 		templateArgs := map[string]any{
 			"database": routeToDatabase.ServiceName,
-			"type":     dbProtocolToText(routeToDatabase.Protocol),
+			"type":     defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
 			"cluster":  client.SiteName,
 			"address":  listener.Addr().String(),
 		}
@@ -454,6 +461,20 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func maybeAddDBUserPassword(db types.Database, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	if db.GetProtocol() == defaults.ProtocolCassandra && db.IsAWSHosted() {
+		// Cassandra client always prompt for password, so we need to provide it
+		// Provide an auto generated random password to skip the prompt in case of
+		// connection to AWS hosted cassandra.
+		password, err := utils.CryptoRandomHex(16)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return append(opts, dbcmd.WithPassword(password)), nil
+	}
+	return opts, nil
 }
 
 type templateCommandItem struct {
@@ -708,24 +729,6 @@ Use following credentials to connect to the {{.database}} proxy:
   cert_file={{.cert}}
   key_file={{.key}}
 `))
-
-func dbProtocolToText(protocol string) string {
-	switch protocol {
-	case defaults.ProtocolPostgres:
-		return "PostgreSQL"
-	case defaults.ProtocolCockroachDB:
-		return "CockroachDB"
-	case defaults.ProtocolMySQL:
-		return "MySQL"
-	case defaults.ProtocolMongoDB:
-		return "MongoDB"
-	case defaults.ProtocolRedis:
-		return "Redis"
-	case defaults.ProtocolSQLServer:
-		return "SQL Server"
-	}
-	return ""
-}
 
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
