@@ -629,12 +629,12 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 }
 
 func (rc *ResourceCommand) createPolicy(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	_, err := services.UnmarshalPolicy(raw.Raw)
+	policy, err := services.UnmarshalPolicy(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// write policy to auth here
+	err = client.CreatePolicy(ctx, policy)
 	return trace.Wrap(err)
 }
 

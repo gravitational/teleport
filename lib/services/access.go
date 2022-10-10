@@ -54,4 +54,9 @@ type Access interface {
 	DeleteAllLocks(context.Context) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
+
+	// CreatePolicy creates a new policy resource.
+	CreatePolicy(ctx context.Context, policy types.Policy) error
+	// GetPolicy fetches a policy resource by name.
+	GetPolicy(ctx context.Context, name string) (types.Policy, error)
 }

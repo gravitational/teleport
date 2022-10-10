@@ -1999,7 +1999,7 @@ service AuthService {
 
   // CreatePolicy creates a new policy resource.
   rpc CreatePolicy(types.PolicyV1) returns (google.protobuf.Empty);
-  // GetPolicy fetches a policy resourc by name.
+  // GetPolicy fetches a policy resource by name.
   rpc GetPolicy(PolicyRequest) returns (types.PolicyV1);
 
   // GetUser gets a user resource by name.

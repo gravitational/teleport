@@ -12666,7 +12666,7 @@ type AuthServiceClient interface {
 	GetBotUsers(ctx context.Context, in *GetBotUsersRequest, opts ...grpc.CallOption) (AuthService_GetBotUsersClient, error)
 	// CreatePolicy creates a new policy resource.
 	CreatePolicy(ctx context.Context, in *types.PolicyV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// GetPolicy fetches a policy resourc by name.
+	// GetPolicy fetches a policy resource by name.
 	GetPolicy(ctx context.Context, in *PolicyRequest, opts ...grpc.CallOption) (*types.PolicyV1, error)
 	// GetUser gets a user resource by name.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*types.UserV2, error)
@@ -15310,7 +15310,7 @@ type AuthServiceServer interface {
 	GetBotUsers(*GetBotUsersRequest, AuthService_GetBotUsersServer) error
 	// CreatePolicy creates a new policy resource.
 	CreatePolicy(context.Context, *types.PolicyV1) (*emptypb.Empty, error)
-	// GetPolicy fetches a policy resourc by name.
+	// GetPolicy fetches a policy resource by name.
 	GetPolicy(context.Context, *PolicyRequest) (*types.PolicyV1, error)
 	// GetUser gets a user resource by name.
 	GetUser(context.Context, *GetUserRequest) (*types.UserV2, error)

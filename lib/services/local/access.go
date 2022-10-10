@@ -292,8 +292,45 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 	})
 }
 
+// CreatePolicy creates a new policy resource.
+func (s *AccessService) CreatePolicy(ctx context.Context, policy types.Policy) error {
+	value, err := services.MarshalPolicy(policy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:     backend.Key(policiesPrefix, policy.GetName()),
+		Value:   value,
+		Expires: policy.Expiry(),
+	}
+
+	_, err = s.Create(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetPolicy fetches a policy resource by name.
+func (s *AccessService) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing policy name")
+	}
+	item, err := s.Get(ctx, backend.Key(policiesPrefix, name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("policy %v is not found", name)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalPolicy(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+}
+
 const (
-	rolesPrefix  = "roles"
-	paramsPrefix = "params"
-	locksPrefix  = "locks"
+	rolesPrefix    = "roles"
+	paramsPrefix   = "params"
+	locksPrefix    = "locks"
+	policiesPrefix = "policies"
 )

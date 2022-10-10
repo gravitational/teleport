@@ -4281,22 +4281,31 @@ func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb
 
 // CreatePolicy creates a new policy resource.
 func (g *GRPCServer) CreatePolicy(ctx context.Context, req *types.PolicyV1) (*emptypb.Empty, error) {
-	_, err := g.authenticate(ctx)
+	auth, err := g.authenticate(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.CreatePolicy(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &emptypb.Empty{}, nil
 }
 
-// GetPolicy fetches a policy resourc by name.
+// GetPolicy fetches a policy resource by name.
 func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.PolicyRequest) (*types.PolicyV1, error) {
-	_, err := g.authenticate(ctx)
+	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	policy, err := auth.GetPolicy(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return policy.(*types.PolicyV1), nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
