@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
@@ -375,6 +376,15 @@ func (s *Service) Stop() {
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
+}
+
+func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
+	cluster, err := s.ResolveCluster(request.GetClusterUri())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return cluster.TransferFile(ctx, request, sendProgress)
 }
 
 // Service is the daemon service

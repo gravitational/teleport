@@ -239,7 +239,7 @@ type Config struct {
 	UseKeyPrincipals bool
 
 	// Agent is used when SkipLocalAuth is true
-	Agent agent.Agent
+	Agent agent.ExtendedAgent
 
 	// PreloadKey is a key with which to initialize a local in-memory keystore.
 	PreloadKey *Key
@@ -2335,7 +2335,9 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	}
 
 	if !quiet {
-		config.cfg.ProgressWriter = tc.Stdout
+		config.cfg.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
+			return sftp.NewProgressBar(fileInfo.Size(), fileInfo.Name(), tc.Stdout)
+		}
 	}
 
 	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
@@ -4209,7 +4211,7 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 }
 
 // connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.Agent {
+func connectToSSHAgent() agent.ExtendedAgent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
