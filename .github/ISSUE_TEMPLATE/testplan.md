@@ -1144,7 +1144,7 @@ tsh bench sessions --max=5000 --web user ls
     the desktop should show a Windows menu, not a browser context menu)
   - [ ] Vertical and horizontal scroll work.
     [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
-- Locking
+- [Locking](https://goteleport.com/docs/access-controls/guides/locking/#step-12-create-a-lock)
   - [ ] Verify that placing a user lock terminates an active desktop session.
   - [ ] Verify that placing a desktop lock terminates an active desktop session.
   - [ ] Verify that placing a role lock terminates an active desktop session.
@@ -1213,7 +1213,6 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
 - Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
   - [ ] Attempting to start a session no keys registered shows an error message
-  - [ ] Attempting to start a session with a u2f key registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
     - [ ] Hitting "Cancel" shows an error message
     - [ ] Hitting "Verify" causes your browser to prompt you for MFA
@@ -1221,17 +1220,19 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Successful MFA verification allows you to connect
 - Session Recording
   - [ ] Verify sessions are not recorded if *all* of a user's roles disable recording
-  - [ ] Verify sync recording (`mode: node-sync` or `mode: proy-sync`)
+  - [ ] Verify sync recording (`mode: node-sync` or `mode: proxy-sync`)
   - [ ] Verify async recording (`mode: node` or `mode: proxy`)
   - [ ] Sessions show up in session recordings UI with desktop icon
   - [ ] Sessions can be played back, including play/pause functionality
+  - [ ] Sessions playback speed can be toggled while its playing
+  - [ ] Sessions playback speed can be toggled while its paused
   - [ ] A session that ends with a TDP error message can be played back, ends by displaying the error message,
         and the progress bar progresses to the end.
   - [ ] Attempting to play back a session that doesn't exist (i.e. by entering a non-existing session id in the url) shows
         a relevant error message.
   - [ ] RBAC for sessions: ensure users can only see their own recordings when
     using the RBAC rule from our
-    [docs](../../docs/pages/access-controls/reference.mdx#rbac-for-sessions)
+    [docs](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions)
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
