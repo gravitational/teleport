@@ -455,56 +455,46 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 0)
 }
 
-// NewAppServer creates a new application server resource.
-func NewAppServer(name string, internalAddr string, publicAddr string) *types.ServerV2 {
-	return &types.ServerV2{
-		Kind:    types.KindAppServer,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      uuid.New().String(),
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.ServerSpecV2{
-			Apps: []*types.App{
-				{
-					Name:       name,
-					URI:        internalAddr,
-					PublicAddr: publicAddr,
-				},
-			},
-		},
-	}
-}
-
 // AppServerCRUD tests CRUD functionality for services.Server.
 func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	ctx := context.Background()
 
-	// Create application.
-	server := NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
-
 	// Expect not to be returned any applications and trace.NotFound.
-	out, err := s.PresenceS.GetAppServers(ctx, apidefaults.Namespace)
+	out, err := s.PresenceS.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, len(out), 0)
 
+	// Make an app and an app server.
+	app, err := types.NewAppV3(types.Metadata{Name: "foo"},
+		types.AppSpecV3{URI: "http://127.0.0.1:8080", PublicAddr: "foo.example.com"})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3(types.Metadata{
+		Name:      app.GetName(),
+		Namespace: apidefaults.Namespace,
+	}, types.AppServerSpecV3{
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+		App:      app,
+	})
+	require.NoError(t, err)
+
 	// Upsert application.
-	_, err = s.PresenceS.UpsertAppServer(ctx, server)
+	_, err = s.PresenceS.UpsertApplicationServer(ctx, server)
 	require.NoError(t, err)
 
 	// Check again, expect a single application to be found.
-	out, err = s.PresenceS.GetAppServers(ctx, server.GetNamespace())
+	out, err = s.PresenceS.GetApplicationServers(ctx, server.GetNamespace())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	server.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff([]types.Server{server}, out))
+	require.Empty(t, cmp.Diff([]types.AppServer{server}, out))
 
 	// Remove the application.
-	err = s.PresenceS.DeleteAppServer(ctx, server.Metadata.Namespace, server.GetName())
+	err = s.PresenceS.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
 	require.NoError(t, err)
 
 	// Now expect no applications to be returned.
-	out, err = s.PresenceS.GetAppServers(ctx, server.Metadata.Namespace)
+	out, err = s.PresenceS.GetApplicationServers(ctx, server.Metadata.Namespace)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
 }

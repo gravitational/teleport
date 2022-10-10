@@ -150,18 +150,10 @@ var awsCliTpl = template.Must(template.New("").Parse(
 func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
 	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allApps, err := tc.ListApps(cf.Context, &proto.ListResourcesRequest{
+		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
 		})
-		// Kept for fallback in case older auth does not apply filters.
-		// DELETE IN 11.0.0
-		for _, a := range allApps {
-			if a.GetName() == cf.AppName {
-				apps = append(apps, a)
-				return nil
-			}
-		}
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -248,24 +240,19 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
 	}
 
-	var curlCmd string
+	var curlInsecureFlag string
 	if tc.InsecureSkipVerify {
-		curlCmd = fmt.Sprintf(`curl --insecure \
-  --cert %v \
-  --key %v \
-  %v`,
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			uri)
-	} else {
-		curlCmd = fmt.Sprintf(`curl \
-  --cert %v \
-  --key %v \
-  %v`,
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			uri)
+		curlInsecureFlag = "--insecure "
 	}
+
+	curlCmd := fmt.Sprintf(`curl %s\
+  --cert %v \
+  --key %v \
+  %v`,
+		curlInsecureFlag,
+		profile.AppCertPath(appName),
+		profile.KeyPath(),
+		uri)
 	format = strings.ToLower(format)
 	switch format {
 	case appFormatURI:
