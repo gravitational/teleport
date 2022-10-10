@@ -4218,6 +4218,10 @@ message ConnectionDiagnosticTrace {
     RBAC_PRINCIPAL = 4;
     // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
     NODE_PRINCIPAL = 5;
+    // RBAC_KUBE is for RBAC checks to kubernetes the cluster.
+    RBAC_KUBE = 6;
+    // KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
+    KUBE_PRINCIPAL = 7;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.

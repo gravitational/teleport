@@ -168,7 +168,7 @@ func (p *Pack) initUser(t *testing.T, opts AppTestOptions) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	user.SetTraits(map[string][]string{"env": {"production"}})
+	user.SetTraits(map[string][]string{"env": {"production"}, "empty": {}, "nil": nil})
 	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
