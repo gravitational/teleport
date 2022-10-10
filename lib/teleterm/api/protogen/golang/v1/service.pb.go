@@ -501,12 +501,15 @@ type FileTransferRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ClusterUri  string                `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	Login       string                `protobuf:"bytes,2,opt,name=login,proto3" json:"login,omitempty"`
-	Hostname    string                `protobuf:"bytes,3,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	Source      string                `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
-	Destination string                `protobuf:"bytes,5,opt,name=destination,proto3" json:"destination,omitempty"`
-	Direction   FileTransferDirection `protobuf:"varint,6,opt,name=direction,proto3,enum=teleport.terminal.v1.FileTransferDirection" json:"direction,omitempty"`
+	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	Login      string `protobuf:"bytes,2,opt,name=login,proto3" json:"login,omitempty"`
+	Hostname   string `protobuf:"bytes,3,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// source path of the transferred file
+	Source string `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	// destination path of the transferred file
+	Destination string `protobuf:"bytes,5,opt,name=destination,proto3" json:"destination,omitempty"`
+	// indicates whether the file is uploaded/downloaded
+	Direction FileTransferDirection `protobuf:"varint,6,opt,name=direction,proto3,enum=teleport.terminal.v1.FileTransferDirection" json:"direction,omitempty"`
 }
 
 func (x *FileTransferRequest) Reset() {
