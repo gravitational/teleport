@@ -87,6 +87,10 @@ export const eventCodes = {
   MYSQL_DEBUG: 'TMY12I',
   MYSQL_REFRESH: 'TMY13I',
   SQLSERVER_RPC_REQUEST: 'TMS00I',
+  CASSANDRA_BATCH_EVENT: 'TCA01I',
+  CASSANDRA_PREPARE_EVENT: 'TCA02I',
+  CASSANDRA_EXECUTE_EVENT: 'TCA03I',
+  CASSANDRA_REGISTER_EVENT: 'TCA04I',
   ELASTICSEARCH_REQUEST: 'TES00I',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
@@ -797,6 +801,43 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       proc_name: string;
+    }
+  >;
+  [eventCodes.CASSANDRA_BATCH_EVENT]: RawEvent<
+    typeof eventCodes.CASSANDRA_BATCH_EVENT,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+    }
+  >;
+  [eventCodes.CASSANDRA_PREPARE_EVENT]: RawEvent<
+    typeof eventCodes.CASSANDRA_PREPARE_EVENT,
+    {
+      name: string;
+      query: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+    }
+  >;
+  [eventCodes.CASSANDRA_EXECUTE_EVENT]: RawEvent<
+    typeof eventCodes.CASSANDRA_EXECUTE_EVENT,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+    }
+  >;
+  [eventCodes.CASSANDRA_REGISTER_EVENT]: RawEvent<
+    typeof eventCodes.CASSANDRA_REGISTER_EVENT,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
     }
   >;
   [eventCodes.ELASTICSEARCH_REQUEST]: RawEvent<

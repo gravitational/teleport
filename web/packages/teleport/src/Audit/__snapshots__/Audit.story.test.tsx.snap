@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            137
+            141
           </strong>
            of
            
           <strong>
-            137
+            141
           </strong>
         </div>
         <button
@@ -966,6 +966,154 @@ exports[`list of all events 1`] = `
               color="light"
               font-size="3"
             />
+            Cassandra Register
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has sent Cassandra Register to [cassandra]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-06-02T08:46:33.825Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Cassandra Batch
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has sent Cassandra Batch to [cassandra]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-06-02T08:46:33.825Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Cassandra Execute
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has sent Cassandra Execute to cassandra
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-06-02T08:46:33.825Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Cassandra Prepare Event
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has sent Cassandra Prepare [SELECT * FROM system_schema.keyspaces to [cassandra]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-06-02T08:46:33.825Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-database c10 c15"
+              color="light"
+              font-size="3"
+            />
             Database Malformed Packet
           </div>
         </td>
@@ -1009,7 +1157,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alice] has send RPC Request [undefined] in database [master] on [sqlserver02]
+          User [alice] has sent RPC Request [undefined] in database [master] on [sqlserver02]
         </td>
         <td
           style="min-width: 120px;"

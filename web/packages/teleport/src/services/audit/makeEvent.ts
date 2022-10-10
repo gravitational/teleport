@@ -906,7 +906,34 @@ export const formatters: Formatters = {
     type: 'db.session.sqlserver.rpc_request',
     desc: 'SQLServer RPC Request',
     format: ({ user, db_service, db_name, proc_name }) =>
-      `User [${user}] has send RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] has sent RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
+  },
+  [eventCodes.CASSANDRA_BATCH_EVENT]: {
+    type: 'db.session.cassandra.batch',
+    desc: 'Cassandra Batch',
+    format: ({ user, db_service }) =>
+      `User [${user}] has sent Cassandra Batch to [${db_service}]`,
+  },
+  [eventCodes.CASSANDRA_PREPARE_EVENT]: {
+    type: 'db.session.cassandra.prepare',
+    desc: 'Cassandra Prepare Event',
+    format: ({ user, db_service, query }) =>
+      `User [${user}] has sent Cassandra Prepare [${truncateStr(
+        query,
+        80
+      )} to [${db_service}]`,
+  },
+  [eventCodes.CASSANDRA_EXECUTE_EVENT]: {
+    type: 'db.session.cassandra.execute',
+    desc: 'Cassandra Execute',
+    format: ({ user, db_service }) =>
+      `User [${user}] has sent Cassandra Execute to ${db_service}`,
+  },
+  [eventCodes.CASSANDRA_REGISTER_EVENT]: {
+    type: 'db.session.cassandra.register',
+    desc: 'Cassandra Register',
+    format: ({ user, db_service }) =>
+      `User [${user}] has sent Cassandra Register to [${db_service}]`,
   },
   [eventCodes.ELASTICSEARCH_REQUEST]: {
     type: 'db.session.elasticsearch.request',
