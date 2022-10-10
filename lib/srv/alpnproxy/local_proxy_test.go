@@ -19,9 +19,11 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,6 +135,115 @@ func TestHandleAWSAccessS3Signing(t *testing.T) {
 
 	// Our signature verification should succeed to match what AWS SDK signs.
 	require.NoError(t, err)
+}
+
+type mockMiddlewareCounter struct {
+	sync.Mutex
+	recvStateChange chan struct{}
+	connCount       int
+	startCount      int
+}
+
+func newMockMiddlewareCounter() *mockMiddlewareCounter {
+	return &mockMiddlewareCounter{
+		recvStateChange: make(chan struct{}, 1),
+	}
+}
+
+func (m *mockMiddlewareCounter) onStateChange() {
+	select {
+	case m.recvStateChange <- struct{}{}:
+	default:
+	}
+}
+
+func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+	m.Lock()
+	defer m.Unlock()
+	m.connCount++
+	m.onStateChange()
+	return nil
+}
+
+func (m *mockMiddlewareCounter) OnStart(_ context.Context, _ *LocalProxy) error {
+	m.Lock()
+	defer m.Unlock()
+	m.startCount++
+	m.onStateChange()
+	return nil
+}
+
+func (m *mockMiddlewareCounter) waitForCounts(t *testing.T, wantStartCount int, wantConnCount int) {
+	timer := time.NewTimer(time.Second * 3)
+	for {
+		var (
+			startCount int
+			connCount  int
+		)
+		m.Lock()
+		startCount = m.startCount
+		connCount = m.connCount
+		m.Unlock()
+		if startCount == wantStartCount && connCount == wantConnCount {
+			return
+		}
+
+		select {
+		case <-m.recvStateChange:
+			continue
+		case <-timer.C:
+			require.FailNow(t,
+				"timeout waiting for middleware state change",
+				"have startCount=%d connCount=%d, want startCount=%d connCount=%d",
+				startCount, connCount, wantStartCount, wantConnCount)
+		}
+	}
+}
+
+var _ LocalProxyMiddleware = (*mockMiddlewareCounter)(nil)
+
+func TestMiddleware(t *testing.T) {
+	m := newMockMiddlewareCounter()
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	lp, err := NewLocalProxy(LocalProxyConfig{
+		Listener:           mustCreateLocalListener(t),
+		RemoteProxyAddr:    hs.Listener.Addr().String(),
+		Protocols:          []common.Protocol{common.ProtocolHTTP},
+		ParentContext:      context.Background(),
+		InsecureSkipVerify: true,
+		Middleware:         m,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := lp.Close()
+		require.NoError(t, err)
+		hs.Close()
+	})
+
+	m.waitForCounts(t, 0, 0)
+	go func() {
+		err := lp.Start(context.Background())
+		require.NoError(t, err)
+	}()
+
+	// ensure that OnStart middleware is called when the proxy starts
+	m.waitForCounts(t, 1, 0)
+	url := url.URL{
+		Scheme: "http",
+		Host:   lp.GetAddr(),
+		Path:   "/",
+	}
+
+	pr := bytes.NewReader([]byte("payload content"))
+	req, err := http.NewRequest(http.MethodGet, url.String(), pr)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// ensure that OnNewConnection middleware is called when a new connection is made to the proxy
+	m.waitForCounts(t, 1, 1)
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
