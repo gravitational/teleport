@@ -458,7 +458,7 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 			},
 		},
 	}
-	if err := ks.SetPrivateKeyEntry("certificate", pkeIn, []byte{}); err != nil {
+	if err := ks.SetPrivateKeyEntry("cassandra", pkeIn, []byte(cfg.JKSPassword)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var buff bytes.Buffer
