@@ -171,8 +171,11 @@ message FileTransferRequest {
   string cluster_uri = 1;
   string login = 2;
   string hostname = 3;
+  // source path of the transferred file
   string source = 4;
+  // destination path of the transferred file
   string destination = 5;
+  // indicates whether the file is uploaded/downloaded
   FileTransferDirection direction = 6;
 }
 
