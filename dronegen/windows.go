@@ -172,6 +172,8 @@ func updateWindowsSubreposStep(workspace string) step {
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
 			`git submodule update --init --recursive webassets`,
+			`cd $WebappsSrc`,
+			`git submodule update --init packages/webapps.e`,
 			`Reset-Git -Workspace $Workspace`,
 		},
 	}
