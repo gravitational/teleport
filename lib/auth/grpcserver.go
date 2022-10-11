@@ -4294,7 +4294,7 @@ func (g *GRPCServer) CreatePolicy(ctx context.Context, req *types.PolicyV1) (*em
 }
 
 // GetPolicy fetches a policy resource by name.
-func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.PolicyRequest) (*types.PolicyV1, error) {
+func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.GetPolicyRequest) (*types.PolicyV1, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4306,6 +4306,31 @@ func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.PolicyRequest) (*
 	}
 
 	return policy.(*types.PolicyV1), nil
+}
+
+// ListPolicies lists policies in the cluster.
+func (g *GRPCServer) ListPolicies(ctx context.Context, req *emptypb.Empty) (*proto.ListPoliciesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policies, err := auth.ListPolicies(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policiesV1 := make([]*types.PolicyV1, 0, len(policies))
+	for _, policy := range policies {
+		policyV1, ok := policy.(*types.PolicyV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported policy version %T", policy)
+		}
+
+		policiesV1 = append(policiesV1, policyV1)
+	}
+
+	return &proto.ListPoliciesResponse{Policies: policiesV1}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration

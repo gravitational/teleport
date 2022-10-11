@@ -1548,8 +1548,6 @@ message PaginatedResource {
     types.KubernetesServerV3 KubernetesServer = 7 [(gogoproto.jsontag) = "kubernetes_server,omitempty"];
     // WindowsDesktopService represents a WindowsDesktopServiceV3 resource.
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
-    // Policy represents a PolicyV1 resource.
-    types.PolicyV1 Policy = 9 [(gogoproto.jsontag) = "policy,omitempty"];
   }
 }
 
@@ -1894,9 +1892,14 @@ message AppendDiagnosticTraceRequest {
   types.ConnectionDiagnosticTrace Trace = 2 [(gogoproto.jsontag) = "trace"];
 }
 
-// PolicyRequest is a request for a policy resource.
-message PolicyRequest {
+// GetPolicyRequest is a request for a policy resource.
+message GetPolicyRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// ListPoliciesResponse is a response containing a list of policies.
+message ListPoliciesResponse {
+  repeated types.PolicyV1 Policies = 1 [(gogoproto.jsontag) = "policies"];
 }
 
 // AuthService is authentication/authorization service implementation
@@ -2002,7 +2005,9 @@ service AuthService {
   // CreatePolicy creates a new policy resource.
   rpc CreatePolicy(types.PolicyV1) returns (google.protobuf.Empty);
   // GetPolicy fetches a policy resource by name.
-  rpc GetPolicy(PolicyRequest) returns (types.PolicyV1);
+  rpc GetPolicy(GetPolicyRequest) returns (types.PolicyV1);
+  // ListPolicies lists policies in the cluster.
+  rpc ListPolicies(google.protobuf.Empty) returns (ListPoliciesResponse);
 
   // GetUser gets a user resource by name.
   rpc GetUser(GetUserRequest) returns (types.UserV2);

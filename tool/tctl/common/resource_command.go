@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -1379,14 +1378,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &installerCollection{installers: []types.Installer{inst}}, nil
 	case types.KindPolicy:
 		if rc.ref.Name == "" {
-			resp, err := client.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindPolicy,
-				Limit:        1000,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			policies, err := types.ResourcesWithLabels(resp.Resources).AsPolicies()
+			policies, err := client.ListPolicies(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

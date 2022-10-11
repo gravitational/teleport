@@ -1213,7 +1213,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindPolicy:
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1304,8 +1304,6 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, mfaParams)
-	case types.Policy:
-		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
@@ -1394,7 +1392,7 @@ func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindPolicy:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
@@ -5155,6 +5153,12 @@ func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.Policy)
 func (a *ServerWithRoles) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
 	// TODO (joel): rbac checks
 	return a.authServer.GetPolicy(ctx, name)
+}
+
+// ListPolicies lists policies in the cluster
+func (a *ServerWithRoles) ListPolicies(ctx context.Context) ([]types.Policy, error) {
+	// TODO (joel): rbac checks
+	return a.authServer.ListPolicies(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

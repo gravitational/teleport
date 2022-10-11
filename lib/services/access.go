@@ -59,4 +59,6 @@ type Access interface {
 	CreatePolicy(ctx context.Context, policy types.Policy) error
 	// GetPolicy fetches a policy resource by name.
 	GetPolicy(ctx context.Context, name string) (types.Policy, error)
+	// ListPolicies lists policies in the cluster.
+	ListPolicies(ctx context.Context) ([]types.Policy, error)
 }

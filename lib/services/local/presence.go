@@ -1523,9 +1523,6 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindKubeServer:
 		keyPrefix = []string{kubeServersPrefix}
 		unmarshalItemFunc = backendItemToKubernetesServer
-	case types.KindPolicy:
-		keyPrefix = []string{policiesPrefix}
-		unmarshalItemFunc = backendItemToPolicy
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1744,16 +1741,6 @@ func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels
 // `types.KubeServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalKubeServer(
-		item.Value,
-		services.WithResourceID(item.ID),
-		services.WithExpires(item.Expires),
-	)
-}
-
-// backendItemToPolicy unmarshals `backend.Item` into a
-// `types.Policy`, returning it as a `types.ResourceWithLabels`.
-func backendItemToPolicy(item backend.Item) (types.ResourceWithLabels, error) {
-	return services.UnmarshalPolicy(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),

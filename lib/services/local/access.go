@@ -328,6 +328,25 @@ func (s *AccessService) GetPolicy(ctx context.Context, name string) (types.Polic
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
+// ListPolicies lists policies in the cluster.
+func (s *AccessService) ListPolicies(ctx context.Context) ([]types.Policy, error) {
+	startKey := backend.Key(policiesPrefix, "")
+	items, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]types.Policy, 0, len(items.Items))
+	for _, item := range items.Items {
+		policy, err := services.UnmarshalPolicy(item.Value,
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, policy)
+	}
+	return out, nil
+}
+
 const (
 	rolesPrefix    = "roles"
 	paramsPrefix   = "params"

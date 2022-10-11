@@ -2658,8 +2658,6 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeCluster()
 		case types.KindKubeServer:
 			resources[i] = respResource.GetKubernetesServer()
-		case types.KindPolicy:
-			resources[i] = respResource.GetPolicy()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -2879,10 +2877,25 @@ func (c *Client) CreatePolicy(ctx context.Context, policy types.Policy) error {
 
 // GetPolicy fetches a policy resource by name.
 func (c *Client) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
-	resp, err := c.grpc.GetPolicy(ctx, &proto.PolicyRequest{Name: name}, c.callOpts...)
+	resp, err := c.grpc.GetPolicy(ctx, &proto.GetPolicyRequest{Name: name}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
 	return resp, nil
+}
+
+// ListPolicies lists policies in the cluster.
+func (c *Client) ListPolicies(ctx context.Context) ([]types.Policy, error) {
+	resp, err := c.grpc.ListPolicies(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	policies := make([]types.Policy, len(resp.Policies))
+	for i, p := range resp.Policies {
+		policies[i] = p
+	}
+
+	return policies, nil
 }
