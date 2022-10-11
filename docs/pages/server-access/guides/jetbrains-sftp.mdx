@@ -1,11 +1,11 @@
 ---
 title: JetBrains SFTP
-description: How to use JetBrains IDE to browse remote host with Teleport
+description: How to use a JetBrains IDE to manipulate files on a remote host with Teleport
 h1: SFTP with JetBrains IDE
 ---
 
-JetBrain's IDEs, like PyCharm, Goland, Intellij, allow browsing, copying, and editing files on a remote server
-using SFTP protocol. The built-in integration will simplify the process if you are used to copying files back and forth
+JetBrain's IDEs, like PyCharm, GoLand, and IntelliJ, allow browsing, copying, and editing files on a remote server
+using the SFTP protocol. The built-in integration will simplify the process if you are used to copying files back and forth
 using `scp` or other 3rd party clients. You can do the same things without leaving your IDE anymore.
 
 This guide explains how to use Teleport and a JetBrains IDE to access files with SFTP.
@@ -14,7 +14,7 @@ This guide explains how to use Teleport and a JetBrains IDE to access files with
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- JetBrains IDE like PyCharm, IntelliJ, Goland etc. See [Products](https://www.jetbrains.com/products/#type=ide) for a full list of JetBrains IDEs.
+- JetBrains IDE like PyCharm, IntelliJ, GoLand etc. See [Products](https://www.jetbrains.com/products/#type=ide) for a full list of JetBrains IDEs.
 - One or more Teleport Nodes with Server Access enabled. If you have not yet
 done this, read the [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
 
@@ -52,7 +52,7 @@ in the path below:
   </TabItem>
 </Tabs>
 
-You should be able to connect to the desired Node using following command, replacing `user` with the username you would like to assume on the Node:
+You should be able to connect to the desired Node using the following command, replacing `user` with the username you would like to assume on the Node:
 
 ```code
 $ ssh user@[node name].[cluster name]
@@ -98,8 +98,8 @@ Click the three dots next to `SSH configuration` as in the picture above.
 Create a new configuration by clicking the plus sign on the top left and providing:
 
 - `Host` - name of the Teleport Node.
-- `Port` - is the Teleport Node's SSH port (3022 by default).
-- `Username` - is the system username.
+- `Port` - the Teleport Node's SSH port (3022 by default).
+- `Username` - the system username.
 
 As an `Authentication type` pick `OpenSSH config and authentication agent`.
 Next, you can click `Test Connection`.
@@ -112,7 +112,7 @@ After closing the SSH configuration window, you should see `Remote Host` menu in
 
 ![Browse window](../../../img/jetbrains-sftp/browse-window.png)
 
-## Next Steps
+## Next steps
 
 ### Using OpenSSH clients
 
