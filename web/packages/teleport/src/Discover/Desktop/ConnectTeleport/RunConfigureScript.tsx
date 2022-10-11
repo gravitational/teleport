@@ -34,7 +34,7 @@ export function RunConfigureScript(
   if (timedOut) {
     content = (
       <StepInstructions>
-        <Text>That script expired.</Text>
+        <Text mb={4}>That script expired.</Text>
 
         <ButtonPrimary onClick={reloadJoinToken}>
           Generate another
