@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +31,7 @@ func (mag *mockedAlertGetter) GetClusterAlerts(ctx context.Context, query types.
 	return mag.alerts, nil
 }
 
-func mockAlertGetter(alerts []types.ClusterAlert) local.ClusterAlertGetter {
+func mockAlertGetter(alerts []types.ClusterAlert) ClusterAlertGetter {
 	return &mockedAlertGetter{
 		alerts: alerts,
 	}
@@ -40,21 +39,21 @@ func mockAlertGetter(alerts []types.ClusterAlert) local.ClusterAlertGetter {
 
 func TestShowClusterAlerts(t *testing.T) {
 	tests := map[string]struct {
-		alerts       []types.ClusterAlert
-		wantOut      string
-		ignoreLabels map[string]string
+		alerts  []types.ClusterAlert
+		wantOut string
 	}{
-		"No filtered labels": {
+		"No filtered severities": {
 			alerts: []types.ClusterAlert{
 				{
 					Spec: types.ClusterAlertSpec{
-						Message: "someMessage",
+						Severity: types.AlertSeverity_MEDIUM,
+						Message:  "someMessage",
 					},
 				},
 			},
 			wantOut: "\x1b[33msomeMessage\x1b[0m\n\n",
 		},
-		"Filtered label": {
+		"Filtered severities": {
 			alerts: []types.ClusterAlert{
 				{
 					ResourceHeader: types.ResourceHeader{
@@ -65,17 +64,17 @@ func TestShowClusterAlerts(t *testing.T) {
 						},
 					},
 					Spec: types.ClusterAlertSpec{
-						Message: "someOtherMessage",
+						Severity: types.AlertSeverity_HIGH,
+						Message:  "someOtherMessage",
 					},
 				}, {
 					Spec: types.ClusterAlertSpec{
-						Message: "someMessage",
+						Severity: types.AlertSeverity_MEDIUM,
+						Message:  "someMessage",
 					},
 				},
 			},
-			ignoreLabels: map[string]string{
-				"someLabel": "yes",
-			},
+
 			wantOut: "\x1b[33msomeMessage\x1b[0m\n\n",
 		},
 	}
@@ -84,7 +83,7 @@ func TestShowClusterAlerts(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			alertGetter := mockAlertGetter(test.alerts)
 			var got bytes.Buffer
-			err := ShowClusterAlerts(context.Background(), alertGetter, &got, nil, test.ignoreLabels)
+			err := ShowClusterAlerts(context.Background(), alertGetter, &got, nil, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM)
 			require.NoError(t, err)
 			require.Equal(t, test.wantOut, got.String())
 		})
