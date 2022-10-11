@@ -5,6 +5,8 @@ package teleport.devicetrust.v1;
 import "google/protobuf/empty.proto";
 import "google/rpc/status.proto";
 import "teleport/devicetrust/v1/device.proto";
+import "teleport/devicetrust/v1/device_collected_data.proto";
+import "teleport/devicetrust/v1/device_enroll_token.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
 
@@ -66,6 +68,21 @@ service DeviceTrustService {
   // Unlike CreateDevice, it does not support creation of enrollment tokens, as
   // it is meant for bulk inventory registration.
   rpc BulkCreateDevice(BulkCreateDeviceRequest) returns (BulkCreateDeviceResponse);
+
+  // CreateDeviceEnrollToken creates a DeviceEnrollToken for a Device.
+  // An enrollment token is required for the enrollment ceremony. See
+  // EnrollDevice.
+  rpc CreateDeviceEnrollToken(CreateDeviceEnrollTokenRequest) returns (DeviceEnrollToken);
+
+  // EnrollDevice performs the device enrollment ceremony.
+  //
+  // Enrollment requires a previously-registered Device and a DeviceEnrollToken,
+  // see CreateDevice and CreateDeviceEnrollToken.
+  //
+  // An enrolled device is allowed, via AuthenticateDevice, to acquire
+  // certificates containing device extensions, thus gaining access to
+  // device-aware actions.
+  rpc EnrollDevice(stream EnrollDeviceRequest) returns (stream EnrollDeviceResponse);
 }
 
 // Request for CreateDevice.
@@ -167,4 +184,76 @@ message DeviceOrStatus {
   // ID of the created device.
   // Only present if the status is OK.
   string id = 2;
+}
+
+// Request for CreateDeviceEnrollToken.
+message CreateDeviceEnrollTokenRequest {
+  // ID of the device.
+  string device_id = 1;
+}
+
+// Request for EnrollDevice.
+//
+// macOS enrollment flow:
+// -> EnrollDeviceInit (client)
+// <- MacOSEnrollChallenge (server)
+// -> MacOSEnrollChallengeResponse
+// <- EnrollDeviceSuccess
+//
+// Only macOS enrollments are supported at the moment.
+message EnrollDeviceRequest {
+  oneof payload {
+    EnrollDeviceInit init = 1;
+    MacOSEnrollChallengeResponse macos_challenge_response = 2;
+  }
+}
+
+// Response for EnrollDevice.
+message EnrollDeviceResponse {
+  oneof payload {
+    EnrollDeviceSuccess success = 1;
+    MacOSEnrollChallenge macos_challenge = 2;
+  }
+}
+
+// EnrollDeviceInit initiates the enrollment ceremony.
+message EnrollDeviceInit {
+  // Device enrollment token.
+  // See CreateDevice or CreateDeviceEnrollToken.
+  string token = 1;
+
+  // ID of the device credential.
+  string credential_id = 2;
+
+  // Device collected data.
+  // Matched against the device registration information and any previously
+  // collected data.
+  DeviceCollectedData device_data = 3;
+
+  // Payload for macOS-specific data.
+  MacOSEnrollPayload macos = 4;
+}
+
+// EnrollDeviceSuccess marks a successful device enrollment ceremony.
+message EnrollDeviceSuccess {
+  // The enrolled device.
+  Device device = 1;
+}
+
+// MacOSEnrollPayload is the macOS-specific enrollment payload.
+message MacOSEnrollPayload {
+  // Device public key marshaled as a PKIX, ASN.1 DER.
+  bytes public_key_der = 2;
+}
+
+// MacOSEnrollChallenge is a macOS enrollment challenge.
+message MacOSEnrollChallenge {
+  // Randomly-generated, opaque challenge to be signed using the device key.
+  bytes challenge = 1;
+}
+
+// MacOSEnrollChallengeResponse is a macOS enrollment challenge response.
+message MacOSEnrollChallengeResponse {
+  // Signature over the challenge, using the device key.
+  bytes signature = 2;
 }
