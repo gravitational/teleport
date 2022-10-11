@@ -38,8 +38,8 @@ type ProxyCommand struct {
 func (p *ProxyCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	p.config = config
 
-	authCommand := app.Command("proxy", "Operations with information for cluster proxies").Hidden()
-	p.lsCmd = authCommand.Command("ls", "List connected auth servers")
+	proxyCommand := app.Command("proxy", "Operations with information for cluster proxies.").Hidden()
+	p.lsCmd = proxyCommand.Command("ls", "Lists proxies connected to the cluster.")
 	p.lsCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&p.format)
 
 }

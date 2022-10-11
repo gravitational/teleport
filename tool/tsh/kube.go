@@ -157,7 +157,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 					RouteToCluster:    cluster,
 					KubernetesCluster: kubeCluster,
-				})
+				}, nil /*applyOpts*/)
 
 				return trace.Wrap(err)
 			})
@@ -600,7 +600,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
-		})
+		}, nil /*applyOpts*/)
 		return err
 	})
 	if err != nil {
@@ -1084,7 +1084,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
 	}
 
-	return trace.Wrap(kubeconfig.Update(path, *values))
+	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
 }
 
 // Required magic boilerplate to use the k8s encoder.

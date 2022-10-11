@@ -967,12 +967,22 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: rpID,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
 				},
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
@@ -1147,10 +1157,10 @@ func TestFIDO2Login_errors(t *testing.T) {
 			wantErr:   "origin",
 		},
 		{
-			name:    "nil assertion",
-			origin:  origin,
-			prompt:  prompt,
-			wantErr: "assertion required",
+			name:      "nil prompt",
+			origin:    origin,
+			assertion: okAssertion,
+			wantErr:   "prompt",
 		},
 		{
 			name:      "assertion without challenge",
@@ -1158,19 +1168,6 @@ func TestFIDO2Login_errors(t *testing.T) {
 			assertion: &nilChallengeAssertion,
 			prompt:    prompt,
 			wantErr:   "challenge",
-		},
-		{
-			name:      "assertion without RPID",
-			origin:    origin,
-			assertion: &emptyRPIDAssertion,
-			prompt:    prompt,
-			wantErr:   "relying party ID",
-		},
-		{
-			name:      "nil prompt",
-			origin:    origin,
-			assertion: okAssertion,
-			wantErr:   "prompt",
 		},
 	}
 	for _, test := range tests {
@@ -1230,12 +1227,22 @@ func TestFIDO2Register(t *testing.T) {
 			Challenge: challenge,
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: rpID,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferDirectAttestation,
 		},
@@ -1525,12 +1532,22 @@ func TestFIDO2Register_errors(t *testing.T) {
 			Challenge: make([]byte, 32),
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferNoAttestation,
 		},
@@ -1572,13 +1589,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			wantErr:  "origin",
 		},
 		{
-			name:     "nil cc",
-			origin:   origin,
-			createCC: func() *wanlib.CredentialCreation { return nil },
-			prompt:   prompt,
-			wantErr:  "credential creation required",
-		},
-		{
 			name:   "cc without challenge",
 			origin: origin,
 			createCC: func() *wanlib.CredentialCreation {
@@ -1588,17 +1598,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			},
 			prompt:  prompt,
 			wantErr: "challenge",
-		},
-		{
-			name:   "cc without RPID",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := *okCC
-				cp.Response.RelyingParty.ID = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "relying party ID",
 		},
 		{
 			name:   "cc unsupported parameters",
@@ -1618,50 +1617,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 			origin:   origin,
 			createCC: func() *wanlib.CredentialCreation { return okCC },
 			wantErr:  "prompt",
-		},
-		{
-			name:   "rrk empty RP name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.RelyingParty.Name = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "relying party name",
-		},
-		{
-			name:   "rrk empty user name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.Name = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user name",
-		},
-		{
-			name:   "rrk empty user display name",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.DisplayName = ""
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user display name",
-		},
-		{
-			name:   "rrk nil user ID",
-			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
-				cp := pwdlessOK
-				cp.Response.User.ID = nil
-				return &cp
-			},
-			prompt:  prompt,
-			wantErr: "user ID",
 		},
 	}
 	for _, test := range tests {
@@ -1696,12 +1651,22 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 			Challenge: make([]byte, 32),
 			RelyingParty: protocol.RelyingPartyEntity{
 				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "rp name",
+				},
 			},
 			Parameters: []protocol.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
+			},
+			User: protocol.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
 			},
 			Attestation: protocol.PreferNoAttestation,
 		},

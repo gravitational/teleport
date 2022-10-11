@@ -83,8 +83,8 @@ date.
 
 |Image name|Teleport version|Image automatically updated?|Image base|
 |-|-|-|-|
-|`(=teleport.latest_oss_docker_image=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
-|`public.ecr.aws/gravitational/teleport:(=teleport.version=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`(=teleport.latest_oss_docker_image=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
 
 For testing, we always recommend that you use the latest released version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 

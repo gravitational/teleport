@@ -7,7 +7,7 @@ labels: testplan
 ## Manual Testing Plan
 
 Below are the items that should be manually tested with each release of Teleport.
-These tests should be run on both a fresh install of the version to be released
+These tests should be run on both a fresh installation of the version to be released
 as well as an upgrade of the previous version of Teleport.
 
 - [ ] Adding nodes to a cluster
@@ -35,6 +35,7 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Unsuccessfully connect to a node in a role restricting access by invalid SSH login
   - [ ] Allow/deny role option: SSH agent forwarding
   - [ ] Allow/deny role option: Port forwarding
+  - [ ] Allow/deny role option: SSH file copying
 
 - [ ] Verify that custom PAM environment variables are available as expected.
 
@@ -76,8 +77,8 @@ as well as an upgrade of the previous version of Teleport.
 
     Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
     restart the server and then register an U2F device (`tsh mfa add`). Upgrade
-    the install to the current Teleport version (one major at a time) and try to
-    login using the U2F device as your second factor - it should work.
+    the installation to the current Teleport version (one major at a time) and try to
+    log in using the U2F device as your second factor - it should work.
 
   - [ ] Login OIDC
   - [ ] Login SAML
@@ -176,6 +177,14 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a OpenSSH node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
+- [ ] `tsh` CA loading
+
+  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
+  - [ ] `load_all_cas` on the root auth server is `false` (default) -
+  `tsh ssh leaf.node.example.com` results in access denied.
+  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
+  succeeds.
+
 ### User accounting
 
 - [ ] Verify that active interactive sessions are tracked in `/var/run/utmp` on Linux.
@@ -203,32 +212,32 @@ interactive sessions the 12 combinations are below.
 
 * [ ] Deploy Teleport on a single EKS cluster
 * [ ] Deploy Teleport on two EKS clusters and connect them via trusted cluster feature
-* [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
-* [ ] Deploy Teleport Proxy outside of EKS cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
+* [ ] Deploy Teleport Proxy outside GKE cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
+* [ ] Deploy Teleport Proxy outside EKS cluster fronting connections to it (use [this script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to generate a kubeconfig)
 
 ### Teleport with multiple Kubernetes clusters
 
 Note: you can use GKE or EKS or minikube to run Kubernetes clusters.
 Minikube is the only caveat - it's not reachable publicly so don't run a proxy there.
 
-* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig
+* [ ] Deploy combo auth/proxy/kubernetes_service outside a Kubernetes cluster, using a kubeconfig
   * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy combo auth/proxy/kubernetes_service inside of a Kubernetes cluster
+* [ ] Deploy combo auth/proxy/kubernetes_service inside a Kubernetes cluster
   * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy combo auth/proxy_service outside of the Kubernetes cluster and kubernetes_service inside of a Kubernetes cluster, connected over a reverse tunnel
+* [ ] Deploy combo auth/proxy_service outside the Kubernetes cluster and kubernetes_service inside of a Kubernetes cluster, connected over a reverse tunnel
   * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy a second kubernetes_service inside of another Kubernetes cluster, connected over a reverse tunnel
+* [ ] Deploy a second kubernetes_service inside another Kubernetes cluster, connected over a reverse tunnel
   * [ ] Login with `tsh login`, check that `tsh kube ls` has both clusters
   * [ ] Switch to a second cluster using `tsh kube login`
   * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh` on the new cluster
   * [ ] Verify that the audit log recorded the above request and session
-* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig with multiple clusters in it
+* [ ] Deploy combo auth/proxy/kubernetes_service outside a Kubernetes cluster, using a kubeconfig with multiple clusters in it
   * [ ] Login with `tsh login`, check that `tsh kube ls` has all clusters
 * [ ] Test Kubernetes screen in the web UI (tab is located on left side nav on dashboard):
   * [ ] Verify that all kubes registered are shown with correct `name` and `labels`
@@ -292,20 +301,29 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 ### Teleport with SSO Providers
 
 - [ ] G Suite install instructions work
-    - [ ] G Suite Screenshots are up to date
+    - [ ] G Suite Screenshots are up-to-date
 - [ ] Azure Active Directory (AD) install instructions work
-    - [ ] Azure Active Directory (AD) Screenshots are up to date
+    - [ ] Azure Active Directory (AD) Screenshots are up-to-date
 - [ ] ActiveDirectory (ADFS) install instructions work
-    - [ ] Active Directory (ADFS) Screenshots are up to date
+    - [ ] Active Directory (ADFS) Screenshots are up-to-date
 - [ ] Okta install instructions work
-    - [ ] Okta Screenshots are up to date
+    - [ ] Okta Screenshots are up-to-date
 - [ ] OneLogin install instructions work
-    - [ ] OneLogin Screenshots are up to date
+    - [ ] OneLogin Screenshots are up-to-date
 - [ ] GitLab install instructions work
-    - [ ] GitLab Screenshots are up to date
+    - [ ] GitLab Screenshots are up-to-date
 - [ ] OIDC install instructions work
-    - [ ] OIDC Screenshots are up to date
+    - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
+
+### GitHub External SSO
+
+- [ ] Teleport OSS
+    - [ ] GitHub organization without external SSO succeeds
+    - [ ] GitHub organization with external SSO fails
+- [ ] Teleport Enterprise
+    - [ ] GitHub organization without external SSO succeeds
+    - [ ] GitHub organization with external SSO succeeds
 
 ### `tctl sso` family of commands
 
@@ -341,6 +359,13 @@ connectors are accepted, invalid are rejected with sensible error messages.
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestIAMNodeJoin`
 - [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
+
+### Cloud Labels
+- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
+and with tag `foo`: `bar`. Verify that a node running on the instance has label
+`aws/foo=bar`.
+- [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
+instance has label `azure/foo=bar`.
 
 ### Passwordless
 
@@ -479,7 +504,7 @@ For help with setting up auth connectors, check out the [Quick GitHub/SAML/OIDC 
 - [ ] Verify that error is shown when saving an invalid YAML
 - [ ] Verify that correct hint text is shown on the right side
 - [ ] Verify that encrypted SAML assertions work with an identity provider that supports it (Azure).
-- [ ] Verify that created github, saml, oidc card has their icons
+- [ ] Verify that created GitHub, saml, oidc card has their icons
 #### Roles
 - [ ] Verify that roles are shown
 - [ ] Verify that "Create New Role" dialog works
@@ -915,19 +940,16 @@ Perform all tests on the following configurations:
  - [ ] etcd
  - [ ] DynamoDB
  - [ ] Firestore
- - [ ] Postgres
 
 * Cluster with 10K reverse tunnel nodes:
  - [ ] etcd
  - [ ] DynamoDB
  - [ ] Firestore
- - [ ] Postgres
 
 * Cluster with 500 trusted clusters:
 - [ ] etcd
 - [ ] DynamoDB
 - [ ] Firestore
-- [ ] Postgres
 
 ### Soak Test
 
@@ -1026,6 +1048,8 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
+  - [ ] Elasticsearch.
+  - [ ] Cassandra/ScyllaDB.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -1044,6 +1068,8 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
+  - [ ] Elasticsearch.
+  - [ ] Cassandra/ScyllaDB.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1062,12 +1088,15 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
-  - [ ] Can detect and register AWS RDS instances.
-  - [ ] Can detect and register AWS Aurora clusters, and their reader and custom endpoints.
-  - [ ] Can detect and register AWS Redshift clusters.
-  - [ ] Can detect and register AWS ElastiCache Redis clusters.
-  - [ ] Can detect and register AWS MemoryDB clusters.
-  - [ ] Can detect and register Azure Cache for Redis servers.
+    - [ ] AWS
+      - [ ] Can detect and register RDS instances.
+      - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
+      - [ ] Can detect and register Redshift clusters.
+      - [ ] Can detect and register ElastiCache Redis clusters.
+      - [ ] Can detect and register MemoryDB clusters.
+    - [ ] Azure
+      - [ ] Can detect and register MySQL and Postgres instances.
+      - [ ] Can detect and register Azure Cache for Redis servers.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users 
@@ -1111,7 +1140,10 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Redis
     - [ ] MSSQL
     - [ ] Snowflake
+    - [ ] Elasticsearch.
+    - [ ] Cassandra/ScyllaDB.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+  - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
@@ -1143,7 +1175,7 @@ tsh bench sessions --max=5000 --web user ls
     the desktop should show a Windows menu, not a browser context menu)
   - [ ] Vertical and horizontal scroll work.
     [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
-- Locking
+- [Locking](https://goteleport.com/docs/access-controls/guides/locking/#step-12-create-a-lock)
   - [ ] Verify that placing a user lock terminates an active desktop session.
   - [ ] Verify that placing a desktop lock terminates an active desktop session.
   - [ ] Verify that placing a role lock terminates an active desktop session.
@@ -1178,13 +1210,13 @@ tsh bench sessions --max=5000 --web user ls
     - Begin sharing works
       - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
       - [ ] The shared directory appears as a network drive named "<directory_name> on teleport"
-      - [ ] The share directory menu option dissapears from the menu
+      - [ ] The share directory menu option disappears from the menu
     - Navigation
       - [ ] The folders of the shared directory are navigable (move up and down the directory tree)
     - CRUD
       - [ ] A new text file can be created
       - [ ] The text file can be written to (saved)
-      - [ ] The text file can be read (close it, check that its saved on the local machine, then open it again on the remote)
+      - [ ] The text file can be read (close it, check that it's saved on the local machine, then open it again on the remote)
       - [ ] The text file can be deleted
     - File/Folder movement
       - In to out (make at least one of these from a non-top-level-directory)
@@ -1212,7 +1244,6 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
 - Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
   - [ ] Attempting to start a session no keys registered shows an error message
-  - [ ] Attempting to start a session with a u2f key registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
     - [ ] Hitting "Cancel" shows an error message
     - [ ] Hitting "Verify" causes your browser to prompt you for MFA
@@ -1220,21 +1251,25 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Successful MFA verification allows you to connect
 - Session Recording
   - [ ] Verify sessions are not recorded if *all* of a user's roles disable recording
-  - [ ] Verify sync recording (`mode: node-sync` or `mode: proy-sync`)
+  - [ ] Verify sync recording (`mode: node-sync` or `mode: proxy-sync`)
   - [ ] Verify async recording (`mode: node` or `mode: proxy`)
   - [ ] Sessions show up in session recordings UI with desktop icon
   - [ ] Sessions can be played back, including play/pause functionality
+  - [ ] Sessions playback speed can be toggled while its playing
+  - [ ] Sessions playback speed can be toggled while its paused
   - [ ] A session that ends with a TDP error message can be played back, ends by displaying the error message,
         and the progress bar progresses to the end.
   - [ ] Attempting to play back a session that doesn't exist (i.e. by entering a non-existing session id in the url) shows
         a relevant error message.
   - [ ] RBAC for sessions: ensure users can only see their own recordings when
     using the RBAC rule from our
-    [docs](../../docs/pages/access-controls/reference.mdx#rbac-for-sessions)
+    [docs](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions)
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
     start (due to RBAC, for example)
+  - [ ] `client.disconnect` (`T3006I`) emitted when session is terminated by or fails
+    to start due to lock
   - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
   - [ ] `desktop.clipboard.send` (`TDP02I`) emitted for local copy -> remote
     paste
@@ -1243,13 +1278,7 @@ tsh bench sessions --max=5000 --web user ls
 
 ## Binaries compatibility
 
-- Verify that teleport/tsh/tctl/tbot run on:
-  - [ ] CentOS 7
-  - [ ] CentOS 8
-  - [ ] Ubuntu 18.04
-  - [ ] Ubuntu 20.04
-  - [ ] Debian 9
-- Verify tsh runs on:
+- Verify `tsh` runs on:
   - [ ] Windows 10
   - [ ] MacOS
 
@@ -1422,7 +1451,7 @@ TODO(lxea): replace links with actual docs once merged
 - Verify host users creation functionality
   - [ ] non-existing users are created automatically
   - [ ] users are added to groups
-    - [ ] non existing configured groups are created
+    - [ ] non-existing configured groups are created
 	- [ ] created users are added to the `teleport-system` group
   - [ ] users are cleaned up after their session ends
 	- [ ] cleanup occurs if a program was left running after session ends
