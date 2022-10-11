@@ -363,6 +363,17 @@ func TestConfigReading(t *testing.T) {
 					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				},
 			},
+			AzureMatchers: []AzureMatcher{
+				{
+					Types:   []string{"aks"},
+					Regions: []string{"uswest1"},
+					ResourceTags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					ResourceGroups: []string{"group1"},
+					Subscriptions:  []string{"sub1"},
+				},
+			},
 		},
 		Proxy: Proxy{
 			Service: Service{
@@ -1265,7 +1276,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
 
-	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: []AWSMatcher{}}, cmp.AllowUnexported(Service{})))
+	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: nil}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -1376,6 +1387,18 @@ func makeConfigFixture() string {
 			Types:   []string{"ec2"},
 			Regions: []string{"us-west-1", "us-east-1"},
 			Tags:    map[string]apiutils.Strings{"a": {"b"}},
+		},
+	}
+
+	conf.Discovery.AzureMatchers = []AzureMatcher{
+		{
+			Types:   []string{"aks"},
+			Regions: []string{"uswest1"},
+			ResourceTags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+			ResourceGroups: []string{"group1"},
+			Subscriptions:  []string{"sub1"},
 		},
 	}
 
