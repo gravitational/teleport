@@ -95,9 +95,11 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Session recording can be disabled
   - [ ] Sessions can be recorded at the node
     - [ ] Sessions in remote clusters are recorded in remote clusters
-  - [ ] Sessions can be recorded at the proxy
+  - [ ] [Sessions can be recorded at the proxy](https://goteleport.com/docs/server-access/guides/recording-proxy-mode/)
     - [ ] Sessions on remote clusters are recorded in the local cluster
-    - [ ] Enable/disable host key checking.
+    - [ ] With an OpenSSH server without a Teleport CA signed host certificate:
+      - [ ] Host key checking enabled rejects connection
+      - [ ] Host key checking disabled allows connection
 
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
