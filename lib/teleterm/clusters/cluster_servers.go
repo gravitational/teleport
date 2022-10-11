@@ -139,6 +139,6 @@ type GetServersResponse struct {
 	Servers []Server
 	// StartKey is the next key to use as a starting point.
 	StartKey string
-	// // TotalCount is the total number of resources available as a whole.
+	// TotalCount is the total number of resources available as a whole.
 	TotalCount int
 }
