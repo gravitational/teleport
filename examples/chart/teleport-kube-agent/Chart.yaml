@@ -1,4 +1,4 @@
-.version: &version "10.3.2-dev.walt.3"
+.version: &version "10.3.2-dev.walt.4"
 
 name: teleport-kube-agent
 apiVersion: v2
