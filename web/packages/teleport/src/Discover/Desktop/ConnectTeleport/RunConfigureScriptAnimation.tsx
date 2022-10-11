@@ -25,9 +25,10 @@ const lines = (joinToken: JoinToken) => [
   },
   {
     text: `
+version: v3
 teleport:
   auth_token: ${joinToken.id}
-  auth_servers: [ ${window.location.hostname}:${window.location.port || '443'} ]
+  proxy_server: ${window.location.hostname}:${window.location.port || '443'}
 
 auth_service:
   enabled: no
@@ -67,7 +68,7 @@ windows_desktop_service:
 
 const selectedLines = {
   start: 4,
-  end: 28,
+  end: 29,
 };
 
 const highlights: KeywordHighlight[] = [
