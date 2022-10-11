@@ -687,7 +687,6 @@ steps:
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
-  - git submodule update --init packages/webapps.e
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Checkout Submodules
@@ -695,12 +694,15 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
   - git submodule update --init --recursive webassets
   - Reset-Git -Workspace $Workspace
+  - cd $WebappsSrc
+  - git submodule update --init packages/webapps.e
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -956,7 +958,6 @@ steps:
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
-  - git submodule update --init packages/webapps.e
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Checkout Submodules
@@ -964,12 +965,15 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
   - git submodule update --init --recursive webassets
   - Reset-Git -Workspace $Workspace
+  - cd $WebappsSrc
+  - git submodule update --init packages/webapps.e
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -8288,6 +8292,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 569a4b4fc2696e22ec1d04053a6bc0d7633f087696c2d32da634a7a011f7e7f5
+hmac: e4c61eb5f71f594370b594a5f30a9474fa20e89fae5c7b2471e89780750733d7
 
 ...

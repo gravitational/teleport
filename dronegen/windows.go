@@ -152,7 +152,6 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 			`cd $WebappsSrc`,
 			`git clone https://github.com/gravitational/webapps.git .`,
 			`git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)`,
-			`git submodule update --init packages/webapps.e`,
 		},
 	}
 }
@@ -168,12 +167,15 @@ func updateWindowsSubreposStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY`,
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
 			`git submodule update --init --recursive webassets`,
 			`Reset-Git -Workspace $Workspace`,
+			`cd $WebappsSrc`,
+			`git submodule update --init packages/webapps.e`,
 		},
 	}
 }
