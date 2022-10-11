@@ -2687,7 +2687,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -2728,6 +2728,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -2744,10 +2768,6 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: amd64
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -2769,6 +2789,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -2904,7 +2948,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -2943,6 +2987,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -2959,10 +3027,6 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: amd64
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     FIPS: "yes"
     GNUPG_DIR: /tmpfs/gnupg
@@ -2983,6 +3047,30 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -3124,7 +3212,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -3165,6 +3253,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -3177,10 +3289,6 @@ steps:
   - make deb
   environment:
     ARCH: amd64
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -3197,6 +3305,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -3327,7 +3459,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -3366,6 +3498,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -3378,10 +3534,6 @@ steps:
   - make -C e deb
   environment:
     ARCH: amd64
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     FIPS: "yes"
     RUNTIME: fips
@@ -3397,6 +3549,30 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -3710,7 +3886,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -3751,6 +3927,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -3767,10 +3967,6 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: "386"
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -3792,6 +3988,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -3927,7 +4147,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -3968,6 +4188,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -3980,10 +4224,6 @@ steps:
   - make deb
   environment:
     ARCH: "386"
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -4000,6 +4240,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -5118,7 +5382,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -5159,6 +5423,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -5171,10 +5459,6 @@ steps:
   - make deb
   environment:
     ARCH: arm64
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -5191,6 +5475,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -5321,7 +5629,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -5362,6 +5670,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -5374,10 +5706,6 @@ steps:
   - make deb
   environment:
     ARCH: arm
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -5394,6 +5722,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -5524,7 +5876,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -5565,6 +5917,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -5581,10 +5957,6 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm64
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -5606,6 +5978,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -5741,7 +6137,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Assume AWS Role
+- name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
   - aws sts get-caller-identity
@@ -5782,6 +6178,30 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume Build AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_ROLE:
+      from_secret: TELEPORT_BUILD_READ_ONLY_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Build artifacts
   image: docker
   commands:
@@ -5798,10 +6218,6 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm
-    AWS_ACCESS_KEY_ID:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -5823,6 +6239,30 @@ steps:
     \;
   - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts
     \;
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
   commands:
@@ -8518,6 +8958,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: e2e0ed07878e332ffaba698d3f002fcecf3847969ec9b853010d0779807c8aa3
+hmac: 0da0c58e70b198937a8389796c397742e5249256ddf8383030711616631b2551
 
 ...
