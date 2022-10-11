@@ -1046,7 +1046,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alice] has sent Cassandra Execute to cassandra
+          User [alice] has sent Cassandra Execute to [cassandra]
         </td>
         <td
           style="min-width: 120px;"
@@ -1083,7 +1083,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alice] has sent Cassandra Prepare [SELECT * FROM system_schema.keyspaces to [cassandra]
+          User [alice] has sent Cassandra Prepare [SELECT * FROM system_schema.keyspaces] to [cassandra]
         </td>
         <td
           style="min-width: 120px;"
@@ -1120,7 +1120,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Recived malformed packet from [alice] in [master] on database [sqlserver02]
+          Received malformed packet from [alice] in [master] on database [sqlserver02]
         </td>
         <td
           style="min-width: 120px;"
@@ -1157,7 +1157,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alice] has sent RPC Request [undefined] in database [master] on [sqlserver02]
+          User [alice] has sent RPC Request [Sp_ExecuteSql] in database [master] on [sqlserver02]
         </td>
         <td
           style="min-width: 120px;"

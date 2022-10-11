@@ -739,7 +739,7 @@ export const formatters: Formatters = {
     type: 'db.session.malformed_packet"',
     desc: 'Database Malformed Packet',
     format: ({ user, db_service, db_name }) =>
-      `Recived malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
+      `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
   },
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
@@ -921,13 +921,13 @@ export const formatters: Formatters = {
       `User [${user}] has sent Cassandra Prepare [${truncateStr(
         query,
         80
-      )} to [${db_service}]`,
+      )}] to [${db_service}]`,
   },
   [eventCodes.CASSANDRA_EXECUTE_EVENT]: {
     type: 'db.session.cassandra.execute',
     desc: 'Cassandra Execute',
     format: ({ user, db_service }) =>
-      `User [${user}] has sent Cassandra Execute to ${db_service}`,
+      `User [${user}] has sent Cassandra Execute to [${db_service}]`,
   },
   [eventCodes.CASSANDRA_REGISTER_EVENT]: {
     type: 'db.session.cassandra.register',

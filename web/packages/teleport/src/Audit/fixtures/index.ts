@@ -1765,7 +1765,7 @@ export const events = [
     parameters: [
       'SELECT\ndtb.collation_name AS [Collation],\ndtb.name AS [DatabaseName2]\nFROM\nmaster.sys.databases AS dtb\nWHERE\n(dtb.name=@_msparam_0)',
     ],
-    procname: 'Sp_ExecuteSql',
+    proc_name: 'Sp_ExecuteSql',
     sid: '6b37d89b-0d9c-4681-976b-ba12588a1bcd',
     time: '2022-06-02T08:29:17.693Z',
     uid: 'a29dfad1-5a71-4c48-b4e0-10d1d857a23c',
