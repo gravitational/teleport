@@ -685,9 +685,8 @@ steps:
   - git checkout $TeleportRev
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
-  - git clone https://github.com/gravitational/webapps.git .
+  - git --recurse-submodules clone https://github.com/gravitational/webapps.git .
   - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
-  - git submodule update --init packages/webapps.e
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Checkout Submodules
@@ -954,9 +953,8 @@ steps:
   - git checkout $TeleportRev
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
-  - git clone https://github.com/gravitational/webapps.git .
+  - git --recurse-submodules clone https://github.com/gravitational/webapps.git .
   - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
-  - git submodule update --init packages/webapps.e
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Checkout Submodules
@@ -8288,6 +8286,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 569a4b4fc2696e22ec1d04053a6bc0d7633f087696c2d32da634a7a011f7e7f5
+hmac: 8ccf2a5ce5fd4a07a97c60116e315ca37d9ba92ee325c22aa360a66411eeb538
 
 ...
