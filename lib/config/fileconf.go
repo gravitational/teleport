@@ -221,7 +221,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	}
 
 	if flags.AuthServer != "" {
-		g.AuthServers = []string{flags.AuthServer}
+		g.AuthServer = flags.AuthServer
 	}
 
 	if flags.ProxyAddress != "" {
