@@ -19,7 +19,8 @@ main() {
   # Generate protoc-gen-go protos (preferred).
   # Add your protos to the list if you can.
   buf generate --template=buf-go.gen.yaml \
-    --path=api/proto/teleport/devicetrust
+    --path=api/proto/teleport/devicetrust/ \
+    --path=proto/teleport/lib/multiplexer/
 
   cp -r github.com/gravitational/teleport/* .
 }
