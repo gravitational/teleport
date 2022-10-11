@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -930,7 +931,16 @@ func (c *kubeClusterCollection) resources() (r []types.Resource) {
 	return r
 }
 
+// writeText formats the dynamic kube clusters into a table and writes them into w.
+// Name          Labels
+// ------------- ----------------------------------------------------------------------------------------------------------
+// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
+// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
+// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
+// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
+// If verbose is disabled, labels column can be truncated to fit into the console.
 func (c *kubeClusterCollection) writeText(w io.Writer) error {
+	sort.Sort(types.KubeClusters(c.clusters))
 	var rows [][]string
 	for _, cluster := range c.clusters {
 		labels := stripInternalTeleportLabels(c.verbose, cluster.GetAllLabels())
