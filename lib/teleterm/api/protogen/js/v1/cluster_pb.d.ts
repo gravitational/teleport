@@ -64,16 +64,16 @@ export class LoggedInUser extends jspb.Message {
     setSshLoginsList(value: Array<string>): LoggedInUser;
     addSshLogins(value: string, index?: number): string;
 
-    clearActiveRequestsList(): void;
-    getActiveRequestsList(): Array<string>;
-    setActiveRequestsList(value: Array<string>): LoggedInUser;
-    addActiveRequests(value: string, index?: number): string;
-
 
     hasAcl(): boolean;
     clearAcl(): void;
     getAcl(): ACL | undefined;
     setAcl(value?: ACL): LoggedInUser;
+
+    clearActiveRequestsList(): void;
+    getActiveRequestsList(): Array<string>;
+    setActiveRequestsList(value: Array<string>): LoggedInUser;
+    addActiveRequests(value: string, index?: number): string;
 
 
     serializeBinary(): Uint8Array;
@@ -91,8 +91,8 @@ export namespace LoggedInUser {
         name: string,
         rolesList: Array<string>,
         sshLoginsList: Array<string>,
-        activeRequestsList: Array<string>,
         acl?: ACL.AsObject,
+        activeRequestsList: Array<string>,
     }
 }
 

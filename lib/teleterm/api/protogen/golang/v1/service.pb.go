@@ -295,7 +295,6 @@ type GetAccessRequestRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// cluster_uri is the cluster uri
 	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// specifcies a specific request id
 	AccessRequestId string `protobuf:"bytes,2,opt,name=access_request_id,json=accessRequestId,proto3" json:"access_request_id,omitempty"`
@@ -4720,7 +4719,7 @@ type TerminalServiceClient interface {
 	ListRootClusters(ctx context.Context, in *ListClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
-	// GetDatabases lists all databases without pagination
+	// GetAllDatabases lists all databases without pagination
 	GetAllDatabases(ctx context.Context, in *GetAllDatabasesRequest, opts ...grpc.CallOption) (*GetAllDatabasesResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error)
@@ -4744,9 +4743,9 @@ type TerminalServiceClient interface {
 	GetRequestableRoles(ctx context.Context, in *GetRequestableRolesRequest, opts ...grpc.CallOption) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// GetAllKubes list kubes
+	// GetAllKubes list all kubes
 	GetAllKubes(ctx context.Context, in *GetAllKubesRequest, opts ...grpc.CallOption) (*GetAllKubesResponse, error)
-	// GetKubes list kubes
+	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
 	// ListApps list apps
 	ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error)
@@ -5139,7 +5138,7 @@ type TerminalServiceServer interface {
 	ListRootClusters(context.Context, *ListClustersRequest) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
-	// GetDatabases lists all databases without pagination
+	// GetAllDatabases lists all databases without pagination
 	GetAllDatabases(context.Context, *GetAllDatabasesRequest) (*GetAllDatabasesResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error)
@@ -5163,9 +5162,9 @@ type TerminalServiceServer interface {
 	GetRequestableRoles(context.Context, *GetRequestableRolesRequest) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error)
-	// GetAllKubes list kubes
+	// GetAllKubes list all kubes
 	GetAllKubes(context.Context, *GetAllKubesRequest) (*GetAllKubesResponse, error)
-	// GetKubes list kubes
+	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
 	// ListApps list apps
 	ListApps(context.Context, *ListAppsRequest) (*ListAppsResponse, error)
