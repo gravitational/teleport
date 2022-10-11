@@ -687,6 +687,7 @@ steps:
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
+  - git submodule update --init packages/webapps.e
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Checkout Submodules
@@ -955,6 +956,7 @@ steps:
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
+  - git submodule update --init packages/webapps.e
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Checkout Submodules
@@ -8286,6 +8288,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: a8f632da163542a11d283e349dd3f726134a463b54b1fd1c8a653e89ca05c2d2
+hmac: 569a4b4fc2696e22ec1d04053a6bc0d7633f087696c2d32da634a7a011f7e7f5
 
 ...

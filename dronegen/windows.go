@@ -152,6 +152,7 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 			`cd $WebappsSrc`,
 			`git clone https://github.com/gravitational/webapps.git .`,
 			`git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)`,
+			`git submodule update --init packages/webapps.e`,
 		},
 	}
 }
