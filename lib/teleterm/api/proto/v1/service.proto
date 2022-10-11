@@ -33,7 +33,7 @@ service TerminalService {
   rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
   // ListLeafClusters lists leaf clusters
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-  // GetDatabases lists all databases without pagination
+  // GetAllDatabases lists all databases without pagination
   rpc GetAllDatabases(GetAllDatabasesRequest) returns (GetAllDatabasesResponse);
   // GetDatabases returns a filtered and paginated list of databases
   rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
@@ -57,9 +57,9 @@ service TerminalService {
   rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
   // AssumeRole assumes the role of the given access request
   rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
-  // GetAllKubes list kubes
+  // GetAllKubes list all kubes
   rpc GetAllKubes(GetAllKubesRequest) returns (GetAllKubesResponse);
-  // GetKubes list kubes
+  // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
   // ListApps list apps
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
@@ -148,7 +148,6 @@ enum PasswordlessPrompt {
 }
 
 message GetAccessRequestRequest {
-  // cluster_uri is the cluster uri
   string cluster_uri = 1;
   // specifcies a specific request id
   string access_request_id = 2;
