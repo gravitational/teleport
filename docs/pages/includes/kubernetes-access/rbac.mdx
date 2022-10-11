@@ -6,7 +6,7 @@ Run the following command to get the Kubernetes user for your current context:
 
 ```code
 $ kubectl config view \
--o jsonpath="{.contexts[?(@.context.cluster==\"$(kubectl config current-context)\")].context.user}"
+-o jsonpath="{.contexts[?(@.name==\"$(kubectl config current-context)\")].context.user}"
 ```
 
 Create a file called `kube-user.yaml` with the following content, replacing
