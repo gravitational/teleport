@@ -34,11 +34,12 @@ License warnings should be displayed in CLI (tsh/tctl)
 
 TSH - on “tsh login” and "tsh status"
 When the user uses the “tsh login” command the appropriate license warning will be displayed. (see examples below)
-When the user uses "tsh status" only expired license warnings will be displayed.
+This will be achieved by showing alerts that have the 'on-login' label.
+When the user uses "tsh status" only expired license warnings will be displayed, this will be done by showing all 'high severity' alerts.
 
-TCTL - on any "tctl" command when expired, or on "tctl status" when it is a warning.
+TCTL - on any "tctl" command when expired.
 When the user uses any "tctl" command the appropriate license warning will be displayed if expired.
-The warnings will only be displyed on the "tctl status" command.
+Similar to 'tsh status' this will be all alerts that have 'high severity' which the the expired license alerts will be included in.
 
 The warnings are to be displayed 90 days prior to the license expiring.
 
@@ -56,7 +57,8 @@ Roles:              access, editor
 Logins:             someUser
 Valid until:        2022-08-12 21:57:19 +0100 IST [valid for 4h44m0s]
 Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-Your Teleport Enterprise Edition license will expire in 10 days on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
+
+Your Teleport Enterprise Edition license has expired on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 ```
@@ -69,7 +71,7 @@ Logins:             someUser
 Valid until:        2022-08-16 03:38:07 +0100 IST [valid for 12h0m0s]
 Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 
-Your Teleport Enterprise Edition license has expired on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
+Your Teleport Enterprise Edition license will expire in 10 days on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 ```
@@ -153,7 +155,7 @@ On startup and every 1 hour afterwards the auth server will check the license an
 
 All requests to grab cluster alerts will be made with a timeout of 500ms.
 
-These license warning alerts will need to need to know which instance the alert came from so this will need to be added to the cluster alert spec to allow this. The cluster alert spec may also need to be modified to add a bool for whether an alert is allowed to be dismissed.
+The cluster alert spec may also need to be modified to add a bool for whether an alert is allowed to be dismissed for the web ui alerts.
 
 ```
 message ClusterAlertSpec {
@@ -167,8 +169,6 @@ message ClusterAlertSpec {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // InstanceName is the name of the instance that generated the alert.
-  string InstanceName = 4 [(gogoproto.jsontag) = "instance_name"];
   // Dismissible is set if the alert is unable to be dismissed in the webui.
   bool Dismissible = 5 [(gogoproto.jsontag) = "dismissible"];
 }
