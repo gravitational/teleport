@@ -275,7 +275,7 @@ spec:
     ...
 ```
 
-However, the same resource-based approach does not applay to `hardware_key` or `hardware_key_touch`. Since the intial login credentials are used for all requests, regardless of resource, the user's login session must start with the strictest private key policy requirement.
+However, the same resource-based approach does not apply to `hardware_key` or `hardware_key_touch`. Since the initial login credentials are used for all requests, regardless of resource, the user's login session must start with the strictest private key policy requirement.
 
 ### Client changes
 
