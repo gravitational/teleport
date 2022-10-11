@@ -3584,7 +3584,7 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context, keyPolicy keys.Pri
 
 	switch keyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
-		log.Debugf("Attempting to login with YubiKey generated private key.")
+		log.Debugf("Attempting to login with YubiKey private key.")
 
 		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(keyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
 		if err != nil {

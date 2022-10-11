@@ -71,11 +71,13 @@ func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 
 	// First, check if there is already a private key set up by a Teleport Client.
 	priv, err := y.getPrivateKey(pivSlot)
-	if err != nil {
+	if trace.IsNotFound(err) {
 		// Generate a new private key on the PIV slot.
 		if priv, err = y.generatePrivateKey(pivSlot, touchPolicy); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	keyPEM, err := priv.keyPEM()
@@ -377,7 +379,10 @@ func findYubiKey(serialNumber uint32) (*yubiKey, error) {
 	}
 
 	if len(yubiKeyCards) == 0 {
-		return nil, trace.NotFound("no yubiKey devices found")
+		if serialNumber != 0 {
+			return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
+		}
+		return nil, trace.ConnectionProblem(nil, "no YubiKey device connected")
 	}
 
 	for _, card := range yubiKeyCards {
@@ -391,7 +396,7 @@ func findYubiKey(serialNumber uint32) (*yubiKey, error) {
 		}
 	}
 
-	return nil, trace.NotFound("no yubiKey device found with serial number %q", serialNumber)
+	return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
 }
 
 // findYubiKeyCards returns a list of connected yubiKey PIV card names.
