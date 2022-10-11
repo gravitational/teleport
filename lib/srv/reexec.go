@@ -304,7 +304,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// xauthority files is put into the correct place ($HOME/.Xauthority)
 		// with the right permissions.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		removeCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		removeCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		removeCmd.Env = cmd.Env
 		removeCmd.Dir = cmd.Dir
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
@@ -312,7 +315,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		addCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		addCmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:     true,
+			Credential: cmd.SysProcAttr.Credential,
+		}
 		addCmd.Env = cmd.Env
 		addCmd.Dir = cmd.Dir
 		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
