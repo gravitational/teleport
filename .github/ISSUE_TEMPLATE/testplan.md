@@ -378,13 +378,13 @@ and Linux `tsh` binaries are tested for FIDO2 items.
   - [ ] `tsh touchid ls` works
   - [ ] `tsh touchid rm` works (careful, may lock you out!)
 
-### Hardware Key Login
+### Hardware Key Support
 
-Hardware Key Login is a Enterprise feature and is not available for OSS.
+Hardware Key Support is an Enterprise feature and is not available for OSS.
 
-You will need a YubiKey 4.3+ to test this feature. 
+You will need a YubiKey 4.3+ to test this feature.
 
-This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
 
