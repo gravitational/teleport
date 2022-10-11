@@ -6630,13 +6630,11 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-      AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache make aws-cli
       - chown -R $UID:$GID /go
@@ -8958,6 +8956,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 0da0c58e70b198937a8389796c397742e5249256ddf8383030711616631b2551
+hmac: 5541685d7fc687b7ffa7e3619a6e2558b079d9097b953cb3c8d1f4340abfecd9
 
 ...
