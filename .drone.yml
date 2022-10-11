@@ -5724,13 +5724,11 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-      AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
+      - name: awsconfig
+        path: /root/.aws
     commands:
       - apk add --no-cache make aws-cli
       - chown -R $UID:$GID /go
@@ -7574,6 +7572,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: e4f4a673efa06f932ee13ec54a06a29d5630ed394da7c63d58834f16c4f47817
+hmac: cb3498d4dad72b38d02d5508945533e28f26c3de7f6babdf8220f4d9072722e8
 
 ...
