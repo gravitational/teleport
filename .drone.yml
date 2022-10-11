@@ -6012,89 +6012,6 @@ volumes:
     medium: memory
 
 ---
-
-################################################
-
-kind: pipeline
-type: kubernetes
-name: promote-docker-quay
-trigger:
-  event:
-    include:
-    - promote
-  target:
-    include:
-    - production
-    - promote-docker
-    - promote-docker-quay
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Verify build is tagged
-  image: alpine:latest
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
-- name: Wait for docker
-  image: docker
-  commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Pull/retag Docker images
-  image: docker
-  commands:
-  - apk add --no-cache aws-cli
-  - export VERSION=${DRONE_TAG##v}
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - echo "---> Pulling images for $${VERSION}"
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-  - echo "---> Tagging images for $${VERSION}"
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
-    quay.io/gravitational/teleport:$${VERSION}
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
-    quay.io/gravitational/teleport-ent:$${VERSION}
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-    quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
-  - echo "---> Pushing images for $${VERSION}"
-  - docker push quay.io/gravitational/teleport:$${VERSION}
-  - docker push quay.io/gravitational/teleport-ent:$${VERSION}
-  - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-    QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-
----
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -6163,6 +6080,92 @@ steps:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/promote.go:82
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-docker-quay
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-docker
+    - promote-docker-quay
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Pull/retag Docker images
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - export VERSION=${DRONE_TAG##v}
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - echo "---> Pulling images for $${VERSION}"
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - echo "---> Tagging images for $${VERSION}"
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+    quay.io/gravitational/teleport:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+    quay.io/gravitational/teleport-ent:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+    quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
+  - echo "---> Pushing images for $${VERSION}"
+  - docker push quay.io/gravitational/teleport:$${VERSION}
+  - docker push quay.io/gravitational/teleport-ent:$${VERSION}
+  - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+    QUAY_PASSWORD:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6530,6 +6533,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 8c6aa32014133cf4ae3e825b5409069a26ba6d8dc076245d7e09c496df379f9e
+hmac: a2c584ffdac32bf89c36a388897d3f13caaa19baa995b9cd64b550daea4066d3
 
 ...
