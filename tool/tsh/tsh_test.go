@@ -758,11 +758,11 @@ func TestMakeClient(t *testing.T) {
 	require.NotNil(t, tc)
 	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
 	require.Equal(t, proxySSHAddr.Addr, tc.Config.SSHProxyAddr)
-	require.NotNil(t, tc.LocalAgent().Agent)
+	require.NotNil(t, tc.LocalAgent().ExtendedAgent)
 
 	// Client should have an in-memory agent with keys loaded, in case agent
 	// forwarding is required for proxy recording mode.
-	agentKeys, err := tc.LocalAgent().Agent.List()
+	agentKeys, err := tc.LocalAgent().ExtendedAgent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
 }

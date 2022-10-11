@@ -1249,7 +1249,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Mode:       service.TLSMode(database.TLS.Mode),
 			},
 			AWS: service.DatabaseAWS{
-				Region: database.AWS.Region,
+				AccountID: database.AWS.AccountID,
+				Region:    database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
