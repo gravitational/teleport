@@ -1584,13 +1584,11 @@ func onLogin(cf *CLIConf) error {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
-	// Show only non expired license warnings here, expired ones will be shown
-	// when onStatus is called above.
+	// Show on-login alerts, all high severity alerts are shown by onStatus
+	// so can be excluded here.
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, map[string]string{
-		types.AlertLicenseExpired: "yes",
-	}); err != nil {
+	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -3419,11 +3417,12 @@ func onStatus(cf *CLIConf) error {
 
 	tc, err := makeClient(cf, true)
 	if err != nil {
-		return trace.Wrap(err)
+		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
+		return nil
 	}
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
-		types.AlertLicenseExpired: "yes",
-	}, nil); err != nil {
+
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 

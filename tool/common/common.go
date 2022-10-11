@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -102,13 +101,19 @@ func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error 
 	}
 }
 
-// ShowClusterAlerts shows cluster alerts with the given label.
-func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w io.Writer, labels, ignore map[string]string) error {
+// ClusterAlertGetter manages getting cluster alerts.
+type ClusterAlertGetter interface {
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+}
+
+// ShowClusterAlerts shows cluster alerts with the given labels and severity.
+func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, minSeverity, maxSeverity types.AlertSeverity) error {
 	// get any "on login" alerts
 	alertCtx, cancelAlertCtx := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
 	defer cancelAlertCtx()
 	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
-		Labels: labels,
+		Labels:   labels,
+		Severity: minSeverity,
 	})
 	if err != nil && !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
@@ -116,18 +121,14 @@ func ShowClusterAlerts(ctx context.Context, client local.ClusterAlertGetter, w i
 
 	types.SortClusterAlerts(alerts)
 	var errs []error
-Outer:
 	for _, alert := range alerts {
 		if err := alert.CheckMessage(); err != nil {
 			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
 			continue
 		}
-		for k, v := range ignore {
-			if labelValue, ok := alert.Metadata.Labels[k]; ok && labelValue == v {
-				continue Outer
-			}
+		if alert.Spec.Severity <= maxSeverity {
+			fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
 		}
-		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
 	}
 	return trace.NewAggregate(errs...)
 }

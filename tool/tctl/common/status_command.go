@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/constants"
@@ -28,9 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // StatusCommand implements `tctl token` group of commands.
@@ -162,14 +159,6 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 			return "Remote clusters\n\n" + table.AsBuffer().String()
 		}
 		fmt.Print(view())
-	}
-
-	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, map[string]string{
-		types.AlertOnLogin: "yes",
-	}, map[string]string{
-		types.AlertLicenseExpired: "yes",
-	}); err != nil {
-		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 	return nil
 }
