@@ -1,4 +1,4 @@
-.version: &version "10.3.2-dev.walt.2"
+.version: &version "10.3.2-dev.walt.3"
 
 name: teleport-operator
 apiVersion: v2
