@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -1283,9 +1284,16 @@ func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUse
 
 // GenerateAppToken creates a JWT token with application access.
 func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	traits := map[string]*wrappers.StringValues{}
+	for traitName, traitValues := range req.Traits {
+		traits[traitName] = &wrappers.StringValues{
+			Values: traitValues,
+		}
+	}
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
 		Username: req.Username,
 		Roles:    req.Roles,
+		Traits:   traits,
 		URI:      req.URI,
 		Expires:  req.Expires,
 	})
