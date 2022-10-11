@@ -31,16 +31,12 @@ const (
 )
 
 // ReservedHeaders is a list of headers injected by Teleport.
-var ReservedHeaders = []string{
-	teleport.AppJWTHeader,
+var ReservedHeaders = append([]string{teleport.AppJWTHeader,
 	teleport.AppCFHeader,
-	forward.XForwardedFor,
-	forward.XForwardedHost,
-	forward.XForwardedProto,
-	forward.XForwardedServer,
-	forward.XForwardedPort,
 	XForwardedSSL,
-}
+},
+	forward.XHeaders...,
+)
 
 // IsReservedHeader returns true if the provided header is one of headers
 // injected by Teleport.
