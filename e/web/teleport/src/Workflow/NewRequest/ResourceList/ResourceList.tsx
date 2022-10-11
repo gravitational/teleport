@@ -69,11 +69,11 @@ export function renderActionCell(
   return (
     <Cell align="right">
       {isAgentAdded ? (
-        <ButtonPrimary width="128px" size="small" onClick={toggleAgent}>
+        <ButtonPrimary width="134px" size="small" onClick={toggleAgent}>
           Remove
         </ButtonPrimary>
       ) : (
-        <ButtonBorder width="128px" size="small" onClick={toggleAgent}>
+        <ButtonBorder width="134px" size="small" onClick={toggleAgent}>
           + Add to request
         </ButtonBorder>
       )}

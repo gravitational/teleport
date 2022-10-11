@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, Box } from 'design';
 import { pluralize } from 'teleport/lib/util';
+import { getDurationText } from 'shared/utils/getDurationText';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
@@ -62,25 +63,6 @@ export function Switchback({
       </Flex>
     </Flex>
   );
-}
-
-function getDurationText(hrs: number, mins: number, secs: number) {
-  if (!hrs && !mins) {
-    return `${secs} secs`;
-  }
-
-  const hrText = pluralize(hrs, 'hr');
-  const minText = pluralize(mins, 'min');
-
-  if (!hrs) {
-    return `${mins} ${minText}`;
-  }
-
-  if (hrs && !mins) {
-    return `${hrs} ${hrText}`;
-  }
-
-  return `${hrs} ${hrText} and ${mins} ${minText}`;
 }
 
 const StyledButtonLink = styled.button`

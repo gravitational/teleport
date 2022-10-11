@@ -1,7 +1,11 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { RequestCheckout, RequestCheckoutProps } from './RequestCheckout';
+import {
+  RequestCheckout,
+  RequestCheckoutProps,
+  SuccessActionComponent,
+} from './RequestCheckout';
 
 export default {
   title: 'TeleportE/Workflow/Checkout',
@@ -15,6 +19,7 @@ export const Failed = () => (
     {...props}
     requireReason={false}
     attempt={{ status: 'failed', statusText: 'some error message' }}
+    SuccessComponent={SuccessActionComponent}
   />
 );
 
@@ -24,6 +29,7 @@ export const Success = () => (
       {...props}
       requireReason={false}
       attempt={{ status: 'success' }}
+      SuccessComponent={SuccessActionComponent}
     />
   </MemoryRouter>
 );

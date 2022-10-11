@@ -1,0 +1,16 @@
+{
+  "name": "@gravitational/teleterm.e",
+  "version": "1.0.0",
+  "description": "Enterprise version of Gravitational Teleport Connect UI",
+  "main": "index.js",
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@gravitational/teleport": "^1.0.0",
+    "cross-env": "5.0.5"
+  },
+  "devDependencies": {
+    "@gravitational/build": "^1.0.0",
+    "@types/google-protobuf": "^3.7.2"
+  }
+}

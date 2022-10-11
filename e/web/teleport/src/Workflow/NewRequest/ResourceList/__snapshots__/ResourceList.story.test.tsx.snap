@@ -27,7 +27,7 @@ exports[`render Apps 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 128px;
+  width: 134px;
 }
 
 .c6:active {
@@ -231,7 +231,7 @@ exports[`render Apps 1`] = `
             <button
               class="c6"
               kind="border"
-              width="128px"
+              width="134px"
             >
               + Add to request
             </button>
@@ -270,7 +270,7 @@ exports[`render Databases 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 128px;
+  width: 134px;
 }
 
 .c6:active {
@@ -478,7 +478,7 @@ exports[`render Databases 1`] = `
             <button
               class="c6"
               kind="border"
-              width="128px"
+              width="134px"
             >
               + Add to request
             </button>
@@ -517,7 +517,7 @@ exports[`render Desktops 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 128px;
+  width: 134px;
 }
 
 .c6:active {
@@ -707,7 +707,7 @@ exports[`render Desktops 1`] = `
             <button
               class="c6"
               kind="border"
-              width="128px"
+              width="134px"
             >
               + Add to request
             </button>
@@ -746,7 +746,7 @@ exports[`render Kubes 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 128px;
+  width: 134px;
 }
 
 .c6:active {
@@ -928,7 +928,7 @@ exports[`render Kubes 1`] = `
             <button
               class="c6"
               kind="border"
-              width="128px"
+              width="134px"
             >
               + Add to request
             </button>
@@ -967,7 +967,7 @@ exports[`render Nodes 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 128px;
+  width: 134px;
 }
 
 .c6:active {
@@ -1157,7 +1157,7 @@ exports[`render Nodes 1`] = `
             <button
               class="c6"
               kind="border"
-              width="128px"
+              width="134px"
             >
               + Add to request
             </button>
@@ -1196,7 +1196,7 @@ exports[`render Roles 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 128px;
+  width: 134px;
 }
 
 .c5:active {
@@ -1347,7 +1347,7 @@ exports[`render Roles 1`] = `
             <button
               class="c5"
               kind="border"
-              width="128px"
+              width="134px"
             >
               + Add to request
             </button>
@@ -1363,7 +1363,7 @@ exports[`render Roles 1`] = `
             <button
               class="c5"
               kind="border"
-              width="128px"
+              width="134px"
             >
               + Add to request
             </button>

@@ -33,6 +33,31 @@ type CreateOption = Option & {
   isSelected?: boolean;
 };
 
+export function SuccessActionComponent({ cfg, reset, onClose }) {
+  return (
+    <Box textAlign="center">
+      <ButtonPrimary
+        as={Link}
+        mt={5}
+        mb={3}
+        width="100%"
+        size="large"
+        to={cfg.getAccessRequestRoute()}
+      >
+        Back to Listings
+      </ButtonPrimary>
+      <ButtonText
+        onClick={() => {
+          reset();
+          onClose();
+        }}
+      >
+        Make Another Request
+      </ButtonText>
+    </Box>
+  );
+}
+
 export default function Container(props: Props) {
   const { selectedResource, addedResources, reset } = props;
   const ctx = useTeleportE();
@@ -43,7 +68,13 @@ export default function Container(props: Props) {
     reset,
   });
 
-  return <RequestCheckout {...state} {...props} />;
+  return (
+    <RequestCheckout
+      {...state}
+      {...props}
+      SuccessComponent={SuccessActionComponent}
+    />
+  );
 }
 
 export function RequestCheckout({
@@ -56,6 +87,7 @@ export function RequestCheckout({
   createRequest,
   clearAttempt,
   reviewers,
+  SuccessComponent,
   requireReason,
   numRequestedResources,
 }: RequestCheckoutProps) {
@@ -159,26 +191,7 @@ export function RequestCheckout({
           </Flex>
         )}
         {attempt.status === 'success' ? (
-          <Box textAlign="center">
-            <ButtonPrimary
-              as={Link}
-              mt={5}
-              mb={3}
-              width="100%"
-              size="large"
-              to={cfg.getAccessRequestRoute()}
-            >
-              Back to Listings
-            </ButtonPrimary>
-            <ButtonText
-              onClick={() => {
-                reset();
-                onClose();
-              }}
-            >
-              Make Another Request
-            </ButtonText>
-          </Box>
+          <SuccessComponent cfg={cfg} onClose={onClose} reset={reset} />
         ) : (
           <>
             {attempt.status === 'failed' && (
@@ -365,7 +378,14 @@ type Props = {
   toggleResource: NewRequestState['addOrRemoveResource'];
   addedResources: NewRequestState['addedResources'];
   reset: NewRequestState['clearAddedResources'];
+  SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
   transitionState: TransitionStatus;
+};
+
+type SuccessComponentParams = {
+  cfg: typeof cfg;
+  reset: () => void;
+  onClose: () => void;
 };
 
 export type RequestCheckoutProps = Omit<
