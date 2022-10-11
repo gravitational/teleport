@@ -3,6 +3,7 @@ syntax = "proto3";
 package teleport.devicetrust.v1;
 
 import "google/protobuf/empty.proto";
+import "google/rpc/status.proto";
 import "teleport/devicetrust/v1/device.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
@@ -59,6 +60,12 @@ service DeviceTrustService {
 
   // ListDevices lists all registered devices.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+
+  // BulkCreateDevice is a bulk variant of CreateDevice.
+  //
+  // Unlike CreateDevice, it does not support creation of enrollment tokens, as
+  // it is meant for bulk inventory registration.
+  rpc BulkCreateDevice(BulkCreateDeviceRequest) returns (BulkCreateDeviceResponse);
 }
 
 // Request for CreateDevice.
@@ -136,4 +143,28 @@ enum DeviceView {
   // View for detailed device queries, like `tctl get devices`.
   // Presents a complete view of the device.
   DEVICE_VIEW_RESOURCE = 2;
+}
+
+// Request for BulkCreateDevice.
+message BulkCreateDeviceRequest {
+  // Devices to create.
+  repeated Device devices = 1;
+}
+
+// Response for BulkCreateDevice.
+message BulkCreateDeviceResponse {
+  // Created devices or a failure reason.
+  // Responses are sorted according to the request.
+  repeated DeviceOrStatus devices = 1;
+}
+
+// DeviceOrStatus contains either a device ID, in case of success, or a status
+// in case of failures.
+message DeviceOrStatus {
+  // Status of the operation.
+  google.rpc.Status status = 1;
+
+  // ID of the created device.
+  // Only present if the status is OK.
+  string id = 2;
 }
