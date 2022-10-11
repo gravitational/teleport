@@ -4308,14 +4308,14 @@ func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.GetPolicyRequest)
 	return policy.(*types.PolicyV1), nil
 }
 
-// ListPolicies lists policies in the cluster.
-func (g *GRPCServer) ListPolicies(ctx context.Context, req *emptypb.Empty) (*proto.ListPoliciesResponse, error) {
+// GetPolicies lists policies in the cluster.
+func (g *GRPCServer) GetPolicies(ctx context.Context, req *emptypb.Empty) (*proto.GetPoliciesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	policies, err := auth.ListPolicies(ctx)
+	policies, err := auth.GetPolicies(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4330,7 +4330,7 @@ func (g *GRPCServer) ListPolicies(ctx context.Context, req *emptypb.Empty) (*pro
 		policiesV1 = append(policiesV1, policyV1)
 	}
 
-	return &proto.ListPoliciesResponse{Policies: policiesV1}, nil
+	return &proto.GetPoliciesResponse{Policies: policiesV1}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration

@@ -5155,10 +5155,10 @@ func (a *ServerWithRoles) GetPolicy(ctx context.Context, name string) (types.Pol
 	return a.authServer.GetPolicy(ctx, name)
 }
 
-// ListPolicies lists policies in the cluster
-func (a *ServerWithRoles) ListPolicies(ctx context.Context) ([]types.Policy, error) {
+// GetPolicies lists policies in the cluster
+func (a *ServerWithRoles) GetPolicies(ctx context.Context) ([]types.Policy, error) {
 	// TODO (joel): rbac checks
-	return a.authServer.ListPolicies(ctx)
+	return a.authServer.GetPolicies(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

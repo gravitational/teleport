@@ -1378,7 +1378,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &installerCollection{installers: []types.Installer{inst}}, nil
 	case types.KindPolicy:
 		if rc.ref.Name == "" {
-			policies, err := client.ListPolicies(ctx)
+			policies, err := client.GetPolicies(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

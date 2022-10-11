@@ -1897,8 +1897,8 @@ message GetPolicyRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
-// ListPoliciesResponse is a response containing a list of policies.
-message ListPoliciesResponse {
+// GetPoliciesResponse is a response containing a list of policies.
+message GetPoliciesResponse {
   repeated types.PolicyV1 Policies = 1 [(gogoproto.jsontag) = "policies"];
 }
 
@@ -2006,8 +2006,8 @@ service AuthService {
   rpc CreatePolicy(types.PolicyV1) returns (google.protobuf.Empty);
   // GetPolicy fetches a policy resource by name.
   rpc GetPolicy(GetPolicyRequest) returns (types.PolicyV1);
-  // ListPolicies lists policies in the cluster.
-  rpc ListPolicies(google.protobuf.Empty) returns (ListPoliciesResponse);
+  // GetPolicies lists policies in the cluster.
+  rpc GetPolicies(google.protobuf.Empty) returns (GetPoliciesResponse);
 
   // GetUser gets a user resource by name.
   rpc GetUser(GetUserRequest) returns (types.UserV2);

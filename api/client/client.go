@@ -2885,9 +2885,9 @@ func (c *Client) GetPolicy(ctx context.Context, name string) (types.Policy, erro
 	return resp, nil
 }
 
-// ListPolicies lists policies in the cluster.
-func (c *Client) ListPolicies(ctx context.Context) ([]types.Policy, error) {
-	resp, err := c.grpc.ListPolicies(ctx, &emptypb.Empty{}, c.callOpts...)
+// GetPolicies lists policies in the cluster.
+func (c *Client) GetPolicies(ctx context.Context) ([]types.Policy, error) {
+	resp, err := c.grpc.GetPolicies(ctx, &emptypb.Empty{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
