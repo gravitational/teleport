@@ -3,8 +3,17 @@ title: Host Certificates with Machine ID
 description: Issuing Host Certificates with Machine ID for OpenSSH servers.
 ---
 
-In this guide, you will learn how to create host certificates through Machine ID to allow Teleport users (manually or automated through Machine ID) to access OpenSSH servers. This allows for the benefits of
-Machine ID with OpenSSH nodes and reduces risk by ensuring that short-lived host certificates on Teleport clusters can be successfully applied.
+In earlier versions of Teleport, host certificates for OpenSSH servers were required to be created through `tctl`. While host certificates created through `tctl`
+are still a good option for some use cases, they must be manually rotated, and are not an ideal option where regular certificate rotation is a
+requirement for a strong security posture.
+
+Short-lived and regularly rotated host certificates provide a number of security improvements wherever applicable. Regular certificate rotation reduces risk
+by ensuring that any potentially stolen certificates are usable for a shorter period of time. Additionally, when coupled with Teleport's [RBAC](https://goteleport.com/docs/access-controls/guides/role-templates/)
+support and host certificate **Principals** and **Predicates**, limitations can be applied to both the process of creating host certificates, as well as the
+host certificates themselves.
+
+In this guide, you will learn how to create host certificates through Machine ID for OpenSSH servers, allowing for the benefits of host certificates with OpenSSH nodes,
+and reducing risk by ensuring that short-lived certificates adhering to the principle of least privelege can be successfully applied to Teleport clusters.
 
 ## Prerequisites
 
@@ -20,8 +29,8 @@ Machine ID with OpenSSH nodes and reduces risk by ensuring that short-lived host
 
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
-In this step, you will be downloading and installing Teleport binaries onto the
-machine you wish to assign an identity to.
+In this step, you will be downloading and installing Teleport binaries onto a remote machine. For the purposes of this guide, this machine will be referred to as the `Remote Device` and exists separately
+from the Teleport cluster.
 
 Each Teleport package hosted on our downloads page ships with several useful
 binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
@@ -33,7 +42,7 @@ binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
 
 Machine ID is available starting from the Teleport 9.0.0 release. Download the appropriate Teleport package for your platform from our [downloads page](https://goteleport.com/teleport/download).
 
-Next, log in to your cluster using `tsh` to ensure that your machine will be able to interact with the cluster:
+Next, log in to your cluster from the remote device using `tsh` to ensure that your device will be able to interact with the cluster:
 
 ```code
 tsh login --proxy=myteleportcluster.com --user=teleport-username
@@ -330,7 +339,7 @@ tlscert
 ```
 
 The public host certificate and private key Machine ID will be generating can be found within the `ssh_host-cert.pub` and `ssh_host` file. To confirm this,
-view the public certificates contents by entering the following command:
+view the public certificate's contents by entering the following command:
 
 ```code
 $ sudo ssh-keygen -L -f /opt/machine-id/key-cert.pub
@@ -357,7 +366,7 @@ Your output will resemble the following:
 ## Next Steps
 
 Now that Host Certificates have been created with Teleport, they can be applied to OpenSSH configurations as needed. For more information regarding the next steps
-to connect to OpenSSH with Machine ID, see the following documentation:
+to connect to OpenSSH with Teleport, see the following documentation:
 
 - [Using Teleport With OpenSSH](../../server-access/guides/openssh.mdx)
 - [Using SSH Host Certificates](https://goteleport.com/blog/how-to-ssh-properly/)
