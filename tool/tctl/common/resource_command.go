@@ -606,7 +606,7 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	server, err := services.UnmarshalServer(raw.Raw, "node")
+	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
