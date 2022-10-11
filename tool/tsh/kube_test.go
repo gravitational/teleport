@@ -67,7 +67,7 @@ func TestListKube(t *testing.T) {
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leaftClusterName)
 			},
 		),
-		withEventuallyFunc(func(s *suite) bool {
+		withValidationFunc(func(s *suite) bool {
 			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
 			require.NoError(t, err)
 			return len(rootClusters) >= 2

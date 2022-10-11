@@ -197,7 +197,7 @@ type testSuiteOptions struct {
 	rootConfigFunc func(cfg *service.Config)
 	leafConfigFunc func(cfg *service.Config)
 	leafCluster    bool
-	eventuallyFunc func(*suite) bool
+	validationFunc func(*suite) bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -220,9 +220,9 @@ func withLeafCluster() testSuiteOptionFunc {
 	}
 }
 
-func withEventuallyFunc(f func(*suite) bool) testSuiteOptionFunc {
+func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
-		o.eventuallyFunc = f
+		o.validationFunc = f
 	}
 }
 
@@ -244,9 +244,9 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 		}, time.Second*10, time.Second)
 	}
 
-	if options.eventuallyFunc != nil {
+	if options.validationFunc != nil {
 		require.Eventually(t, func() bool {
-			return options.eventuallyFunc(s)
+			return options.validationFunc(s)
 		}, 10*time.Second, 500*time.Millisecond)
 	}
 
