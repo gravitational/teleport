@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package teleport.devicetrust.v1;
 
+import "google/protobuf/empty.proto";
+import "teleport/devicetrust/v1/device.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
 
 // DeviceTrustService provides methods to manage, enroll and authenticate
@@ -25,4 +28,112 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 //
 // Device Trust is a Teleport Enterprise feature. Open Source Teleport clusters
 // treat all Device RPCs as unimplemented (which, in fact, they are for OSS.)
-service DeviceTrustService {}
+service DeviceTrustService {
+  // CreateDevice creates a device, effectively registering it on Teleport.
+  // Devices need to be registered before they can be enrolled.
+  //
+  // It is possible to create both a Device and a DeviceEnrollToken in a
+  // single invocation, see CreateDeviceRequest.create_enroll_token.
+  rpc CreateDevice(CreateDeviceRequest) returns (Device);
+
+  // DeleteDevice hard-deletes a device, removing it and all collected data
+  // history from the system.
+  //
+  // Prefer locking the device instead (see the `tctl lock` command). Deleting a
+  // device doesn't invalidate existing device certificates, but does prevent
+  // new device authentication ceremonies from occurring.
+  //
+  // Use with caution.
+  rpc DeleteDevice(DeleteDeviceRequest) returns (google.protobuf.Empty);
+
+  // FindDevices retrieves devices by device ID and/or asset tag.
+  //
+  // It provides an in-between search between fetching a device by ID and
+  // listing all devices.
+  //
+  // ID matches are guaranteed to be present in the response.
+  rpc FindDevices(FindDevicesRequest) returns (FindDevicesResponse);
+
+  // GetDevice retrieves a device by ID.
+  rpc GetDevice(GetDeviceRequest) returns (Device);
+
+  // ListDevices lists all registered devices.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+}
+
+// Request for CreateDevice.
+message CreateDeviceRequest {
+  // Device to create.
+  Device device = 1;
+
+  // If true, a DeviceEnrollToken is created along with the Device.
+  bool create_enroll_token = 2;
+}
+
+// Request for DeleteDevice.
+message DeleteDeviceRequest {
+  // ID of the Device to delete.
+  string device_id = 1;
+}
+
+// Request for FindDevices.
+//
+// Inspect the returned devices to determine whether the match was by ID or
+// asset tag.
+message FindDevicesRequest {
+  // Device ID or asset tag.
+  string id_or_tag = 1;
+}
+
+// Response for FindDevices.
+message FindDevicesResponse {
+  // Devices that matched the search.
+  // The number of resulting devices is expected to be low and may be
+  // artifically capped by the server otherwise.
+  repeated Device devices = 1;
+}
+
+// Request for GetDevice.
+message GetDeviceRequest {
+  // ID of the device.
+  string device_id = 1;
+}
+
+// Request for ListDevices.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListDevicesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Specifices which fields of the resource should be returned in the response.
+  DeviceView view = 3;
+}
+
+// Response for ListDevices.
+message ListDevicesResponse {
+  // Devices that matched the search.
+  repeated Device devices = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// DeviceView specifies which fields of returned devices should be present.
+enum DeviceView {
+  DEVICE_VIEW_UNSPECIFIED = 0;
+
+  // View for general device listings, like `tctl devices ls`.
+  // Contains only basic information, such as IDs and enrollment status.
+  DEVICE_VIEW_LIST = 1;
+
+  // View for detailed device queries, like `tctl get devices`.
+  // Presents a complete view of the device.
+  DEVICE_VIEW_RESOURCE = 2;
+}
