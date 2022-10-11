@@ -546,7 +546,7 @@ func TestApplyProxySettings(t *testing.T) {
 type mockAgent struct {
 	// Agent is embedded to avoid redeclaring all interface methods.
 	// Only the Signers method is implemented by testAgent.
-	agent.Agent
+	agent.ExtendedAgent
 	ValidPrincipals []string
 }
 

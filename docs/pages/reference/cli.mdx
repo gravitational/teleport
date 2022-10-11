@@ -594,7 +594,7 @@ $ tsh kube login <kube-cluster>
 ```code
 # tsh kube login to k8s cluster (gke_bens-demos_us-central1-c_gks-demo)
 $ tsh kube login gke_bens-demos_us-central1-c_gks-demo
-# Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
+# Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo". Try 'kubectl version' to test the connection.
 
 # On login, kubeconfig is pointed at the first cluster (alphabetically)
 $ kubectl config current-context
@@ -1971,6 +1971,44 @@ $ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
 $ tctl status \
     --auth-server=192.168.99.102:3025 \
     --identity=identity.pem
+```
+
+### tctl alerts create
+
+Creates cluster alerts. Cluster alerts can be displayed to Teleport users
+in the web UI or upon logging via `tsh`.
+
+```code
+$ tctl alerts create [<flags>] <message>
+```
+
+#### Arguments
+
+- `<message>`: The message for the alert to display
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--severity` | `low` | `low`, `medium`, `high` | Alert severity |
+| `--ttl` | none | Any duration | Optional expiry for alert (alert does not expire if no TTL is specified) |
+| `--labels` | none | any | A list of labels to attach to the alert. |
+
+While any labels can be applied to an alert, there are several internal labels that can be used to configure
+the behavior of alerts:
+
+- `teleport.internal/alert-on-login: yes`: ensures that the alert is displayed to users upon login
+- `teleport.internal/alert-permit-all: yes`: ensures that the alert is displayed to all users
+
+If no labels are specified, `tctl` will automatically add both of these labels.
+
+#### Examples
+
+```code
+$ tctl alerts create \
+    --severity=low \
+    --ttl=4h \
+    "The system is under maintenance, functionality may be limited."
 ```
 
 ### tctl top

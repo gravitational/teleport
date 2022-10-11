@@ -383,7 +383,7 @@ func TestInteractiveSession(t *testing.T) {
 
 // TestStopUnstarted tests that a session may be stopped before it launches.
 func TestStopUnstarted(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{ModeratedSessions: true}})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	srv := NewMockServer(t)
 	srv.component = teleport.ComponentNode
 

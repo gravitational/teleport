@@ -16,6 +16,8 @@ package helpers
 
 import (
 	"context"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // DisabledIMDSClient is an EC2 instance metadata client that is always disabled. This is faster
@@ -26,10 +28,14 @@ func (d *DisabledIMDSClient) IsAvailable(ctx context.Context) bool {
 	return false
 }
 
-func (d *DisabledIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
+func (d *DisabledIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
 	return nil, nil
 }
 
-func (d *DisabledIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
+func (d *DisabledIMDSClient) GetHostname(ctx context.Context) (string, error) {
 	return "", nil
+}
+
+func (d *DisabledIMDSClient) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeDisabled
 }

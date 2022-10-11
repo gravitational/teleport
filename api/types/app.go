@@ -85,23 +85,6 @@ func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
 	return app, nil
 }
 
-// NewAppV3FromLegacyApp creates a new app resource from legacy app struct.
-//
-// DELETE IN 9.0.
-func NewAppV3FromLegacyApp(app *App) (*AppV3, error) {
-	return NewAppV3(Metadata{
-		Name:        app.Name,
-		Description: app.Description,
-		Labels:      app.StaticLabels,
-	}, AppSpecV3{
-		URI:                app.URI,
-		PublicAddr:         app.PublicAddr,
-		DynamicLabels:      app.DynamicLabels,
-		InsecureSkipVerify: app.InsecureSkipVerify,
-		Rewrite:            app.Rewrite,
-	})
-}
-
 // GetVersion returns the app resource version.
 func (a *AppV3) GetVersion() string {
 	return a.Version

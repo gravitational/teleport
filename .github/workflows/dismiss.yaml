@@ -1,7 +1,7 @@
 # This workflow will run every 30 minutes and dismiss stale workflow runs on
 # open pull requests. Stale workflow runs on pull requests are runs that are
 # no longer up-to-date due to a new pull_request_target or pull_request_review
-# event occurring. 
+# event occurring.
 #
 # This workflow is specifically in place to dismiss stale runs for external
 # contributors because the `Check` workflow token does not have write access
@@ -11,6 +11,7 @@
 # of the checks.
 name: Dismiss Stale Workflows Runs
 on:
+  workflow_dispatch:
   schedule:
     # Runs every 30 minutes
     - cron: '0,30 * * * *'
@@ -36,12 +37,17 @@ jobs:
     name: Dismiss Stale Workflow Runs
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout master branch
-        uses: actions/checkout@v2
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v3
         with:
-          ref: master
-      - name: Installing the latest version of Go.
-        uses: actions/setup-go@v2
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+      - name: Installing Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: .github/shared-workflows/bot/go.mod
         # Run "dismiss" subcommand on bot.
       - name: Dismiss
-        run: cd .github/workflows/robot && go run main.go -workflow=dismiss -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=dismiss -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

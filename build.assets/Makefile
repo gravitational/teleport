@@ -22,11 +22,11 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.19.1
+GOLANG_VERSION ?= go1.19.2
 
 NODE_VERSION ?= 16.13.2
 
-RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
+RUST_VERSION ?= 1.64.0 # don't bump this without checking GLIBC compatibility
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -40,9 +40,7 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-# Newer version of protoc have removed JS support that breaks our Teleterm build.
-# Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
-PROTOC_VER ?= 3.20.1
+PROTOC_VER ?= 3.20.3
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 
@@ -447,7 +445,7 @@ release-centos7-fips:
 .PHONY:release-windows
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) LIBPCSCLITE=yes REPRODUCIBLE=yes
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
 
 #
 # Create an unsigned Windows Teleport package using the build container.
@@ -455,7 +453,7 @@ release-windows: buildbox
 .PHONY:release-windows-unsigned
 release-windows-unsigned: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) LIBPCSCLITE=yes REPRODUCIBLE=yes
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
 
 #
 # Run docs tester to detect problems.
