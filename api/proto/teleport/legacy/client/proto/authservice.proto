@@ -616,6 +616,8 @@ message GenerateAppTokenRequest {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "expires"
   ];
+  // Traits are the traits assigned to the user within Teleport.
+  map<string, wrappers.StringValues> Traits = 5 [(gogoproto.jsontag) = "traits"];
 }
 
 // GenerateAppTokenResponse contains a signed application token.

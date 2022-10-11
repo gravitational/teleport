@@ -35,6 +35,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     login: ITerminalServiceService_ILogin;
     loginPasswordless: ITerminalServiceService_ILoginPasswordless;
     logout: ITerminalServiceService_ILogout;
+    transferFile: ITerminalServiceService_ITransferFile;
 }
 
 interface ITerminalServiceService_IListRootClusters extends grpc.MethodDefinition<v1_service_pb.ListClustersRequest, v1_service_pb.ListClustersResponse> {
@@ -217,6 +218,15 @@ interface ITerminalServiceService_ILogout extends grpc.MethodDefinition<v1_servi
     responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_ITransferFile extends grpc.MethodDefinition<v1_service_pb.FileTransferRequest, v1_service_pb.FileTransferProgress> {
+    path: "/teleport.terminal.v1.TerminalService/TransferFile";
+    requestStream: false;
+    responseStream: true;
+    requestSerialize: grpc.serialize<v1_service_pb.FileTransferRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.FileTransferRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.FileTransferProgress>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.FileTransferProgress>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -241,6 +251,7 @@ export interface ITerminalServiceServer {
     login: grpc.handleUnaryCall<v1_service_pb.LoginRequest, v1_service_pb.EmptyResponse>;
     loginPasswordless: grpc.handleBidiStreamingCall<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
     logout: grpc.handleUnaryCall<v1_service_pb.LogoutRequest, v1_service_pb.EmptyResponse>;
+    transferFile: grpc.handleServerStreamingCall<v1_service_pb.FileTransferRequest, v1_service_pb.FileTransferProgress>;
 }
 
 export interface ITerminalServiceClient {
@@ -304,6 +315,8 @@ export interface ITerminalServiceClient {
     logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    transferFile(request: v1_service_pb.FileTransferRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
+    transferFile(request: v1_service_pb.FileTransferRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -367,4 +380,6 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public transferFile(request: v1_service_pb.FileTransferRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
+    public transferFile(request: v1_service_pb.FileTransferRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.FileTransferProgress>;
 }
