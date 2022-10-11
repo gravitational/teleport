@@ -1,6 +1,11 @@
 import { useStore } from 'shared/libs/stores';
 
 import { isEqual } from 'lodash';
+import isPast from 'date-fns/isPast';
+
+import { AccessRequest } from 'e-teleport/services/workflow';
+
+import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -8,6 +13,12 @@ import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { routing } from 'teleterm/ui/uri';
+import { LoggedInUser } from 'teleterm/services/tshd/types';
+
+import {
+  AccessRequestsService,
+  getEmptyPendingAccessRequest,
+} from './accessRequestsService';
 
 import { Document, DocumentsService } from './documentsService';
 
@@ -20,7 +31,13 @@ export interface Workspace {
   localClusterUri: string;
   documents: Document[];
   location: string;
+  accessRequests: {
+    isBarCollapsed: boolean;
+    pending: PendingAccessRequest;
+    assumed: Record<string, AccessRequest>;
+  };
   previous?: {
+    assumed: Record<string, AccessRequest>;
     documents: Document[];
     location: string;
   };
@@ -28,6 +45,10 @@ export interface Workspace {
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   private documentsServicesCache = new Map<string, DocumentsService>();
+  private accessRequestsServicesCache = new Map<
+    string,
+    AccessRequestsService
+  >();
   state: WorkspacesState = {
     rootClusterUri: undefined,
     workspaces: {},
@@ -54,7 +75,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return this.state.workspaces;
   }
 
-  getWorkspace(clusterUri): Workspace {
+  getWorkspace(clusterUri: string): Workspace {
     return this.state.workspaces[clusterUri];
   }
 
@@ -63,6 +84,13 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       return;
     }
     return this.getWorkspaceDocumentService(this.state.rootClusterUri);
+  }
+
+  getActiveWorkspaceAccessRequestsService(): AccessRequestsService | undefined {
+    if (!this.state.rootClusterUri) {
+      return;
+    }
+    return this.getWorkspaceAccessRequestsService(this.state.rootClusterUri);
   }
 
   getWorkspacesDocumentsServices(): Array<{
@@ -103,6 +131,26 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }
 
     return this.documentsServicesCache.get(clusterUri);
+  }
+
+  getWorkspaceAccessRequestsService(
+    clusterUri: string
+  ): AccessRequestsService | undefined {
+    if (!this.accessRequestsServicesCache.has(clusterUri)) {
+      this.accessRequestsServicesCache.set(
+        clusterUri,
+        new AccessRequestsService(
+          () => {
+            return this.state.workspaces[clusterUri].accessRequests;
+          },
+          newState =>
+            this.setState(draftState => {
+              newState(draftState.workspaces[clusterUri].accessRequests);
+            })
+        )
+      );
+    }
+    return this.accessRequestsServicesCache.get(clusterUri);
   }
 
   isDocumentActive(documentUri: string): boolean {
@@ -212,6 +260,13 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
         workspaces[cluster.uri] = {
           ...workspaceDefaultState,
+          accessRequests: {
+            ...workspaceDefaultState.accessRequests,
+            assumed: this.removeExpiredAssumedRoles(
+              persistedWorkspace?.accessRequests?.assumed || {},
+              cluster.loggedInUser
+            ),
+          },
           previous: this.canReopenPreviousDocuments({
             previousDocuments: persistedWorkspaceDocuments,
             currentDocuments: workspaceDefaultState.documents,
@@ -232,6 +287,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     if (persistedState.rootClusterUri) {
       this.setActiveWorkspace(persistedState.rootClusterUri);
     }
+  }
+
+  private removeExpiredAssumedRoles(
+    assumed: Record<string, AccessRequest>,
+    user: LoggedInUser
+  ) {
+    const validRequests = {};
+    const requests = Object.values(assumed);
+    requests.forEach(request => {
+      const expired = isPast(new Date(request.expires));
+      // only add any assumed that still exist on the loggedInUser cert
+      if (user.activeRequestsList.includes(request.id) && !expired) {
+        validRequests[request.id] = request;
+      }
+    });
+    return validRequests;
   }
 
   private reopenPreviousDocuments(clusterUri: string): void {
@@ -290,6 +361,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       rootClusterUri
     ).createClusterDocument({ clusterUri: localClusterUri });
     return {
+      accessRequests: {
+        assumed: {},
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: false,
+      },
       localClusterUri,
       location: defaultDocument.uri,
       documents: [defaultDocument],
@@ -304,6 +380,12 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
       stateToSave.workspaces[w] = {
+        accessRequests: {
+          isBarCollapsed: false,
+          assumed:
+            workspace.previous?.assumed || workspace.accessRequests?.assumed,
+          pending: getEmptyPendingAccessRequest(),
+        },
         localClusterUri: workspace.localClusterUri,
         location: workspace.previous?.location || workspace.location,
         documents: workspace.previous?.documents || workspace.documents,
@@ -312,3 +394,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.statePersistenceService.saveWorkspacesState(stateToSave);
   }
 }
+
+export type PendingAccessRequest = {
+  [k in ResourceKind]: Record<string, string>;
+};

@@ -47,6 +47,9 @@
       ],
       "e-teleport/*": [
         "packages/webapps.e/teleport/src/*"
+      ],
+      "e-teleterm/*": [
+        "packages/webapps.e/teleterm/src/*"
       ]
     }
   },

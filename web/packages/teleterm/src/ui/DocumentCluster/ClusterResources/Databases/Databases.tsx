@@ -16,12 +16,10 @@ limitations under the License.
 
 import React from 'react';
 
-import { Cell } from 'design/DataTable';
+import Table, { Cell } from 'design/DataTable';
 
 import { Danger } from 'design/Alert';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
-
-import { Table } from 'teleterm/ui/components/Table';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';

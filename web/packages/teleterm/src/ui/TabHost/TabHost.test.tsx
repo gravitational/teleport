@@ -19,6 +19,8 @@ import { ClustersService } from 'teleterm/ui/services/clusters';
 import AppContext from 'teleterm/ui/appContext';
 import { Config } from 'teleterm/services/config';
 
+import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
+
 function getMockDocuments(): Document[] {
   return [
     {
@@ -98,8 +100,16 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     getRootClusterUri() {
       return 'test_uri';
     },
+    getWorkspaces() {
+      return {};
+    },
     getActiveWorkspace() {
       return {
+        accessRequests: {
+          assumed: {},
+          isBarCollapsed: false,
+          pending: getEmptyPendingAccessRequest(),
+        },
         documents,
         location: undefined,
         localClusterUri: 'test_uri',

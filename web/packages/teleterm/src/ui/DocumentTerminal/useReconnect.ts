@@ -20,11 +20,11 @@ import { useEffect } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 export function useReconnect(doc: types.DocumentTshNode) {
   const ctx = useAppContext();
-  const workspaceDocumentsService = useWorkspaceDocumentsService();
+  const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   const { attempt, setAttempt } = useAttempt('');
   const cluster = ctx.clustersService.findRootClusterByResource(doc.serverUri);
 
