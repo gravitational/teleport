@@ -141,6 +141,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
+		Traits:   identity.Traits,
 		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
@@ -357,16 +358,7 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) err
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)
 	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.c.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session chunk %v", sess.id)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

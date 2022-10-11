@@ -292,7 +292,7 @@ func TestAuthPreference(t *testing.T) {
 			return conf.AuthPreference
 		},
 		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
-			conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+			conf.AuthPreference = newWebauthnAuthPreferenceConfigFromFile(t)
 			return conf.AuthPreference
 		},
 		setDynamic: func(t *testing.T, authServer *Server) {
@@ -612,12 +612,12 @@ func setupConfig(t *testing.T) InitConfig {
 	}
 }
 
-func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
+func newWebauthnAuthPreferenceConfigFromFile(t *testing.T) types.AuthPreference {
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorU2F,
-		U2F: &types.U2F{
-			AppID: "foo",
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
