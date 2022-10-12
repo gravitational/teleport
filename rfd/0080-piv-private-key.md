@@ -7,9 +7,9 @@ state: implemented
 
 ## Required approvers
 
-Engineering: @jakule && @r0mant && @codingllama
-Product: @klizhentas && @xinding33
-Security: @reedloden
+* Engineering: @jakule && @r0mant && @codingllama
+* Product: @klizhentas && @xinding33
+* Security: @reedloden
 
 ## What
 
