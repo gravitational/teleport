@@ -1105,7 +1105,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[staging]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[staging]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -1130,7 +1130,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -1367,7 +1367,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -1375,7 +1375,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
@@ -6114,7 +6114,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -6122,7 +6122,7 @@ steps:
           --output text) \
         > /root/.aws/credentials
     - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity
+    - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6234,7 +6234,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -6242,7 +6242,7 @@ steps:
           --output text) \
         > /root/.aws/credentials
     - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity
+    - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
@@ -6273,7 +6273,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -6281,7 +6281,7 @@ steps:
           --output text) \
         > /root/.aws/credentials
     - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity
+    - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_PACKER_ACCESS_KEY_ID
@@ -6320,7 +6320,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -6328,7 +6328,7 @@ steps:
           --output text) \
         > /root/.aws/credentials
     - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity
+    - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
@@ -6408,7 +6408,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -6416,7 +6416,7 @@ steps:
           --output text) \
         > /root/.aws/credentials
     - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity
+    - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
@@ -6448,7 +6448,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -6456,7 +6456,7 @@ steps:
           --output text) \
         > /root/.aws/credentials
     - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity
+    - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_PACKER_ACCESS_KEY_ID
@@ -6496,7 +6496,7 @@ steps:
     commands:
     - aws sts get-caller-identity
     - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
         $(aws sts assume-role \
           --role-arn "$AWS_ROLE" \
           --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -6504,7 +6504,7 @@ steps:
           --output text) \
         > /root/.aws/credentials
     - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity
+    - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
@@ -7388,7 +7388,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7396,7 +7396,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
@@ -7426,7 +7426,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7434,7 +7434,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
@@ -7474,7 +7474,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7482,7 +7482,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
@@ -7511,7 +7511,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7519,7 +7519,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
@@ -7549,7 +7549,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7557,7 +7557,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
@@ -7601,7 +7601,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7609,7 +7609,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
@@ -7656,7 +7656,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7664,7 +7664,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: RPMREPO_AWS_ACCESS_KEY_ID
@@ -7758,7 +7758,7 @@ steps:
     commands:
       - aws sts get-caller-identity
       - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
           $(aws sts assume-role \
             --role-arn "$AWS_ROLE" \
             --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
@@ -7766,7 +7766,7 @@ steps:
             --output text) \
           > /root/.aws/credentials
       - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity
+      - aws sts get-caller-identity --profile default
     environment:
       AWS_ACCESS_KEY_ID:
         from_secret: DEBREPO_AWS_ACCESS_KEY_ID
@@ -8007,6 +8007,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: b373edafb96800e885c2f03a26e82ca9985f84264c50e87546a91f0f4e92cca7
+hmac: 2f91166db62edb2842c175fa597624eb15a035c455cdfc5a278fda182db3e3b3
 
 ...
