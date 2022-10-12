@@ -152,6 +152,19 @@ Current database: *** NONE ***
 1 row in set (2.98 sec)
 ```
 
+### Teleport Connect
+
+Teleport Connect will start a local proxy tunnel when per-session-mfa is enabled.
+It will configure the local proxy callback function to notify the Electron
+app when MFA is needed to reissue certificates; the app window can be brought to the top to prompt the user for
+MFA.
+This stands in contrast with a cli-based prompt, which may not raise any indicator that an MFA tap is required
+when the cli is not visible on the user's screen.
+
+The full details of how Teleport Connect will implement such a callback triggered MFA prompt are outside the
+scope of this RFD, but a local proxy tunnel, with a callback function that is invoked on each new connection, 
+is sufficient to enable this capability.
+
 ### Preserving Prior Behavior
 We should be sure to preserve the behavior where db certs are saved to the filesystem when per-session-MFA is 
 not required.
