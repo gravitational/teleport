@@ -852,24 +852,3 @@ discovery_service:
 # This section configures the windows desktop service
 (!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```
-
-## Changelog
-
-### v3
-
-**Introduced in Teleport v11**
-
-Replaced `teleport.auth_servers` with either `teleport.auth_server` or `teleport.proxy_server`.
-
-### v2
-
-**Introduced in Teleport v8**
-
-Added support for multiplexing via `auth_service.proxy_listener_mode`.
-
-Removed the default values being set for:
-
-- `proxy_service.kube_listen_addr`
-- `proxy_service.ssh_public_addr`
-- `proxy_service.tunnel_listen_addr`
-- `proxy_service.web_listen_addr`
