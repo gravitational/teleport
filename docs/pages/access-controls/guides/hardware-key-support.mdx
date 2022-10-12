@@ -13,12 +13,6 @@ To prevent these types of exfiltration attacks altogether, Teleport clients supp
 
 Additionally, this feature can be configured to require touch for every Teleport request, including non-session requests. With touch required, Hardware Key Support provides better security in comparison to our per-session MFA offering.
 
-<Admonition type="note" title="touch caching">
-
-  A user's touch is cached on the YubiKey for 15 seconds to prevent excessive touch prompts.
-
-</Admonition>
-
 <ScopedBlock scope="oss">
 
   Hardware-backed Login Sessions require Teleport Enterprise or Teleport Cloud.
@@ -28,6 +22,12 @@ Additionally, this feature can be configured to require touch for every Teleport
 <Admonition type="note" title="PIV support">
 
   Hardware-backed Login Sessions require a PIV-compatible hardware key. Currently, this feature is only guarenteed to support YubiKey series 5+.
+
+</Admonition>
+
+<Admonition type="note" title="touch caching">
+
+  A user's touch is cached on the YubiKey for 15 seconds to prevent excessive touch prompts.
 
 </Admonition>
 
@@ -49,7 +49,7 @@ Additionally, this feature can be configured to require touch for every Teleport
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration
     - Kubernetes Access
 
-  To navigate these incompatiblities, we recommend enabled Hardware Key support only when necessary, such as for roles with access to critical infrastructure. These roles can be accessed as needed with Access Requests so that users can avoid these issues for their normal login sessions.
+  To navigate these incompatiblities, we recommend enabling Hardware Key support only when necessary, such as for roles with access to critical infrastructure. These roles can be accessed as needed with Access Requests so that users can avoid these issues for their normal login sessions.
 
 </Admonition>
 
@@ -74,7 +74,7 @@ spec:
     require_session_mfa: hardware_key_touch
 ```
 
-You can also enabled Hardware Key support cluster-wide by updating your Teleport configuration as below:
+You can also enable Hardware Key support cluster-wide by updating your Teleport configuration as below:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 <Tabs>
