@@ -2933,6 +2933,23 @@ message KubernetesClusterSpecV3 {
   // Kubeconfig is the kubeconfig file payload that grants access to the cluster.
   // If multiple contexts are specified, the first will be selected.
   bytes Kubeconfig = 2 [(gogoproto.jsontag) = "kubeconfig,omitempty"];
+  // Azure holds the required Azure information for Teleport to access the cluster.
+  KubeAzure Azure = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "azure,omitempty"
+  ];
+}
+
+// KubeAzure contains the Azure information about the cluster.
+message KubeAzure {
+  // ResourceName is the AKS cluster name.
+  string ResourceName = 1 [(gogoproto.jsontag) = "resource_name,omitempty"];
+  // ResourceGroup is the Azure resource group name.
+  string ResourceGroup = 2 [(gogoproto.jsontag) = "resource_group,omitempty"];
+  // TenantID is the AKS cluster Tenant ID.
+  string TenantID = 3 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+  // SubscriptionID is the AKS cluster SubscriptionID.
+  string SubscriptionID = 4 [(gogoproto.jsontag) = "subscription_id,omitempty"];
 }
 
 // KubernetesClusterV3List represents a list of kubernetes clusters.
@@ -3113,18 +3130,14 @@ message OIDCConnectorV3List {
 // It specifies configuration for Open ID Connect compatible external
 // identity provider: https://openid.net/specs/openid-connect-core-1_0.html
 message OIDCConnectorSpecV3 {
+  reserved 4;
+
   // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
   string IssuerURL = 1 [(gogoproto.jsontag) = "issuer_url"];
   // ClientID is the id of the authentication client (Teleport Auth server).
   string ClientID = 2 [(gogoproto.jsontag) = "client_id"];
   // ClientSecret is used to authenticate the client.
   string ClientSecret = 3 [(gogoproto.jsontag) = "client_secret"];
-  // RedirectURL is a URL that will redirect the client's browser
-  // back to the identity provider after successful authentication.
-  // This should match the URL on the Provider's side.
-  //
-  // DELETE IN 11.0.0 in favor of RedirectURLs
-  string RedirectURL = 4 [(gogoproto.jsontag) = "-"];
   // ACR is an Authentication Context Class Reference value. The meaning of the ACR
   // value is context-specific and varies for identity providers.
   string ACR = 5 [(gogoproto.jsontag) = "acr_values,omitempty"];
@@ -4215,6 +4228,10 @@ message ConnectionDiagnosticTrace {
     RBAC_PRINCIPAL = 4;
     // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
     NODE_PRINCIPAL = 5;
+    // RBAC_KUBE is for RBAC checks to kubernetes the cluster.
+    RBAC_KUBE = 6;
+    // KUBE_PRINCIPAL is used when checking if the Kube Cluster has at least one user principals.
+    KUBE_PRINCIPAL = 7;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.
