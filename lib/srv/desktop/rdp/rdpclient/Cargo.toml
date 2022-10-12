@@ -19,7 +19,7 @@ num-derive = "0.3.3"
 num-traits = "0.2.15"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
-rsa = "0.6.1"
+rsa = "0.7.0"
 rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "e4bff82a94252050115d75c2f8b0ae84c5d73d62" }
 uuid = { version = "1.1.2", features = ["v4"] }
 utf16string = "0.2.0"
