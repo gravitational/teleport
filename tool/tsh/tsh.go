@@ -1362,8 +1362,8 @@ func onLogin(cf *CLIConf) error {
 		//   OR
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
-			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+		case cf.Proxy == "" && cf.SiteName == "" && cf.Username == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "",
+			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.Username == profile.Username && cf.DesiredRoles == "" && cf.RequestID == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1378,8 +1378,7 @@ func onLogin(cf *CLIConf) error {
 			return nil
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
-			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1418,6 +1417,7 @@ func onLogin(cf *CLIConf) error {
 			}
 
 			return trace.Wrap(onStatus(cf))
+
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
