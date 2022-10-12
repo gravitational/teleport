@@ -41,13 +41,13 @@ Additionally, this feature can be configured to require touch for every Teleport
     - Server Access
     - Database Access (using `tsh proxy db` instead of `tsh db connect`)
     - Application Access
-    - Desktop Access
   
   Hardware-backed Login sessions do not yet support:
 
     - Teleport WebUI (except for user registration / reset password)
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration
     - Kubernetes Access
+    - Desktop Access
 
   To navigate these incompatiblities, we recommend enabling Hardware Key support only when necessary, such as for roles with access to critical infrastructure. These roles can be accessed as needed with Access Requests so that users can avoid these issues for their normal login sessions.
 
