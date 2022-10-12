@@ -141,6 +141,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
+		Traits:   identity.Traits,
 		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
