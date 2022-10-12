@@ -5145,19 +5145,28 @@ func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.Au
 
 // CreatePolicy creates a new policy resource.
 func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.Policy) error {
-	// TODO (joel): rbac checks
+	if err := a.action(apidefaults.Namespace, types.KindPolicy, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.CreatePolicy(ctx, policy)
 }
 
 // GetPolicy fetches a policy resource by name.
 func (a *ServerWithRoles) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
-	// TODO (joel): rbac checks
+	if err := a.action(apidefaults.Namespace, types.KindPolicy, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.GetPolicy(ctx, name)
 }
 
 // GetPolicies lists policies in the cluster
 func (a *ServerWithRoles) GetPolicies(ctx context.Context) ([]types.Policy, error) {
-	// TODO (joel): rbac checks
+	if err := a.action(apidefaults.Namespace, types.KindPolicy, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.GetPolicies(ctx)
 }
 
