@@ -365,14 +365,14 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			role:               value{fromSecret: "AWS_ROLE"},
 		},
 		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
 	})
-	assumeDownloadRoleStep.Name = "Assume Download AWS Role" // multiple steps cannot have the same name
 
 	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: optpb.bucketSecrets.awsRoleSettings,
 		configVolume:    volumeRefAwsConfig,
+		name:            "Assume Upload AWS Role",
 	})
-	assumeUploadRoleStep.Name = "Assume Upload AWS Role" // multiple steps cannot have the same name
 
 	return []step{
 		assumeDownloadRoleStep,
