@@ -554,7 +554,7 @@ func TestDiscoveryKube(t *testing.T) {
 				err := tlsServer.Auth().CreateKubernetesCluster(ctx, kubeCluster)
 				require.NoError(t, err)
 			}
-			// we analyse the logs emitted by discovery service to detect clusters that were not updated
+			// we analyze the logs emitted by discovery service to detect clusters that were not updated
 			// because their state didn't change.
 			r, w := io.Pipe()
 			t.Cleanup(func() {
@@ -576,7 +576,7 @@ func TestDiscoveryKube(t *testing.T) {
 				scanner := bufio.NewScanner(r)
 				for scanner.Scan() {
 					text := scanner.Text()
-					// we analyse the logs emitted by discovery service to detect clusters that were not updated
+					// we analyze the logs emitted by discovery service to detect clusters that were not updated
 					// because their state didn't change.
 					if reconcileRegexp.MatchString(text) {
 						result := reconcileRegexp.FindStringSubmatch(text)
@@ -803,10 +803,10 @@ func mustConvertEKSToKubeCluster(t *testing.T, cluster *eks.Cluster) types.KubeC
 	return kCluster
 }
 
-func mustConvertAKSToKubeCluster(t *testing.T, cluster *azure.AKSCluster) types.KubeCluster {
-	kCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
+func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster) types.KubeCluster {
+	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
-	return kCluster
+	return cluster
 }
 
 func modifyKubeCluster(cluster types.KubeCluster) types.KubeCluster {
