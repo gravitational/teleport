@@ -1388,12 +1388,12 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
-				// If we update the kube config, we may be switching to
-				// a user without an active profile. continue to relogin.
-			} else {
+			if err := updateKubeConfig(cf, tc, ""); err == nil {
 				return trace.Wrap(onStatus(cf))
 			}
+
+			// If we fail to update the kube config, we may be switching to
+			// a user without an active profile. continue to relogin.
 
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
