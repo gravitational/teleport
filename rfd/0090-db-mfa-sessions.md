@@ -30,6 +30,22 @@ When per-session-MFA is enabled, we should not restrict database cert TTL to 1 m
 Instead, database cert TTL should be restricted to `max_session_ttl`, and the cert
 should be kept in-memory by a local proxy tunnel.
 
+The commands `tsh db login` and `tsh proxy db` (without --tunnel) should return an error message if used when
+per-session-mfa is required, since these commands both save certs to disk.
+A user should be directed by the error message to use `tsh db connect` or `tsh proxy db --tunnel` instead:
+
+```bash
+$ tsh db login example-db
+ERROR: per-session-mfa is required to access database "example-db", but per-session-mfa is not supported
+by this command. Use `tsh db connect` or `tsh proxy db --tunnel` instead.
+See: $docs_reference for more details.
+
+$ tsh proxy db example-db
+ERROR: per-session-mfa is required to access database "example-db", but per-session-mfa is not supported
+by this command. Use `tsh db connect` or `tsh proxy db --tunnel` instead.
+See: $docs_reference for more details.
+```
+
 "Doesn't this just disable per-session-mfa for database access?" (My initial thinking)
 
 - No, not quite. Sessions are still limited by the lifetime of a local proxy process and an MFA prompt is always required to start these proxies when per-session-mfa is enabled.
