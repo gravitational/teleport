@@ -640,7 +640,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			event := emitter.LastEvent()
 			require.NotNil(t, event)
 
-			WriteEvent, ok := event.(*events.DesktopSharedDirectoryWrite)
+			writeEvent, ok := event.(*events.DesktopSharedDirectoryWrite)
 			require.True(t, ok)
 
 			baseEvent := &events.DesktopSharedDirectoryWrite{
@@ -669,7 +669,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 				Offset:        offset,
 			}
 
-			require.Empty(t, cmp.Diff(test.expected(baseEvent), WriteEvent))
+			require.Empty(t, cmp.Diff(test.expected(baseEvent), writeEvent))
 		})
 	}
 }
