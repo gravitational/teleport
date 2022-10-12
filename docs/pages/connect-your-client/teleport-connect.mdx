@@ -3,8 +3,8 @@ title: Using Teleport Connect
 description: Using Teleport Connect
 ---
 
-Teleport Connect provides easy and secure access to SSH servers and databases, with support for
-other resources such as Kubernetes clusters and applications coming in the future.
+Teleport Connect provides easy and secure access to SSH servers, databases, and Kubernetes clusters,
+with support for other resources coming in the future.
 
 ![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster.png)
 
@@ -55,13 +55,24 @@ The top bar of Teleport Connect consists of:
 ## Connecting to an SSH server
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
-  You can also press `Ctrl/Cmd + T` to achieve the same result.
+   You can also press `Ctrl/Cmd + T` to achieve the same result.
 2. Look for the SSH server you want to connect to and click the Connect button to the right.
 3. Select or enter the SSH user you wish to log in as and press `Enter`.
 4. A new tab will open with a shell session on the chosen server.
 
 Alternatively, you can type `tsh ssh` into the command bar in the Teleport Connect window, and the autocompletion will help
 you connect to a server.
+
+## Connecting to a Kubernetes cluster
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
+   You can also press `Ctrl/Cmd + T` to achieve the same result.
+2. Select the Kubes section.
+3. Look for the cluster you wish to connect to and click the Connect button to the right.
+4. A new local terminal tab will open which is preconfigured with the `$KUBECONFIG` environment variable
+   pointing to a configuration for the specified cluster. Any tools that you have installed that respect
+   the `$KUBECONFIG` environment variable (`kubectl`, `helm`, etc.) will work without additional configuration.
+   To identify the path to this config for use in other tools, run `echo $KUBECONFIG`.
 
 ## Connecting to a database
 

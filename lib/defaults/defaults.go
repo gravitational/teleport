@@ -480,6 +480,8 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolCassandra is the Cassandra database protocol.
+	ProtocolCassandra = "cassandra"
 	// ProtocolElasticsearch is the Elasticsearch database protocol.
 	ProtocolElasticsearch = "elasticsearch"
 )
@@ -493,6 +495,7 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolCassandra,
 	ProtocolElasticsearch,
 }
 
@@ -516,6 +519,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Elasticsearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
+	case ProtocolCassandra:
+		return "Cassandra"
 	default:
 		// Unknown protocol. Return original string.
 		return p
