@@ -377,11 +377,7 @@ func excludeFromSlice[T comparable](slice []T, entry T) []T {
 
 // copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes
 func copyAWSMatcherWithNewTypes(matcher services.AWSMatcher, newTypes []string) services.AWSMatcher {
-	return services.AWSMatcher{
-		Types:   newTypes,
-		Regions: matcher.Regions,
-		Tags:    matcher.Tags,
-		Params:  matcher.Params,
-		SSM:     matcher.SSM,
-	}
+	newMatcher := matcher
+	newMatcher.Types = newTypes
+	return newMatcher
 }
