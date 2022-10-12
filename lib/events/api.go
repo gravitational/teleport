@@ -550,6 +550,9 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
+	// DesktopSharedDirectoryStartEvent is emitted when when Teleport
+	// successfully begins sharing a new directory to a remote desktop.
+	DesktopSharedDirectoryStartEvent = "desktop.directory.start"
 	// DesktopSharedDirectoryReadEvent is emitted when data is read from a shared directory.
 	DesktopSharedDirectoryReadEvent = "desktop.directory.read"
 	// DesktopSharedDirectoryReadEvent is emitted when data is written to a shared directory.

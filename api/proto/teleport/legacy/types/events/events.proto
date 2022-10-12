@@ -382,6 +382,41 @@ message DesktopClipboardSend {
   int32 Length = 6 [(gogoproto.jsontag) = "length"];
 }
 
+// DesktopSharedDirectoryStart is emitted when Teleport
+// successfully begins sharing a new directory to a remote desktop.
+message DesktopSharedDirectoryStart {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+}
+
 // DesktopSharedDirectoryRead is emitted when Teleport
 // attempts to read from a file in a shared directory at
 // the behest of the remote desktop.
@@ -3053,8 +3088,9 @@ message OneOf {
     events.KubernetesClusterDelete KubernetesClusterDelete = 98;
     events.SSMRun SSMRun = 99;
     events.ElasticsearchRequest ElasticsearchRequest = 100;
-    events.DesktopSharedDirectoryRead DesktopSharedDirectoryRead = 101;
-    events.DesktopSharedDirectoryWrite DesktopSharedDirectoryWrite = 102;
+    events.DesktopSharedDirectoryStart DesktopSharedDirectoryStart = 101;
+    events.DesktopSharedDirectoryRead DesktopSharedDirectoryRead = 102;
+    events.DesktopSharedDirectoryWrite DesktopSharedDirectoryWrite = 103;
   }
 }
 
