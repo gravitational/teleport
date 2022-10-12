@@ -245,6 +245,10 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
     * [ ] Azure AD
     * [ ] Azure RBAC
   * [ ] Verify that AWS EKS clusters are discovered and enrolled
+* [ ] Verify dynamic registration.
+  * [ ] Can register a new Kubernetes cluster using `tctl create`.
+  * [ ] Can update registered Kubernetes cluster using `tctl create -f`.
+  * [ ] Can delete registered Kubernetes cluster using `tctl rm`.
 
 ### Kubernetes Secret Storage
 
