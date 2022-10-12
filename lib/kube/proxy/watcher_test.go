@@ -152,7 +152,7 @@ func TestWatcher(t *testing.T) {
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 		// make sure credentials were updated as well.
-		require.Equal(t, "api.cluster.com:443", testCtx.kubeServer.fwd.clusterDetails["kube2"].kubeCreds.targetAddr)
+		require.Equal(t, "api.cluster.com:443", testCtx.kubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
