@@ -241,6 +241,68 @@ export namespace LoginPasswordlessRequest {
 
 }
 
+export class FileTransferRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): FileTransferRequest;
+
+    getLogin(): string;
+    setLogin(value: string): FileTransferRequest;
+
+    getHostname(): string;
+    setHostname(value: string): FileTransferRequest;
+
+    getSource(): string;
+    setSource(value: string): FileTransferRequest;
+
+    getDestination(): string;
+    setDestination(value: string): FileTransferRequest;
+
+    getDirection(): FileTransferDirection;
+    setDirection(value: FileTransferDirection): FileTransferRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FileTransferRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: FileTransferRequest): FileTransferRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FileTransferRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FileTransferRequest;
+    static deserializeBinaryFromReader(message: FileTransferRequest, reader: jspb.BinaryReader): FileTransferRequest;
+}
+
+export namespace FileTransferRequest {
+    export type AsObject = {
+        clusterUri: string,
+        login: string,
+        hostname: string,
+        source: string,
+        destination: string,
+        direction: FileTransferDirection,
+    }
+}
+
+export class FileTransferProgress extends jspb.Message { 
+    getPercentage(): number;
+    setPercentage(value: number): FileTransferProgress;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FileTransferProgress.AsObject;
+    static toObject(includeInstance: boolean, msg: FileTransferProgress): FileTransferProgress.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FileTransferProgress, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FileTransferProgress;
+    static deserializeBinaryFromReader(message: FileTransferProgress, reader: jspb.BinaryReader): FileTransferProgress;
+}
+
+export namespace FileTransferProgress {
+    export type AsObject = {
+        percentage: number,
+    }
+}
+
 export class LoginRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): LoginRequest;
@@ -860,4 +922,10 @@ export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_PIN = 1,
     PASSWORDLESS_PROMPT_TAP = 2,
     PASSWORDLESS_PROMPT_CREDENTIAL = 3,
+}
+
+export enum FileTransferDirection {
+    FILE_TRANSFER_DIRECTION_UNSPECIFIED = 0,
+    FILE_TRANSFER_DIRECTION_DOWNLOAD = 1,
+    FILE_TRANSFER_DIRECTION_UPLOAD = 2,
 }

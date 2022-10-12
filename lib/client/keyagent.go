@@ -46,14 +46,14 @@ type LocalKeyAgent struct {
 	// log holds the structured logger.
 	log *logrus.Entry
 
-	// Agent is the teleport agent
-	agent.Agent
+	// ExtendedAgent is the teleport agent
+	agent.ExtendedAgent
 
 	// keyStore is the storage backend for certificates and keys
 	keyStore LocalKeyStore
 
 	// sshAgent is the system ssh agent
-	sshAgent agent.Agent
+	sshAgent agent.ExtendedAgent
 
 	// noHosts is a in-memory map used in tests to track which hosts a user has
 	// manually (via keyboard input) refused connecting to.
@@ -139,7 +139,7 @@ func shouldAddKeysToAgent(addKeysToAgent string) bool {
 // LocalAgentConfig contains parameters for creating the local keys agent.
 type LocalAgentConfig struct {
 	Keystore   LocalKeyStore
-	Agent      agent.Agent
+	Agent      agent.ExtendedAgent
 	ProxyHost  string
 	Username   string
 	KeysOption string
@@ -152,20 +152,24 @@ type LocalAgentConfig struct {
 // and loads them into the local and system agent
 func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	if conf.Agent == nil {
-		conf.Agent = agent.NewKeyring()
+		keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+		if !ok {
+			return nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
+		}
+		conf.Agent = keyring
 	}
 	a = &LocalKeyAgent{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentKeyAgent,
 		}),
-		Agent:      conf.Agent,
-		keyStore:   conf.Keystore,
-		noHosts:    make(map[string]bool),
-		username:   conf.Username,
-		proxyHost:  conf.ProxyHost,
-		insecure:   conf.Insecure,
-		siteName:   conf.Site,
-		loadAllCAs: conf.LoadAllCAs,
+		ExtendedAgent: conf.Agent,
+		keyStore:      conf.Keystore,
+		noHosts:       make(map[string]bool),
+		username:      conf.Username,
+		proxyHost:     conf.ProxyHost,
+		insecure:      conf.Insecure,
+		siteName:      conf.Site,
+		loadAllCAs:    conf.LoadAllCAs,
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
@@ -242,7 +246,7 @@ func (a *LocalKeyAgent) LoadKey(key Key) error {
 	}
 
 	a.log.Infof("Loading SSH key for user %q and cluster %q.", a.username, key.ClusterName)
-	agents := []agent.Agent{a.Agent}
+	agents := []agent.ExtendedAgent{a.ExtendedAgent}
 	if a.sshAgent != nil {
 		agents = append(agents, a.sshAgent)
 	}
@@ -271,7 +275,7 @@ func (a *LocalKeyAgent) LoadKey(key Key) error {
 // UnloadKey will unload key for user from the teleport ssh agent as well as
 // the system agent.
 func (a *LocalKeyAgent) UnloadKey() error {
-	agents := []agent.Agent{a.Agent}
+	agents := []agent.ExtendedAgent{a.ExtendedAgent}
 	if a.sshAgent != nil {
 		agents = append(agents, a.sshAgent)
 	}
@@ -301,7 +305,7 @@ func (a *LocalKeyAgent) UnloadKey() error {
 // UnloadKeys will unload all Teleport keys from the teleport agent as well as
 // the system agent.
 func (a *LocalKeyAgent) UnloadKeys() error {
-	agents := []agent.Agent{a.Agent}
+	agents := []agent.ExtendedAgent{a.ExtendedAgent}
 	if a.sshAgent != nil {
 		agents = append(agents, a.sshAgent)
 	}
