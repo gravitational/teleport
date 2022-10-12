@@ -931,6 +931,10 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
 				s.onSharedDirectoryReadRequest(sessionID, message)
 			}
+		case byte(tdp.TypeSharedDirectoryWriteRequest):
+			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
+				s.onSharedDirectoryWriteRequest(sessionID, message)
+			}
 		}
 	}
 }
@@ -968,6 +972,8 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			s.onSharedDirectoryAnnounce(sessionID, m.(tdp.SharedDirectoryAnnounce))
 		case tdp.SharedDirectoryReadResponse:
 			s.onSharedDirectoryReadResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
+		case tdp.SharedDirectoryWriteResponse:
+			s.onSharedDirectoryWriteResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
 		}
 	}
 }

@@ -223,6 +223,75 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 	s.emit(ctx, emitter, event)
 }
 
+// onSharedDirectoryWriteRequest adds WriteRequestInfo to the auditCache.
+func (s *WindowsService) onSharedDirectoryWriteRequest(sid string, m tdp.SharedDirectoryWriteRequest) {
+	s.auditCache.SetWriteRequestInfo(sessionID(sid), completionID(m.CompletionID), writeRequestInfo{
+		directoryID: directoryID(m.DirectoryID),
+		path:        m.Path,
+		offset:      m.Offset,
+	})
+}
+
+// onSharedDirectoryWriteResponse emits a DesktopSharedDirectoryWrite audit event.
+func (s *WindowsService) onSharedDirectoryWriteResponse(
+	ctx context.Context,
+	emitter events.Emitter,
+	id *tlsca.Identity,
+	sid string,
+	desktopAddr string,
+	m tdp.SharedDirectoryWriteResponse,
+) {
+	var did directoryID
+	var path string
+	var offset uint64
+	var name directoryName
+	// Gather info from the audit cache
+	info, ok := s.auditCache.GetWriteRequestInfo(sessionID(sid), completionID(m.CompletionID))
+	if ok {
+		did = info.directoryID
+		// Only search for the directory name if we retrieved the directoryID from the audit cache.
+		name, ok = s.auditCache.GetName(sessionID(sid), did)
+		if !ok {
+			name = events.UnknownEvent
+			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
+		}
+		path = info.path
+		offset = info.offset
+	} else {
+		path = events.UnknownEvent
+		name = events.UnknownEvent
+		s.cfg.Log.Warnf("failed to find audit information corresponding to sessionID(%v), completionID(%v)", sid, m.CompletionID)
+	}
+
+	event := &events.DesktopSharedDirectoryWrite{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopSharedDirectoryWriteEvent,
+			Code:        libevents.DesktopSharedDirectoryWriteCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sid,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		Status:        statusFromErrCode(m.ErrCode),
+		DesktopAddr:   desktopAddr,
+		DirectoryName: string(name),
+		DirectoryID:   uint32(did),
+		Path:          path,
+		Length:        m.BytesWritten,
+		Offset:        offset,
+	}
+
+	s.emit(ctx, emitter, event)
+}
+
 func (s *WindowsService) emit(ctx context.Context, emitter events.Emitter, event events.AuditEvent) {
 	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)
