@@ -3,12 +3,12 @@ package resources
 import (
 	"context"
 
-	resourcesv3 "github.com/gravitational/teleport/operator/apis/resources/v3"
+	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
+	resourcesv3 "github.com/gravitational/teleport/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/operator/sidecar"
-	"github.com/gravitational/trace"
 )
 
 type GithubConnectorClient struct {
