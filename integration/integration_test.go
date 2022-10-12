@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -5618,7 +5619,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 
 	accessRequestID := req.GetName()
 
-	err = authServer.CreateAccessRequest(context.TODO(), req)
+	err = authServer.CreateAccessRequest(context.TODO(), req, tlsca.Identity{})
 	require.NoError(t, err)
 
 	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
