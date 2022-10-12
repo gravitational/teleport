@@ -505,10 +505,10 @@ type localProxyOpts struct {
 	listener                net.Listener
 	protocols               []alpncommon.Protocol
 	insecure                bool
-	certFile                string
-	keyFile                 string
+	certs                   []tls.Certificate
 	rootCAs                 *x509.CertPool
 	alpnConnUpgradeRequired bool
+	middleware              alpnproxy.LocalProxyMiddleware
 }
 
 // protocol returns the first protocol or string if configuration doesn't contain any protocols.
@@ -519,16 +519,12 @@ func (l *localProxyOpts) protocol() string {
 	return string(l.protocols[0])
 }
 
-func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
+func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
 	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	address, err := utils.ParseAddr(opts.proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := mkLocalProxyCerts(opts.certFile, opts.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -545,9 +541,10 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		Listener:                opts.listener,
 		ParentContext:           ctx,
 		SNI:                     address.Host(),
-		Certs:                   certs,
+		Certs:                   opts.certs,
 		RootCAs:                 opts.rootCAs,
 		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
+		Middleware:              opts.middleware,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -711,10 +708,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 
 // getTLSCertExpireTime returns the certificate NotAfter time.
 func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	if len(cert.Certificate) < 1 {
-		return time.Time{}, trace.NotFound("invalid certificate length")
-	}
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	x509cert, err := utils.TLSCertToX509(cert)
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
