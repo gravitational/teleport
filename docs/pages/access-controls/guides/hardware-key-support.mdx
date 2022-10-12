@@ -33,7 +33,7 @@ Additionally, this feature can be configured to require touch for every Teleport
 
 <Admonition type="warning" title="Compatibility Issues">
 
-  Hardware-backed Login Sessions provides the best security available, but it is a new feature with some compatiblity trade-offs. We hope to remove these incompatibilities as development progresses.
+  Hardware-backed Login Sessions provides the best security available, but it is a new feature with some compatiblity trade-offs. We hope to improve compatibility in the future.
   
   Currently, Hardware-backed Login Sessions support `tsh`, `tctl`, and Teleport Connect for:
     
@@ -74,7 +74,7 @@ spec:
     require_session_mfa: hardware_key_touch
 ```
 
-You can also enabled Hardware Key support cluster-wide by updating yout Teleport configuration as below:
+You can also enabled Hardware Key support cluster-wide by updating your Teleport configuration as below:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 <Tabs>
@@ -193,7 +193,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 </ScopedBlock>
 
-Affected user's with existing sessions will be prompted to re-login on their next request:
+Affected users with existing sessions will be prompted to re-login on their next request:
 
 ```code
 $ tsh clusters
