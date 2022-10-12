@@ -7,6 +7,7 @@ import QuickInput from '../QuickInput';
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
+import { NavigationMenu } from './NavigationMenu';
 
 export function TopBar() {
   return (
@@ -20,6 +21,7 @@ export function TopBar() {
       </CentralContainer>
       <JustifyRight>
         <Identity />
+        <NavigationMenu />
       </JustifyRight>
     </Grid>
   );
@@ -54,7 +56,7 @@ const JustifyLeft = styled.div`
 `;
 
 const JustifyRight = styled.div`
-  display: grid;
+  display: flex;
   justify-self: end;
   align-items: center;
   height: 100%;

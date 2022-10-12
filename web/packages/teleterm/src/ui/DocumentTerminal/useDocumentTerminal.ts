@@ -25,13 +25,13 @@ import { IAppContext } from 'teleterm/ui/types';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 
 export default function useDocumentTerminal(doc: Doc) {
   const ctx = useAppContext();
-  const workspaceDocumentsService = useWorkspaceDocumentsService();
+  const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   const [state, init] = useAsync(async () =>
     initState(ctx, workspaceDocumentsService, doc)
   );

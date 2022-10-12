@@ -1,2 +1,2 @@
 export * from './DocumentsRenderer';
-export * from './workspaceDocumentsServiceContext';
+export * from './workspaceContext';

@@ -1,6 +1,8 @@
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
 
+import { getEmptyPendingAccessRequest } from './accessRequestsService';
+
 import { Workspace, WorkspacesService } from './workspacesService';
 
 describe('restoring workspace', () => {
@@ -29,6 +31,7 @@ describe('restoring workspace', () => {
           leaf: false,
           proxyHost: 'test:3030',
           loggedInUser: {
+            activeRequestsList: [],
             name: 'Alice',
             rolesList: [],
             sshLoginsList: [],
@@ -65,6 +68,11 @@ describe('restoring workspace', () => {
   it('restores the workspace if it there is a persisted state for given clusterUri', () => {
     const testClusterUri = '/clusters/test-uri';
     const testWorkspace: Workspace = {
+      accessRequests: {
+        assumed: {},
+        isBarCollapsed: true,
+        pending: getEmptyPendingAccessRequest(),
+      },
       localClusterUri: testClusterUri,
       documents: [
         {
@@ -84,6 +92,18 @@ describe('restoring workspace', () => {
     workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [testClusterUri]: {
+        accessRequests: {
+          assumed: {},
+          pending: {
+            app: {},
+            db: {},
+            kube_cluster: {},
+            node: {},
+            role: {},
+            windows_desktop: {},
+          },
+          isBarCollapsed: false,
+        },
         localClusterUri: testWorkspace.localClusterUri,
         documents: [clusterDocument],
         location: clusterDocument.uri,
@@ -105,6 +125,18 @@ describe('restoring workspace', () => {
     workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [testClusterUri]: {
+        accessRequests: {
+          isBarCollapsed: false,
+          assumed: {},
+          pending: {
+            app: {},
+            db: {},
+            kube_cluster: {},
+            node: {},
+            role: {},
+            windows_desktop: {},
+          },
+        },
         localClusterUri: testClusterUri,
         documents: [clusterDocument],
         location: clusterDocument.uri,

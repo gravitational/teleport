@@ -79,6 +79,7 @@ export function OneClusterWithActiveCluster() {
     connected: true,
     leaf: false,
     loggedInUser: {
+      activeRequestsList: [],
       name: 'alice',
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
@@ -173,6 +174,7 @@ export function ManyClustersWithActiveCluster() {
     connected: true,
     leaf: false,
     loggedInUser: {
+      activeRequestsList: [],
       name: activeIdentityRootCluster.userName,
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
@@ -229,6 +231,7 @@ export function LongNamesWithManyRoles() {
     connected: true,
     leaf: false,
     loggedInUser: {
+      activeRequestsList: [],
       name: activeIdentityRootCluster.userName,
       rolesList: [
         'circle-mark-app-access',

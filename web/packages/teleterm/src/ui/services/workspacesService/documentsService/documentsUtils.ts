@@ -13,6 +13,8 @@ export function getResourceUri(document: Document): string {
       return document.serverUri;
     case 'doc.terminal_tsh_kube':
       return document.kubeUri;
+    case 'doc.access_requests':
+      return document.clusterUri;
     case 'doc.terminal_shell':
       return routing.getClusterUri({
         rootClusterId: document.rootClusterId,

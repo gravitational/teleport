@@ -13,9 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 import React from 'react';
 import { Flex } from 'design';
+
+import { AccessRequestCheckout } from 'e-teleterm/ui/DocumentAccessRequests/AccessRequestCheckout/AccessRequestCheckout';
 
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
@@ -28,6 +29,7 @@ export function LayoutManager() {
       <Flex flex="1" minHeight={0} style={{ position: 'relative' }}>
         <TabHostContainer />
       </Flex>
+      <AccessRequestCheckout />
       <StatusBar />
     </Flex>
   );

@@ -14,6 +14,7 @@ const clusterMock: tsh.Cluster = {
   leaf: false,
   proxyHost: 'localhost:3080',
   loggedInUser: {
+    activeRequestsList: [],
     name: 'admin',
     acl: {},
     sshLoginsList: [],
@@ -114,8 +115,8 @@ function getClientMocks(): Partial<tsh.TshClient> {
     getCluster: jest.fn().mockResolvedValueOnce(clusterMock),
     listLeafClusters: jest.fn().mockResolvedValueOnce([]),
     listGateways: jest.fn().mockResolvedValueOnce([gatewayMock]),
-    listDatabases: jest.fn().mockResolvedValueOnce([dbMock]),
-    listServers: jest.fn().mockResolvedValueOnce([serverMock]),
+    getAllDatabases: jest.fn().mockResolvedValueOnce([dbMock]),
+    getAllServers: jest.fn().mockResolvedValueOnce([serverMock]),
     createGateway: jest.fn().mockResolvedValueOnce(gatewayMock),
     removeGateway: jest.fn().mockResolvedValueOnce(undefined),
     restartGateway: jest.fn().mockResolvedValueOnce(undefined),
@@ -165,23 +166,23 @@ test('sync cluster and its resources', async () => {
     getCluster,
     listLeafClusters,
     listGateways,
-    listDatabases,
-    listServers,
+    getAllDatabases,
+    getAllServers,
   } = getClientMocks();
   const service = createService({
     getCluster,
     listLeafClusters,
     listGateways,
-    listDatabases,
-    listServers,
+    getAllDatabases,
+    getAllServers,
   });
 
   await service.syncRootCluster(clusterUri);
 
   expect(service.findCluster(clusterUri)).toStrictEqual(clusterMock);
   expect(listGateways).toHaveBeenCalledWith();
-  expect(listDatabases).toHaveBeenCalledWith(clusterUri);
-  expect(listServers).toHaveBeenCalledWith(clusterUri);
+  expect(getAllDatabases).toHaveBeenCalledWith(clusterUri);
+  expect(getAllServers).toHaveBeenCalledWith(clusterUri);
 });
 
 test('login into cluster and sync resources', async () => {
@@ -202,8 +203,8 @@ test('login into cluster and sync resources', async () => {
 
   expect(client.loginLocal).toHaveBeenCalledWith(loginParams, undefined);
   expect(client.listGateways).toHaveBeenCalledWith();
-  expect(client.listDatabases).toHaveBeenCalledWith(clusterUri);
-  expect(client.listServers).toHaveBeenCalledWith(clusterUri);
+  expect(client.getAllDatabases).toHaveBeenCalledWith(clusterUri);
+  expect(client.getAllServers).toHaveBeenCalledWith(clusterUri);
   expect(client.restartGateway).toHaveBeenCalledWith(gatewayMock.uri);
   expect(service.findCluster(clusterUri).connected).toBe(true);
 });
@@ -268,9 +269,9 @@ test('sync gateways', async () => {
 });
 
 test('sync databases', async () => {
-  const { listDatabases } = getClientMocks();
+  const { getAllDatabases } = getClientMocks();
   const service = createService({
-    listDatabases,
+    getAllDatabases,
   });
   service.setState(draftState => {
     draftState.clusters.set(clusterUri, clusterMock);
@@ -278,7 +279,7 @@ test('sync databases', async () => {
 
   await service.syncDbs(clusterUri);
 
-  expect(listDatabases).toHaveBeenCalledWith(clusterUri);
+  expect(getAllDatabases).toHaveBeenCalledWith(clusterUri);
   expect(service.getDbs()).toStrictEqual([dbMock]);
   const readySyncStatus: SyncStatus = { status: 'ready' };
   expect(service.getClusterSyncStatus(clusterUri).dbs).toStrictEqual(
@@ -287,9 +288,9 @@ test('sync databases', async () => {
 });
 
 test('sync servers', async () => {
-  const { listServers } = getClientMocks();
+  const { getAllServers } = getClientMocks();
   const service = createService({
-    listServers,
+    getAllServers,
   });
   service.setState(draftState => {
     draftState.clusters.set(clusterUri, clusterMock);
@@ -297,7 +298,7 @@ test('sync servers', async () => {
 
   await service.syncServers(clusterUri);
 
-  expect(listServers).toHaveBeenCalledWith(clusterUri);
+  expect(getAllServers).toHaveBeenCalledWith(clusterUri);
   expect(service.getServers()).toStrictEqual([serverMock]);
   const readySyncStatus: SyncStatus = { status: 'ready' };
   expect(service.getClusterSyncStatus(clusterUri).servers).toStrictEqual(

@@ -19,11 +19,13 @@ import { unique } from 'teleterm/ui/utils/uid';
 import { paths, routing } from 'teleterm/ui/uri';
 
 import {
+  CreateAccessRequestDocumentOpts,
   CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
   CreateNewTerminalOpts,
   CreateTshKubeDocumentOptions,
   Document,
+  DocumentAccessRequests,
   DocumentCluster,
   DocumentGateway,
   DocumentTshKube,
@@ -48,6 +50,20 @@ export class DocumentsService {
     }
 
     this.setLocation(docUri);
+  }
+
+  createAccessRequestDocument(
+    opts: CreateAccessRequestDocumentOpts
+  ): DocumentAccessRequests {
+    const uri = routing.getDocUri({ docId: unique() });
+    return {
+      uri,
+      clusterUri: opts.clusterUri,
+      requestId: opts.requestId,
+      title: opts.title || 'Access Requests',
+      kind: 'doc.access_requests',
+      state: opts.state,
+    };
   }
 
   createClusterDocument(opts: CreateClusterDocumentOpts): DocumentCluster {

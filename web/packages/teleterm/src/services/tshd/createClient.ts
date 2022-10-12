@@ -8,6 +8,7 @@ import { createFileTransferStream } from './createFileTransferStream';
 import middleware, { withLogging } from './middleware';
 import * as types from './types';
 import createAbortController from './createAbortController';
+import { AccessRequest, ResourceID } from './v1/access_request_pb';
 
 export default function createClient(
   addr: string,
@@ -48,14 +49,42 @@ export default function createClient(
       });
     },
 
-    async listKubes(clusterUri: string) {
-      const req = new api.ListKubesRequest().setClusterUri(clusterUri);
+    async getAllKubes(clusterUri: string) {
+      const req = new api.GetAllKubesRequest().setClusterUri(clusterUri);
       return new Promise<types.Kube[]>((resolve, reject) => {
-        tshd.listKubes(req, (err, response) => {
+        tshd.getAllKubes(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
             resolve(response.toObject().kubesList);
+          }
+        });
+      });
+    },
+
+    async getKubes({
+      clusterUri,
+      search,
+      sort,
+      query,
+      searchAsRoles,
+      startKey,
+      limit,
+    }: types.ServerSideParams) {
+      const req = new api.GetKubesRequest()
+        .setClusterUri(clusterUri)
+        .setSearchAsRoles(searchAsRoles)
+        .setStartKey(startKey)
+        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
+        .setSearch(search)
+        .setQuery(query)
+        .setLimit(limit);
+      return new Promise<types.GetKubesResponse>((resolve, reject) => {
+        tshd.getKubes(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject());
           }
         });
       });
@@ -100,14 +129,42 @@ export default function createClient(
       });
     },
 
-    async listDatabases(clusterUri: string) {
-      const req = new api.ListDatabasesRequest().setClusterUri(clusterUri);
+    async getAllDatabases(clusterUri: string) {
+      const req = new api.GetAllDatabasesRequest().setClusterUri(clusterUri);
       return new Promise<types.Database[]>((resolve, reject) => {
-        tshd.listDatabases(req, (err, response) => {
+        tshd.getAllDatabases(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
             resolve(response.toObject().databasesList);
+          }
+        });
+      });
+    },
+
+    async getDatabases({
+      clusterUri,
+      search,
+      sort,
+      query,
+      searchAsRoles,
+      startKey,
+      limit,
+    }: types.ServerSideParams) {
+      const req = new api.GetDatabasesRequest()
+        .setClusterUri(clusterUri)
+        .setSearchAsRoles(searchAsRoles)
+        .setStartKey(startKey)
+        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
+        .setSearch(search)
+        .setQuery(query)
+        .setLimit(limit);
+      return new Promise<types.GetDatabasesResponse>((resolve, reject) => {
+        tshd.getDatabases(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject());
           }
         });
       });
@@ -126,14 +183,167 @@ export default function createClient(
       });
     },
 
-    async listServers(clusterUri: string) {
-      const req = new api.ListServersRequest().setClusterUri(clusterUri);
+    async getAllServers(clusterUri: string) {
+      const req = new api.GetAllServersRequest().setClusterUri(clusterUri);
       return new Promise<types.Server[]>((resolve, reject) => {
-        tshd.listServers(req, (err, response) => {
+        tshd.getAllServers(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
             resolve(response.toObject().serversList);
+          }
+        });
+      });
+    },
+
+    async getAccessRequest(clusterUri: string, requestId: string) {
+      const req = new api.GetAccessRequestRequest()
+        .setClusterUri(clusterUri)
+        .setAccessRequestId(requestId);
+      return new Promise<types.AccessRequest>((resolve, reject) => {
+        tshd.getAccessRequest(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject().request);
+          }
+        });
+      });
+    },
+
+    async getAccessRequests(clusterUri: string) {
+      const req = new api.GetAccessRequestsRequest().setClusterUri(clusterUri);
+      return new Promise<types.AccessRequest[]>((resolve, reject) => {
+        tshd.getAccessRequests(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject().requestsList);
+          }
+        });
+      });
+    },
+
+    async getServers({
+      clusterUri,
+      search,
+      query,
+      sort,
+      searchAsRoles,
+      startKey,
+      limit,
+    }: types.ServerSideParams) {
+      const req = new api.GetServersRequest()
+        .setClusterUri(clusterUri)
+        .setSearchAsRoles(searchAsRoles)
+        .setStartKey(startKey)
+        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
+        .setSearch(search)
+        .setQuery(query)
+        .setLimit(limit);
+      return new Promise<types.GetServersResponse>((resolve, reject) => {
+        tshd.getServers(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject());
+          }
+        });
+      });
+    },
+
+    async createAccessRequest(params: types.CreateAccessRequestParams) {
+      const req = new api.CreateAccessRequestRequest()
+        .setRootClusterUri(params.clusterUri)
+        .setSuggestedReviewersList(params.suggestedReviewers)
+        .setRolesList(params.roles)
+        .setResourceIdsList(
+          params.resourceIds.map(({ id, clusterName, kind }) => {
+            const resourceId = new ResourceID();
+            resourceId.setName(id);
+            resourceId.setClusterName(clusterName);
+            resourceId.setKind(kind);
+            return resourceId;
+          })
+        )
+        .setReason(params.reason);
+      return new Promise<AccessRequest.AsObject>((resolve, reject) => {
+        tshd.createAccessRequest(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject().request);
+          }
+        });
+      });
+    },
+
+    async deleteAccessRequest(clusterUri: string, requestId: string) {
+      const req = new api.DeleteAccessRequestRequest()
+        .setRootClusterUri(clusterUri)
+        .setAccessRequestId(requestId);
+      return new Promise<void>((resolve, reject) => {
+        tshd.deleteAccessRequest(req, err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    },
+
+    async assumeRole(
+      clusterUri: string,
+      requestIds: string[],
+      dropIds: string[]
+    ) {
+      const req = new api.AssumeRoleRequest()
+        .setRootClusterUri(clusterUri)
+        .setAccessRequestIdsList(requestIds)
+        .setDropRequestIdsList(dropIds);
+      return new Promise<void>((resolve, reject) => {
+        tshd.assumeRole(req, err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    },
+
+    async reviewAccessRequest(
+      clusterUri: string,
+      params: types.ReviewAccessRequestParams
+    ) {
+      const req = new api.ReviewAccessRequestRequest()
+        .setRootClusterUri(clusterUri)
+        .setAccessRequestId(params.id)
+        .setState(params.state)
+        .setReason(params.reason)
+        .setRolesList(params.roles);
+      return new Promise<types.AccessRequest>((resolve, reject) => {
+        tshd.reviewAccessRequest(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject().request);
+          }
+        });
+      });
+    },
+
+    async getRequestableRoles(clusterUri: string) {
+      const req = new api.GetRequestableRolesRequest().setClusterUri(
+        clusterUri
+      );
+      return new Promise<string[]>((resolve, reject) => {
+        tshd.getRequestableRoles(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject().rolesList);
           }
         });
       });

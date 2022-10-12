@@ -1,5 +1,5 @@
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { Cluster } from 'teleterm/services/tshd/types';
+import { Cluster, LoggedInUser } from 'teleterm/services/tshd/types';
 
 export function useIdentity() {
   const ctx = useAppContext();
@@ -27,6 +27,18 @@ export function useIdentity() {
     return ctx.clustersService.findCluster(clusterUri);
   }
 
+  function getLoggedInUser(): LoggedInUser | undefined {
+    const clusterUri = ctx.workspacesService.getRootClusterUri();
+    if (!clusterUri) {
+      return;
+    }
+    const cluster = ctx.clustersService.findCluster(clusterUri);
+    if (!cluster) {
+      return;
+    }
+    return cluster.loggedInUser;
+  }
+
   const rootClusters: IdentityRootCluster[] = ctx.clustersService
     .getClusters()
     .filter(c => !c.leaf)
@@ -43,6 +55,7 @@ export function useIdentity() {
     changeRootCluster,
     addCluster,
     logout,
+    loggedInUser: getLoggedInUser(),
     activeRootCluster: getActiveRootCluster(),
     rootClusters,
   };

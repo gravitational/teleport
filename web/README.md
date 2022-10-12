@@ -4,9 +4,10 @@ This mono-repository contains the source code for:
 
 - the web UIs served by the `teleport` server
   - [`packages/teleport`](packages/teleport) for the OSS version
-  - `packages/webapps.e` for the enterprise version
+  - `packages/webapps.e/teleport` for the enterprise version
 - the Electron app of [Teleport Connect](https://goteleport.com/connect/)
   - [`packages/teleterm`](packages/teleterm)
+  - `packages/webapps.e/teleterm` for the enterprise version
 
 The code is organized in terms of independent yarn packages which reside in
 the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).

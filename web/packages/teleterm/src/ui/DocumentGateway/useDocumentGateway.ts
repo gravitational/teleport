@@ -20,13 +20,13 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export default function useGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
-  const workspaceDocumentsService = useWorkspaceDocumentsService();
+  const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   // The port to show as default in the input field in case creating a gateway fails.
   // This is typically the case if someone reopens the app and the port of the gateway is already
   // occupied.

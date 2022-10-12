@@ -91,7 +91,7 @@ export function Cluster() {
             {`${clusterCtx.state.clusterName}`}
           </Text>
         </Text>
-        <Flex>
+        <Flex alignItems="center">
           <ClusterSearch onChange={clusterCtx.changeSearchValue} />
           <ButtonPrimary ml={2} size="small" onClick={clusterCtx.sync}>
             Sync

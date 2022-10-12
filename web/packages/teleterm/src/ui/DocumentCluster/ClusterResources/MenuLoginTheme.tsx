@@ -11,7 +11,7 @@ const menuLoginTheme = {
     light: theme.colors.primary.light,
     primary: {
       ...theme.colors.primary,
-      lighter: theme.colors.primary.darker,
+      lighter: theme.colors.primary.lighter,
     },
     secondary: {
       ...theme.colors.secondary,
