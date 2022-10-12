@@ -219,6 +219,120 @@ func TestSessionEndEvent(t *testing.T) {
 	require.Empty(t, cmp.Diff(expected, endEvent))
 }
 
+func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
+	sid := "session-0"
+	desktopAddr := "windows.example.com"
+	testDirName := "test-dir"
+	var did uint32 = 2
+
+	for _, test := range []struct {
+		name string
+		// sendsSda determines whether a SharedDirectoryAnnounce is sent.
+		sendsSda bool
+		// errCode is the error code in the simulated SharedDirectoryAcknowledge
+		errCode uint32
+		// expected returns the event we expect to be emitted by modifying baseEvent
+		// (which is passed in from the test body below).
+		expected func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart
+	}{
+		{
+			// when everything is working as expected
+			name:     "typical operation",
+			sendsSda: true,
+			errCode:  tdp.ErrCodeNil,
+			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
+				return baseEvent
+			},
+		},
+		{
+			// the announce operation failed
+			name:     "announce failed",
+			sendsSda: true,
+			errCode:  tdp.ErrCodeFailed,
+			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
+				// no event is expected on failure
+				return nil
+			},
+		},
+		{
+			// should never happen but just in case
+			name:     "directory name unknown",
+			sendsSda: false,
+			errCode:  tdp.ErrCodeNil,
+			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
+				baseEvent.DirectoryName = events.UnknownEvent
+				return baseEvent
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, id, emitter := setup()
+			recvHandler := s.makeTDPReceiveHandler(context.Background(),
+				emitter, func() int64 { return 0 },
+				id, sid, desktopAddr)
+			sendHandler := s.makeTDPSendHandler(context.Background(),
+				emitter, func() int64 { return 0 },
+				id, sid, desktopAddr)
+
+			if test.sendsSda {
+				// SharedDirectoryAnnounce initializes the nameCache.
+				sda := tdp.SharedDirectoryAnnounce{
+					DirectoryID: did,
+					Name:        testDirName,
+				}
+				recvHandler(sda)
+			}
+
+			// SharedDirectoryAcknowledge causes the event to be emitted
+			// (or not, on failure).
+			ack := tdp.SharedDirectoryAcknowledge{
+				DirectoryID: did,
+				ErrCode:     test.errCode,
+			}
+			encoded, err := ack.Encode()
+			require.NoError(t, err)
+			sendHandler(ack, encoded)
+
+			baseEvent := &events.DesktopSharedDirectoryStart{
+				Metadata: events.Metadata{
+					Type:        libevents.DesktopSharedDirectoryStartEvent,
+					Code:        libevents.DesktopSharedDirectoryStartCode,
+					ClusterName: s.clusterName,
+					Time:        s.cfg.Clock.Now().UTC(),
+				},
+				UserMetadata: id.GetUserMetadata(),
+				SessionMetadata: events.SessionMetadata{
+					SessionID: sid,
+					WithMFA:   id.MFAVerified,
+				},
+				ConnectionMetadata: events.ConnectionMetadata{
+					LocalAddr:  id.ClientIP,
+					RemoteAddr: desktopAddr,
+					Protocol:   libevents.EventProtocolTDP,
+				},
+				DesktopAddr:   desktopAddr,
+				DirectoryName: testDirName,
+				DirectoryID:   did,
+			}
+
+			expected := test.expected(baseEvent)
+			event := emitter.LastEvent()
+
+			var startEvent *events.DesktopSharedDirectoryStart
+			if expected != nil {
+				var ok bool
+				require.NotNil(t, event)
+				startEvent, ok = event.(*events.DesktopSharedDirectoryStart)
+				require.True(t, ok)
+			} else {
+				require.Nil(t, event)
+			}
+
+			require.Empty(t, cmp.Diff(expected, startEvent))
+		})
+	}
+}
+
 func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 	sid := "session-0"
 	desktopAddr := "windows.example.com"

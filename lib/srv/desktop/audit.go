@@ -154,6 +154,51 @@ func (s *WindowsService) onSharedDirectoryAnnounce(sid string, m tdp.SharedDirec
 	s.auditCache.SetName(sessionID(sid), directoryID(m.DirectoryID), directoryName(m.Name))
 }
 
+// onSharedDirectoryAcknowledge emits a DesktopSharedDirectoryStart on a successful receipt of a
+// successful tdp.SharedDirectoryAcknowledge.
+func (s *WindowsService) onSharedDirectoryAcknowledge(
+	ctx context.Context,
+	emitter events.Emitter,
+	id *tlsca.Identity,
+	sid string,
+	desktopAddr string,
+	m tdp.SharedDirectoryAcknowledge,
+) {
+	if m.ErrCode != tdp.ErrCodeNil {
+		return
+	}
+
+	name, ok := s.auditCache.GetName(sessionID(sid), directoryID(m.DirectoryID))
+	if !ok {
+		name = events.UnknownEvent
+		s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, m.DirectoryID)
+	}
+
+	event := &events.DesktopSharedDirectoryStart{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopSharedDirectoryStartEvent,
+			Code:        libevents.DesktopSharedDirectoryStartCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sid,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		DesktopAddr:   desktopAddr,
+		DirectoryName: string(name),
+		DirectoryID:   m.DirectoryID,
+	}
+
+	s.emit(ctx, emitter, event)
+}
+
 // onSharedDirectoryReadRequest adds ReadRequestInfo to the auditCache.
 func (s *WindowsService) onSharedDirectoryReadRequest(sid string, m tdp.SharedDirectoryReadRequest) {
 	s.auditCache.SetReadRequestInfo(sessionID(sid), completionID(m.CompletionID), readRequestInfo{
