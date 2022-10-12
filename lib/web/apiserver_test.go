@@ -5508,7 +5508,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   cfg.serviceType,
 			Component:         component,
-			DynamicLabels:     nil,
 			LockWatcher:       proxyLockWatcher,
 			ReverseTunnelSrv:  cfg.revTunnel,
 			// skip Impersonation validation
@@ -5517,8 +5516,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			},
 			Clock: clockwork.NewRealClock(),
 		},
-		TLS:         tlsConfig,
-		AccessPoint: client,
+		TLS:           tlsConfig,
+		AccessPoint:   client,
+		DynamicLabels: nil,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
