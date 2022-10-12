@@ -83,7 +83,7 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 		//
 		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html#rds-proxy-connecting-sqlserver
 		if aws.StringValue(dbProxy.EngineFamily) == rds.EngineFamilySqlserver {
-			f.log.Debugf("RDB Proxy %q with engine family %q is not supported yet. Skipping.", aws.StringValue(dbProxy.DBProxyName), aws.StringValue(dbProxy.EngineFamily))
+			f.log.Debugf("RDS Proxy %q with engine family %q is not supported yet. Skipping.", aws.StringValue(dbProxy.DBProxyName), aws.StringValue(dbProxy.EngineFamily))
 			continue
 		}
 		if !aws.BoolValue(dbProxy.RequireTLS) {

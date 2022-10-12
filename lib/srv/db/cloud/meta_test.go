@@ -246,7 +246,7 @@ func TestAWSMetadata(t *testing.T) {
 			},
 		},
 		{
-			name: "RDS proxy",
+			name: "RDS Proxy",
 			inAWS: types.AWS{
 				Region: "us-east-1",
 				RDS: types.RDS{
@@ -264,7 +264,7 @@ func TestAWSMetadata(t *testing.T) {
 			},
 		},
 		{
-			name: "RDS proxy endpoint",
+			name: "RDS Proxy custom endpoint",
 			inAWS: types.AWS{
 				Region: "us-east-1",
 				RDS: types.RDS{

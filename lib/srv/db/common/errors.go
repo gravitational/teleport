@@ -188,7 +188,7 @@ take a few minutes to propagate):
 }
 
 // createRDSProxyAccessDeniedError creates an error with help message to setup
-// IAM auth for RDS proxy.
+// IAM auth for RDS Proxy.
 func createRDSProxyAccessDeniedError(err error, sessionCtx *Session) error {
 	policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
 	if getPolicyErr != nil {

@@ -552,8 +552,7 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 	// resource type is "db-proxy" and the resource ID is "prx-xxxyyyzzz".
 	_, resourceID, ok := strings.Cut(parsedARN.Resource, ":")
 	if !ok {
-		log.Debugf("Failed to split resource %v to resource type and resource ID.", parsedARN.Resource)
-		resourceID = parsedARN.Resource
+		return nil, trace.BadParameter("failed to find resource ID from %v", aws.StringValue(rdsProxy.DBProxyArn))
 	}
 
 	return &types.AWS{
@@ -802,10 +801,7 @@ func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS, tags []*rds.Tag)
 	labels[labelVPCID] = aws.StringValue(rdsProxy.VpcId)
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
-	labels[labelEngine] = strings.ToLower(aws.StringValue(rdsProxy.EngineFamily))
-
-	// TargetRole is read/write for default proxy
-	labels[labelEndpointType] = strings.ToLower(rds.DBProxyEndpointTargetRoleReadWrite)
+	labels[labelEngine] = aws.StringValue(rdsProxy.EngineFamily)
 	return labels
 }
 
@@ -813,7 +809,7 @@ func labelsFromRDSProxy(rdsProxy *rds.DBProxy, meta *types.AWS, tags []*rds.Tag)
 // RDS Proxy custom endpoint.
 func labelsFromRDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, meta *types.AWS, tags []*rds.Tag) map[string]string {
 	labels := labelsFromRDSProxy(rdsProxy, meta, tags)
-	labels[labelEndpointType] = strings.ToLower(aws.StringValue(customEndpoint.TargetRole))
+	labels[labelEndpointType] = aws.StringValue(customEndpoint.TargetRole)
 	return labels
 }
 

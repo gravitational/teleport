@@ -63,7 +63,7 @@ func IsMemoryDBEndpoint(uri string) bool {
 type RDSEndpointDetails struct {
 	// InstanceID is the identifier of an RDS instance.
 	InstanceID string
-	// ClusterID is the identifier of an RDS cluster.
+	// ClusterID is the identifier of an RDS Aurora cluster.
 	ClusterID string
 	// ClusterCustomEndpointName is the identifier of an Aurora cluster custom endpoint.
 	ClusterCustomEndpointName string
@@ -77,8 +77,7 @@ type RDSEndpointDetails struct {
 
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
 // endpoint.
-func ParseRDSEndpoint(endpoint string) (*RDSEndpointDetails, error) {
-	var err error
+func ParseRDSEndpoint(endpoint string) (d *RDSEndpointDetails, err error) {
 	if strings.ContainsRune(endpoint, ':') {
 		endpoint, _, err = net.SplitHostPort(endpoint)
 		if err != nil {

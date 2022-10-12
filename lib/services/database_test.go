@@ -680,9 +680,8 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 				types.OriginLabel: types.OriginCloud,
 				labelAccountID:    "123456",
 				labelRegion:       "ca-central-1",
-				labelEngine:       RDSEngineMySQL,
+				labelEngine:       "MYSQL",
 				labelVPCID:        "test-vpc-id",
-				labelEndpointType: "read_write",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -713,9 +712,9 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 				types.OriginLabel: types.OriginCloud,
 				labelAccountID:    "123456",
 				labelRegion:       "ca-central-1",
-				labelEngine:       RDSEngineMySQL,
+				labelEngine:       "MYSQL",
 				labelVPCID:        "test-vpc-id",
-				labelEndpointType: "read_only",
+				labelEndpointType: "READ_ONLY",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
