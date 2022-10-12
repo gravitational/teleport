@@ -640,8 +640,8 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2" & onwards: listener is not created, SSH is multiplexed on web_listen_addr
-    # "v1": defaults to 0.0.0.0:3023
+    # v2 and above: listener is not created, SSH is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3023
     listen_addr: 0.0.0.0:3023
 
     # Reverse tunnel listening address. An auth server (CA) can establish an
@@ -651,8 +651,8 @@ proxy_service:
     #
     # If not set, behavior depends on the config file version:
     #
-    # "v2" & onwards: listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
-    # "v1": defaults to 0.0.0.0:3024
+    # v2 and above: listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
     # Proxy Peering listening address. Teleport Proxy Services will advertise this address
