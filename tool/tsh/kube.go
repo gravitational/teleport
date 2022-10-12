@@ -766,7 +766,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(cf.Stdout(), string(out))
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}

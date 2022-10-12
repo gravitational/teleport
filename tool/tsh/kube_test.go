@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -39,7 +40,7 @@ import (
 
 func TestListKube(t *testing.T) {
 	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	ctx := context.Background()
 	rootClusterName := "root-cluster"
 	firstClusterName := "first-cluster"
