@@ -8944,3 +8944,8 @@ steps:
   - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+---
+kind: signature
+hmac: bd536470a105e2c7104b58d422f8da056b78988ad3446b0c3b685ca4f6dfd77e
+
+...
