@@ -511,6 +511,9 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   environment:
@@ -4396,6 +4399,9 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -4622,6 +4628,9 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -4820,6 +4829,9 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -8783,6 +8795,9 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -8962,6 +8977,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 55b01ea042ec924218d7f1060f00972920d6a43f8e63e8e3c8d93338c03b725d
+hmac: fb87571c492bf73c49858ff119dfe138c83cb61a42d936e34ca1a07e223a66f8
 
 ...

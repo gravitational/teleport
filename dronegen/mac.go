@@ -272,6 +272,8 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
+		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive packages/webapps.e`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
 		`mkdir -p $WORKSPACE_DIR/go/cache`,
 	)
