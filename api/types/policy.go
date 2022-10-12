@@ -25,9 +25,9 @@ import (
 type Policy interface {
 	// ResourceWithLabels provides common resource properties
 	ResourceWithLabels
-	GetAllow() string
-	GetDeny() string
-	GetOptions() string
+	GetAllow() map[string]string
+	GetDeny() map[string]string
+	GetOptions() map[string]string
 }
 
 // GetVersion returns resource version
@@ -105,15 +105,15 @@ func (c *PolicyV1) SetName(e string) {
 	c.Metadata.Name = e
 }
 
-func (c *PolicyV1) GetAllow() string {
+func (c *PolicyV1) GetAllow() map[string]string {
 	return c.Spec.Allow
 }
 
-func (c *PolicyV1) GetDeny() string {
+func (c *PolicyV1) GetDeny() map[string]string {
 	return c.Spec.Deny
 }
 
-func (c *PolicyV1) GetOptions() string {
+func (c *PolicyV1) GetOptions() map[string]string {
 	return c.Spec.Options
 }
 

@@ -2118,9 +2118,9 @@ message PolicyV1 {
 
 // PolicySpecV1 is a predicate policy specification used for RBAC, not dissimilar to Role.
 message PolicySpecV1 {
-  string Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
-  string Deny = 2 [(gogoproto.jsontag) = "deny,omitempty"];
-  string Options = 3 [(gogoproto.jsontag) = "options,omitempty"];
+  map<string, string> Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  map<string, string> Deny = 2 [(gogoproto.jsontag) = "deny,omitempty"];
+  map<string, string> Options = 3 [(gogoproto.jsontag) = "options,omitempty"];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
