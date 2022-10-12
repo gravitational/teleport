@@ -25,11 +25,11 @@ and reducing risk by ensuring that short-lived certificates adhering to the prin
   $ ssh -V
   ```
 
-- A Linux host that can support Machine ID. This "Machine ID Host" is the host that will be used to create Host Certificates.
+- A Linux based host that can support Machine ID. This "Machine ID Host" is the host that will be used to create Host Certificates.
 
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
-(!/docs/pages/includes/install-linux.mdx)
+(!/docs/pages/includes/install-linux.mdx!)
 
 Next, log in to your cluster from the Machine ID host using `tsh` to ensure that your device will be able to interact with the cluster:
 
@@ -39,15 +39,14 @@ $ tsh login --proxy=myteleportcluster.com --user=teleport-username
 
 ## Step 2/4. Create a role to issue `tbot` certificates
 
-In order to create certificates `tbot` requires a `role` that provides the necessary permissions. Roles may be applied to a tbot user
-in this case to restrict a bot user to only create host certificates.
+In order to create certificates `tbot` requires a `role` that provides the necessary permissions. When we apply a role to a tbot user
+in this case, we restrict a bot user to only create host certificates.
 
 Teleport roles can additionally limit the creation of host certificates to a desired **principal**.
-For example, normally when creating an SSH host certificate a `principal` represents permissions that grant access by the host certificate.
-A principal can normally be a user or host permitted to access a desired resource.
+For example, normally when creating an SSH host certificate a `principal` represents a user or host that the certificate is explicitly applied to.
 
-By checking that a domain name matches the `principal` on a host certificate, access can be limited only to the desired server.
-A **predicate** must be applied to a `principal` on Teleport to further define the scope of permissions applied to the `principal`.
+By checking that a domain name matches the `principal` on a host certificate in the example configuration we use in this guide, access can be limited only to the desired server or servers.
+On Teleport, a **predicate** should be applied to a `principal` to further define the scope of permissions applied to the `principal`.
 
 By using the format of `where: 'predicate(host_cert.principals, "domain.name")'`, a Teleport user can create a role that will only be able to able to affect the designated principal
 in a manner defined by the selected predicate. A list of supported predicates, their behavior, and example configurations are listed below:
@@ -58,8 +57,8 @@ in a manner defined by the selected predicate. A list of supported predicates, t
 | `all_end_with` |  All requested principals must end with the set string. If the set string is `.example.com`, host certificates limit access only to `*.example.com`. | `all_end_with(host_cert.principals, ".example.com")` |
 | `is_subset` | All requested principals must be contained in the listed set. | `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")` |
 
-In the case of an example role for use within this guide, use a text editor of your choice to create a role YAML named `tbotrole.yaml` with the following configuration options, replacing `nodename.my.domain.com` with your own domain name,
-or the domain associated with your cluster:
+In the case of an example role for use within this guide, use a text editor of your choice from your local administrative device with TSH access to create a role YAML named `tbotrole.yaml` with the following
+ configuration options, replacing `nodename.my.domain.com` with your own domain name, or the domain associated with your cluster:
 
 ```yaml
 kind: role
@@ -86,7 +85,7 @@ $ tctl create tbotrole.yaml
 ## Step 3/4 Create Your `tbot` Configuration
 
 Before you create a bot user, you need to determine which role(s) you want to
-assign to it. You can use the `tctl` command below to examine what roles exist
+assign to it. You can use the `tctl` command below from your Machine ID host with TSH access to examine what roles exist
 on your system:
 
 ```code
@@ -94,8 +93,8 @@ $ tctl get roles --format=text
 ```
 
 You will see something like the output below on a fresh install of Teleport with the
-preset roles and the addition of the `hostcert-bot` role created previously—your cluster may have different roles. In this example, let's
-assume you want to give the bot the `hostcert-bot` role to allow the bot to generate host certificates.
+preset roles and the addition of the `hostcert-bot` role created previously—your own cluster may have different roles. In this example,
+you want to give the bot the `hostcert-bot` role to allow the bot to generate host certificates.
 
 ```
 Role    Allowed to login as                           Node Labels Access to resources
@@ -106,7 +105,7 @@ editor
 hostcert-bot  host_cert:create,list,read,update,delete             user:list,create,read,update,delete,...
 ```
 
-`tbot` can join the Teleport Cluster using a number of supported methods. This guide will highlight both the `token` and the IAM method which uses identity tokens bound to an AWS account.
+Your Machine ID host can now join the Teleport Cluster using a number of supported methods. This guide will highlight both the `token` and the IAM method which uses identity tokens bound to an AWS account.
 Note that the following commands may be entered on any device with `tctl` access to the cluster.
 
 While any role with permissions for creating host certificates will work, this guide will make use of the `hostcert-bot` role created previously to ensure that the configuration adheres to the principle of least privilege.
@@ -166,7 +165,7 @@ While any role with permissions for creating host certificates will work, this g
 
 ### Generating a configuration file
 
-Machine ID may now be configured using the `tbot configure` command on the bot node.
+Machine ID may now be configured using the `tbot configure` command on the Machine ID host.
 
 First, create a basic configuration file using the following parameters:
 
@@ -263,7 +262,7 @@ Using a text editor of your choice, write the output generated by the `tbot conf
 
 ### Setting the destination directory
 
-Once complete, the Machine ID configuration will still require a destination directory to be manually referenced within the configuration file. The destination directory is where Machine ID will write certificates
+Once complete, the Machine ID host configuration will still require a destination directory to be manually referenced within the configuration file. The destination directory is where Machine ID will write certificates
 which can be used by application and tools to start Machine ID. In the configuration yaml `tbot.yaml`, this configuration will additionally be used to designate the principal,
 in this case the domain name that we'll be applying to the `tbot` configuration to access a Node.
 The new configuration YAML will require a `destination` field and `ssh_host_cert` subfield that resembles the following, replacing `nodename.my.domain.com` with your own required domain name:
@@ -308,7 +307,7 @@ Note the `renewal_interval` field, which will determine the cadence in which new
 
 ## Step 4/4 Start Machine ID and create a host certificate
 
-Using your configuration file, The `tbot start` command will start running Machine ID in a loop,
+Using your configuration file, The `tbot start` command will start running Machine ID on your Machine ID host in a loop,
 writing renewable certificates to `/var/lib/teleport/bot` according to your configuration, and the short-lived certificates including the host certificate your bot will use to `/opt/machine-id`.
 
 In a production environment you will want to run Machine ID in the background using a service manager like systemd. However, in this guide you will run it in the foreground to better understand how it works.
