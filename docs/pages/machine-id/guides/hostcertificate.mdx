@@ -7,7 +7,7 @@ Host certificates are generally created on Teleport for access to OpenSSH server
 While long-lived certificates may be applied for this purpose, short-lived and regularly rotated host certificates generated
 through Teleport help to provide a number of security benefits over their long-lived counterparts. Regular certificate rotation reduces risk by ensuring that any potentially stolen
 certificates are usable for a shorter period of time. Additionally, when coupled with Teleport's [RBAC](https://goteleport.com/docs/access-controls/guides/role-templates/)
-support and host certificate **Principals** and **Predicates**, limitations can be applied to both the process of creating host certificates,
+support and host certificate **Principals** and **Predicates**, you can apply limitations to both the process of creating host certificates,
 as well as the host certificates themselves.
 
 In this guide, you will learn how to create host certificates through Machine ID for OpenSSH servers, allowing for the benefits of host certificates with OpenSSH nodes,
@@ -240,23 +240,23 @@ Replace the following fields with values from your own cluster:
 <Tabs>
   <TabItem label="Cloud">
 
-- `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
-- `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
-- `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is the address of your Teleport Cloud Tenant, for example `example.teleport.sh:443`.
-- `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
+    - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
+    - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
+    - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
+    - `auth-server` is the address of your Teleport Cloud Tenant, for example `example.teleport.sh:443`.
+    - `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
 
   </TabItem>
   <TabItem label={["oss","enterprise"]}>
 
-- `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
-- `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
-- `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
-- `auth-server` is the address of your Teleport Auth Server, for example
-  `auth.example.com:3025`. If your Machine ID host is in a different network
-  than your Auth Server, use the public web address of your Proxy Service
-  instead (e.g., `auth.example.com:443`).
+    - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
+    - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
+    - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
+    - `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
+    - `auth-server` is the address of your Teleport Auth Server, for example
+      `auth.example.com:3025`. If your Machine ID host is in a different network
+      than your Auth Server, use the public web address of your Proxy Service
+      instead (e.g., `auth.example.com:443`).
 
   </TabItem>
 </Tabs>
@@ -364,7 +364,7 @@ Your output will resemble the following:
 
 ## Next steps
 
-Now that Host Certificates have been created with Teleport, they can be applied to OpenSSH configurations as needed. For more information regarding the next steps
+Now that host certificates have been created with Teleport, they can be applied to OpenSSH configurations as needed. For more information regarding the next steps
 to connect to OpenSSH with Teleport, see the following documentation:
 
 - [Using Teleport With OpenSSH](../../server-access/guides/openssh.mdx)
