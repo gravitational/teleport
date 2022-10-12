@@ -122,7 +122,7 @@ func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
 	}
 }
 
-// getAWSCredentials creates a dynamicCreds that generates and updates the access credentials to a kubernetes cluster.
+// getAWSCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a EKS kubernetes cluster.
 func getAWSCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
 	client := getAWSClientRestConfig(cloudClients)
@@ -180,9 +180,7 @@ func getAWSClientRestConfig(cloudClients cloud.Clients) dynamicCredsClient {
 func genAWSToken(stsClient stsiface.STSAPI, clusterID string) (string, time.Time, error) {
 	const (
 		// The sts GetCallerIdentity request is valid for 15 minutes regardless of this parameters value after it has been
-		// signed, but we set this unused parameter to 60 for legacy reasons (we check for a value between 0 and 60 on the
-		// server side in 0.3.0 or earlier).  IT IS IGNORED.  If we can get STS to support x-amz-expires, then we should
-		// set this parameter to the actual expiration, and make it configurable.
+		// signed.
 		requestPresignParam = 60
 		// The actual token expiration (presigned STS urls are valid for 15 minutes after timestamp in x-amz-date).
 		presignedURLExpiration = 15 * time.Minute

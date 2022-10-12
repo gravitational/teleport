@@ -759,18 +759,18 @@ func newPopulatedEKSMock() *mockEKSAPI {
 var eksMockClusters = []*eks.Cluster{
 
 	{
-		Name: aws.String("eks-cluster1"),
-		Arn:  aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-
+		Name:   aws.String("eks-cluster1"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
+		Status: aws.String(eks.ClusterStatusActive),
 		Tags: map[string]*string{
 			"env":      aws.String("prod"),
 			"location": aws.String("eu-west-1"),
 		},
 	},
 	{
-		Name: aws.String("eks-cluster2"),
-		Arn:  aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
-
+		Name:   aws.String("eks-cluster2"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
+		Status: aws.String(eks.ClusterStatusActive),
 		Tags: map[string]*string{
 			"env":      aws.String("prod"),
 			"location": aws.String("eu-west-1"),
@@ -778,18 +778,18 @@ var eksMockClusters = []*eks.Cluster{
 	},
 
 	{
-		Name: aws.String("eks-cluster3"),
-		Arn:  aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster3"),
-
+		Name:   aws.String("eks-cluster3"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster3"),
+		Status: aws.String(eks.ClusterStatusActive),
 		Tags: map[string]*string{
 			"env":      aws.String("stg"),
 			"location": aws.String("eu-west-1"),
 		},
 	},
 	{
-		Name: aws.String("eks-cluster4"),
-		Arn:  aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-
+		Name:   aws.String("eks-cluster4"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
+		Status: aws.String(eks.ClusterStatusActive),
 		Tags: map[string]*string{
 			"env":      aws.String("stg"),
 			"location": aws.String("eu-west-1"),
