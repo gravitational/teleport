@@ -36,11 +36,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -92,11 +91,6 @@ func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	return nil
 }
 
-type testClient struct {
-	services.Presence
-	types.Events
-}
-
 func genEC2Instances(n int) []*ec2.Instance {
 	var ec2Instances []*ec2.Instance
 	for i := 0; i < n; i++ {
@@ -117,7 +111,6 @@ func genEC2Instances(n int) []*ec2.Instance {
 
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
-
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
@@ -326,59 +319,54 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			ctx := context.Background()
-
-			bk, err := memory.New(memory.Config{
-				Context: ctx,
+			// Create and start test auth server.
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-			client := testClient{
-				Presence: local.NewPresenceService(bk),
-				Events:   local.NewEventsService(bk),
-			}
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 			for _, instance := range tc.presentInstances {
-				_, err = client.UpsertNode(ctx, instance)
+				_, err := tlsServer.Auth().UpsertNode(ctx, instance)
 				require.NoError(t, err)
 			}
 
-			nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
-				ResourceWatcherConfig: services.ResourceWatcherConfig{
-					Component: "discovery",
-					Client:    client,
-				},
-			})
-			require.NoError(t, err)
-			defer nodeWatcher.Close()
-
-			for !nodeWatcher.IsInitialized() {
-				time.Sleep(100 * time.Millisecond)
-			}
-
+			logger := logrus.New()
 			server, err := New(context.Background(), &Config{
-				Clients: &testClients,
-				Matchers: []services.AWSMatcher{{
+				Clients:     &testClients,
+				AccessPoint: tlsServer.Auth(),
+				AWSMatchers: []services.AWSMatcher{{
 					Types:   []string{"EC2"},
 					Regions: []string{"eu-central-1"},
 					Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 					SSM:     &services.AWSSSM{DocumentName: "document"},
 				}},
-				Emitter:     tc.emitter,
-				NodeWatcher: nodeWatcher,
+				Emitter: tc.emitter,
+				Log:     logger,
 			})
 			require.NoError(t, err)
-
 			tc.emitter.server = server
 			tc.emitter.t = t
 
 			r, w := io.Pipe()
-			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, r.Close())
+				require.NoError(t, w.Close())
+			})
 			if tc.logHandler != nil {
-				logger := logrus.New()
 				logger.SetOutput(w)
 				logger.SetLevel(logrus.DebugLevel)
-				server.log = logrus.NewEntry(logger)
 			}
+
 			go server.Start()
 
 			if tc.logHandler != nil {
