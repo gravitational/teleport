@@ -366,7 +366,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
-		auditCache:  NewSharedDirectoryAuditCache(),
+		auditCache:  newSharedDirectoryAuditCache(),
 	}
 
 	// initialize LDAP - if this fails it will automatically schedule a retry.

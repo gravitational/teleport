@@ -52,7 +52,7 @@ type sharedDirectoryAuditCache struct {
 	sync.RWMutex
 }
 
-func NewSharedDirectoryAuditCache() sharedDirectoryAuditCache {
+func newSharedDirectoryAuditCache() sharedDirectoryAuditCache {
 	return sharedDirectoryAuditCache{
 		m: make(map[sessionID]sharedDirectoryAuditCacheEntry),
 	}
