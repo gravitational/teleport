@@ -89,17 +89,25 @@ Currently, `tsh db connect` starts a local proxy if any of the following are tru
 
 The local proxy it starts only uses a tunnel for Snowflake and Elastisearch.
 
-Instead, `tsh db connect` should always use a local proxy and always with a tunnel.
+`tsh db connect` should connect via a local proxy with a tunnel if per-session-mfa is required.
 This way database certs can be held in-memory.
 
 This should not change the UX of starting `tsh db connect <db>`; there are basically two cases:
-1. per-session-MFA is required for access to `<db>`: Current behavior will always prompt the user for MFA - this is the same UX after the proposed change.
-2. per-session-MFA is not required for access to `<db>`: Current behavior will reissue the certs and only prompt the user for credentials if they need to relogin - again, same UX.
+1. per-session-MFA is required for access to `<db>`:
+Current behavior will always prompt the user for MFA - this is the same UX after the proposed change.
 
-As an extra UX benefit after `tsh db connect <db>` has been started, this change allows the local proxy tunnel to re-establish connectivity if the connection dies.
-For example, if the `mysql` cli is used and left idle for too long, the connection may die and require the user to establish a new connection.
-Right now, the only way to establish a new connection is to kill the cli session <ctrl-d> and re-run `tsh db connect` (and we do not currently hint the user to try this).
-If the cli was instead connecting to a local proxy tunnel, the local proxy could just establish a new connection and prompt the user for credentials if needed.
+2. per-session-MFA is not required for access to `<db>`:
+Current behavior will reissue the certs and only prompt the user for credentials if they need to relogin,
+which is also the same UX as before. 
+
+As an extra UX benefit after `tsh db connect <db>` has been started, this change allows the local proxy tunnel 
+to re-establish connectivity if the connection dies.
+For example, if the `mysql` cli is used and left idle for too long, the connection may die and require the user 
+to establish a new connection.
+Right now, the only way to establish a new connection is to kill the cli session <ctrl-d> and re-run
+`tsh db connect` (and we do not currently hint the user to try this).
+If the cli was instead connecting to a local proxy tunnel, the local proxy could just establish a new 
+connection and prompt the user for credentials if needed.
 
 Example of current behavior when connection dies:
 ```
@@ -145,7 +153,8 @@ Current database: *** NONE ***
 ```
 
 ### Preserving Prior Behavior
-We should be sure to preserve the behavior where db certs are saved to the filesystem when per-session-MFA is not required.
+We should be sure to preserve the behavior where db certs are saved to the filesystem when per-session-MFA is 
+not required.
 If we do not preserve this behavior, then `tsh db login` and `tsh proxy db` would be unusable commands.
 
 ### Security
@@ -168,8 +177,7 @@ In proposing this change, we should address the security concerns that motivated
         - An attacker may still be able to extract the db cert from memory of the running local proxy, or simply intercept the cert sent by the local proxy when it dials the database.
         - Cert exfiltration is not needed though - anyone who can connect to the local proxy tunnel can connect to the database it proxies.
             - Note: tsh db connect will always open a local proxy tunnel too, whereas before it was only sometimes the case.
-        - This was already a concern with `tsh proxy db --tunnel`, although that command effectively does not work with per-session-mfa after 1 minute.
-            If we implement this proposal, then `tsh proxy db --tunnel` will work with per-session-mfa and will allow anyone who can connect to the local proxy to connect to the database it proxies until the cert or session expires.
+        - This was already a concern with `tsh proxy db --tunnel` or if `tsh db connect` starts a local proxy tunnel.
 
 ## Alternatives
 
@@ -190,5 +198,5 @@ Here are some alternatives we can do. They are not necessarily mutually-exclusiv
      - IP pinning doesn't help against a remote attacker either.
 5. We keep the private key in memory as well (or possibly only keep the private key in memory).
    - Pro: stealing the private key is as hard or harder than stealing the public cert, which makes more sense.
-     - Not useful if can have the private key stored on a yubikey though.
+     - Not useful if we can have the private key stored on a yubikey though.
    - Con: Worse UX. The user will have to relogin every time they `tsh db connect` or `tsh proxy db --tunnel`, since we keep the private key issued to them in memory and it is thrown away when they end a session.
