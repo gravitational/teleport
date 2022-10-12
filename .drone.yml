@@ -694,11 +694,14 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
   - git submodule update --init --recursive webassets
+  - cd $WebappsSrc
+  - git submodule update --init packages/webapps.e
   - Reset-Git -Workspace $Workspace
   environment:
     GITHUB_PRIVATE_KEY:
@@ -962,11 +965,14 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
   - git submodule update --init e
   - git submodule update --init --recursive webassets
+  - cd $WebappsSrc
+  - git submodule update --init packages/webapps.e
   - Reset-Git -Workspace $Workspace
   environment:
     GITHUB_PRIVATE_KEY:
@@ -8956,6 +8962,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 5541685d7fc687b7ffa7e3619a6e2558b079d9097b953cb3c8d1f4340abfecd9
+hmac: 55b01ea042ec924218d7f1060f00972920d6a43f8e63e8e3c8d93338c03b725d
 
 ...
