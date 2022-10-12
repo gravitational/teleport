@@ -192,6 +192,74 @@ In proposing this change, we should address the security concerns that motivated
             - Note: tsh db connect will always open a local proxy tunnel too, whereas before it was only sometimes the case.
         - This was already a concern with `tsh proxy db --tunnel` or if `tsh db connect` starts a local proxy tunnel.
 
+### Integrating with PIV hardware private keys for security improvements
+[yubikey PIV integration](https://github.com/gravitational/teleport/blob/master/rfd/0080-piv-private-key.md)
+brings Personal Identity Verification (PIV) support. This allows for hardware-stored private keys.
+
+The local proxy tunnel can integrate with PIV yubikeys via the keystore interface.
+It should work like any other private key except that the yubikey must be connected and the user may need
+to pass a presence check to allow the local proxy to access the private key.
+Consider the cases where these additional requirements for key usage are not met:
+1. Problem: the hardware key is not inserted.
+   Expected behavior: the local proxy tunnel callback function will prompt the user to insert their PIV key
+   with a timeout. If the key is not inserted before the timeout, then the connection attempt fails but
+   the local proxy continues to listen for new connections.
+2. Problem: the user does not tap the key when a "presence check" requires them to.
+   Expected behavior: the same timeout applies, and the connection is simply dropped if they do not
+   tap their yubikey.
+
+In both cases, the prompt will be issued via cli prompt as usual or via a pop-up-style notification
+with Teleport Connect.
+
+#### PIV security benefits
+The main concern with removing the 1 minute TTL for database certificates is that exfiltration of the user's
+certificate and private key would allow an attacker to access database resources for a much longer duration 
+than 1 minute.
+Keeping db certificates in memory will make exfiltration harder; it would effectively require that the user's 
+machine be totally compromised by an attacker.
+Even with this additional layer of defense, a user may be concerned to know that per-session-mfa can be
+bypassed by exfiltration.
+
+PIV hardware private keys prevent private key exfiltration from being possible.
+
+That leaves session hijacking as an attack vector, and local proxy tunnel session hijacking in particular.
+The RFD mentions two mitigation options for for this:
+
+ 1. Enable [per-session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/), which requires you to pass an MFA check (touch) to start a new Teleport Service session (SSH/Kube/etc.)
+ 2. Require Touch to access hardware private keys, which can be done with PIV-compatible hardware keys. In this case, touch is required for every Teleport request, not just new Teleport Service sessions
+
+The first option will not help us here, since we are extending the lifetime of a session to be
+min(`max_session_ttl`, local proxy tunnel lifetime) instead of 1 minute. It also won't help because
+the local proxy tunnel accepts local tcp connections without TLS.
+
+The second option, which requires a presence check to use the private key, will not completely prevent session 
+hijacking either.
+The local proxy tunnel listens for tcp connections without TLS; if a connection closes or dies,
+then an attacker trying to connect via the local proxy tunnel will fail to pass the presence check needed
+to perform the upstream TLS handshake for a new connection.
+However, active tcp connections to the local proxy tunnel could still be hijacked.
+Furthermore, an attacker capable of connecting to the local proxy could in theory attempt to connect to the
+local proxy while the user is actually present, and trick them into tapping their yubikey to pass the presence 
+check.
+A presence check required for each new connection will also eliminate any UX improvement we would have gained 
+by removing the 1 minute cert ttl, because it's even more restrictive than per-session-mfa TTL limited
+certificates.
+
+Since a presence check does not completely prevent local proxy tunnel session hijacking and it eliminates
+the UX improvement of this RFD, I would not recommend users enable presence checking for database
+access, but they at least have the option to do so anyway.
+
+In summary, there are two main security benefits of yubikey PIV integration for per-session-mfa database-access:
+1. Exfiltration of the user's private key is not possible.
+2. If the user removes their hardware key from the machine, then certificates cannot be reused for *new*
+   connections by the local proxy tunnel.
+   (active connections have already negotiated mTLS, so these sessions are still vulnerable after the key is 
+   removed by hijacking the tcp connection to the local proxy)
+
+An attacker capable of hijacking local connections on a user's machine cannot be *fully* mitigated;
+this is simply unavoidable. But with PIV we can prevent key exfiltration and narrow the attack surface area
+to only active local proxy tunnel connections to specific resources.
+
 ## Alternatives
 
 Here are some alternatives we can do. They are not necessarily mutually-exclusive options:
