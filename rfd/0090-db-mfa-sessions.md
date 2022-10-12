@@ -37,7 +37,9 @@ should be kept in-memory by a local proxy tunnel.
 
 ### API
 
-We should change the auth service to always issue database certs without capping the cert TTL to 1 minute for per-session-MFA.
+We should change the auth service to always issue database certs without capping the cert TTL to
+1 minute for per-session-MFA; clients will only keep the newly issued database certs in-memory
+when per-session-mfa is required.
 
 ### Local Proxy With Tunnel
 
