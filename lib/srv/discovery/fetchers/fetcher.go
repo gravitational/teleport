@@ -14,15 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package azure
+package fetchers
+
+import (
+	"context"
+
+	"github.com/gravitational/teleport/api/types"
+)
 
 const (
-	// MySQLPort is the Azure managed MySQL server port
-	// https://docs.microsoft.com/en-us/azure/mysql/single-server/concepts-connectivity-architecture
-	MySQLPort = "3306"
-	// PostgresPort is the Azure managed PostgreSQL server port
-	// https://docs.microsoft.com/en-us/azure/postgresql/single-server/concepts-connectivity-architecture
-	PostgresPort = "5432"
-	// resourceOwner is used to identify who owns the ClusterRole and ClusterRoleBinding.
-	resourceOwner = "Teleport"
+	// Azure identifies that a fetcher is watching resources from Azure.
+	Azure = "azure"
 )
+
+// Fetcher defines the common methods across all fetchers.
+type Fetcher interface {
+	// Get returns the list of resources from the cloud after applying the filters.
+	Get(ctx context.Context) (types.ResourcesWithLabels, error)
+	// ResourceType identifies the resource type the fetcher is returning.
+	ResourceType() string
+	// Cloud returns the cloud the fetcher is operating.
+	Cloud() string
+}
