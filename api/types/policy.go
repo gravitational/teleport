@@ -22,11 +22,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// PolicyV1 is a predicate policy used for RBAC, similar to rule but uses predicate language.
 type Policy interface {
-	// ResourceWithLabels provides common resource properties
-	ResourceWithLabels
+	// Resource provides common resource properties
+	Resource
+	// GetAllow returns a list of allow expressions grouped by scope.
 	GetAllow() map[string]string
+	// GetDeny returns a list of deny expressions grouped by scope.
 	GetDeny() map[string]string
+	// GetOptions returns an options expression.
 	GetOptions() string
 }
 
@@ -105,45 +109,17 @@ func (c *PolicyV1) SetName(e string) {
 	c.Metadata.Name = e
 }
 
+// GetAllow returns a list of allow expressions grouped by scope.
 func (c *PolicyV1) GetAllow() map[string]string {
 	return c.Spec.Allow
 }
 
+// GetDeny returns a list of deny expressions grouped by scope.
 func (c *PolicyV1) GetDeny() map[string]string {
 	return c.Spec.Deny
 }
 
+// GetOptions returns an options expression.
 func (c *PolicyV1) GetOptions() string {
 	return c.Spec.Options
-}
-
-func (c *PolicyV1) GetAllLabels() map[string]string {
-	return c.Metadata.Labels
-}
-
-func (c *PolicyV1) GetStaticLabels() map[string]string {
-	return c.Metadata.Labels
-}
-
-func (c *PolicyV1) SetStaticLabels(labels map[string]string) {
-	c.Metadata.Labels = labels
-}
-
-func (c *PolicyV1) MatchSearch(searchValues []string) bool {
-	return false
-}
-
-func (c *PolicyV1) Origin() string {
-	if c.Metadata.Labels == nil {
-		return ""
-	}
-	return c.Metadata.Labels[OriginLabel]
-}
-
-func (c *PolicyV1) SetOrigin(origin string) {
-	if c.Metadata.Labels == nil {
-		c.Metadata.Labels = make(map[string]string)
-	}
-
-	c.Metadata.Labels[OriginLabel] = origin
 }
