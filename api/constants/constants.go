@@ -338,3 +338,12 @@ const (
 // SupportedAWSDiscoveryServices is list of AWS services currently
 // supported by the Teleport discovery service
 var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}
+
+// Constants for Azure discovery.
+const (
+	AzureServiceTypeKubernetes = "aks"
+)
+
+// SupportedAzureDiscoveryServices is list of Azure services currently
+// supported by the Teleport discovery service.
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes}

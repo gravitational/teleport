@@ -1312,6 +1312,8 @@ type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers are used to match resources for auto discovery.
+	AzureMatchers []services.AzureMatcher
 }
 
 // ParseHeader parses the provided string as a http header.
