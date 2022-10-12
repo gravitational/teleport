@@ -399,6 +399,7 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"[+]",
 			"Requested resources truncated, use the `tctl requests get` subcommand to view the full list")
 		table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+		table.AddColumn(asciitable.Column{Title: "TTL"})
 		table.AddColumn(asciitable.Column{Title: "Status"})
 		table.AddColumn(asciitable.Column{
 			Title:         "Request Reason",
@@ -425,6 +426,7 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 				fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ",")),
 				resourceIDsString,
 				req.GetCreationTime().Format(time.RFC822),
+				req.Expiry().Sub(time.Now()).Round(time.Minute).String(),
 				req.GetState().String(),
 				quoteOrDefault(req.GetRequestReason(), ""),
 				quoteOrDefault(req.GetResolveReason(), ""),

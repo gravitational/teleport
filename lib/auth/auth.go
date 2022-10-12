@@ -2768,7 +2768,7 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	return a.Services.DeleteNamespace(namespace)
 }
 
-func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identityExpires time.Time) error {
 	if err := services.ValidateAccessRequestForUser(ctx, a, req,
 		// if request is in state pending, variable expansion must be applied
 		services.ExpandVars(req.GetState().IsPending()),
@@ -2776,27 +2776,30 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		return trace.Wrap(err)
 	}
 
-	ttl, err := a.calculateMaxAccessTTL(ctx, req)
+	now := a.clock.Now().UTC()
+	req.SetCreationTime(now)
+
+	// Calculate expiration of the Access Request.
+	//
+	// This is how long the Access Request will hang around for approval. In
+	// other words, the TTL on the types.AccessRequest resource itself.
+	ttl, err := a.resourceTTL(ctx, identityExpires, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	now := a.clock.Now().UTC()
-	req.SetCreationTime(now)
-	exp := now.Add(ttl)
-	// Set acccess expiry if an allowable default was not provided.
-	if req.GetAccessExpiry().Before(now) || req.GetAccessExpiry().After(exp) {
-		req.SetAccessExpiry(exp)
+	req.SetExpiry(now.Add(ttl))
+
+	// Calculate the expiry time of the Access Request.
+	//
+	// This is the expiration time of the elevated certificate that will
+	// be issued if the Access Request is approved.
+	ttl, err = a.elevatedTTL(ctx, identityExpires, req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	// By default, resource expiry should match access expiry.
-	req.SetExpiry(req.GetAccessExpiry())
-	// If the access-request is in a pending state, then the expiry of the underlying resource
-	// is capped to to PendingAccessDuration in order to limit orphaned access requests.
-	if req.GetState().IsPending() {
-		pexp := now.Add(defaults.PendingAccessDuration)
-		if pexp.Before(req.Expiry()) {
-			req.SetExpiry(pexp)
-		}
-	}
+	req.SetAccessExpiry(now.Add(ttl))
+
+	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
 	if req.GetDryRun() {
 		// Made it this far with no errors, return before creating the request
@@ -2947,22 +2950,60 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	return caps, nil
 }
 
-// calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
-// based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
-// exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
-func (a *Server) calculateMaxAccessTTL(ctx context.Context, req types.AccessRequest) (time.Duration, error) {
-	minTTL := defaults.MaxAccessDuration
-	for _, roleName := range req.GetRoles() {
+// resourceTTL calculates the TTL for the types.AccessRequest resource.
+func (a *Server) resourceTTL(ctx context.Context, identityExpires time.Time, r types.AccessRequest) (time.Duration, error) {
+	// If no expiration provided, use default (1 hour).
+	expiry := r.Expiry()
+	if expiry.IsZero() {
+		expiry = a.clock.Now().UTC().Add(defaults.PendingAccessDuration)
+	}
+
+	if expiry.Before(a.clock.Now().UTC()) {
+		return 0, trace.BadParameter("invalid expiration, Access Request can not be created in the past")
+	}
+
+	return a.truncateTTL(ctx, identityExpires, expiry, r.GetRoles())
+}
+
+// elevatedAccessTTL calculates the TTL for elevated access.
+func (a *Server) elevatedTTL(ctx context.Context, identityExpires time.Time, r types.AccessRequest) (time.Duration, error) {
+	return a.truncateTTL(ctx, identityExpires, r.GetAccessExpiry(), r.GetRoles())
+}
+
+// truncateTTL will truncate given expiration by identity expiration and
+// shortest session TTL of any role.
+func (a *Server) truncateTTL(ctx context.Context, identityExpires time.Time, expiry time.Time, roles []string) (time.Duration, error) {
+	// Start with the maximum certificate duration Teleport supports.
+	ttl := apidefaults.MaxCertDuration
+
+	// Reduce by remaining TTL on requesting certificate (identity).
+	identityTTL := identityExpires.Sub(a.clock.Now())
+	if identityTTL > 0 && identityTTL < ttl {
+		ttl = identityTTL
+	}
+
+	// Reduce TTL further if expiration time requested is shorter than that
+	// identity.
+	expiryTTL := expiry.Sub(a.clock.Now())
+	if expiryTTL > 0 && expiryTTL < ttl {
+		ttl = expiryTTL
+	}
+
+	// Loop over the roles requested by the user and reduce certificate TTL
+	// further. Follow the typical Teleport RBAC pattern of strictest setting
+	// wins.
+	for _, roleName := range roles {
 		role, err := a.GetRole(ctx, roleName)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
 		roleTTL := time.Duration(role.GetOptions().MaxSessionTTL)
-		if roleTTL > 0 && roleTTL < minTTL {
-			minTTL = roleTTL
+		if roleTTL > 0 && roleTTL < ttl {
+			ttl = roleTTL
 		}
 	}
-	return minTTL, nil
+
+	return ttl, nil
 }
 
 // NewKeepAliver returns a new instance of keep aliver

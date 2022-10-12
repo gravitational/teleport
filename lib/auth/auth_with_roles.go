@@ -1887,11 +1887,7 @@ func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.Acc
 			return trace.Wrap(err)
 		}
 	}
-	// Ensure that an access request cannot outlive the identity that creates it.
-	if req.GetAccessExpiry().Before(a.authServer.GetClock().Now()) || req.GetAccessExpiry().After(a.context.Identity.GetIdentity().Expires) {
-		req.SetAccessExpiry(a.context.Identity.GetIdentity().Expires)
-	}
-	return a.authServer.CreateAccessRequest(ctx, req)
+	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity().Expires)
 }
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {

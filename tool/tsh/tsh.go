@@ -142,8 +142,11 @@ type CLIConf struct {
 	ExplicitUsername bool
 	// Proxy keeps the hostname:port of the SSH proxy to use
 	Proxy string
-	// TTL defines how long a session must be active (in minutes)
-	MinsToLive int32
+	// RawTTL is the raw value passed into the "--ttl" flag.
+	RawTTL string
+	// RequestTTL is the parsed value from the "--ttl" flag. Can be a raw
+	// integer representing minutes (like 13) or a Go style time (like 13m1s).
+	TTL time.Duration
 	// SSH Port on a remote SSH host
 	NodePort int32
 	// Login on a remote SSH host
@@ -526,7 +529,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
 
-	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
+	app.Flag("ttl", "Time-to-live for SSH session or Access Request").StringVar(&cf.RawTTL)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
@@ -866,6 +869,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
+	}
+
+	// Parse the raw TTL value as either an integer representing minutes or a
+	// Go style time.Duration.
+	cf.TTL, err = parseTTL(cf.RawTTL)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
@@ -1979,6 +1989,9 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	}
 	req.SetRequestReason(cf.RequestReason)
 	req.SetSuggestedReviewers(reviewers)
+	if cf.TTL > 0 {
+		req.SetExpiry(time.Now().Add(cf.TTL))
+	}
 	return req, nil
 }
 
@@ -2820,11 +2833,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		return nil, trace.Wrap(err)
 	}
 
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
-	}
-
 	// split login & host
 	hostLogin := cf.NodeLogin
 	hostUser := cf.UserHost
@@ -3031,9 +3039,14 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 	c.HostPort = int(cf.NodePort)
 	c.Labels = labels
-	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
 	c.PredicateExpression = cf.PredicateExpression
+
+	// If no TTL was specified, use default certificate duration.
+	c.KeyTTL = cf.TTL
+	if c.KeyTTL == 0 {
+		c.KeyTTL = apidefaults.CertDuration
+	}
 
 	if cf.SearchKeywords != "" {
 		c.SearchKeywords = client.ParseSearchKeywords(cf.SearchKeywords, ',')
@@ -4112,4 +4125,21 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	}
 
 	return trace.NewAggregate(errors...)
+}
+
+func parseTTL(rawTTL string) (time.Duration, error) {
+	if rawTTL == "" {
+		return 0, nil
+	}
+
+	ttl, err := time.ParseDuration(rawTTL)
+	if err != nil {
+		d, err := strconv.ParseInt(rawTTL, 10, 0)
+		if err != nil {
+			return 0, trace.BadParameter("failed to parse TTL value: %v", err)
+		}
+		ttl = time.Duration(d) * time.Minute
+	}
+
+	return ttl, nil
 }

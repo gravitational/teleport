@@ -5366,7 +5366,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq)
+	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, env.clock.Now().Add(1*time.Hour))
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
