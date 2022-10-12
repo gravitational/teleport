@@ -27,7 +27,7 @@ type Policy interface {
 	ResourceWithLabels
 	GetAllow() map[string]string
 	GetDeny() map[string]string
-	GetOptions() map[string]string
+	GetOptions() string
 }
 
 // GetVersion returns resource version
@@ -113,7 +113,7 @@ func (c *PolicyV1) GetDeny() map[string]string {
 	return c.Spec.Deny
 }
 
-func (c *PolicyV1) GetOptions() map[string]string {
+func (c *PolicyV1) GetOptions() string {
 	return c.Spec.Options
 }
 

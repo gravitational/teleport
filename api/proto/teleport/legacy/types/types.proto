@@ -2120,7 +2120,7 @@ message PolicyV1 {
 message PolicySpecV1 {
   map<string, string> Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
   map<string, string> Deny = 2 [(gogoproto.jsontag) = "deny,omitempty"];
-  map<string, string> Options = 3 [(gogoproto.jsontag) = "options,omitempty"];
+  string Options = 3 [(gogoproto.jsontag) = "options,omitempty"];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
