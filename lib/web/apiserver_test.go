@@ -6622,11 +6622,15 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	err = env.server.Auth().UpsertRole(ctx, requestableRole)
 	require.NoError(t, err)
 
+	identity := tlsca.Identity{
+		Expires: env.clock.Now().Add(1 * time.Hour),
+	}
+
 	// Create and approve an access request for the requestable role.
 	accessReq, err := services.NewAccessRequest(username, requestableRolename)
 	require.NoError(t, err)
 	accessReq.SetState(types.RequestState_APPROVED)
-	err = env.server.Auth().CreateAccessRequest(ctx, accessReq)
+	err = env.server.Auth().CreateAccessRequest(ctx, accessReq, identity)
 	require.NoError(t, err)
 
 	// Get the ID of the created and approved access request.
