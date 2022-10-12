@@ -38,7 +38,7 @@ type alertOptions struct {
 	labels   map[string]string
 	severity AlertSeverity
 	created  time.Time
-	expires  *time.Time
+	expires  time.Time
 }
 
 // AlertOption is a functional option for alert construction.
@@ -58,13 +58,6 @@ func WithAlertLabel(key, val string) AlertOption {
 func WithAlertSeverity(severity AlertSeverity) AlertOption {
 	return func(options *alertOptions) {
 		options.severity = severity
-	}
-}
-
-// WithAlertExpires sets when the alert will expire.
-func WithAlertExpires(expires time.Time) AlertOption {
-	return func(options *alertOptions) {
-		options.expires = &expires
 	}
 }
 
@@ -105,9 +98,6 @@ func NewClusterAlert(name string, message string, opts ...AlertOption) (ClusterA
 			Message:  message,
 			Created:  options.created,
 		},
-	}
-	if options.expires != nil {
-		alert.Metadata.Expires = options.expires
 	}
 	if err := alert.CheckAndSetDefaults(); err != nil {
 		return ClusterAlert{}, trace.Wrap(err)
