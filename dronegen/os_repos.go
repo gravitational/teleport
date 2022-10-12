@@ -189,8 +189,10 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	setupSteps := verifyValidPromoteRunSteps(checkoutPath, commitName, true)
-
+	setupSteps := []step{
+		verifyTaggedStep(),
+		cloneRepoStep(checkoutPath, commitName),
+	}
 	setupStepNames := make([]string, 0, len(setupSteps))
 	for _, setupStep := range setupSteps {
 		setupStepNames = append(setupStepNames, setupStep.Name)
@@ -353,9 +355,12 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 	toolSetupCommands = append(toolSetupCommands, optpb.setupCommands...)
 
 	downloadStepName := fmt.Sprintf("Download artifacts for %q", version)
+
+	verifyNotPrereleaseStep := verifyNotPrereleaseStep(codePath)
 	buildStepDependencies := []string{}
 	if enableParallelism {
 		buildStepDependencies = append(buildStepDependencies, downloadStepName)
+		buildStepDependencies = append(buildStepDependencies, verifyNotPrereleaseStep.Name)
 	}
 
 	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
@@ -407,6 +412,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			},
 		},
 		assumeUploadRoleStep,
+		verifyNotPrereleaseStep,
 		{
 			Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
 			Image:       "golang:1.18.4-bullseye",
