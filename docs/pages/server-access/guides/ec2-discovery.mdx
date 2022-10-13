@@ -288,7 +288,7 @@ spec:
     echo Teleport-{{ .MajorVersion }}
 version: v1
 ```
-Which, when retreived by the Systems Manager document will evaluate to a script with the following contents:
+Which, when retrieved by the Systems Manager document will evaluate to a script with the following contents:
 ```sh
 echo teleport.example.com
 echo Teleport-(=teleport.version=)
