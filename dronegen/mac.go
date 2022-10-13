@@ -249,6 +249,11 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 		`git checkout ${DRONE_TAG:-$DRONE_COMMIT}`,
+		// suppressing the newline on the end of the private key makes git operations fail on MacOS
+		// with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
+		`mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa`,
+		`ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null`,
+		`chmod 600 $WORKSPACE_DIR/.ssh/known_hosts`,
 	}
 
 	// clone github.com/gravitational/webapps for the Teleport Connect source code
@@ -258,22 +263,16 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`git clone https://github.com/gravitational/webapps.git .`,
 			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
+			`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init packages/webapps.e`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		)
 	}
 
 	commands = append(commands,
 		// fetch enterprise submodules
-		// suppressing the newline on the end of the private key makes git operations fail on MacOS
-		// with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
-		`mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa`,
-		`ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null`,
-		`chmod 600 $WORKSPACE_DIR/.ssh/known_hosts`,
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
-		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init packages/webapps.e`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
 		`mkdir -p $WORKSPACE_DIR/go/cache`,
 	)
