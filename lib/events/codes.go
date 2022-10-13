@@ -193,12 +193,21 @@ const (
 	DesktopClipboardSendCode = "TDP02I"
 	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
 	DesktopClipboardReceiveCode = "TDP03I"
-	// DesktopSharedDirectoryReadCode is the desktop directory start code.
+	// DesktopSharedDirectoryStartCode is the desktop directory start code.
 	DesktopSharedDirectoryStartCode = "TDP04I"
+	// DesktopSharedDirectoryStartCorruptedCode is the desktop directory start code
+	// for when the internal cache state was corrupted, causing information loss.
+	DesktopSharedDirectoryStartCorruptedCode = "TDP04W"
 	// DesktopSharedDirectoryReadCode is the desktop directory read code.
 	DesktopSharedDirectoryReadCode = "TDP05I"
+	// DesktopSharedDirectoryReadCorruptedCode is the desktop directory read code
+	// for when the internal cache state was corrupted, causing information loss.
+	DesktopSharedDirectoryReadCorruptedCode = "TDP05W"
 	// DesktopSharedDirectoryWriteCode is the desktop directory write code.
 	DesktopSharedDirectoryWriteCode = "TDP06I"
+	// DesktopSharedDirectoryWriteCorruptedCode is the desktop directory write code
+	// for when the internal cache state was corrupted, causing information loss.
+	DesktopSharedDirectoryWriteCorruptedCode = "TDP06W"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
