@@ -38,8 +38,6 @@ export default function TdpClientCanvas(props: Props) {
     onMouseUp,
     onMouseWheelScroll,
     onContextMenu,
-    onMouseEnter,
-    windowOnFocus,
     style,
   } = props;
 
@@ -255,35 +253,6 @@ export default function TdpClientCanvas(props: Props) {
     };
   }, [onKeyUp]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onmouseenter = (e: MouseEvent) => {
-      onMouseEnter(tdpCli, e);
-    };
-    if (onMouseEnter) {
-      canvas.onmouseenter = _onmouseenter;
-    }
-
-    return () => {
-      if (onMouseEnter) canvas.removeEventListener('mouseenter', _onmouseenter);
-    };
-  }, [onMouseEnter]);
-
-  useEffect(() => {
-    const _windowonfocus = (e: FocusEvent) => {
-      // Checking for (canvasRef.current.style.display !== 'none') ensures windowOnFocus behaves
-      // like the other passed event listeners, namely it isn't called if the TdpClientCanvas isn't displayed.
-      if (canvasRef.current.style.display !== 'none') windowOnFocus(tdpCli, e);
-    };
-    if (windowOnFocus) {
-      window.onfocus = _windowonfocus;
-    }
-
-    return () => {
-      if (windowOnFocus) window.removeEventListener('focus', _windowonfocus);
-    };
-  }, [windowOnFocus]);
-
   return <canvas style={{ ...style }} ref={canvasRef} />;
 }
 
@@ -312,7 +281,5 @@ export type Props = {
   onMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
   onMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   onContextMenu?: () => boolean;
-  onMouseEnter?: (cli: TdpClient, e: MouseEvent) => void;
-  windowOnFocus?: (cli: TdpClient, e: FocusEvent) => void;
   style?: CSSProperties;
 };
