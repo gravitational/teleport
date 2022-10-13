@@ -787,6 +787,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 	kubeTLSServerName := ""
 	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
+		log.Debug("Using Proxy SNI for kube TLS server name")
 		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
 	}
 
