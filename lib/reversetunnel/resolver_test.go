@@ -131,12 +131,23 @@ func TestCachingResolver(t *testing.T) {
 	resolver, err := CachingResolver(context.Background(), randomResolver, clock)
 	require.NoError(t, err)
 
+	// This is a data race check.
+	// We start a goroutine that mutates the underlying NetAddr, but without invalidating the cache.
+	// The caching resolver must return a pointer to a copy of the NetAddr to avoid a data race.
+	go func() {
+		addr, err := resolver(context.Background())
+		require.NoError(t, err)
+		// data race check: write to *addr
+		addr.Addr = ""
+	}()
+
 	addr, err := resolver(context.Background())
 	require.NoError(t, err)
 
 	addr2, err := resolver(context.Background())
 	require.NoError(t, err)
 
+	// data race check: read from *addr
 	require.Equal(t, addr, addr2)
 
 	clock.Advance(time.Hour)

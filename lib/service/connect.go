@@ -415,6 +415,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			Clock:                process.Clock,
 			EC2IdentityDocument:  ec2IdentityDocument,
 			JoinMethod:           process.Config.JoinMethod,
+			FIPS:                 process.Config.FIPS,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
