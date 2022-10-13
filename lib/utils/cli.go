@@ -524,7 +524,7 @@ func (p PredicateError) Error() string {
 	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
 }
 
-// FormatAlert formats and colours the alert message if possible.
+// FormatAlert formats and colors the alert message if possible.
 func FormatAlert(alert types.ClusterAlert) string {
 	// TODO(timothyb89): Due to complications with globally enabling +
 	// properly resetting Windows terminal ANSI processing, for now we just
