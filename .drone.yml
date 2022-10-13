@@ -6153,7 +6153,7 @@ steps:
   - Check if tag is prerelease
   - Check out code
 - name: Publish debs to APT repos for "${DRONE_TAG}"
-  image: golang:1.18.4-bullseye
+  image: golang:1.18-bullseye
   commands:
   - apt update
   - apt install -y aptly
@@ -6298,7 +6298,7 @@ steps:
   - Check if tag is prerelease
   - Check out code
 - name: Publish rpms to YUM repos for "${DRONE_TAG}"
-  image: golang:1.18.4-bullseye
+  image: golang:1.18-bullseye
   commands:
   - apt update
   - apt install -y createrepo-c
@@ -10027,6 +10027,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: a927c278b1f32ad703ad2d6b5b856d496137542fed47c513f2c6fb2e74a0eed1
+hmac: 845bd71f98c377717f9966ef78acddcc819f4c7e4d2a96174f954a4d457a9fc3
 
 ...

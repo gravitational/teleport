@@ -33,6 +33,9 @@ const (
 	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
 	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
 	ProductionRegistryQuay = "quay.io"
+
+	// Go version used by internal tools
+	GoVersion = "1.18"
 )
 
 var (
@@ -318,7 +321,7 @@ func verifyNotPrereleaseStep() step {
 	clonePath := "/tmp/repo"
 	return step{
 		Name:  "Check if tag is prerelease",
-		Image: "golang:1.18-alpine",
+		Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
 		Commands: append(
 			cloneRepoCommands(clonePath, "${DRONE_TAG}"),
 			fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
