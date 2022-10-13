@@ -16,15 +16,22 @@ limitations under the License.
 
 import { FileStorage } from 'teleterm/types';
 import { ConnectionTrackerState } from 'teleterm/ui/services/connectionTracker';
-import { WorkspacesState } from 'teleterm/ui/services/workspacesService';
+import {
+  Workspace,
+  WorkspacesState,
+} from 'teleterm/ui/services/workspacesService';
 
 interface ShareFeedbackState {
   hasBeenOpened: boolean;
 }
 
+export type WorkspacesPersistedState = Omit<WorkspacesState, 'workspaces'> & {
+  workspaces: Record<string, Omit<Workspace, 'accessRequests'>>;
+};
+
 interface StatePersistenceState {
   connectionTracker: ConnectionTrackerState;
-  workspacesState: WorkspacesState;
+  workspacesState: WorkspacesPersistedState;
   shareFeedback: ShareFeedbackState;
 }
 
@@ -43,7 +50,7 @@ export class StatePersistenceService {
     return this.getState().connectionTracker;
   }
 
-  saveWorkspacesState(workspacesState: WorkspacesState): void {
+  saveWorkspacesState(workspacesState: WorkspacesPersistedState): void {
     const newState: StatePersistenceState = {
       ...this.getState(),
       workspacesState,
@@ -51,7 +58,7 @@ export class StatePersistenceService {
     this.putState(newState);
   }
 
-  getWorkspacesState(): WorkspacesState {
+  getWorkspacesState(): WorkspacesPersistedState {
     return this.getState().workspacesState;
   }
 

@@ -404,6 +404,15 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return this.client.getRequestableRoles(clusterUri);
   }
 
+  getAssumedRequests(clusterUri: string) {
+    const cluster = this.state.clusters.get(clusterUri);
+    if (!cluster?.connected) {
+      return {};
+    }
+
+    return cluster.loggedInUser?.assumedRequests || {};
+  }
+
   async getAccessRequests(clusterUri: string) {
     const cluster = this.state.clusters.get(clusterUri);
     if (!cluster.connected) {
@@ -700,12 +709,43 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   // with a retryable error in case the certs have expired.
   private async syncClusterInfo(clusterUri: string) {
     const cluster = await this.client.getCluster(clusterUri);
+    const assumedRequests = cluster.loggedInUser
+      ? await this.fetchClusterAssumedRequests(
+          cluster.loggedInUser.activeRequestsList,
+          clusterUri
+        )
+      : undefined;
     this.setState(draft => {
-      draft.clusters.set(
-        clusterUri,
-        this.removeInternalLoginsFromCluster(cluster)
-      );
+      draft.clusters.set(clusterUri, {
+        ...this.removeInternalLoginsFromCluster(cluster),
+        loggedInUser: cluster.loggedInUser
+          ? {
+              ...cluster.loggedInUser,
+              assumedRequests,
+            }
+          : undefined,
+      });
     });
+  }
+
+  private async fetchClusterAssumedRequests(
+    activeRequestsList: string[],
+    clusterUri: string
+  ) {
+    return (
+      await Promise.all(
+        activeRequestsList.map(requestId =>
+          this.getAccessRequest(clusterUri, requestId)
+        )
+      )
+    ).reduce((requestsMap, request) => {
+      requestsMap[request.id] = {
+        id: request.id,
+        expires: new Date(request.expires.seconds * 1000),
+        roles: request.rolesList,
+      };
+      return requestsMap;
+    }, {});
   }
 
   private removeResources(clusterUri: string) {
