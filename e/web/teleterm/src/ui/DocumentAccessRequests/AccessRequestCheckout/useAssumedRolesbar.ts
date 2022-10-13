@@ -4,13 +4,11 @@ import { intervalToDuration, differenceInMilliseconds } from 'date-fns';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import { useClusterLogout } from 'teleterm/ui/ClusterLogout/useClusterLogout';
-import { useIdentity } from 'teleterm/ui/TopBar/Identity/useIdentity';
-import { AccessRequest } from 'e-teleport/services/workflow';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
-export default function useAssumedRolesBar(role: AccessRequest) {
+export default function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   const ctx = useAppContext();
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
@@ -19,20 +17,12 @@ export default function useAssumedRolesBar(role: AccessRequest) {
     ?.getActiveWorkspaceDocumentService()
     ?.getActive();
 
-  const { removeCluster } = useClusterLogout({
-    clusterUri,
-  });
-
-  const { activeRootCluster } = useIdentity();
-  const accessRequestService =
-    ctx.workspacesService.getActiveWorkspaceAccessRequestsService();
-
   const [time, setTime] = useState<Time>({ hours: 0, minutes: 0, seconds: 0 });
   const { attempt: switchBackAttempt, run: runSwitchBack } = useAttempt('');
 
   function setDuration() {
     const start = new Date();
-    const end = new Date(role.expires);
+    const end = assumedRequest.expires;
     const duration = intervalToDuration({ start, end });
 
     // tsh certs will always be the shortest lived expiry
@@ -40,11 +30,9 @@ export default function useAssumedRolesBar(role: AccessRequest) {
     // here expires that means the cert is expired too, regardless
     // of other requests assumed
     if (differenceInMilliseconds(end, start) <= 0) {
-      removeCluster();
-      ctx.notificationsService.notifyError({
-        title: `${activeRootCluster.name}: Certificate Expired`,
-        description: `Please login again to connect to your cluster.`,
-      });
+      retryWithRelogin(ctx, activeDoc?.uri, clusterUri, () =>
+        ctx.clustersService.syncCluster(clusterUri)
+      );
     } else {
       setTime({
         hours: duration.hours,
@@ -65,11 +53,8 @@ export default function useAssumedRolesBar(role: AccessRequest) {
         // persist any other access requests currently available that
         // are not present in the dropIds array
         ctx.clustersService
-          .assumeRole(rootClusterUri, [], [role.id])
-          .then(() => {
-            ctx.clustersService.syncCluster(clusterUri);
-            accessRequestService.removeFromAssumed(role);
-          })
+          .assumeRole(rootClusterUri, [], [assumedRequest.id])
+          .then(() => ctx.clustersService.syncCluster(clusterUri))
           .catch(err => {
             ctx.notificationsService.notifyError({
               title: 'Failed',
@@ -95,7 +80,7 @@ export default function useAssumedRolesBar(role: AccessRequest) {
     time,
     switchBack,
     switchBackAttempt,
-    assumedRoles: role.roles,
+    assumedRoles: assumedRequest.roles,
   };
 }
 

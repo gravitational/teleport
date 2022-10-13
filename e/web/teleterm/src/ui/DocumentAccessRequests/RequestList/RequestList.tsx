@@ -89,7 +89,12 @@ export function RequestList({
           {
             altKey: 'view-btn',
             render: request =>
-              renderActionCell(request, assumeRole, viewRequest),
+              renderActionCell(
+                request,
+                assumeRole,
+                assumeRoleAttempt,
+                viewRequest
+              ),
           },
         ]}
         emptyText="No Requests Found"
@@ -193,6 +198,7 @@ const renderStatusCell = ({ state }: any) => {
 const renderActionCell = (
   request: any,
   assumeRole: (request: any) => void,
+  assumeRoleAttempt: Attempt,
   viewRequest: (id: string) => void
 ) => {
   return (
@@ -200,7 +206,9 @@ const renderActionCell = (
       {request.canAssume && (
         <ButtonPrimary
           size="small"
-          disabled={request.isAssumed}
+          disabled={
+            request.isAssumed || assumeRoleAttempt.status === 'processing'
+          }
           onClick={() => assumeRole(request)}
           width="108px"
         >

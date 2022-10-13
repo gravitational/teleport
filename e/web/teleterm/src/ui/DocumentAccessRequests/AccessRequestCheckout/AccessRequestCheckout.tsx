@@ -56,7 +56,7 @@ export function AccessRequestCheckout() {
     createRequest,
     clearCreateAttempt,
     data,
-    assumedRoles,
+    assumedRequests,
     requestedCount,
     attempt,
     goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
@@ -82,8 +82,8 @@ export function AccessRequestCheckout() {
           </Flex>
         </Box>
       )}
-      {assumedRoles.map(role => (
-        <AssumedRolesBar key={role.id} role={role} />
+      {assumedRequests.map(request => (
+        <AssumedRolesBar key={request.id} assumedRolesRequest={request} />
       ))}
       <Transition
         in={showCheckout}

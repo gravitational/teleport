@@ -12,15 +12,15 @@ import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();
+  ctx.clustersService.useState();
 
   const {
     localClusterUri: clusterUri,
     rootClusterUri,
-    accessRequestsService,
     documentsService,
   } = useWorkspaceContext();
 
-  const assumed = accessRequestsService.getAssumed();
+  const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
   const identity = useIdentity();
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>();
   const { attempt, setAttempt } = useAttempt('');
@@ -83,7 +83,6 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
           .assumeRole(rootClusterUri, [request.id], [])
           .then(() => {
             ctx.clustersService.syncCluster(clusterUri);
-            accessRequestsService.addToAssumed(request);
           })
       )
     );
@@ -99,8 +98,8 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   useEffect(() => {
     // if assumed object changes, we update which roles have been assumed in the table
     // this is mostly for using "Switchback" since that state is held outside this component
-    setAccessRequests(
-      accessRequests?.map(r => ({
+    setAccessRequests(prevState =>
+      prevState?.map(r => ({
         ...r,
         isAssumed: assumed[r.id],
       }))

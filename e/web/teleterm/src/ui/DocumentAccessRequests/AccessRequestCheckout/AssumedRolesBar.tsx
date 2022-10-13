@@ -4,13 +4,13 @@ import { Box, Flex, Text, ButtonPrimary } from 'design';
 
 import { pluralize } from 'teleport/lib/util';
 import { getDurationText } from 'shared/utils/getDurationText';
-
-import { AccessRequest } from 'e-teleport/services/workflow';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import useAssumedRolesBar from './useAssumedRolesbar';
 
-export function AssumedRolesBar({ role }: Props) {
-  const { time, assumedRoles, switchBack } = useAssumedRolesBar(role);
+export function AssumedRolesBar({ assumedRolesRequest }: Props) {
+  const { time, assumedRoles, switchBack } =
+    useAssumedRolesBar(assumedRolesRequest);
   const durationTxt = getDurationText(time.hours, time.minutes, time.seconds);
   const ref = useRef<HTMLButtonElement>(null);
   const roles = assumedRoles.join(', ');
@@ -50,5 +50,5 @@ export function AssumedRolesBar({ role }: Props) {
 }
 
 type Props = {
-  role: AccessRequest;
+  assumedRolesRequest: AssumedRequest;
 };

@@ -9,6 +9,7 @@ import { ResourceKind } from '../NewRequest/useNewRequest';
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
   ctx.workspacesService.useState();
+  ctx.clustersService.useState();
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
@@ -78,22 +79,18 @@ export default function useAccessRequestCheckout() {
     workspaceAccessRequest.addOrRemoveResource(kind, resourceId, resourceName);
   }
 
-  function getAssumed() {
-    if (!workspaceAccessRequest) {
-      return {};
-    }
-    return workspaceAccessRequest.getAssumed();
-  }
-
-  function getAssumedRoles() {
-    if (!workspaceAccessRequest) {
+  function getAssumedRequests() {
+    if (!clusterUri) {
       return [];
     }
-    const assumed = workspaceAccessRequest.getAssumed();
+    const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
+    if (!assumed) {
+      return [];
+    }
     return Object.values(assumed);
   }
 
-  async function createRequest(reason: string, suggestedReviewers: string[]) {
+  function createRequest(reason: string, suggestedReviewers: string[]) {
     const data = getPendingAccessRequestsPerResource();
     const activeDoc = docService.getActive();
     const req = {
@@ -151,8 +148,7 @@ export default function useAccessRequestCheckout() {
   return {
     showCheckout,
     isCollapsed,
-    assumed: getAssumed(),
-    assumedRoles: getAssumedRoles(),
+    assumedRequests: getAssumedRequests(),
     toggleResource,
     data: getPendingAccessRequestsPerResource(),
     createRequest,

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { AssumedRequest, LoggedInUser } from 'teleterm/services/tshd/types';
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
 import { useIdentity } from 'teleterm/ui/TopBar/Identity/useIdentity';
 
@@ -20,7 +20,6 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
     localClusterUri: clusterUri,
     rootClusterUri,
     documentsService,
-    accessRequestsService,
   } = useWorkspaceContext();
   const activeDoc = documentsService.getActive();
 
@@ -33,7 +32,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
   const { attempt: assumeRoleAttempt, run: runAssumeRole } = useAttempt('');
   const [flags, setFlags] = useState<Flags>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const assumed = accessRequestsService.getAssumed();
+  const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
 
   useEffect(() => {
     runGetRequest(() =>
@@ -105,7 +104,6 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
           .assumeRole(rootClusterUri, [requestId], [])
           .then(() => {
             ctx.clustersService.syncCluster(clusterUri);
-            accessRequestsService.addToAssumed(request);
           })
       )
     );
@@ -133,11 +131,11 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
 function getRequestFlags(
   request: AccessRequest,
   user: LoggedInUser,
-  assumedMap: Record<string, AccessRequest>
+  assumedMap: Record<string, AssumedRequest>
 ) {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
-  const isAssumed = assumedMap[request.id];
+  const isAssumed = !!assumedMap[request.id];
   const canDelete = true;
 
   const reviewed = request.reviews.find(r => r.author === user.name);
@@ -156,6 +154,7 @@ function getRequestFlags(
     canReview: !ownRequest && isPendingState,
   };
 }
+
 type Flags = ReturnType<typeof getRequestFlags>;
 
 type Props = {
