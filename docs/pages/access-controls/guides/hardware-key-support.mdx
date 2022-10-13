@@ -15,13 +15,13 @@ Additionally, this feature can be configured to require touch for every Teleport
 
 <ScopedBlock scope="oss">
 
-  Hardware-backed Login Sessions require Teleport Enterprise or Teleport Cloud.
+  Hardware Key Support requires Teleport Enterprise.
 
 </ScopedBlock>
 
 <Admonition type="note" title="PIV support">
 
-  Hardware-backed Login Sessions require a PIV-compatible hardware key. Currently, this feature is only guarenteed to support YubiKey series 5+.
+  Hardware Key Support requires users to use a PIV-compatible hardware key. Currently, this feature is only guarenteed to support YubiKey series 5+.
 
 </Admonition>
 
@@ -33,16 +33,17 @@ Additionally, this feature can be configured to require touch for every Teleport
 
 <Admonition type="warning" title="Compatibility Issues">
 
-  Hardware-backed Login Sessions provides the best security available, but it is a new feature with some compatiblity trade-offs. We hope to improve compatibility in the future.
+  Hardware Key Support provides the best security available, but it is a new feature with some compatiblity trade-offs. We hope to improve compatibility in the future.
   
-  Currently, Hardware-backed Login Sessions support `tsh`, `tctl`, and Teleport Connect for:
+  Supported (`tsh`, `tctl`, and Teleport Connect):
     
     - Standard Teleport API requests (`tsh ls`, `tctl create`, etc.)
     - Server Access
-    - Database Access (using `tsh proxy db` instead of `tsh db connect`)
+    - Database Access
+      - Must use `tsh proxy db` instead of `tsh db connect`
     - Application Access
   
-  Hardware-backed Login sessions do not yet support:
+  Not yet supported:
 
     - Teleport WebUI (except for user registration / reset password)
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration
