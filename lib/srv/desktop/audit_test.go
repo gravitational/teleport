@@ -374,9 +374,6 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			errCode:  tdp.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
-				baseEvent.Status.Success = false
-				baseEvent.Status.Error = failedStatusMessage
-				baseEvent.Status.UserMessage = failedStatusMessage
 				return baseEvent
 			},
 		},
@@ -497,7 +494,6 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 					RemoteAddr: desktopAddr,
 					Protocol:   libevents.EventProtocolTDP,
 				},
-				Status:        statusFromErrCode(tdp.ErrCodeNil),
 				DesktopAddr:   desktopAddr,
 				DirectoryName: testDirName,
 				DirectoryID:   did,
@@ -551,9 +547,6 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			errCode:  tdp.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
-				baseEvent.Status.Success = false
-				baseEvent.Status.Error = failedStatusMessage
-				baseEvent.Status.UserMessage = failedStatusMessage
 				return baseEvent
 			},
 		},
@@ -673,7 +666,6 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 					RemoteAddr: desktopAddr,
 					Protocol:   libevents.EventProtocolTDP,
 				},
-				Status:        statusFromErrCode(tdp.ErrCodeNil),
 				DesktopAddr:   desktopAddr,
 				DirectoryName: testDirName,
 				DirectoryID:   did,
