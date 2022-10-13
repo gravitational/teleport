@@ -19,11 +19,12 @@ import (
 	"path"
 )
 
+// Describes a Drone trigger as it pertains to container image building.
 type TriggerInfo struct {
 	Trigger           trigger
 	Name              string
 	Flags             *TriggerFlags
-	SupportedVersions []*releaseVersion
+	SupportedVersions []*ReleaseVersion
 	SetupSteps        []step
 }
 
@@ -45,7 +46,7 @@ func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
 			ShouldBuildNewImages:         true,
 			UseUniqueStagingTag:          false,
 		},
-		SupportedVersions: []*releaseVersion{
+		SupportedVersions: []*ReleaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
 				ShellVersion:        "$DRONE_TAG",
@@ -67,7 +68,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 			ShouldBuildNewImages:         false,
 			UseUniqueStagingTag:          false,
 		},
-		SupportedVersions: []*releaseVersion{
+		SupportedVersions: []*ReleaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
 				ShellVersion:        "$DRONE_TAG",
@@ -85,10 +86,10 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 
 	majorVersionVarDirectory := "/go/vars/full-version"
 
-	supportedVersions := make([]*releaseVersion, 0, len(latestMajorVersions))
+	supportedVersions := make([]*ReleaseVersion, 0, len(latestMajorVersions))
 	if len(latestMajorVersions) > 0 {
 		latestMajorVersion := latestMajorVersions[0]
-		supportedVersions = append(supportedVersions, &releaseVersion{
+		supportedVersions = append(supportedVersions, &ReleaseVersion{
 			MajorVersion:        latestMajorVersion,
 			ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, latestMajorVersion),
 			RelativeVersionName: "current-version",
@@ -97,7 +98,7 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 
 		if len(latestMajorVersions) > 1 {
 			for i, majorVersion := range latestMajorVersions[1:] {
-				supportedVersions = append(supportedVersions, &releaseVersion{
+				supportedVersions = append(supportedVersions, &ReleaseVersion{
 					MajorVersion:        majorVersion,
 					ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, majorVersion),
 					RelativeVersionName: fmt.Sprintf("previous-version-%d", i+1),

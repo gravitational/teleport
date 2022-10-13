@@ -22,11 +22,12 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+// Describes a registry and repo that images are to be published to.
 type ContainerRepo struct {
 	Name             string
 	IsProductionRepo bool
 	IsImmutable      bool
-	Environment      map[string]value
+	EnvironmentVars  map[string]value
 	RegistryDomain   string
 	RegistryOrg      string
 	LoginCommands    []string
@@ -68,7 +69,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		Name:             fmt.Sprintf("ECR - %s", nameSuffix),
 		IsProductionRepo: isProduction,
 		IsImmutable:      isImmutable,
-		Environment: map[string]value{
+		EnvironmentVars: map[string]value{
 			"AWS_ACCESS_KEY_ID": {
 				fromSecret: accessKeyIDSecret,
 			},
@@ -101,7 +102,7 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 		Name:             "Quay",
 		IsProductionRepo: true,
 		IsImmutable:      false,
-		Environment: map[string]value{
+		EnvironmentVars: map[string]value{
 			"QUAY_USERNAME": {
 				fromSecret: dockerUsername,
 			},
@@ -177,7 +178,7 @@ func (cr *ContainerRepo) BuildImageRepo() string {
 	return fmt.Sprintf("%s/%s/", cr.RegistryDomain, cr.RegistryOrg)
 }
 
-func (cr *ContainerRepo) BuildImageTags(version *releaseVersion) []*ImageTag {
+func (cr *ContainerRepo) BuildImageTags(version *ReleaseVersion) []*ImageTag {
 	tags := version.getTagsForVersion()
 
 	if cr.TagBuilder != nil {
@@ -229,7 +230,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		Name:        fmt.Sprintf("Tag and push image %q to %s", buildStepDetails.BuiltImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
-		Environment: cr.Environment,
+		Environment: cr.EnvironmentVars,
 		Commands:    cr.buildCommandsWithLogin(commands),
 		DependsOn:   dependencySteps,
 	}
@@ -257,7 +258,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushSte
 		Name:        fmt.Sprintf("Create manifest and push %q to %s", manifestImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
-		Environment: cr.Environment,
+		Environment: cr.EnvironmentVars,
 		Commands:    cr.buildCommandsWithLogin(commands),
 		DependsOn:   pushStepNames,
 	}

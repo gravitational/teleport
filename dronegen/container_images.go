@@ -22,6 +22,7 @@ import (
 func buildContainerImagePipelines() []pipeline {
 	// *************************************************************
 	// ****** These need to be updated on each major release. ******
+	// ****** After updating, "make dronegen" must be reran.  ******
 	// *************************************************************
 	latestMajorVersions := []string{"v11", "v10", "v9"}
 	branchMajorVersion := "v11"
@@ -44,6 +45,7 @@ func buildContainerImagePipelines() []pipeline {
 	return pipelines
 }
 
+// Describes a container image. Used for both local and remove images.
 type Image struct {
 	Repo string
 	Name string
@@ -69,6 +71,7 @@ func (i *Image) IsLocalImage() bool {
 	return i.Repo == ""
 }
 
+// Contains information about the tag portion of an image.
 type ImageTag struct {
 	ShellBaseValue   string // Should evaluate in a shell context to the tag's value
 	DisplayBaseValue string // Should be set to a human-readable version of ShellTag
@@ -110,9 +113,10 @@ func (it *ImageTag) getValue(baseValue string) string {
 
 // The `step` struct doesn't contain enough information to setup
 // dependent steps so we add that via this struct
+// This is used internally to pass information around
 type buildStepOutput struct {
 	StepName   string
 	BuiltImage *Image
-	Version    *releaseVersion
+	Version    *ReleaseVersion
 	Product    *Product
 }

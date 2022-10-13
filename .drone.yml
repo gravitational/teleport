@@ -7221,7 +7221,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go (main.(*releaseVersion).buildVersionPipeline)
+# Generated at dronegen/container_images_release_version.go (main.(*ReleaseVersion).buildVersionPipeline)
 ################################################
 
 kind: pipeline
@@ -7568,7 +7568,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go (main.(*releaseVersion).buildVersionPipeline)
+# Generated at dronegen/container_images_release_version.go (main.(*ReleaseVersion).buildVersionPipeline)
 ################################################
 
 kind: pipeline
@@ -7970,7 +7970,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go (main.(*releaseVersion).buildVersionPipeline)
+# Generated at dronegen/container_images_release_version.go (main.(*ReleaseVersion).buildVersionPipeline)
 ################################################
 
 kind: pipeline
@@ -8657,7 +8657,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go (main.(*releaseVersion).buildVersionPipeline)
+# Generated at dronegen/container_images_release_version.go (main.(*ReleaseVersion).buildVersionPipeline)
 ################################################
 
 kind: pipeline
@@ -9344,7 +9344,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images_release_version.go (main.(*releaseVersion).buildVersionPipeline)
+# Generated at dronegen/container_images_release_version.go (main.(*ReleaseVersion).buildVersionPipeline)
 ################################################
 
 kind: pipeline
@@ -10027,6 +10027,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: ae791b924b02970aec048821eadf1e5f384a8bfa000a93e3d8995610e56dfef4
+hmac: 9a0cde58da5e2011d53e24ca8a8c3cda71a6a4b4360a92860d96f96dd7f27929
 
 ...

@@ -14,6 +14,9 @@
 
 package main
 
+// This file contains variables and functions to make testing of the container image build process
+// more simple and easier.
+
 // To run one of these pipelines locally:
 // # Drone requires certain variables to be set
 // export DRONE_REMOTE_URL="https://github.com/gravitational/teleport"

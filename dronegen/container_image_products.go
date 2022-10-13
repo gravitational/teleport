@@ -20,16 +20,18 @@ import (
 	"regexp"
 )
 
+// Describes a Gravitational "product", where a "product" is a piece of software
+// that we provide to our customers via container repositories.
 type Product struct {
 	Name                 string
 	DockerfilePath       string
-	WorkingDirectory     string
-	DockerfileTarget     string
-	SupportedArchs       []string
-	SetupSteps           []step
-	DockerfileArgBuilder func(arch string) []string
-	ImageBuilder         func(repo string, tag *ImageTag) *Image
-	GetRequiredStepNames func(arch string) []string
+	WorkingDirectory     string                                  // Working directory to use for "docker build".
+	DockerfileTarget     string                                  // Optional. Defines a dockerfile target to stop at on build.
+	SupportedArchs       []string                                // ISAs that the builder should produce
+	SetupSteps           []step                                  // Product-specific steps that must be ran before building an image.
+	DockerfileArgBuilder func(arch string) []string              // Generator that returns "docker build --arg" strings
+	ImageBuilder         func(repo string, tag *ImageTag) *Image // Generator that returns an Image struct that defines what "docker build" should produce
+	GetRequiredStepNames func(arch string) []string              // Generator that returns the name of the steps that "docker build" should wait for
 }
 
 func NewTeleportOperatorProduct(cloneDirectory string) *Product {
@@ -74,7 +76,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	}
 }
 
-func (p *Product) getBaseImage(arch string, version *releaseVersion) *Image {
+func (p *Product) getBaseImage(arch string, version *ReleaseVersion) *Image {
 	return &Image{
 		Name: p.Name,
 		Tag: &ImageTag{
@@ -85,21 +87,21 @@ func (p *Product) getBaseImage(arch string, version *releaseVersion) *Image {
 	}
 }
 
-func (p *Product) GetLocalRegistryImage(arch string, version *releaseVersion) *Image {
+func (p *Product) GetLocalRegistryImage(arch string, version *ReleaseVersion) *Image {
 	image := p.getBaseImage(arch, version)
 	image.Repo = localRegistry
 
 	return image
 }
 
-func (p *Product) GetStagingRegistryImage(arch string, version *releaseVersion, stagingRepo *ContainerRepo) *Image {
+func (p *Product) GetStagingRegistryImage(arch string, version *ReleaseVersion, stagingRepo *ContainerRepo) *Image {
 	image := p.getBaseImage(arch, version)
 	image.Repo = stagingRepo.RegistryDomain
 
 	return image
 }
 
-func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string, flags *TriggerFlags) []step {
+func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, flags *TriggerFlags) []step {
 	steps := make([]step, 0)
 
 	stagingRepo := GetStagingContainerRepo(flags.UseUniqueStagingTag)
@@ -159,7 +161,7 @@ func getReposToPublishTo(productionRepos []*ContainerRepo, stagingRepo *Containe
 	return stagingRepos
 }
 
-func (p *Product) GetBuildStepName(arch string, version *releaseVersion) string {
+func (p *Product) GetBuildStepName(arch string, version *ReleaseVersion) string {
 	telportImageName := p.GetLocalRegistryImage(arch, version)
 	return fmt.Sprintf("Build %s image %q", p.Name, telportImageName.GetDisplayName())
 }
@@ -169,7 +171,7 @@ func cleanBuilderName(builderName string) string {
 	return invalidBuildxCharExpression.ReplaceAllString(builderName, "-")
 }
 
-func (p *Product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
+func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *buildStepOutput) {
 	localRegistryImage := p.GetLocalRegistryImage(arch, version)
 	builderName := cleanBuilderName(fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName()))
 

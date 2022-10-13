@@ -21,14 +21,16 @@ import (
 	"strings"
 )
 
-type releaseVersion struct {
+// Describes a Teleport/repo release version. All product releases are tied to Teleport's release cycle
+// via this struct.
+type ReleaseVersion struct {
 	MajorVersion        string // This is the major version of a given build. `SearchVersion` should match this when evaluated.
 	ShellVersion        string // This value will be evaluated by the shell in the context of a Drone step
 	RelativeVersionName string // The set of values for this should not change between major releases
 	SetupSteps          []step // Version-specific steps that must be ran before executing build and push steps
 }
 
-func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, flags *TriggerFlags) pipeline {
+func (rv *ReleaseVersion) buildVersionPipeline(triggerSetupSteps []step, flags *TriggerFlags) pipeline {
 	pipelineName := fmt.Sprintf("teleport-container-images-%s", rv.RelativeVersionName)
 
 	setupSteps, dependentStepNames := rv.getSetupStepInformation(triggerSetupSteps)
@@ -50,7 +52,7 @@ func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step, flags *
 	return pipeline
 }
 
-func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]step, []string) {
+func (rv *ReleaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]step, []string) {
 	triggerSetupStepNames := make([]string, 0, len(triggerSetupSteps))
 	for _, triggerSetupStep := range triggerSetupSteps {
 		triggerSetupStepNames = append(triggerSetupStepNames, triggerSetupStep.Name)
@@ -72,7 +74,7 @@ func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 	return setupSteps, nextStageSetupStepNames
 }
 
-func (rv *releaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlags) []step {
+func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlags) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 	steps := make([]step, 0)
 
@@ -102,7 +104,7 @@ type semver struct {
 	IsImmutable bool
 }
 
-func (rv *releaseVersion) getSemvers() []*semver {
+func (rv *ReleaseVersion) getSemvers() []*semver {
 	varDirectory := "/go/var"
 	return []*semver{
 		{
@@ -126,7 +128,7 @@ func (rv *releaseVersion) getSemvers() []*semver {
 	}
 }
 
-func (rv *releaseVersion) buildSplitSemverSteps() step {
+func (rv *ReleaseVersion) buildSplitSemverSteps() step {
 	semvers := rv.getSemvers()
 
 	commands := make([]string, 0, len(semvers))
@@ -150,7 +152,7 @@ func (rv *releaseVersion) buildSplitSemverSteps() step {
 	}
 }
 
-func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
+func (rv *ReleaseVersion) getProducts(clonedRepoPath string) []*Product {
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
 	products := make([]*Product, 0, 1)
@@ -159,7 +161,7 @@ func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
 	return products
 }
 
-func (rv *releaseVersion) getTagsForVersion() []*ImageTag {
+func (rv *ReleaseVersion) getTagsForVersion() []*ImageTag {
 	semvers := rv.getSemvers()
 	imageTags := make([]*ImageTag, 0, len(semvers))
 	for _, semver := range semvers {
