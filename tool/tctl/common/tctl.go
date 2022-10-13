@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -191,6 +192,13 @@ func Run(commands []CLICommand) {
 			break
 		}
 	}
+
+	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
+		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
+	}
+
+	return
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
