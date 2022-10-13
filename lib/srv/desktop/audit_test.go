@@ -260,7 +260,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			sendsSda: false,
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryStartCorruptedCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryStartFailureCode
 				baseEvent.DirectoryName = "unknown"
 				return baseEvent
 			},
@@ -373,6 +373,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			sendsReq: true,
 			errCode:  tdp.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 				baseEvent.Status.Success = false
 				baseEvent.Status.Error = failedStatusMessage
 				baseEvent.Status.UserMessage = failedStatusMessage
@@ -386,7 +387,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			sendsReq: true,
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadCorruptedCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadFailureCode
 				baseEvent.DirectoryName = "unknown"
 				return baseEvent
 			},
@@ -398,7 +399,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			sendsReq: false,
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadCorruptedCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadFailureCode
 
 				// resorts to default values for these
 				baseEvent.DirectoryID = 0
@@ -419,7 +420,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			sendsReq: false,
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadCorruptedCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadFailureCode
 
 				// resorts to default values for these
 				baseEvent.DirectoryID = 0
@@ -549,6 +550,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			sendsReq: true,
 			errCode:  tdp.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 				baseEvent.Status.Success = false
 				baseEvent.Status.Error = failedStatusMessage
 				baseEvent.Status.UserMessage = failedStatusMessage
@@ -562,7 +564,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			sendsReq: true,
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteCorruptedCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 				baseEvent.DirectoryName = "unknown"
 				return baseEvent
 			},
@@ -574,7 +576,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			sendsReq: false,
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteCorruptedCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 
 				// resorts to default values for these
 				baseEvent.DirectoryID = 0
@@ -595,7 +597,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			sendsReq: false,
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
-				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteCorruptedCode
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 
 				// resorts to default values for these
 				baseEvent.DirectoryID = 0

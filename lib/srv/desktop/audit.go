@@ -171,7 +171,7 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(
 	code := libevents.DesktopSharedDirectoryStartCode
 	name, ok := s.auditCache.GetName(sessionID(sid), directoryID(m.DirectoryID))
 	if !ok {
-		code = libevents.DesktopSharedDirectoryStartCorruptedCode
+		code = libevents.DesktopSharedDirectoryStartFailureCode
 		name = "unknown"
 		s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, m.DirectoryID)
 	}
@@ -231,17 +231,21 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 		// Only search for the directory name if we retrieved the directoryID from the audit cache.
 		name, ok = s.auditCache.GetName(sessionID(sid), did)
 		if !ok {
-			code = libevents.DesktopSharedDirectoryReadCorruptedCode
+			code = libevents.DesktopSharedDirectoryReadFailureCode
 			name = "unknown"
 			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
 		}
 		path = info.path
 		offset = info.offset
 	} else {
-		code = libevents.DesktopSharedDirectoryReadCorruptedCode
+		code = libevents.DesktopSharedDirectoryReadFailureCode
 		path = "unknown"
 		name = "unknown"
 		s.cfg.Log.Warnf("failed to find audit information corresponding to sessionID(%v), completionID(%v)", sid, m.CompletionID)
+	}
+
+	if m.ErrCode != tdp.ErrCodeNil {
+		code = libevents.DesktopSharedDirectoryWriteFailureCode
 	}
 
 	event := &events.DesktopSharedDirectoryRead{
@@ -303,17 +307,21 @@ func (s *WindowsService) onSharedDirectoryWriteResponse(
 		// Only search for the directory name if we retrieved the directoryID from the audit cache.
 		name, ok = s.auditCache.GetName(sessionID(sid), did)
 		if !ok {
-			code = libevents.DesktopSharedDirectoryWriteCorruptedCode
+			code = libevents.DesktopSharedDirectoryWriteFailureCode
 			name = "unknown"
 			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
 		}
 		path = info.path
 		offset = info.offset
 	} else {
-		code = libevents.DesktopSharedDirectoryWriteCorruptedCode
+		code = libevents.DesktopSharedDirectoryWriteFailureCode
 		path = "unknown"
 		name = "unknown"
 		s.cfg.Log.Warnf("failed to find audit information corresponding to sessionID(%v), completionID(%v)", sid, m.CompletionID)
+	}
+
+	if m.ErrCode != tdp.ErrCodeNil {
+		code = libevents.DesktopSharedDirectoryWriteFailureCode
 	}
 
 	event := &events.DesktopSharedDirectoryWrite{
