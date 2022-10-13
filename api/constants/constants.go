@@ -19,6 +19,7 @@ package constants
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -347,3 +348,8 @@ const (
 // SupportedAzureDiscoveryServices is list of Azure services currently
 // supported by the Teleport discovery service.
 var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes}
+
+const (
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 500
+)
