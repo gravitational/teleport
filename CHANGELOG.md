@@ -1,5 +1,45 @@
 # Changelog
 
+## 10.3.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed formatting issues in `tctl get installer`. [#17167](https://github.com/gravitational/teleport/pull/17167)
+* Fixed issue with client idle timeout sometimes kicking in too early. [#16868](https://github.com/gravitational/teleport/pull/16868)
+* Fixed issue with private key format affecting some 3rd party clients. [#17045](https://github.com/gravitational/teleport/pull/17045)
+* Fixed issue with X11 forwarding not working for non-root users. [#17130](https://github.com/gravitational/teleport/pull/17130)
+* Fixed a goroutine leak in the API client. [#17124](https://github.com/gravitational/teleport/pull/17124)
+* Fixed issue with SIGINT sent to database client terminating `tsh db connect` connection. [#16932](https://github.com/gravitational/teleport/pull/16932)
+* Fixed compatibility issue preventing connections from `10.2.3` and newer clusters into older versions. [#17226](https://github.com/gravitational/teleport/pull/17226)
+* Fixed issue with fetching desktops using the list resources API. [#17117](https://github.com/gravitational/teleport/pull/17117)
+* Fixed potential integer overflow issue in the desktop access protocol. [#17179](https://github.com/gravitational/teleport/pull/17179)
+* Added ability to specify OIDC username claim using `username_claim` field. [#17070](https://github.com/gravitational/teleport/pull/17070)
+* Improved `curl` command produced by `tsh app login` to avoid TLS errors. [#16975](https://github.com/gravitational/teleport/pull/16975)
+* Improved data consistency when using etcd backend. [#17049](https://github.com/gravitational/teleport/pull/17049)
+* Improved memory usage in large clusters. [#17087](https://github.com/gravitational/teleport/pull/17087)
+* Improved desktop access performance. [#17071](https://github.com/gravitational/teleport/pull/17071)
+
+## 10.3.1
+
+This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
+
+### Audit log escape for non-interactive commands
+
+Fixed multiple issues with SSH commands escaping audit logs in certain scenarios.
+
+[#16813](https://github.com/gravitational/teleport/pull/16813)
+[#16905](https://github.com/gravitational/teleport/pull/16905)
+
+### Other fixes and improvements
+
+* Fixed issue with RDS auto-discovery of a secondary cluster of a global Aurora database. [#16710](https://github.com/gravitational/teleport/pull/16710)
+* Added Kubernetes Access support to Teleport Connect. [webapps#1201](https://github.com/gravitational/webapps/pull/1201)
+* Added Elasticsearch support to Database Access. [#16873](https://github.com/gravitational/teleport/pull/16873)
+* Added information about available security releases to `tsh status`. [#16850](https://github.com/gravitational/teleport/pull/16850)
+* Improved error handling when registering MFA devices. [#16765](https://github.com/gravitational/teleport/pull/16765)
+* Updated default AWS install script to use v2 metadata API. [#16664](https://github.com/gravitational/teleport/pull/16664)
+* Updated `tsh db connect` hint to not display `--db-user` and `--db-name` flags unless needed. [#16747](https://github.com/gravitational/teleport/pull/16747)
+
 ## 10.2.6
 
 This release of Teleport contains multiple improvements and bug fixes.
