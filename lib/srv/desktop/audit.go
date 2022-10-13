@@ -172,7 +172,7 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(
 	name, ok := s.auditCache.GetName(sessionID(sid), directoryID(m.DirectoryID))
 	if !ok {
 		code = libevents.DesktopSharedDirectoryStartCorruptedCode
-		name = events.UnknownEvent
+		name = "unknown"
 		s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, m.DirectoryID)
 	}
 
@@ -232,15 +232,15 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 		name, ok = s.auditCache.GetName(sessionID(sid), did)
 		if !ok {
 			code = libevents.DesktopSharedDirectoryReadCorruptedCode
-			name = events.UnknownEvent
+			name = "unknown"
 			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
 		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryReadCorruptedCode
-		path = events.UnknownEvent
-		name = events.UnknownEvent
+		path = "unknown"
+		name = "unknown"
 		s.cfg.Log.Warnf("failed to find audit information corresponding to sessionID(%v), completionID(%v)", sid, m.CompletionID)
 	}
 
@@ -304,15 +304,15 @@ func (s *WindowsService) onSharedDirectoryWriteResponse(
 		name, ok = s.auditCache.GetName(sessionID(sid), did)
 		if !ok {
 			code = libevents.DesktopSharedDirectoryWriteCorruptedCode
-			name = events.UnknownEvent
+			name = "unknown"
 			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
 		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryWriteCorruptedCode
-		path = events.UnknownEvent
-		name = events.UnknownEvent
+		path = "unknown"
+		name = "unknown"
 		s.cfg.Log.Warnf("failed to find audit information corresponding to sessionID(%v), completionID(%v)", sid, m.CompletionID)
 	}
 

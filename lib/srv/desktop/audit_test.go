@@ -261,7 +261,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryStartCorruptedCode
-				baseEvent.DirectoryName = events.UnknownEvent
+				baseEvent.DirectoryName = "unknown"
 				return baseEvent
 			},
 		},
@@ -387,7 +387,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadCorruptedCode
-				baseEvent.DirectoryName = events.UnknownEvent
+				baseEvent.DirectoryName = "unknown"
 				return baseEvent
 			},
 		},
@@ -405,9 +405,9 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 				baseEvent.Offset = 0
 
 				// sets "unknown" for these
-				baseEvent.Path = events.UnknownEvent
+				baseEvent.Path = "unknown"
 				// we can't retrieve the directory name because we don't have the directoryID
-				baseEvent.DirectoryName = events.UnknownEvent
+				baseEvent.DirectoryName = "unknown"
 
 				return baseEvent
 			},
@@ -426,8 +426,8 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 				baseEvent.Offset = 0
 
 				// sets "unknown" for these
-				baseEvent.Path = events.UnknownEvent
-				baseEvent.DirectoryName = events.UnknownEvent
+				baseEvent.Path = "unknown"
+				baseEvent.DirectoryName = "unknown"
 
 				return baseEvent
 			},
@@ -563,7 +563,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			errCode:  tdp.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteCorruptedCode
-				baseEvent.DirectoryName = events.UnknownEvent
+				baseEvent.DirectoryName = "unknown"
 				return baseEvent
 			},
 		},
@@ -581,9 +581,9 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 				baseEvent.Offset = 0
 
 				// sets "unknown" for these
-				baseEvent.Path = events.UnknownEvent
+				baseEvent.Path = "unknown"
 				// we can't retrieve the directory name because we don't have the directoryID
-				baseEvent.DirectoryName = events.UnknownEvent
+				baseEvent.DirectoryName = "unknown"
 
 				return baseEvent
 			},
@@ -602,8 +602,8 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 				baseEvent.Offset = 0
 
 				// sets "unknown" for these
-				baseEvent.Path = events.UnknownEvent
-				baseEvent.DirectoryName = events.UnknownEvent
+				baseEvent.Path = "unknown"
+				baseEvent.DirectoryName = "unknown"
 
 				return baseEvent
 			},
