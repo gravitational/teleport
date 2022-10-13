@@ -667,11 +667,11 @@ message DesktopSharedDirectoryStart {
     (gogoproto.jsontag) = ""
   ];
   // DesktopAddr is the address of the desktop being accessed.
-  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
-  string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
+  string DirectoryName = 6 [(gogoproto.jsontag) = "directory_name"];
   // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
-  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+  uint32 DirectoryID = 7 [(gogoproto.jsontag) = "directory_id"];
 }
 ```
 
@@ -687,24 +687,18 @@ a unique identifier.
 message DesktopSharedDirectoryRead {
   // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
 
-  // Status indicates whether the process was successful.
-  Status Status = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = "status"
-  ];
   // DesktopAddr is the address of the desktop being accessed.
-  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
-  string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
+  string DirectoryName = 6 [(gogoproto.jsontag) = "directory_name"];
   // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
-  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+  uint32 DirectoryID = 7 [(gogoproto.jsontag) = "directory_id"];
   // Path is the path within the shared directory where the file is located.
-  string Path = 9 [(gogoproto.jsontag) = "file_path"];
+  string Path = 8 [(gogoproto.jsontag) = "file_path"];
   // Length is the number of bytes read.
-  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
+  uint32 Length = 9 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were read from.
-  uint32 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  uint32 Offset = 10 [(gogoproto.jsontag) = "offset"];
 }
 ```
 
@@ -717,24 +711,18 @@ message DesktopSharedDirectoryRead {
 message DesktopSharedDirectoryWrite {
   // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
 
-  // Status indicates whether the process was successful.
-  Status Status = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = "status"
-  ];
   // DesktopAddr is the address of the desktop being accessed.
-  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
   // DirectoryName is the name of the directory being shared.
-  string DirectoryName = 7 [(gogoproto.jsontag) = "directory_name"];
+  string DirectoryName = 6 [(gogoproto.jsontag) = "directory_name"];
   // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
-  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "directory_id"];
+  uint32 DirectoryID = 7 [(gogoproto.jsontag) = "directory_id"];
   // Path is the path within the shared directory where the file is located.
-  string Path = 9 [(gogoproto.jsontag) = "file_path"];
+  string Path = 8 [(gogoproto.jsontag) = "file_path"];
   // Length is the number of bytes written.
-  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
+  uint32 Length = 9 [(gogoproto.jsontag) = "length"];
   // Offset is the offset the bytes were written to.
-  uint32 Offset = 11 [(gogoproto.jsontag) = "offset"];
+  uint32 Offset = 10 [(gogoproto.jsontag) = "offset"];
 }
 ```
 
