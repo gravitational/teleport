@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"time"
 
 	"github.com/gravitational/teleport/lib/githubactions"
 
@@ -129,6 +130,10 @@ type RegisterParams struct {
 	// IDToken is a token retrieved from a workload identity provider for
 	// certain join types e.g GitHub, Google.
 	IDToken string
+	// Expires is an optional field for bots that specifies a time that the
+	// certificates that are returned by registering should expire at.
+	// It should not be specified for non-bot registrations.
+	Expires *time.Time
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -292,6 +297,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
 				IDToken:              params.IDToken,
+				Expires:              params.Expires,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -347,6 +353,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
 				IDToken:              params.IDToken,
+				Expires:              params.Expires,
 			})
 	}
 	return certs, trace.Wrap(err)
