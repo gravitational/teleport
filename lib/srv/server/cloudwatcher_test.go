@@ -157,7 +157,7 @@ func TestEC2Watcher(t *testing.T) {
 		}},
 	}
 	clients.ec2Client.output = &output
-	watcher, err := NewCloudWatcher(ctx, matchers, &clients)
+	watcher, err := NewEC2Watcher(ctx, matchers, &clients)
 	require.NoError(t, err)
 
 	go watcher.Run()

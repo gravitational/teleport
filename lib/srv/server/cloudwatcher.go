@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
@@ -54,8 +55,8 @@ type EC2Instances struct {
 	Instances []*ec2.Instance
 }
 
-// Watcher allows callers to discover AWS instances matching specified filters.
-type Watcher struct {
+// EC2Watcher allows callers to discover AWS instances matching specified filters.
+type EC2Watcher struct {
 	// InstancesC can be used to consume newly discovered EC2 instances
 	InstancesC chan EC2Instances
 
@@ -66,7 +67,7 @@ type Watcher struct {
 }
 
 // Run starts the watcher's main watch loop.
-func (w *Watcher) Run() {
+func (w *EC2Watcher) Run() {
 	ticker := time.NewTicker(w.fetchInterval)
 	defer ticker.Stop()
 	for {
@@ -96,14 +97,14 @@ func (w *Watcher) Run() {
 }
 
 // Stop stops the watcher
-func (w *Watcher) Stop() {
+func (w *EC2Watcher) Stop() {
 	w.cancel()
 }
 
-// NewCloudWatcher creates a new cloud watcher instance.
-func NewCloudWatcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher, error) {
+// NewEC2Watcher creates a new cloud watcher instance.
+func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*EC2Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher{
+	watcher := EC2Watcher{
 		fetchers:      []*ec2InstanceFetcher{},
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
@@ -206,4 +207,94 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instance
 	}
 
 	return instances, nil
+}
+
+type azureInstanceFetcher struct {
+	Azure         *armcompute.VirtualMachinesClient
+	Regions       []string
+	ResourceGroup string
+	Labels        types.Labels
+}
+
+func (f *azureInstanceFetcher) matchVM(vm *armcompute.VirtualMachine) bool {
+	matchRegion := false
+	for _, region := range f.Regions {
+		if region == *vm.Location {
+			matchRegion = true
+			break
+		}
+	}
+	if !matchRegion {
+		return false
+	}
+	return true
+}
+
+func (f *azureInstanceFetcher) GetAzureVMs(ctx context.Context) ([]AzureInstances, error) {
+	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
+	for _, region := range f.Regions {
+		instancesByRegion[region] = []*armcompute.VirtualMachine{}
+	}
+
+	pager := f.Azure.NewListPager(f.ResourceGroup, nil)
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, vm := range resp.Value {
+			if _, ok := instancesByRegion[*vm.Location]; !ok {
+				continue
+			}
+			vmTags := make(map[string]string, len(vm.Tags))
+			for key, value := range vm.Tags {
+				if value == nil {
+					vmTags[key] = ""
+				} else {
+					vmTags[key] = *value
+				}
+			}
+			if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
+				continue
+			}
+			instancesByRegion[*vm.Location] = append(instancesByRegion[*vm.Location], vm)
+		}
+	}
+
+	var instances []AzureInstances
+	for region, vms := range instancesByRegion {
+		if len(vms) > 0 {
+			instances = append(instances, AzureInstances{
+				Region:        region,
+				ResourceGroup: f.ResourceGroup,
+				Instances:     vms,
+			})
+		}
+	}
+
+	return instances, nil
+}
+
+type AzureInstances struct {
+	Region         string
+	SubscriptionID string
+	ResourceGroup  string
+	Instances      []*armcompute.VirtualMachine
+}
+
+type AzureWatcher struct {
+	InstancesC chan AzureInstances
+
+	fetchers      []*azureInstanceFetcher
+	fetchInterval time.Duration
+	ctx           context.Context
+	cancel        context.CancelFunc
+}
+
+func (w *AzureWatcher) Run() {}
+
+func (w *AzureWatcher) Stop() {}
+
+func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*AzureWatcher, error) {
+	return &AzureWatcher{}, nil
 }

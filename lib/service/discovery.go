@@ -28,7 +28,8 @@ import (
 )
 
 func (process *TeleportProcess) shouldInitDiscovery() bool {
-	return process.Config.Discovery.Enabled && len(process.Config.Discovery.AWSMatchers) != 0
+	return process.Config.Discovery.Enabled && (len(process.Config.Discovery.AWSMatchers) != 0 ||
+		len(process.Config.Discovery.AzureMatchers) != 0)
 }
 
 func (process *TeleportProcess) initDiscovery() {
@@ -78,11 +79,12 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
-		Clients:     cloud.NewClients(),
-		Matchers:    process.Config.Discovery.AWSMatchers,
-		NodeWatcher: nodeWatcher,
-		Emitter:     asyncEmitter,
-		AccessPoint: accessPoint,
+		Clients:       cloud.NewClients(),
+		AWSMatchers:   process.Config.Discovery.AWSMatchers,
+		AzureMatchers: process.Config.Discovery.AzureMatchers,
+		NodeWatcher:   nodeWatcher,
+		Emitter:       asyncEmitter,
+		AccessPoint:   accessPoint,
 	})
 
 	if err != nil {

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gravitational/teleport"
@@ -39,7 +40,9 @@ type Config struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// AWSMatchers is a list of AWS EC2 matchers.
-	Matchers []services.AWSMatcher
+	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of Azure VM matchers.
+	AzureMatchers []services.AzureMatcher
 	// NodeWatcher is a node watcher.
 	NodeWatcher *services.NodeWatcher
 	// Emitter is events emitter, used to submit discrete events
@@ -60,16 +63,18 @@ type Server struct {
 	// log is used for logging.
 	log *logrus.Entry
 
-	// cloudWatcher periodically retrieves cloud resources, currently
+	// ec2Watcher periodically retrieves cloud resources, currently
 	// only EC2
-	cloudWatcher *server.Watcher
+	ec2Watcher *server.EC2Watcher
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer *server.SSMInstaller
+
+	azureWatcher *server.AzureWatcher
 }
 
 // New initializes a discovery Server
 func New(ctx context.Context, cfg *Config) (*Server, error) {
-	if len(cfg.Matchers) == 0 {
+	if len(cfg.AWSMatchers) == 0 && len(cfg.AzureMatchers) == 0 {
 		return nil, trace.NotFound("no matchers present")
 	}
 
@@ -84,17 +89,27 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	var err error
-	s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.Matchers, s.Clients)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(s.AWSMatchers) > 0 {
+		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, s.AWSMatchers, s.Clients)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+			Emitter: cfg.Emitter,
+		})
 	}
-	s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
-		Emitter: cfg.Emitter,
-	})
+
+	if len(s.AzureMatchers) > 0 {
+		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, s.AzureMatchers, s.Clients)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return s, nil
 }
 
-func (s *Server) filterExistingNodes(instances *server.EC2Instances) {
+func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
 	nodes := s.NodeWatcher.GetNodes(func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
@@ -119,7 +134,7 @@ outer:
 	instances.Instances = filtered
 }
 
-func genInstancesLogStr(instances []*ec2.Instance) string {
+func genEC2InstancesLogStr(instances []*ec2.Instance) string {
 	var logInstances strings.Builder
 	for idx, inst := range instances {
 		if idx == 10 || idx == (len(instances)-1) {
@@ -135,18 +150,18 @@ func genInstancesLogStr(instances []*ec2.Instance) string {
 	return fmt.Sprintf("[%s]", logInstances.String())
 }
 
-func (s *Server) handleInstances(instances *server.EC2Instances) error {
+func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	client, err := s.Clients.GetAWSSSMClient(instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.filterExistingNodes(instances)
+	s.filterExistingEC2Nodes(instances)
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
 	s.log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
-		instances.AccountID, genInstancesLogStr(instances.Instances))
+		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
 		SSM:          client,
@@ -159,13 +174,13 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 }
 
 func (s *Server) handleEC2Discovery() {
-	go s.cloudWatcher.Run()
+	go s.ec2Watcher.Run()
 	for {
 		select {
-		case instances := <-s.cloudWatcher.InstancesC:
+		case instances := <-s.ec2Watcher.InstancesC:
 			s.log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
-				instances.AccountID, genInstancesLogStr(instances.Instances))
-			if err := s.handleInstances(&instances); err != nil {
+				instances.AccountID, genEC2InstancesLogStr(instances.Instances))
+			if err := s.handleEC2Instances(&instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
@@ -173,21 +188,60 @@ func (s *Server) handleEC2Discovery() {
 				}
 			}
 		case <-s.ctx.Done():
-			s.cloudWatcher.Stop()
+			s.ec2Watcher.Stop()
+			return
+		}
+	}
+}
+
+func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
+	return trace.NotImplemented("Automatic Azure node joining not implemented")
+}
+
+func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string
+
+func (s *Server) handleAzureDiscovery() {
+	go s.azureWatcher.Run()
+	for {
+		select {
+		case instances := <-s.azureWatcher.InstancesC:
+			s.log.Debugf("Azure instances discovered (SubscriptionID: %s, Instances: %v), starting installation",
+				instances.SubscriptionID, genAzureInstancesLogStr(instances.Instances),
+			)
+			if err := s.handleAzureInstances(&instances); err != nil {
+				if trace.IsNotFound(err) {
+					s.log.Debug("All discovered Azure VMs are already part of the cluster.")
+				} else {
+					s.log.WithError(err).Error("Failed to enroll discovered Azure VMs.")
+				}
+			}
+		case <-s.ctx.Done():
+			s.azureWatcher.Stop()
+			return
 		}
 	}
 }
 
 // Start starts the discovery service.
 func (s *Server) Start() error {
-	go s.handleEC2Discovery()
+	if s.ec2Watcher != nil {
+		go s.handleEC2Discovery()
+	}
+	if s.azureWatcher != nil {
+		go s.handleAzureDiscovery()
+	}
 	return nil
 }
 
 // Stop stops the discovery service.
 func (s *Server) Stop() {
 	s.cancelfn()
-	s.cloudWatcher.Stop()
+	if s.ec2Watcher != nil {
+		s.ec2Watcher.Stop()
+	}
+	if s.azureWatcher != nil {
+		s.azureWatcher.Stop()
+	}
 }
 
 // Wait will block while the server is running.
