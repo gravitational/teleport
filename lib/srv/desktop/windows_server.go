@@ -677,7 +677,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
 		if err := tdpConn.SendError(message); err != nil {
-			s.cfg.Log.Errorf("Failed to send TDP error message %v", err)
+			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
 
@@ -744,15 +744,14 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, tdpConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
 		sendTDPError("RDP connection failed.")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
-	log := s.cfg.Log
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -861,7 +860,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, tdpConn *tdp.Conn, desk
 		TeleportUser:      identity.Username,
 		ServerID:          s.cfg.Heartbeat.HostUUID,
 		MessageWriter: &monitorErrorSender{
-			log:     s.cfg.Log,
+			log:     log,
 			tdpConn: tdpConn,
 		},
 	}
