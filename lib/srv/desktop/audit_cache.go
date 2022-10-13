@@ -49,7 +49,7 @@ func (e *sharedDirectoryAuditCacheEntry) init() {
 // creating shared directory audit events.
 type sharedDirectoryAuditCache struct {
 	m map[sessionID]sharedDirectoryAuditCacheEntry
-	sync.RWMutex
+	sync.Mutex
 }
 
 func newSharedDirectoryAuditCache() sharedDirectoryAuditCache {
@@ -58,25 +58,19 @@ func newSharedDirectoryAuditCache() sharedDirectoryAuditCache {
 	}
 }
 
-func (c *sharedDirectoryAuditCache) get(sid sessionID) (entry sharedDirectoryAuditCacheEntry, ok bool) {
-	c.RLock()
-	defer c.RUnlock()
-
-	entry, ok = c.m[sid]
-	return
-}
-
 // getInitialized gets an initialized sharedDirectoryAuditCacheEntry, mapped to sid.
 // If an entry at sid already exists, it returns that, otherwise it returns an empty, initialized entry.
 //
 // This should be called at the start of any SetX method to ensure that we never get a
 // "panic: assignment to entry in nil map".
+//
+// It is the responsiblity of the caller to ensure that it has obtained the Lock before calling
+// getInitialized, and that it calls Unlock once the entry returned by getInitialized is no longer going to
+// be modified or otherwise used.
 func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry sharedDirectoryAuditCacheEntry) {
-	entry, ok := c.get(sid)
+	entry, ok := c.m[sid]
 
 	if !ok {
-		c.Lock()
-		defer c.Unlock()
 		entry.init()
 		c.m[sid] = entry
 	}
@@ -85,34 +79,37 @@ func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry sharedD
 }
 
 func (c *sharedDirectoryAuditCache) SetName(sid sessionID, did directoryID, name directoryName) {
-	entry := c.getInitialized(sid)
-
 	c.Lock()
 	defer c.Unlock()
+
+	entry := c.getInitialized(sid)
+
 	entry.nameCache[did] = name
 }
 
 func (c *sharedDirectoryAuditCache) SetReadRequestInfo(sid sessionID, cid completionID, info readRequestInfo) {
-	entry := c.getInitialized(sid)
-
 	c.Lock()
 	defer c.Unlock()
+
+	entry := c.getInitialized(sid)
+
 	entry.readRequestCache[cid] = info
 }
 
 func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(sid sessionID, cid completionID, info writeRequestInfo) {
-	entry := c.getInitialized(sid)
-
 	c.Lock()
 	defer c.Unlock()
+
+	entry := c.getInitialized(sid)
+
 	entry.writeRequestCache[cid] = info
 }
 
 func (c *sharedDirectoryAuditCache) GetName(sid sessionID, did directoryID) (name directoryName, ok bool) {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
-	entry, ok := c.get(sid)
+	entry, ok := c.m[sid]
 	if !ok {
 		return
 	}
@@ -122,10 +119,10 @@ func (c *sharedDirectoryAuditCache) GetName(sid sessionID, did directoryID) (nam
 }
 
 func (c *sharedDirectoryAuditCache) GetReadRequestInfo(sid sessionID, cid completionID) (info readRequestInfo, ok bool) {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
-	entry, ok := c.get(sid)
+	entry, ok := c.m[sid]
 	if !ok {
 		return
 	}
@@ -135,10 +132,10 @@ func (c *sharedDirectoryAuditCache) GetReadRequestInfo(sid sessionID, cid comple
 }
 
 func (c *sharedDirectoryAuditCache) GetWriteRequestInfo(sid sessionID, cid completionID) (info writeRequestInfo, ok bool) {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
-	entry, ok := c.get(sid)
+	entry, ok := c.m[sid]
 	if !ok {
 		return
 	}
@@ -148,5 +145,8 @@ func (c *sharedDirectoryAuditCache) GetWriteRequestInfo(sid sessionID, cid compl
 }
 
 func (c *sharedDirectoryAuditCache) Delete(sid sessionID) {
+	c.Lock()
+	defer c.Unlock()
+
 	delete(c.m, sid)
 }
