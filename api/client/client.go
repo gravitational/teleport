@@ -259,18 +259,22 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}()
 
 	var errs []error
-	for errChan != nil {
+Outer:
+	for {
 		select {
 		// Use the first client to successfully connect in syncConnect.
 		case clt := <-cltChan:
+			go func() {
+				for range errChan {
+				}
+			}()
 			return clt, nil
 		case err, ok := <-errChan:
-			if ok {
-				// Add a new line to make errs human readable.
-				errs = append(errs, trace.Wrap(err, ""))
-				continue
+			if !ok {
+				break Outer
 			}
-			errChan = nil
+			// Add a new line to make errs human readable.
+			errs = append(errs, trace.Wrap(err, ""))
 		}
 	}
 
