@@ -159,6 +159,11 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 }
 
 func (s *Server) handleEC2Discovery() {
+	if err := s.NodeWatcher.WaitInitialization(); err != nil {
+		s.log.WithError(err).Error("Failed to initialize nodeWatcher.")
+		return
+	}
+
 	go s.cloudWatcher.Run()
 	for {
 		select {
