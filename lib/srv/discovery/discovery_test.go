@@ -797,10 +797,10 @@ var eksMockClusters = []*eks.Cluster{
 	},
 }
 
-func mustConvertEKSToKubeCluster(t *testing.T, cluster *eks.Cluster) types.KubeCluster {
-	kCluster, err := services.NewKubeClusterFromAWSEKS(cluster)
+func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster) types.KubeCluster {
+	cluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
 	require.NoError(t, err)
-	return kCluster
+	return cluster
 }
 
 func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster) types.KubeCluster {

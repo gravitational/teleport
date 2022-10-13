@@ -20,13 +20,19 @@ import (
 	"context"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
+)
+
+const (
+	concurrencyLimit = 5
 )
 
 type eksFetcher struct {
@@ -59,7 +65,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = logrus.WithField(trace.Component, "fetcher:eks")
 	}
 	return nil
 }
@@ -84,64 +90,46 @@ func (a *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 
 func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, error) {
 	var (
-		clusters types.KubeClusters
-		mu       sync.Mutex
+		clusters        types.KubeClusters
+		mu              sync.Mutex
+		group, groupCtx = errgroup.WithContext(ctx)
 	)
+	group.SetLimit(concurrencyLimit)
+
 	err := a.Client.ListClustersPagesWithContext(ctx,
 		&eks.ListClustersInput{
 			Include: nil, // For now we should only list EKS clusters
 		},
 		func(clustersList *eks.ListClustersOutput, _ bool) bool {
-			wg := &sync.WaitGroup{}
-			wg.Add(len(clustersList.Clusters))
 			for i := 0; i < len(clustersList.Clusters); i++ {
-				go func(clusterName string) {
-					defer wg.Done()
-
-					logger := a.Log.WithField("cluster_name", clusterName)
-
-					rsp, err := a.Client.DescribeClusterWithContext(
-						ctx,
-						&eks.DescribeClusterInput{
-							Name: aws.String(clusterName),
-						},
-					)
-					if err != nil {
-						logger.WithError(err).Warnf("Unable to describe EKS cluster %q", clusterName)
-						return
-					}
-
-					if match, reason, err := services.MatchLabels(a.FilterLabels, a.awsEKSTagsToLabels(rsp.Cluster.Tags)); err != nil {
-						logger.WithError(err).Warnf("Unable to match EKS cluster labels against match labels")
-						return
-					} else if !match {
-						logger.Debugf("EKS cluster labels does not match the selector: %s", reason)
-						return
-					}
-
-					switch st := aws.StringValue(rsp.Cluster.Status); st {
-					case eks.ClusterStatusUpdating, eks.ClusterStatusActive:
-						logger.Debugf("EKS cluster status is valid: %s", st)
-					default:
-						logger.Debugf("EKS cluster not enrolled due to its current status: %s", st)
-						return
-					}
-
-					cluster, err := services.NewKubeClusterFromAWSEKS(rsp.Cluster)
-					if err != nil {
-						logger.WithError(err).Warnf("unable to convert eks.Cluster into types.KubernetesClusterV3")
-						return
+				clusterName := aws.StringValue(clustersList.Clusters[i])
+				// group.Go will block if the concurrency limit is reached.
+				// It will resume once any running function finishes.
+				group.Go(func() error {
+					cluster, err := a.getMatchingKubeCluster(groupCtx, clusterName)
+					// trace.CompareFailed is returned if the cluster did not match the matcher filtering labels
+					// or if the cluster is not yet active.
+					if trace.IsCompareFailed(err) {
+						a.Log.WithError(err).Debugf("Cluster %q did not match the filtering criteria.", clusterName)
+						// never return an error otherwise we will impact discovery process
+						return nil
+					} else if err != nil {
+						a.Log.WithError(err).Warnf("Failed to discover EKS cluster %q.", clusterName)
+						// never return an error otherwise we will impact discovery process
+						return nil
 					}
 
 					mu.Lock()
 					defer mu.Unlock()
 					clusters = append(clusters, cluster)
-				}(aws.StringValue(clustersList.Clusters[i]))
+					return nil
+				})
 			}
-			wg.Wait()
 			return true
 		},
 	)
+	// error can be discarded since we do not return any error from group.Go closure.
+	_ = group.Wait()
 	return clusters, trace.Wrap(err)
 }
 
@@ -163,4 +151,39 @@ func (a *eksFetcher) awsEKSTagsToLabels(tags map[string]*string) map[string]stri
 		}
 	}
 	return labels
+}
+
+// getMatchingKubeCluster extracts EKS cluster Tags and cluster status from EKS and checks if the cluster matches
+// the AWS matcher filtering labels. It also excludes EKS clusters that are not ready.
+// If any cluster does not match the filtering criteria, this function returns a “trace.CompareFailed“ error
+// to distinguish filtering and operational errors.
+func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName string) (types.KubeCluster, error) {
+	rsp, err := a.Client.DescribeClusterWithContext(
+		ctx,
+		&eks.DescribeClusterInput{
+			Name: aws.String(clusterName),
+		},
+	)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "Unable to describe EKS cluster %q", clusterName)
+	}
+
+	switch st := aws.StringValue(rsp.Cluster.Status); st {
+	case eks.ClusterStatusUpdating, eks.ClusterStatusActive:
+		a.Log.WithField("cluster_name", clusterName).Debugf("EKS cluster status is valid: %s", st)
+	default:
+		return nil, trace.CompareFailed("EKS cluster %q not enrolled due to its current status: %s", clusterName, st)
+	}
+
+	if match, reason, err := services.MatchLabels(a.FilterLabels, a.awsEKSTagsToLabels(rsp.Cluster.Tags)); err != nil {
+		return nil, trace.WrapWithMessage(err, "Unable to match EKS cluster labels against match labels.")
+	} else if !match {
+		return nil, trace.CompareFailed("EKS cluster %q labels does not match the selector: %s", clusterName, reason)
+	}
+
+	cluster, err := services.NewKubeClusterFromAWSEKS(rsp.Cluster)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "Unable to convert eks.Cluster cluster into types.KubernetesClusterV3.")
+	}
+	return cluster, nil
 }
