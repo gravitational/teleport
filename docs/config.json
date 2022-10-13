@@ -608,6 +608,10 @@
             {
               "title": "Host User Creation",
               "slug": "/server-access/guides/host-user-creation/"
+            },
+            {
+              "title": "EC2 Instance Discovery (Preview)",
+              "slug": "/server-access/guides/ec2-discovery/"
             }
           ]
         }
