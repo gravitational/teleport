@@ -1434,7 +1434,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 
   - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and `allow-users-with-short-ttl` are listed
   - [ ] Verify you can select/input/modify reviewers
-  - [ ] Verify you can view the request you created from request list (should be in pending states)
+  - [ ] Verify you can view the request you created from request list (should be in a pending state)
   - [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
   - [ ] Verify you can't review own requests
 
@@ -1443,7 +1443,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 
   - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
   - [ ] Verify you can select/input/modify reviewers
-  - [ ] Verify you can view the request you created from request list (should be in pending states)
+  - [ ] Verify you can view the request you created from request list (should be in a pending state)
   - [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
   - [ ] Verify you can't review own requests
   - [ ] Verify that you can't mix adding resources from different clusters (there should be a warning dialogue that clears the selected list)
