@@ -2172,11 +2172,13 @@ volumes:
 
 ---
 ################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:481
+# This pipeline is the reason dronegen isn't on
+# v8. Hand edits were made in:
+#   c0a1e074ec2fbb3ea03851780ac109864161bbb0
+# To prevent these edits from being reverted
+# dronegen was removed in:
+#   fadcdaf6ea244c7e4e79964666db187543319bf5
 ################################################
-
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos6
@@ -2255,19 +2257,42 @@ steps:
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
-- name: Upload to S3
-  image: plugins/s3
-  settings:
-    access_key:
+- name: Assume Upload AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID
-    bucket:
-      from_secret: AWS_S3_BUCKET
-    region: us-west-2
-    secret_key:
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-    source: /go/artifacts/*
-    strip_prefix: /go/artifacts/
-    target: teleport/tag/${DRONE_TAG##v}
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+- name: Upload to S3
+  image: amazon/aws-cli
+  commands:
+  - cd /go/artifacts/
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
 - name: Register artifacts
   image: docker
   commands:
@@ -2322,6 +2347,8 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -8069,6 +8096,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 8e6341925bf44ced1c106f11be57bf0102e09cac6efd5aefc56b1ede2094fe4c
+hmac: ef20a2ae8f3c1a1a0c872c7d567875d6377fc67d1f00839f6a34559d07e2ec3d
 
 ...
