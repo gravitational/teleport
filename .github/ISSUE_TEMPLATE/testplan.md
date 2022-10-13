@@ -710,7 +710,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
-- [ ] Verify that switching between tabs works on alt+[1...9]
+- [ ] Verify that switching between tabs works with `alt+[1...9]` (ctrl on mac)
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
