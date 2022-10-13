@@ -721,7 +721,7 @@ export const formatters: Formatters = {
     type: 'db.session.malformed_packet"',
     desc: 'Database Malformed Packet',
     format: ({ user, db_service, db_name }) =>
-      `Recived Malfored packed from [${user}] in [${db_name}] on database [${db_service}]`,
+      `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
   },
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
@@ -888,7 +888,7 @@ export const formatters: Formatters = {
     type: 'db.session.sqlserver.rpc_request',
     desc: 'SQLServer RPC Request',
     format: ({ user, db_service, db_name, proc_name }) =>
-      `User [${user}] has send RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
+      `User [${user}] has sent RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
   },
   [eventCodes.ELASTICSEARCH_REQUEST]: {
     type: 'db.session.elasticsearch.request',
