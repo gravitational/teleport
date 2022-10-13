@@ -133,7 +133,6 @@ func getAWSCredentials(ctx context.Context, cloudClients cloud.Clients, cluster 
 // getAWSClientRestConfig creates a dynamicCredsClient that generates returns credentials to EKS clusters.
 func getAWSClientRestConfig(cloudClients cloud.Clients) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-
 		regionalClient, err := cloudClients.GetAWSEKSClient(cluster.GetAWSConfig().Region)
 		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
@@ -177,6 +176,7 @@ func getAWSClientRestConfig(cloudClients cloud.Clients) dynamicCredsClient {
 }
 
 // genAWSToken creates an AWS token to access EKS clusters.
+// Logic from https://github.com/aws/aws-cli/blob/6c0d168f0b44136fc6175c57c090d4b115437ad1/awscli/customizations/eks/get_token.py#L211-L229
 func genAWSToken(stsClient stsiface.STSAPI, clusterID string) (string, time.Time, error) {
 	const (
 		// The sts GetCallerIdentity request is valid for 15 minutes regardless of this parameters value after it has been
