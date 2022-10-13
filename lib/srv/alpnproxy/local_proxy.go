@@ -26,6 +26,8 @@ import (
 	"net/http/httputil"
 	"os"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -256,7 +258,17 @@ func (l *LocalProxy) GetAddr() string {
 // traffic to the upstreamConn (TLS connection to remote host).
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
+
+	// This code doesn't support connecting to a Teleport Proxy that sits behind a HTTP CONNECT PROXY
+	// I have adjusted the code to ensure it is dialing the HTTP CONNECT Proxy
+	// BEFORE it performs it's TLS connections.
+
+	httpConnectProxyAddr := apiclient.GetProxyAddress(l.cfg.RemoteProxyAddr)
+	pConn, err := apiclient.DialProxy(ctx, httpConnectProxyAddr, l.cfg.RemoteProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	upstreamConn := tls.Client(pConn, &tls.Config{
 		NextProtos:         []string{string(l.cfg.Protocol)},
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
