@@ -14,10 +14,27 @@
  * limitations under the License.
  */
 
+import type { JoinRole } from 'teleport/services/joinToken';
+
 export enum ResourceKind {
   Application,
   Database,
   Desktop,
   Kubernetes,
   Server,
+}
+
+export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
+  switch (kind) {
+    case ResourceKind.Application:
+      return 'App';
+    case ResourceKind.Database:
+      return 'Db';
+    case ResourceKind.Desktop:
+      return 'WindowsDesktop';
+    case ResourceKind.Kubernetes:
+      return 'Kube';
+    case ResourceKind.Server:
+      return 'Node';
+  }
 }

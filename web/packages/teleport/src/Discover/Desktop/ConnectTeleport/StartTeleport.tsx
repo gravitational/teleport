@@ -14,7 +14,7 @@ import {
   StepTitleIcon,
 } from 'teleport/Discover/Desktop/ConnectTeleport/Step';
 
-import { usePingTeleport } from 'teleport/Discover/Desktop/ConnectTeleport/PingTeleportContext';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 
 interface StartTeleportProps {
   onNext: () => void;

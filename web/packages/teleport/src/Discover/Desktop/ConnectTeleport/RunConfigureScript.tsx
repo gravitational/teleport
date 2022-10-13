@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import * as Icons from 'design/Icon';
 
 import { ButtonPrimary } from 'design/Button';
-import { Text } from 'design';
+import { Text, Box } from 'design';
 
 import {
   StepContent,
@@ -16,8 +16,9 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
 
 import cfg from 'teleport/config';
-import { Timeout } from 'teleport/Discover/Desktop/ConnectTeleport/Timeout';
-import { useJoinToken } from 'teleport/Discover/Desktop/ConnectTeleport/JoinTokenContext';
+import { Timeout } from 'teleport/Discover/Shared/Timeout';
+import { useJoinToken } from 'teleport/Discover/Shared/JoinTokenContext';
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 import loading from './run-configure-script-loading.svg';
 
@@ -28,7 +29,9 @@ interface RunConfigureScriptProps {
 export function RunConfigureScript(
   props: React.PropsWithChildren<RunConfigureScriptProps>
 ) {
-  const { joinToken, reloadJoinToken, timeout, timedOut } = useJoinToken();
+  const { joinToken, reloadJoinToken, timeout, timedOut } = useJoinToken(
+    ResourceKind.Desktop
+  );
 
   let content;
   if (timedOut) {
@@ -49,8 +52,9 @@ export function RunConfigureScript(
         <TextSelectCopy text={command} mt={2} mb={5} bash allowMultiline />
 
         <ButtonPrimary onClick={() => props.onNext()}>Next</ButtonPrimary>
-
-        <Timeout timeout={timeout} />
+        <Box mt={4}>
+          <Timeout timeout={timeout} />
+        </Box>
       </StepInstructions>
     );
   }

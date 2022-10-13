@@ -7,10 +7,10 @@ import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopI
 import { Header } from 'teleport/Discover/Shared';
 import { State } from 'teleport/Discover/useDiscover';
 import { ProxyDesktopServiceDiagram } from 'teleport/Discover/Desktop/DiscoverDesktops/ProxyDesktopServiceDiagram';
-import { usePoll } from 'teleport/Discover/Desktop/ConnectTeleport/usePoll';
+import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { useTeleport } from 'teleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { usePingTeleport } from 'teleport/Discover/Desktop/ConnectTeleport/PingTeleportContext';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import cfg from 'teleport/config';
 import { NavLink } from 'teleport/components/Router';
 

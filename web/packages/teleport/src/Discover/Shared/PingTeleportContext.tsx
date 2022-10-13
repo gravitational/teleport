@@ -1,10 +1,11 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
-import { usePoll } from 'teleport/Discover/Desktop/ConnectTeleport/usePoll';
+import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { useJoinTokenValue } from 'teleport/Discover/Desktop/ConnectTeleport/JoinTokenContext';
+import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
 import { WindowsDesktopService } from 'teleport/services/desktops';
+import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 
 interface PingTeleportContextState {
   active: boolean;
@@ -20,6 +21,7 @@ export function PingTeleportProvider(props: {
   timeout: number;
   interval?: number;
   children?: React.ReactNode;
+  resourceKind: ResourceKind;
 }) {
   const ctx = useTeleport();
 
@@ -30,26 +32,40 @@ export function PingTeleportProvider(props: {
 
   const { timedOut, result } = usePoll(
     signal =>
-      ctx.desktopService
-        .fetchDesktopServices(
-          ctx.storeUser.getClusterId(),
-          {
-            search: `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`,
-            limit: 1,
-          },
-          signal
-        )
-        .then(res => {
-          if (res.agents.length) {
-            return res.agents[0];
-          }
+      servicesFetchFn(signal).then(res => {
+        if (res.agents.length) {
+          return res.agents[0];
+        }
 
-          return null;
-        }),
+        return null;
+      }),
     timeout,
     active,
     props.interval
   );
+
+  function servicesFetchFn(signal: AbortSignal) {
+    const clusterId = ctx.storeUser.getClusterId();
+    const request = {
+      search: `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`,
+      limit: 1,
+    };
+    switch (props.resourceKind) {
+      case ResourceKind.Server:
+        return ctx.nodeService.fetchNodes(clusterId, request, signal);
+      case ResourceKind.Desktop:
+        return ctx.desktopService.fetchDesktopServices(
+          clusterId,
+          request,
+          signal
+        );
+      // TODO (when we start implementing them)
+      // the fetch XXX needs a param defined for abort signal
+      // case 'app':
+      // case 'db':
+      // case 'kube_cluster':
+    }
+  }
 
   useEffect(() => {
     if (active && Date.now() > timeout) {
