@@ -449,7 +449,7 @@ message DesktopSharedDirectoryRead {
   Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
-    (gogoproto.jsontag) = "status"
+    (gogoproto.jsontag) = ""
   ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
@@ -497,7 +497,7 @@ message DesktopSharedDirectoryWrite {
   Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
-    (gogoproto.jsontag) = "status"
+    (gogoproto.jsontag) = ""
   ];
   // DesktopAddr is the address of the desktop being accessed.
   string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
