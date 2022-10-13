@@ -30,6 +30,10 @@ import (
 // to trace error. If the provided error is not a `ResponseError` it returns.
 // the error without modifying it.
 func ConvertResponseError(err error) error {
+	if err == nil {
+		return nil
+	}
+
 	switch v := err.(type) {
 	case *azcore.ResponseError:
 		switch v.StatusCode {
