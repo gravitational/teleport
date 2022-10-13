@@ -1,0 +1,50 @@
+package main
+
+// If you are working on a PR/testing changes to this file you should configure the following for Drone testing:
+// 1. Publish the branch you're working on
+// 2. Set `prBranch` to the name of the branch in (1)
+// 3. Set `configureForPRTestingOnly` to true
+// 4. Create a public and private ECR, Quay repos for "teleport", "teleport-ent", "teleport-operator", "teleport-lab"
+// 5. Set `testingQuayRegistryOrg` and `testingECRRegistryOrg` to the org name(s) used in (4)
+// 6. Set the `ECRTestingDomain` to the domain used for the private ECR repos
+// 7. Create two separate IAM users, each with full access to either the public ECR repo OR the private ECR repo
+// 8. Create a Quay "robot account" with write permissions for the created Quay repos
+// 9. Set the Drone secrets for the secret names listed in "GetContainerRepos" to the credentials in (7, 8), prefixed by the value of `testingSecretPrefix`
+//
+// On each commit, after running `make dronegen``, run the following commands and resign the file:
+// # Pull the current branch instead of v11 so the appropriate dockerfile gets loaded
+// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v11')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
+//
+// When finishing up your PR check the following:
+// * The testing secrets added to Drone have been removed
+// * `configureForPRTestingOnly` has been set to false, and `make dronegen` has been reran afterwords
+
+const (
+	configureForPRTestingOnly bool   = false
+	testingSecretPrefix       string = "TEST_"
+	testingQuayRegistryOrg    string = "fred_heinecke"
+	testingECRRegistryOrg     string = "u8j2q1d9"
+	testingECRRegion          string = "us-east-2"
+	prBranch                  string = "fred/multiarch-teleport-container-images"
+	testingECRDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+)
+
+const (
+	ProductionRegistryOrg string = "gravitational"
+	PublicEcrRegion       string = "us-east-1"
+	StagingEcrRegion      string = "us-west-2"
+
+	localRegistry string = "drone-docker-registry:5000"
+)
+
+func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
+	baseTrigger := NewCronTrigger([]string{testMajorVersion})
+	baseTrigger.Name = "Test trigger on push"
+	baseTrigger.Trigger = trigger{
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{triggerBranch}},
+	}
+
+	return baseTrigger
+}
