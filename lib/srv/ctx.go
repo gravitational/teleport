@@ -36,8 +36,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
+	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -151,18 +153,11 @@ type Server interface {
 	// using reverse tunnel.
 	UseTunnel() bool
 
-	// OpenBPFSession will start monitoring all events within a session and
-	// emitting them to the Audit Log.
-	OpenBPFSession(ctx *ServerContext) (uint64, error)
+	// GetBPF returns the BPF service used for enhanced session recording.
+	GetBPF() bpf.BPF
 
-	// CloseBPFSession will stop monitoring events for a particular session.
-	CloseBPFSession(ctx *ServerContext) error
-
-	// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
-	OpenRestrictedSession(ctx *ServerContext, cgroupID uint64)
-
-	// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
-	CloseRestrictedSession(ctx *ServerContext, cgroupID uint64)
+	// GetRestrictedSessionManager returns the manager for restricting user activity
+	GetRestrictedSessionManager() restricted.Manager
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -177,7 +172,7 @@ type Server interface {
 	// temporary teleport users or not
 	GetCreateHostUser() bool
 
-	// GetHostUsers returns the HostUsers instance being used to manage
+	// GetHostUser returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
 
@@ -524,31 +519,6 @@ func (c *ServerContext) GetServer() Server {
 	return c.srv
 }
 
-// StreamWriter returns the underlying stream writer for the session or an
-// events.DiscardStream if the session has yet to be established.
-func (c *ServerContext) StreamWriter() events.StreamWriter {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.session == nil {
-		return &events.DiscardStream{}
-	}
-
-	return c.session.Recorder()
-}
-
-// GetPID returns the PID of the Teleport process that was re-execed
-// or -1 if the process has not yet completed spawning.
-func (c *ServerContext) GetPID() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.term == nil {
-		return -1
-	}
-
-	return c.term.PID()
-}
-
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
 // no session is found, a new one is created. If one is found, it is returned.
 func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
@@ -814,7 +784,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var closers []io.Closer
+	closers := []io.Closer{}
 	if c.term != nil {
 		closers = append(closers, c.term)
 		c.term = nil
