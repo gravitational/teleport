@@ -2938,6 +2938,11 @@ message KubernetesClusterSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "azure,omitempty"
   ];
+  // AWS holds the required AWS information for Teleport to access the cluster.
+  KubeAWS AWS = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "aws,omitempty"
+  ];
 }
 
 // KubeAzure contains the Azure information about the cluster.
@@ -2950,6 +2955,16 @@ message KubeAzure {
   string TenantID = 3 [(gogoproto.jsontag) = "tenant_id,omitempty"];
   // SubscriptionID is the AKS cluster SubscriptionID.
   string SubscriptionID = 4 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+}
+
+// KubeAWS contains the AWS information about the cluster.
+message KubeAWS {
+  // Region is a AWS cloud region.
+  string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
+  // AccountID is a AWS Account ID.
+  string AccountID = 2 [(gogoproto.jsontag) = "account_id,omitempty"];
+  // Name is a AWS EKS cluster name.
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // KubernetesClusterV3List represents a list of kubernetes clusters.
