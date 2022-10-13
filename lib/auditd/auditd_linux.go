@@ -146,7 +146,7 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	}()
 
 	if err := client.SendMsg(event, result); err != nil {
-		if err == ErrAuditdDisabled || errors.Is(err, syscall.EPERM) {
+		if err == ErrAuditdDisabled || isPermissionError(err) {
 			// Do not return the error to the caller if auditd is disabled,
 			// or we don't have required permissions to use it.
 			return nil
@@ -155,6 +155,11 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	}
 
 	return nil
+}
+
+// isPermissionError returns true if we lack permission to talk to Linux Audit System.
+func isPermissionError(err error) bool {
+	return errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EPROTONOSUPPORT)
 }
 
 func (c *Client) connectUnderMutex() error {
