@@ -3,6 +3,7 @@ package licensefile
 import (
 	"encoding/json"
 	"os"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws"
@@ -20,6 +21,14 @@ type LicenseFile struct {
 	KeyPair *liblicense.License
 	// License is the instance of the license
 	License types.License
+}
+
+func (l *LicenseFile) IsExpired() bool {
+	return time.Now().After(l.KeyPair.Cert.NotAfter)
+}
+
+func (l *LicenseFile) ExpiresIn() time.Duration {
+	return l.KeyPair.Cert.NotAfter.Sub(time.Now())
 }
 
 // ReadAndActivate reads and activates a license from the file

@@ -9,7 +9,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 )
 
@@ -74,6 +73,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		cfg.AuthPlugin.EnableEnforcer(enforcer)
 	}
 
+	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
 	return process, nil
 }
 
