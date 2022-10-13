@@ -8,9 +8,10 @@ import {
 import { KeywordHighlight } from 'shared/components/AnimatedTerminal/TerminalContent';
 
 import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
-import { useJoinToken } from 'teleport/Discover/Desktop/ConnectTeleport/JoinTokenContext';
+import { useJoinToken } from 'teleport/Discover/Shared/JoinTokenContext';
 import { JoinToken } from 'teleport/services/joinToken';
 
 const lines = (joinToken: JoinToken) => [
@@ -91,7 +92,7 @@ interface RunConfigureScriptAnimationProps {
 export function RunConfigureScriptAnimation(
   props: RunConfigureScriptAnimationProps
 ) {
-  const { joinToken } = useJoinToken();
+  const { joinToken } = useJoinToken(ResourceKind.Desktop);
 
   return (
     <AnimatedTerminal

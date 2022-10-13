@@ -9,7 +9,7 @@ import { TerminalLine } from 'shared/components/AnimatedTerminal/content';
 
 import { KeywordHighlight } from 'shared/components/AnimatedTerminal/TerminalContent';
 
-import { usePingTeleport } from 'teleport/Discover/Desktop/ConnectTeleport/PingTeleportContext';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 
 const startLines = [
   {

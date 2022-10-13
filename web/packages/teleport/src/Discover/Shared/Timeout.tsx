@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import styled from 'styled-components';
 
 interface TimeoutProps {
   timeout: number; // ms
+  message?: string;
 }
 
-const Container = styled.div`
-  margin-top: 20px;
-`;
-
-export function Timeout(props: TimeoutProps) {
+export function Timeout({
+  timeout,
+  message = 'This script is valid for another',
+}: TimeoutProps) {
   const [, setCount] = useState(0);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      if (Date.now() >= props.timeout) {
+      if (Date.now() >= timeout) {
         clearInterval(interval);
       }
 
@@ -22,16 +21,16 @@ export function Timeout(props: TimeoutProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [props.timeout]);
+  }, [timeout]);
 
   const { minutes, seconds } = millisecondsToMinutesSeconds(
-    props.timeout - Date.now()
+    timeout - Date.now()
   );
 
   return (
-    <Container>
-      This script is valid for another {minutes}:{seconds}.
-    </Container>
+    <span>
+      {message} {minutes}:{seconds}
+    </span>
   );
 }
 
