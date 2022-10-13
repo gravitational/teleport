@@ -102,17 +102,19 @@ func artifactMigrationPipeline() []pipeline {
 	}
 }
 
-type RepoBucketSecretNames struct {
-	bucketName      string
-	accessKeyID     string
-	secretAccessKey string
+type RepoBucketSecrets struct {
+	awsRoleSettings
+	bucketName value
 }
 
-func NewRepoBucketSecretNames(bucketName, accessKeyID, secretAccessKey string) *RepoBucketSecretNames {
-	return &RepoBucketSecretNames{
-		bucketName:      bucketName,
-		accessKeyID:     accessKeyID,
-		secretAccessKey: secretAccessKey,
+func NewRepoBucketSecrets(bucketName, accessKeyID, secretAccessKey, role string) *RepoBucketSecrets {
+	return &RepoBucketSecrets{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: accessKeyID},
+			awsSecretAccessKey: value{fromSecret: secretAccessKey},
+			role:               value{fromSecret: role},
+		},
+		bucketName: value{fromSecret: bucketName},
 	}
 }
 
@@ -124,7 +126,7 @@ type OsPackageToolPipelineBuilder struct {
 	pipelineNameSuffix string
 	artifactPath       string
 	pvcMountPoint      string
-	bucketSecrets      *RepoBucketSecretNames
+	bucketSecrets      *RepoBucketSecrets
 	extraArgs          []string
 	requiredPackages   []string
 	setupCommands      []string
@@ -134,7 +136,7 @@ type OsPackageToolPipelineBuilder struct {
 // This function configures the build tool with it's requirements and sensible defaults.
 // If additional configuration required then the returned struct should be modified prior
 // to calling "build" functions on it.
-func NewOsPackageToolPipelineBuilder(claimName, packageType, packageManagerName string, bucketSecrets *RepoBucketSecretNames) *OsPackageToolPipelineBuilder {
+func NewOsPackageToolPipelineBuilder(claimName, packageType, packageManagerName string, bucketSecrets *RepoBucketSecrets) *OsPackageToolPipelineBuilder {
 	optpb := &OsPackageToolPipelineBuilder{
 		clameName:          claimName,
 		packageType:        packageType,
@@ -150,15 +152,7 @@ func NewOsPackageToolPipelineBuilder(claimName, packageType, packageManagerName 
 	}
 
 	optpb.environmentVars = map[string]value{
-		"REPO_S3_BUCKET": {
-			fromSecret: optpb.bucketSecrets.bucketName,
-		},
-		"AWS_ACCESS_KEY_ID": {
-			fromSecret: optpb.bucketSecrets.accessKeyID,
-		},
-		"AWS_SECRET_ACCESS_KEY": {
-			fromSecret: optpb.bucketSecrets.secretAccessKey,
-		},
+		"REPO_S3_BUCKET": optpb.bucketSecrets.bucketName,
 		"AWS_REGION": {
 			raw: "us-west-2",
 		},
@@ -285,6 +279,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 			},
 		},
 		volumeTmpfs,
+		volumeAwsConfig,
 	}
 	p.Steps = []step{
 		{
@@ -363,7 +358,24 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 		buildStepDependencies = append(buildStepDependencies, downloadStepName)
 	}
 
+	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
+	})
+
+	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: optpb.bucketSecrets.awsRoleSettings,
+		configVolume:    volumeRefAwsConfig,
+		name:            "Assume Upload AWS Role",
+	})
+
 	return []step{
+		assumeDownloadRoleStep,
 		{
 			Name:  downloadStepName,
 			Image: "amazon/aws-cli",
@@ -371,20 +383,15 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 				"AWS_S3_BUCKET": {
 					fromSecret: "AWS_S3_BUCKET",
 				},
-				"AWS_ACCESS_KEY_ID": {
-					fromSecret: "AWS_ACCESS_KEY_ID",
-				},
-				"AWS_SECRET_ACCESS_KEY": {
-					fromSecret: "AWS_SECRET_ACCESS_KEY",
-				},
 				"ARTIFACT_PATH": {
 					raw: optpb.artifactPath,
 				},
 			},
+			Volumes: []volumeRef{volumeRefAwsConfig},
 			Commands: []string{
 				"mkdir -pv \"$ARTIFACT_PATH\"",
 				// Clear out old versions from previous steps
-				"rm -rf \"${ARTIFACT_PATH}/*\"",
+				"rm -rf \"$ARTIFACT_PATH/*\"",
 				strings.Join(
 					[]string{
 						"aws s3 sync",
@@ -399,6 +406,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 				),
 			},
 		},
+		assumeUploadRoleStep,
 		{
 			Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
 			Image:       "golang:1.18.4-bullseye",
@@ -437,6 +445,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 					Path: optpb.pvcMountPoint,
 				},
 				volumeRefTmpfs,
+				volumeRefAwsConfig,
 			},
 			DependsOn: buildStepDependencies,
 		},
