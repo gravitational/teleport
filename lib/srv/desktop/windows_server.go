@@ -1411,8 +1411,10 @@ type monitorErrorSender struct {
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	if err := m.tdpConn.SendError(s); err != nil {
-		m.log.Errorf("Failed to send TDP error message %v", err)
+		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
+		m.log.Error(errMsg)
+		return 0, trace.Errorf(errMsg)
 	}
 
-	return 0, nil
+	return len(s), nil
 }
