@@ -88,6 +88,10 @@ type WebSession interface {
 	WithoutSecrets() WebSession
 	// String returns string representation of the session.
 	String() string
+	// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
+	SetConsumedAccessRequestID(string)
+	// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
+	GetConsumedAccessRequestID() string
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -170,6 +174,16 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	ws.Spec.Priv = nil
 	return ws
+}
+
+// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
+func (ws *WebSessionV2) SetConsumedAccessRequestID(requestID string) {
+	ws.Spec.ConsumedAccessRequestID = requestID
+}
+
+// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
+func (ws *WebSessionV2) GetConsumedAccessRequestID() string {
+	return ws.Spec.ConsumedAccessRequestID
 }
 
 // setStaticFields sets static resource header and metadata fields.
