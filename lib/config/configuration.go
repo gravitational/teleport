@@ -979,8 +979,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
-	applyDefaultProxyListenerAddresses(cfg)
-
 	return nil
 }
 
@@ -1128,6 +1126,20 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
+
+	for _, matcher := range fc.Discovery.AzureMatchers {
+		cfg.Discovery.AzureMatchers = append(
+			cfg.Discovery.AzureMatchers,
+			services.AzureMatcher{
+				Subscriptions:  matcher.Subscriptions,
+				ResourceGroups: matcher.ResourceGroups,
+				Types:          matcher.Types,
+				Regions:        matcher.Regions,
+				ResourceTags:   matcher.ResourceTags,
+			},
+		)
+	}
+
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
@@ -1249,7 +1261,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Mode:       service.TLSMode(database.TLS.Mode),
 			},
 			AWS: service.DatabaseAWS{
-				Region: database.AWS.Region,
+				AccountID: database.AWS.AccountID,
+				Region:    database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -2101,6 +2114,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+
+	// set the default proxy listener addresses for config v1, if not already set
+	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
 }

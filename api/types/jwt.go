@@ -19,6 +19,7 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/trace"
 )
 
@@ -29,6 +30,9 @@ type GenerateAppTokenRequest struct {
 
 	// Roles are the roles assigned to the user within Teleport.
 	Roles []string
+
+	// Traits are the traits assigned to the user within Teleport.
+	Traits wrappers.Traits
 
 	// Expiry is time to live for the token.
 	Expires time.Time
