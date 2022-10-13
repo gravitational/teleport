@@ -7557,7 +7557,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
     AWS_ROLE:
-      from_secret: YUM_REPO_NEW_ROLE
+      from_secret: YUM_REPO_NEW_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
   volumes:
@@ -8729,6 +8729,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: b1c9a7bbb841e00e8cf6a36bb2b6f91a72cce77f9b23c47c6d72cad432087711
+hmac: d7eefb6f1ab41caf3b9ad925897eeab49b771669ff392d2e07bfb23b3aabf9bb
 
 ...
