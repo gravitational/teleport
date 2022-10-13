@@ -18,7 +18,7 @@ import React from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 
 import { Router, Route, Switch } from 'teleport/components/Router';
-import CatchError from 'teleport/components/CatchError';
+import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
 
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';

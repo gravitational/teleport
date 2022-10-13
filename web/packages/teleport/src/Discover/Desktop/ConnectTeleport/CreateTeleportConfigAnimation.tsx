@@ -3,7 +3,7 @@ import styled from 'styled-components';
 
 import { Editor, File, Language } from 'shared/components/Editor';
 
-import { useJoinTokenValue } from 'teleport/Discover/Desktop/ConnectTeleport/JoinTokenContext';
+import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
 
 import type { JoinToken } from 'teleport/services/joinToken';
 
