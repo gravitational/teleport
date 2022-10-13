@@ -1,5 +1,23 @@
 package main
 
+// To run one of these pipelines locally:
+// # Drone requires certain variables to be set
+// export DRONE_REMOTE_URL="https://github.com/gravitational/teleport"
+// export DRONE_SOURCE_BRANCH="$(git branch --show-current)"
+// # `drone exec` does not support `exec` or `kubernetes` pipelines
+// sed -i '' 's/type\: kubernetes/type\: docker/' .drone.yml && sed -i '' 's/type\: exec/type\: docker/' .drone.yml
+// # Drone has a bug where "workspace" is appended to "/drone/src". This fixes that by updating references
+// sed -i '' 's~/go/~/drone/src/go/~g' .drone.yml
+// # Pull the current branch instead of v11
+// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v11')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
+// # `drone exec` does not properly map the workspace path. This creates a volume to be shared between steps
+// #  at the correct path
+// DOCKER_VOLUME_NAME="go"
+// docker volume create "$DOCKER_VOLUME_NAME"
+// drone exec --trusted --pipeline teleport-container-images-current-version-cron --clone=false --volume "${DOCKER_VOLUME_NAME}:/go"
+// # Cleanup
+// docker volume rm "$DOCKER_VOLUME_NAME"
+
 // If you are working on a PR/testing changes to this file you should configure the following for Drone testing:
 // 1. Publish the branch you're working on
 // 2. Set `prBranch` to the name of the branch in (1)
