@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
@@ -83,12 +84,48 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	return roles, nil
 }
 
+// GetRequestableRoles returns the requestable roles for the currently logged-in user
+func (c *Cluster) GetRequestableRoles(ctx context.Context) ([]string, error) {
+	var (
+		authClient  auth.ClientI
+		proxyClient *client.ProxyClient
+		err         error
+		results     []string
+	)
+	err = addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		response, err := authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			RequestableRoles: true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		results = append(results, response.RequestableRoles...)
+
+		return nil
+	})
+	return results, nil
+}
+
 // GetLoggedInUser returns currently logged-in user
 func (c *Cluster) GetLoggedInUser() LoggedInUser {
 	return LoggedInUser{
-		Name:      c.status.Username,
-		SSHLogins: c.status.Logins,
-		Roles:     c.status.Roles,
+		Name:           c.status.Username,
+		SSHLogins:      c.status.Logins,
+		Roles:          c.status.Roles,
+		ActiveRequests: c.status.ActiveRequests.AccessRequests,
 	}
 }
 
@@ -105,6 +142,8 @@ type LoggedInUser struct {
 	SSHLogins []string
 	// Roles is the user roles
 	Roles []string
+	// ActiveRequests is the user active requests
+	ActiveRequests []string
 }
 
 // addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
