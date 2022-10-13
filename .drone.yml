@@ -7083,7 +7083,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
     AWS_ROLE:
-      from_secret: YUM_REPO_NEW_ROLE
+      from_secret: YUM_REPO_NEW_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
   volumes:
@@ -8007,6 +8007,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 2f91166db62edb2842c175fa597624eb15a035c455cdfc5a278fda182db3e3b3
+hmac: 0d3063844a5f8bf25043a691517ab358dc32739e233b593267f1a0fec96351c5
 
 ...
