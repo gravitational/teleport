@@ -3,7 +3,7 @@ authors: Brian Joerger (bjoerger@goteleport.com)
 state: implemented
 ---
 
-# RFD 80 - Hardware Private Keys
+# RFD 80 - Hardware Key Support
 
 ## Required approvers
 
@@ -27,9 +27,9 @@ Cryptographical hardware keys, including HSMs, TPMs, and PIV-compatible smart ca
 
 PKCS#11 provides the ability to:
 
-- generate and store private keys directly on a hardware key
-- perform cryptographic operations with a hardware key's stored private keys
-- store and retrieve certificates directly on a hardware key
+* generate and store private keys directly on a hardware key
+* perform cryptographic operations with a hardware key's stored private keys
+* store and retrieve certificates directly on a hardware key
 
 However, the PKCS#11 interface is complex, hard to use, and does not provide a standard for slot management or attestation. Since we currently only plan to support yubikeys, which are PIV-compatible, we will use PIV for its ease of use and additional capabilities.
 
@@ -39,9 +39,9 @@ Personal Identity Verification (PIV), described in [FIPS-201](https://csrc.nist.
 
 PIV builds upon the PKCS#11 interface and provides us with additional capabilities including:
 
-- Optional PIN and Touch requirements for accessing keys
-- PIV secrets for granular [adminstrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html)
-- [Attestation](https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html) of private key slots
+* Optional PIN and Touch requirements for accessing keys
+* PIV secrets for granular [adminstrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html)
+* [Attestation](https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html) of private key slots
 
 ##### Attestation
 
@@ -59,10 +59,10 @@ Currently, Yubikey is one of the only PIV-compatible commercial hardware keys. A
 
 There is no common PIV library, so our best option is to use `piv-go` for a streamlined implemenation and prepare to adjust in the future as more PIV-compatible hardware keys are released. Possible adjustments include:
 
-- using multiple PIV libraries to support custom PIV implementations
-- switching to a PIV library which expressly supports all/more PIV implemenations
-- working within a PIV library, through PRs or a Fork, to expand PIV support
-- creating our own custom PIV library which we can add custom support into as needed
+* using multiple PIV libraries to support custom PIV implementations
+* switching to a PIV library which expressly supports all/more PIV implemenations
+* working within a PIV library, through PRs or a Fork, to expand PIV support
+* creating our own custom PIV library which we can add custom support into as needed
 
 Note: the adjustments above will largely be client-side and therefore should not pose any backwards compatibility concerns.
 
@@ -93,9 +93,9 @@ First, let's introduce the idea of private key policies. A private key policy re
 
 We will start with the following private key policies:
 
-- `none` (default): No enforcement on private key usage
-- `hardware_key`: A user's private keys must be generated on a hardware key. As a result, the user cannot use their signed certificates unless they have their hardware key connected
-- `hardware_key_touch`: A user's private keys must be generated on a hardware key, and must require touch to be accessed. As a result, the user must touch their hardware key on login, and on subsequent requests (touch is cached on the hardware key for 15 seconds)
+* `none` (default): No enforcement on private key usage
+* `hardware_key`: A user's private keys must be generated on a hardware key. As a result, the user cannot use their signed certificates unless they have their hardware key connected
+* `hardware_key_touch`: A user's private keys must be generated on a hardware key, and must require touch to be accessed. As a result, the user must touch their hardware key on login, and on subsequent requests (touch is cached on the hardware key for 15 seconds)
 
 In the future, we could choose to enforce more things, such as requiring PIN to be used, or requiring a specific key algorithm.
 
@@ -147,14 +147,14 @@ message YubiKeyAttestationStatement {
 
 When the Auth Server receives a login request, it will check the attached attestation statement:
 
-- The `slot_cert`'s public key matches the public key to be signed
-- The `slot_cert` chains to the `attestation_cert`
-- The `attestation_cert` chains to a trusted hardware key CA (Yubico)
+* The `slot_cert`'s public key matches the public key to be signed
+* The `slot_cert` chains to the `attestation_cert`
+* The `attestation_cert` chains to a trusted hardware key CA (Yubico)
 
 After the attestation statement has been verified, we can pull additional properties from the `slot_cert`'s extensions, which includes data like:
 
-- Device information including serial number, model, and version
-- Configured Touch (And PIN) Policies
+* Device information including serial number, model, and version
+* Configured Touch (And PIN) Policies
 
 This data will then be checked against the user's private key policy requirement. If the policy requirement is met, the Auth server will sign the user's certificates with a private key policy extension matching the attestation.
 
@@ -215,9 +215,9 @@ spec:
     require_session_mfa: off | on | hardware_key | hardware_key_touch
 ```
 
-- `on`: Enforce per-session MFA. Users are required to pass an MFA challenge with a registered MFA device in order to start new SSH|Kubernetes|DB|Desktop sessions. Non-session requests, and app-session requests are not impacted.
-- `hardware_key`: Enforce per-session MFA and private key policy `hardware_key`.
-- `hardware_key_touch`: Enforce private key policy `hardware_key_touch`. This replaces per-session MFA with per-request PIV-touch.
+* `on`: Enforce per-session MFA. Users are required to pass an MFA challenge with a registered MFA device in order to start new SSH|Kubernetes|DB|Desktop sessions. Non-session requests, and app-session requests are not impacted.
+* `hardware_key`: Enforce per-session MFA and private key policy `hardware_key`.
+* `hardware_key_touch`: Enforce private key policy `hardware_key_touch`. This replaces per-session MFA with per-request PIV-touch.
 
 ##### Webauthn
 
@@ -297,9 +297,9 @@ On login, a Teleport client will find a private key that meets the private key p
 
 If the key policy is `hardware_key` or `hardware_key_touch`, then a private key will be generated directly on the hardware key. The resulting login certificates will only be operable if:
 
-- The hardware key is connected during the operation
-- The hardware private key can still be found
-- The hardware private key's Touch challenge is passed (if applicable)
+* The hardware key is connected during the operation
+* The hardware private key can still be found
+* The hardware private key's Touch challenge is passed (if applicable)
 
 #### PIV slot logic
 
