@@ -1945,8 +1945,6 @@ func (f *fakeFIDO2Device) Assertion(
 	switch {
 	case rpID == "":
 		return nil, errors.New("rp.ID required")
-	case f.wantRPID != "" && f.wantRPID != rpID:
-		return nil, libfido2.ErrNoCredentials
 	case len(clientDataHash) == 0:
 		return nil, errors.New("clientDataHash required")
 	}
@@ -1978,6 +1976,12 @@ func (f *fakeFIDO2Device) Assertion(
 	// Block for user presence before accessing any credential data.
 	if err := f.maybeLockUntilInteraction(opts.UP == libfido2.True); err != nil {
 		return nil, err
+	}
+
+	// Does our explicitly set RPID match?
+	// Used to simulate U2F App ID.
+	if f.wantRPID != "" && f.wantRPID != rpID {
+		return nil, libfido2.ErrNoCredentials
 	}
 
 	// Index credentialIDs for easier use.
