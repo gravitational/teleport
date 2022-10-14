@@ -92,10 +92,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 		sort.Sort(sortedLabels(uiLabels))
 
 		serverLogins := userRoles.EnumerateServerLogins(server)
-		sshLogins := serverLogins.Allowed()
-		if sshLogins == nil {
-			sshLogins = []string{}
-		}
+		sshLogins := nonNilSlice(serverLogins.Allowed())
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -117,10 +114,15 @@ type KubeCluster struct {
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
 	Labels []Label `json:"labels"`
+	// TODO: fix comments
+	// KubeUsers are the list of allowed Kubernetes RBAC users that the user can impersonate.
+	KubeUsers []string `json:"kubernetes_users"`
+	// KubeGroups are the list of allowed Kubernetes RBAC groups that the user can impersonate.
+	KubeGroups []string `json:"kubernetes_groups"`
 }
 
-// MakeKubes creates ui kube objects and returns a list..
-func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
+// MakeKubeClusters creates ui kube objects and returns a list.
+func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
@@ -143,13 +145,26 @@ func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 
 		sort.Sort(sortedLabels(uiLabels))
 
+		kubeUsers, kubeGroups := userRoles.EnumerateKubernetesUsersAndGroups(cluster)
+
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
-			Name:   cluster.GetName(),
-			Labels: uiLabels,
+			Name:       cluster.GetName(),
+			Labels:     uiLabels,
+			KubeUsers:  nonNilSlice(kubeUsers.Allowed()),
+			KubeGroups: nonNilSlice(kubeGroups.Allowed()),
 		})
 	}
 
 	return uiKubeClusters
+}
+
+// nonNilSlice checks if the given slice is nil. If it's the case returns an empty
+// slice, otherwise returns the given slice.
+func nonNilSlice(s1 []string) []string {
+	if s1 == nil {
+		return []string{}
+	}
+	return s1
 }
 
 // ConnectionDiagnostic describes a connection diagnostic.
