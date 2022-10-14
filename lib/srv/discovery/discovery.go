@@ -237,7 +237,7 @@ func genInstancesLogStr(instances []*ec2.Instance) string {
 		logInstances.WriteString(aws.StringValue(inst.InstanceId) + ", ")
 	}
 	if len(instances) > 10 {
-		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunacted", len(instances)-10))
+		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs truncated", len(instances)-10))
 	}
 
 	return fmt.Sprintf("[%s]", logInstances.String())
