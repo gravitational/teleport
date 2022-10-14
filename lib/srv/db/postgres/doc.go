@@ -29,7 +29,7 @@ limitations under the License.
 //   - Proxy. Runs inside Teleport proxy and proxies connections from Postgres
 //     clients to appropriate database servers over reverse tunnel.
 //
-//   - Engine. Runs inside Teleport database service, accepts connections
+//   - pgWireEngine. Runs inside Teleport database service, accepts connections
 //     coming from proxy over reversetunnel and proxies them to databases.
 //
 //   - TestServer. Fake Postgres server that implements a small part of its

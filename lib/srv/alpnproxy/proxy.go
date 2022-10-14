@@ -477,7 +477,7 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.Clien
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return hello, newBufferedConn(conn, buff), nil
+	return hello, utils.NewBufferedConn(conn, buff), nil
 }
 
 func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, connInfo ConnectionInfo) error {

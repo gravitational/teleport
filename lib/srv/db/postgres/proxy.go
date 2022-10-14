@@ -17,6 +17,7 @@ limitations under the License.
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"net"
@@ -50,9 +51,9 @@ type Proxy struct {
 	Limiter *limiter.Limiter
 }
 
-// HandleConnection accepts connection from a Postgres client, authenticates
+// handlePGWire accepts connection from a Postgres client, authenticates
 // it and proxies it to an appropriate database service.
-func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
+func (p *Proxy) handlePGWire(ctx context.Context, clientConn net.Conn) (err error) {
 	startupMessage, tlsConn, backend, err := p.handleStartup(ctx, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -101,6 +102,76 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (p *Proxy) handleGRPC(ctx context.Context, clientConn net.Conn) (err error) {
+	buffConn, ok := clientConn.(*utils.BufferedConn)
+	if !ok {
+		return trace.BadParameter("failed to obtain tls connection")
+	}
+
+	pc, ok := buffConn.Conn.(*alpnproxy.PingConn)
+	if !ok {
+		return trace.BadParameter("failed to obtain tls connection")
+	}
+
+	clientIP, err := utils.ClientIPFromConn(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	releaseConn, err := p.Limiter.RegisterRequestAndConnection(clientIP)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseConn()
+
+	proxyCtx, err := p.Service.Authorize(ctx, pc, common.ConnectParams{
+		ClientIP: clientIP,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer serviceConn.Close()
+
+	if err := utils.ProxyConn(ctx, clientConn, serviceConn); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// HandleConnection accepts connection from a Postgres client, authenticates
+// it and proxies it to an appropriate database service.
+func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
+	conn, ok, err := isGRPCConnection(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ok {
+		return trace.Wrap(p.handleGRPC(ctx, conn))
+	}
+	if err := p.handlePGWire(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func isGRPCConnection(clientConn net.Conn) (net.Conn, bool, error) {
+	header := make([]byte, 4)
+	n, err := clientConn.Read(header)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	// https://httpwg.org/specs/rfc7540.html#rfc.section.3.5
+	http2ConnPref := []byte{80, 82, 73, 32}
+	conn := utils.NewBufferedConn(clientConn, bytes.NewReader(header[:n]))
+	isGRPC := bytes.Equal(header, http2ConnPref)
+	return conn, isGRPC, nil
 }
 
 // handleStartup handles the initial protocol exchange between the Postgres
@@ -152,6 +223,11 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 			return m, tlsConn, backend, nil
 		case *alpnproxy.PingConn:
 			return m, tlsConn, backend, nil
+		case *utils.BufferedConn:
+			if conn, ok := tlsConn.Conn.(*tls.Conn); ok {
+				return m, conn, backend, nil
+			}
+			return nil, nil, nil, trace.BadParameter("failed to obtain tls connection during handling BuffConn")
 		default:
 			return nil, nil, nil, trace.BadParameter(
 				"expected tls connection, got %T", clientConn)

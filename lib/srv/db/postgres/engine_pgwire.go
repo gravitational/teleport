@@ -37,23 +37,21 @@ import (
 )
 
 func init() {
-	common.RegisterEngine(newEngine,
-		defaults.ProtocolPostgres,
-		defaults.ProtocolCockroachDB)
+	common.RegisterEngine(newPGWire, defaults.ProtocolPostgres)
 }
 
-func newEngine(ec common.EngineConfig) common.Engine {
-	return &Engine{
+func newPGWire(ec common.EngineConfig) common.Engine {
+	return &pgWireEngine{
 		EngineConfig: ec,
 	}
 }
 
-// Engine implements the Postgres database service that accepts client
+// pgWireEngine implements the Postgres database service that accepts client
 // connections coming over reverse tunnel from the proxy and proxies
 // them between the proxy and the Postgres database instance.
 //
 // Implements common.Engine.
-type Engine struct {
+type pgWireEngine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// client is a client connection.
@@ -61,9 +59,8 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
+func (e *pgWireEngine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
-
 	// The proxy is supposed to pass a startup message it received from
 	// the psql client over to us, so wait for it and extract database
 	// and username from it.
@@ -76,7 +73,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 }
 
 // SendError sends an error to connected client in a Postgres understandable format.
-func (e *Engine) SendError(err error) {
+func (e *pgWireEngine) SendError(err error) {
 	if err := e.client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
 		e.Log.WithError(err).Error("Failed to send error to client.")
 	}
@@ -106,10 +103,10 @@ func toErrorResponse(err error) *pgproto3.ErrorResponse {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *pgWireEngine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	// Now we know which database/username the user is connecting to, so
 	// perform an authorization check.
-	err := e.checkAccess(ctx, sessionCtx)
+	err := checkAccess(ctx, e.EngineConfig, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -159,7 +156,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // handleStartup receives a startup message from the proxy and updates
 // the session context with the connection parameters.
-func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Session) error {
+func (e *pgWireEngine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Session) error {
 	startupMessageI, err := client.ReceiveStartupMessage()
 	if err != nil {
 		return trace.Wrap(err)
@@ -185,8 +182,8 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 	return nil
 }
 
-func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+func checkAccess(ctx context.Context, ec common.EngineConfig, sessionCtx *common.Session) error {
+	ap, err := ec.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -203,7 +200,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		dbRoleMatchers...,
 	)
 	if err != nil {
-		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
+		ec.Audit.OnSessionStart(ctx, sessionCtx, err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -212,8 +209,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 // connect establishes the connection to the database instance and returns
 // the hijacked connection and the frontend, an interface used for message
 // exchange with the database.
-func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgproto3.Frontend, *pgconn.HijackedConn, error) {
-	connectConfig, err := e.getConnectConfig(ctx, sessionCtx)
+func (e *pgWireEngine) connect(ctx context.Context, sessionCtx *common.Session) (*pgproto3.Frontend, *pgconn.HijackedConn, error) {
+	connectConfig, err := getConnectConfig(ctx, e.EngineConfig, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -238,7 +235,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 
 // makeClientReady indicates to the Postgres client (such as psql) that the
 // server is ready to accept messages from it.
-func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.HijackedConn) error {
+func (e *pgWireEngine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.HijackedConn) error {
 	// AuthenticationOk indicates that the authentication was successful.
 	e.Log.Debug("Sending AuthenticationOk.")
 	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
@@ -270,7 +267,7 @@ func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.
 // receiveFromClient receives messages from the provided backend (which
 // in turn receives them from psql or other client) and relays them to
 // the frontend connected to the database instance.
-func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Frontend, clientErrCh chan<- error, sessionCtx *common.Session) {
+func (e *pgWireEngine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Frontend, clientErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "client")
 	defer log.Debug("Stop receiving from client.")
 	for {
@@ -309,21 +306,21 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 
 // auditQueryMessage processes Query wire message which indicates that client
 // is executing a simple query.
-func (e *Engine) auditQueryMessage(session *common.Session, msg *pgproto3.Query) {
+func (e *pgWireEngine) auditQueryMessage(session *common.Session, msg *pgproto3.Query) {
 	e.Audit.OnQuery(e.Context, session, common.Query{Query: msg.String})
 }
 
 // handleParseMesssage processes Parse wire message which indicates start of the
 // extended query protocol (prepared statements):
 // https://www.postgresql.org/docs/10/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY
-func (e *Engine) auditParseMessage(session *common.Session, msg *pgproto3.Parse) {
+func (e *pgWireEngine) auditParseMessage(session *common.Session, msg *pgproto3.Parse) {
 	e.Audit.EmitEvent(e.Context, makeParseEvent(session, msg.Name, msg.Query))
 }
 
 // auditBindMessage processes Bind wire message which readies existing prepared
 // statement for execution into what Postgres calls a "destination portal",
 // optionally binding it with parameters (for parameterized queries).
-func (e *Engine) auditBindMessage(session *common.Session, msg *pgproto3.Bind) {
+func (e *pgWireEngine) auditBindMessage(session *common.Session, msg *pgproto3.Bind) {
 	e.Audit.EmitEvent(e.Context, makeBindEvent(session, msg.PreparedStatement,
 		msg.DestinationPortal, formatParameters(msg.Parameters,
 			msg.ParameterFormatCodes)))
@@ -331,13 +328,13 @@ func (e *Engine) auditBindMessage(session *common.Session, msg *pgproto3.Bind) {
 
 // auditExecuteMessage processes Execute wire message which indicates that
 // client is executing the previously parsed and bound prepared statement.
-func (e *Engine) auditExecuteMessage(session *common.Session, msg *pgproto3.Execute) {
+func (e *pgWireEngine) auditExecuteMessage(session *common.Session, msg *pgproto3.Execute) {
 	e.Audit.EmitEvent(e.Context, makeExecuteEvent(session, msg.Portal))
 }
 
 // auditCloseMessage processes Close wire message which indicates that client
 // is closing a prepared statement or a destination portal.
-func (e *Engine) auditCloseMessage(session *common.Session, msg *pgproto3.Close) {
+func (e *pgWireEngine) auditCloseMessage(session *common.Session, msg *pgproto3.Close) {
 	switch msg.ObjectType {
 	case closeTypePreparedStatement:
 		e.Audit.EmitEvent(e.Context, makeCloseEvent(session, msg.Name, ""))
@@ -348,7 +345,7 @@ func (e *Engine) auditCloseMessage(session *common.Session, msg *pgproto3.Close)
 
 // auditFuncCallMessage processes FunctionCall wire message which indicates
 // that client is executing a system function.
-func (e *Engine) auditFuncCallMessage(session *common.Session, msg *pgproto3.FunctionCall) {
+func (e *pgWireEngine) auditFuncCallMessage(session *common.Session, msg *pgproto3.FunctionCall) {
 	var formatCodes []int16
 	for _, fc := range msg.ArgFormatCodes {
 		formatCodes = append(formatCodes, int16(fc))
@@ -360,7 +357,7 @@ func (e *Engine) auditFuncCallMessage(session *common.Session, msg *pgproto3.Fun
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
-func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.Backend, serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
+func (e *pgWireEngine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.Backend, serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "server")
 	defer log.Debug("Stop receiving from server.")
 	for {
@@ -391,7 +388,7 @@ func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.B
 
 // getConnectConfig returns config that can be used to connect to the
 // database instance.
-func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Session) (*pgconn.Config, error) {
+func getConnectConfig(ctx context.Context, ec common.EngineConfig, sessionCtx *common.Session) (*pgconn.Config, error) {
 	// The driver requires the config to be built by parsing the connection
 	// string so parse the basic template and then fill in the rest of
 	// parameters such as TLS configuration.
@@ -401,7 +398,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	}
 	// TLS config will use client certificate for an onprem database or
 	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
+	config.TLSConfig, err = ec.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -417,22 +414,22 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// auth token and use it as a password.
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeRDS:
-		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
+		config.Password, err = ec.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeRedshift:
-		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(sessionCtx)
+		config.User, config.Password, err = ec.Auth.GetRedshiftAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeCloudSQL:
-		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
+		config.Password, err = ec.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := ec.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -451,7 +448,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 			}
 		}
 	case types.DatabaseTypeAzure:
-		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		config.Password, err = ec.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
