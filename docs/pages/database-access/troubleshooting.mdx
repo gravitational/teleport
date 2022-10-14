@@ -49,7 +49,7 @@ similar to: **"access to db denied"**.
 access.
 
 Check that the database user and database name (aka schema) you are trying to access via `tsh` exist in the database instance.
-When referring to "database name" or `db_names`, this is not the same as the `name` field in `db_service`;
+When referring to "database name" or `db_names`, this is not the same as the `name` field in the `db_service` section of your Database Service configuration;
 this is referring to database names or schemas within a particular database instance.
 When connecting to a PostgreSQL or MongoDB instance, be sure to specify `--db-name`:
 ```sh
