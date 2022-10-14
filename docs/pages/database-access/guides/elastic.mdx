@@ -86,40 +86,9 @@ reverse tunnel.
 
 </Admonition>
 
-## Step 2/5. Create or modify a Teleport user
+## Step 2/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
-
-Alternately, you can edit an existing user with database access.
-
-1. As a Teleport user with the `editor` role, import a user's configuration to a local `yaml` file:
-
-   ```code
-   $ tctl get user/my-teleport-user > user.yaml
-
-   ```
-
-2. Modify `spec.traits.db_names` and `spec.traits.db_users` with the name(s) and database user(s) this user should have access to, or use `*` to provide access to all databases/users:
-
-    ```yaml
-    ...
-    spec:
-      ...
-      traits:
-      ...
-      db_names:
-      - '*'
-      db_users:
-      - '*'
-      ...
-    ```
-
-3. Apply the changes to the Teleport user:
-
-   ```code
-   $ tctl create -f user.yaml
-   user "my-teleport-user" has been updated
-   ```
 
 ## Step 3/5. Create a role mapping
 
