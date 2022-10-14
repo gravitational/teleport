@@ -45,7 +45,6 @@ export function DesktopSession(props: State) {
   const {
     directorySharingState,
     setDirectorySharingState,
-    clipboardState,
     fetchAttempt,
     tdpConnection,
     disconnected,
@@ -53,13 +52,9 @@ export function DesktopSession(props: State) {
     setTdpConnection,
   } = props;
 
-  const clipboardProcessing =
-    clipboardState.enabled && clipboardState.permission.state === 'prompt';
-
   const processing =
     fetchAttempt.status === 'processing' ||
-    tdpConnection.status === 'processing' ||
-    clipboardProcessing;
+    tdpConnection.status === 'processing';
 
   // onDialogClose is called when a user
   // dismisses a non-fatal error dialog.
@@ -84,8 +79,6 @@ export function DesktopSession(props: State) {
   };
 
   const computeErrorDialog = () => {
-    const clipboardError = clipboardState.enabled && clipboardState.errorText;
-
     // Websocket is closed but we haven't
     // closed it on purpose or registered a fatal tdp error.
     const unknownConnectionError =
@@ -100,8 +93,6 @@ export function DesktopSession(props: State) {
       errorText = tdpConnection.statusText || 'tdp connection failed';
     } else if (tdpConnection.status === '') {
       errorText = tdpConnection.statusText || 'encountered a non-fatal error';
-    } else if (clipboardError) {
-      errorText = clipboardState.errorText || 'clipboard sharing failed';
     } else if (unknownConnectionError) {
       errorText = 'Session disconnected for an unknown reason.';
     } else if (directorySharingState.browserError) {
@@ -205,8 +196,8 @@ function Session(props: PropsWithChildren<State>) {
     tdpClient,
     username,
     hostname,
-    clipboardState,
-    setClipboardState,
+    clipboardSharingEnabled: clipboardState,
+    setClipboardSharingEnabled: setClipboardState,
     directorySharingState,
     setDirectorySharingState,
     onPngFrame,
@@ -221,24 +212,15 @@ function Session(props: PropsWithChildren<State>) {
     onMouseUp,
     onMouseWheelScroll,
     onContextMenu,
-    onMouseEnter,
-    windowOnFocus,
   } = props;
 
-  const clipboardSharingActive =
-    clipboardState.enabled && clipboardState.permission.state === 'granted';
-  const clipboardSuccess =
-    !clipboardState.enabled ||
-    (clipboardState.enabled &&
-      clipboardState.permission.state === 'granted' &&
-      clipboardState.errorText === '');
+  const clipboardSharingActive = clipboardState;
 
   const showCanvas =
     fetchAttempt.status === 'success' &&
     (tdpConnection.status === 'success' || tdpConnection.status === '') &&
     wsConnection === 'open' &&
-    !disconnected &&
-    clipboardSuccess;
+    !disconnected;
 
   const onShareDirectory = () => {
     try {
@@ -271,10 +253,7 @@ function Session(props: PropsWithChildren<State>) {
       <TopBar
         onDisconnect={() => {
           setDisconnected(true);
-          setClipboardState(prevState => ({
-            ...prevState,
-            enabled: false,
-          }));
+          setClipboardState(false);
           setDirectorySharingState(prevState => ({
             ...prevState,
             isSharing: false,
@@ -328,8 +307,6 @@ function Session(props: PropsWithChildren<State>) {
         onMouseUp={onMouseUp}
         onMouseWheelScroll={onMouseWheelScroll}
         onContextMenu={onContextMenu}
-        onMouseEnter={onMouseEnter}
-        windowOnFocus={windowOnFocus}
       />
     </Flex>
   );

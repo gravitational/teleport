@@ -23,7 +23,6 @@ import { UrlDesktopParams } from 'teleport/config';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
-import { useClipboardReadWrite } from './useClipboard';
 import useTdpClientCanvas from './useTdpClientCanvas';
 
 export default function useDesktopSession() {
@@ -56,65 +55,9 @@ export default function useDesktopSession() {
   const [hostname, setHostname] = useState<string>('');
 
   const isUsingChrome = navigator.userAgent.includes('Chrome');
-  // hasClipboardSharingEnabled tracks whether the acl grants this user
-  // clipboard sharing permissions (based on the user's RBAC settings).
-  const [hasClipboardSharingEnabled, setHasClipboardSharingEnabled] =
-    useState(false);
-  // clipboardRWPermission tracks the browser's clipboard api permission.
-  const clipboardRWPermission = useClipboardReadWrite(
-    isUsingChrome && hasClipboardSharingEnabled
-  );
 
-  // clipboardState tracks the overall clipboard state for the component,
-  // based on `isUsingChrome`, `hasClipboardSharingEnabled` (whether user's RBAC grants
-  // them permission to share their clipboard), and `clipboardRWPermission` (the known
-  // state of the browser's clipboard permission).
-  const [clipboardState, setClipboardState] = useState({
-    enabled: hasClipboardSharingEnabled, // tracks whether the acl grants this user clipboard sharing permissions
-    permission: clipboardRWPermission, // tracks the browser clipboard api permission
-    errorText: '', // empty string means no error
-  });
-  useEffect(() => {
-    // errors:
-    // - browser clipboard permissions error
-    // - RBAC permits, browser not chromium
-    // - RBAC permits, browser clipboard permissions denied
-    if (clipboardRWPermission.state === 'error') {
-      setClipboardState({
-        enabled: hasClipboardSharingEnabled,
-        permission: clipboardRWPermission,
-        errorText:
-          clipboardRWPermission.errorText ||
-          'unknown clipboard permission error',
-      });
-    } else if (hasClipboardSharingEnabled && !isUsingChrome) {
-      setClipboardState({
-        enabled: hasClipboardSharingEnabled,
-        permission: clipboardRWPermission,
-        errorText:
-          'Your user role supports clipboard sharing over desktop access, \
-          however this feature is only available on chromium based browsers \
-          like Brave or Google Chrome. Please switch to a supported browser.',
-      });
-    } else if (
-      hasClipboardSharingEnabled &&
-      clipboardRWPermission.state === 'denied'
-    ) {
-      setClipboardState({
-        enabled: hasClipboardSharingEnabled,
-        permission: clipboardRWPermission,
-        errorText: `Your user role supports clipboard sharing over desktop access, \
-        but your browser is blocking clipboard read or clipboard write permissions. \
-        Please grant both of these permissions to Teleport in your browser's settings.`,
-      });
-    } else {
-      setClipboardState({
-        enabled: hasClipboardSharingEnabled,
-        permission: clipboardRWPermission,
-        errorText: '',
-      });
-    }
-  }, [isUsingChrome, hasClipboardSharingEnabled, clipboardRWPermission]);
+  // Set by result of `user.acl.clipboardSharingEnabled && isUsingChrome` below.
+  const [clipboardSharingEnabled, setClipboardSharingEnabled] = useState(false);
 
   document.title = useMemo(
     () => `${clusterId} • ${username}@${hostname}`,
@@ -128,7 +71,9 @@ export default function useDesktopSession() {
           .fetchDesktop(clusterId, desktopName)
           .then(desktop => setHostname(desktop.name)),
         userService.fetchUserContext().then(user => {
-          setHasClipboardSharingEnabled(user.acl.clipboardSharingEnabled);
+          setClipboardSharingEnabled(
+            user.acl.clipboardSharingEnabled && isUsingChrome
+          );
           setDirectorySharingState(prevState => ({
             ...prevState,
             canShare: user.acl.directorySharingEnabled,
@@ -144,12 +89,9 @@ export default function useDesktopSession() {
     clusterId,
     setTdpConnection,
     setWsConnection,
-    setClipboardState,
+    setClipboardSharingEnabled,
     setDirectorySharingState,
-    enableClipboardSharing:
-      clipboardState.enabled &&
-      clipboardState.permission.state === 'granted' &&
-      !clipboardState.errorText,
+    clipboardSharingEnabled,
   });
 
   const webauthn = useWebAuthn(clientCanvasProps.tdpClient);
@@ -157,8 +99,8 @@ export default function useDesktopSession() {
   return {
     hostname,
     username,
-    clipboardState,
-    setClipboardState,
+    clipboardSharingEnabled,
+    setClipboardSharingEnabled,
     directorySharingState,
     setDirectorySharingState,
     isUsingChrome,

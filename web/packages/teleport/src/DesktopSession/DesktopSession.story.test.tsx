@@ -8,7 +8,6 @@ import {
   Disconnected,
   FetchError,
   ConnectionError,
-  ClipboardError,
   UnintendedDisconnect,
   WebAuthnPrompt,
   DismissibleError,
@@ -36,11 +35,6 @@ test('fetch error', () => {
 
 test('connection error', () => {
   const { getByTestId } = render(<ConnectionError />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
-});
-
-test('clipboard error', () => {
-  const { getByTestId } = render(<ClipboardError />);
   expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
