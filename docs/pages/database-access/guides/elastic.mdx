@@ -52,7 +52,7 @@ $ teleport db start \
   --auth-server=teleport.example.com:3080 \
   --name=myelastic \
   --protocol=elastic \
-  --uri={ELASTICSEARCH_HOST}:9200 \
+  --uri=elasticsearch.example.com:9200 \
   --labels=env=dev
 ```
 
@@ -68,12 +68,12 @@ db_service:
   databases:
   - name: myelastic
     protocol: elasticsearch
-    uri: {ELASTICSEARCH_HOST}:9200
+    uri: elasticsearch.example.com:9200
     static_labels:
       env: dev
 ```
 
-Adjust for your environment, then start or restart Teleport.
+Adjust for your environment, then start or restart Teleport. See the [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
 </Tabs>
@@ -86,11 +86,6 @@ reverse tunnel.
 
 </Admonition>
 
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
-
 ## Step 2/5. Create or modify a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
@@ -100,7 +95,7 @@ Alternately, you can edit an existing user with database access.
 1. As a Teleport user with the `editor` role, import a user's configuration to a local `yaml` file:
 
    ```code
-   $ tctl get user/{teleport-user} > user.yaml
+   $ tctl get user/my-teleport-user > user.yaml
 
    ```
 
@@ -123,7 +118,7 @@ Alternately, you can edit an existing user with database access.
 
    ```code
    $ tctl create -f user.yaml
-   user "teleport-user" has been updated
+   user "my-teleport-user" has been updated
    ```
 
 ## Step 3/5. Create a role mapping
@@ -133,7 +128,7 @@ The example below maps the Teleport user `alice` to the `superuser` role in Elas
 should **not** be done in production:
 
 ```code
-$ curl -u elastic:{ELASTICSEARCH_USER_PASSWORD} -X POST "https://{ELASTICSEARCH_HOST}:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
+$ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.example.com:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
 {
   "roles": [ "superuser"],
   "enabled": true,
@@ -170,7 +165,7 @@ The command will create three files:
 
 - `elastic.cas` with Teleport's certificate authority
 - `elastic.key` with a generated private key
-- `elastic.crt` with a generated user certificate
+- `elastic.crt` with a generated host certificate
 
 You will need these files to enable mutual TLS on your Elasticsearch server.
 
@@ -193,11 +188,6 @@ xpack.security.authc.realms.pki.pki1:
   enabled: true
   certificate_authorities: /path/to/elastic.cas
 ```
-
-<Admonition type="tip">
-For more information on configuring security settings in Elasticsearch, see:
-[Security settings in Elasticsearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html)
-</Admonition>
 
 Once mutual TLS has been enabled, you will no longer be able to connect to the cluster without
 providing a valid client certificate. You can set `xpack.security.http.ssl.client_authentication`
@@ -231,7 +221,7 @@ Log into your Teleport cluster and see available databases:
 To connect to a particular database instance:
 
 ```code
-$ tsh tb connect myelastic --db-user=elastic
+$ tsh db connect myelastic --db-user=elastic
 ```
 
 To log out of the database and remove credentials:
@@ -246,3 +236,5 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+- For more information on configuring security settings in Elasticsearch, see:
+[Security settings in Elasticsearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html)
