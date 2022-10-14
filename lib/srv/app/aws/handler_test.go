@@ -185,7 +185,8 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
 		awsAPIMock.Close()
 	})
 
-	client := &http.Client{
+	svc, err := NewSigningService(SigningServiceConfig{
+		getSigningCredentials: staticAWSCredentials,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
@@ -194,12 +195,7 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
 				return net.Dial(awsAPIMock.Listener.Addr().Network(), awsAPIMock.Listener.Addr().String())
 			},
 		},
-	}
-
-	svc, err := NewSigningService(SigningServiceConfig{
-		getSigningCredentials: staticAWSCredentials,
-		Client:                client,
-		Clock:                 clockwork.NewFakeClock(),
+		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 
