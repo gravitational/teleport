@@ -95,9 +95,11 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Session recording can be disabled
   - [ ] Sessions can be recorded at the node
     - [ ] Sessions in remote clusters are recorded in remote clusters
-  - [ ] Sessions can be recorded at the proxy
+  - [ ] [Sessions can be recorded at the proxy](https://goteleport.com/docs/server-access/guides/recording-proxy-mode/)
     - [ ] Sessions on remote clusters are recorded in the local cluster
-    - [ ] Enable/disable host key checking.
+    - [ ] With an OpenSSH server without a Teleport CA signed host certificate:
+      - [ ] Host key checking enabled rejects connection
+      - [ ] Host key checking disabled allows connection
 
 - [ ] Audit Log
   - [ ] Failed login attempts are recorded
@@ -369,11 +371,7 @@ instance has label `azure/foo=bar`.
 
 ### Passwordless
 
-Passwordless requires `tsh` compiled with libfido2 for most operations (apart
-from Touch ID). Ask for a statically-built `tsh` binary for realistic tests.
-
-Touch ID requires a properly built and signed `tsh` binary. Ask for a
-pre-release binary, so you may run the tests.
+This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
 This sections complements "Users -> Managing MFA devices". Ideally both macOS
 and Linux `tsh` binaries are tested for FIDO2 items.
@@ -406,6 +404,41 @@ and Linux `tsh` binaries are tested for FIDO2 items.
 - [ ] Touch ID support commands
   - [ ] `tsh touchid ls` works
   - [ ] `tsh touchid rm` works (careful, may lock you out!)
+
+### Hardware Key Support
+
+Hardware Key Support is an Enterprise feature and is not available for OSS.
+
+You will need a YubiKey 4.3+ to test this feature.
+
+This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
+
+These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
+
+1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login and no hardware key requirement.
+2. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key` - `tsh login --request-roles=hardware_key_required`
+  - [ ] Assuming the role should force automatic re-login with yubikey
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for per-session MFA
+3. [ ] Request a role with `role.role_options.require_session_mfa: hardware_key_touch` - `tsh login --request-roles=hardware_key_touch_required`
+  - [ ] Assuming the role should force automatic re-login with yubikey
+    - [ ] Prompts for touch if not cached (last touch within 15 seconds)
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for touch if not cached
+4. [ ] `tsh logout` and `tsh login` as the user with no hardware key requirement.
+5. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key`
+  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for per-session MFA
+6. [ ] Upgrade auth settings to `auth_service.authentication.require_session_mfa: hardware_key_touch`
+  - [ ] Using the existing login session (`tsh ls`) should force automatic re-login with yubikey
+    - [ ] Prompts for touch if not cached
+  - [ ] `tsh ssh`
+    - [ ] Requires yubikey to be connected for re-login
+    - [ ] Prompts for touch if not cached
 
 ## WEB UI
 
@@ -677,7 +710,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
-- [ ] Verify that switching between tabs works on alt+[1...9]
+- [ ] Verify that switching between tabs works with `ctrl+[1...9]` (alt on linux/windows)
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
@@ -1144,7 +1177,7 @@ tsh bench sessions --max=5000 --web user ls
     the desktop should show a Windows menu, not a browser context menu)
   - [ ] Vertical and horizontal scroll work.
     [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
-- Locking
+- [Locking](https://goteleport.com/docs/access-controls/guides/locking/#step-12-create-a-lock)
   - [ ] Verify that placing a user lock terminates an active desktop session.
   - [ ] Verify that placing a desktop lock terminates an active desktop session.
   - [ ] Verify that placing a role lock terminates an active desktop session.
@@ -1213,7 +1246,6 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
 - Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
   - [ ] Attempting to start a session no keys registered shows an error message
-  - [ ] Attempting to start a session with a u2f key registered shows an error message
   - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
     - [ ] Hitting "Cancel" shows an error message
     - [ ] Hitting "Verify" causes your browser to prompt you for MFA
@@ -1221,21 +1253,25 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Successful MFA verification allows you to connect
 - Session Recording
   - [ ] Verify sessions are not recorded if *all* of a user's roles disable recording
-  - [ ] Verify sync recording (`mode: node-sync` or `mode: proy-sync`)
+  - [ ] Verify sync recording (`mode: node-sync` or `mode: proxy-sync`)
   - [ ] Verify async recording (`mode: node` or `mode: proxy`)
   - [ ] Sessions show up in session recordings UI with desktop icon
   - [ ] Sessions can be played back, including play/pause functionality
+  - [ ] Sessions playback speed can be toggled while its playing
+  - [ ] Sessions playback speed can be toggled while its paused
   - [ ] A session that ends with a TDP error message can be played back, ends by displaying the error message,
         and the progress bar progresses to the end.
   - [ ] Attempting to play back a session that doesn't exist (i.e. by entering a non-existing session id in the url) shows
         a relevant error message.
   - [ ] RBAC for sessions: ensure users can only see their own recordings when
     using the RBAC rule from our
-    [docs](../../docs/pages/access-controls/reference.mdx#rbac-for-sessions)
+    [docs](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions)
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
     start (due to RBAC, for example)
+  - [ ] `client.disconnect` (`T3006I`) emitted when session is terminated by or fails
+    to start due to lock
   - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
   - [ ] `desktop.clipboard.send` (`TDP02I`) emitted for local copy -> remote
     paste

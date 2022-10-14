@@ -44,6 +44,7 @@ func TestProfileBasics(t *testing.T) {
 		Dir:                   dir,
 		SiteName:              "example.com",
 		AuthConnector:         "passwordless",
+		MFAMode:               "auto",
 	}
 
 	// verify that profile name is proxy host component

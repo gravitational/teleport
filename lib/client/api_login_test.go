@@ -77,9 +77,15 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	// Reset functions after tests.
 	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+	oldHasPlatformSupport := *client.HasPlatformSupport
+	*client.HasPlatformSupport = func() bool {
+		return true
+	}
+
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
 		*client.PromptWebauthn = oldWebauthn
+		*client.HasPlatformSupport = oldHasPlatformSupport
 	})
 
 	waitForCancelFn := func(ctx context.Context) (string, error) {
@@ -264,6 +270,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	customizedOpts := &client.PromptMFAChallengeOpts{
+		HintBeforePrompt:        "some hint explaining the imminent prompt",
 		PromptDevicePrefix:      "llama",
 		Quiet:                   true,
 		AllowStdinHijack:        true,

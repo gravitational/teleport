@@ -466,7 +466,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 					continue
 				}
 			case reconnectRequest:
-				a.log.Debugf("Receieved reconnect advisory request from proxy.")
+				a.log.Debugf("Received reconnect advisory request from proxy.")
 				if r.WantReply {
 					err := a.client.Reply(r, true, nil)
 					if err != nil {
