@@ -1984,7 +1984,7 @@ func (l *kubePrincipalsMatcher) Match(role types.Role, typ types.RoleConditionTy
 	case kubeGroupsPrincipal:
 		principals = role.GetKubeGroups(typ)
 	default:
-		return false, trace.BadParameter("bad principal type received %v", l.principal)
+		return false, trace.BadParameter("bad principal type %v", l.principal)
 	}
 	return apiutils.SliceContainsStr(principals, l.principal), nil
 }
