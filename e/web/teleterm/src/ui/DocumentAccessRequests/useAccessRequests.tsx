@@ -134,7 +134,7 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
       ...review,
       created: review.created.seconds * 1000,
     })),
-    reviewers: request.reviewsList,
+    suggestedReviewers: request.suggestedReviewersList,
     thresholdNames: request.thresholdNamesList,
     // TODO (avatus): fetch detailed data to include hostname after implementing
     // changes for Connect related to https://github.com/gravitational/webapps.e/pull/391

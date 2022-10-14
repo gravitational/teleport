@@ -86,6 +86,7 @@ const Header = styled(Flex)`
   flex-shrink: 0;
   border-bottom: 1px solid ${props => props.theme.colors.primary.main};
   height: 56px;
+  margin-bottom: 24px;
 `;
 
 const HeaderTitle = styled(Text)`
