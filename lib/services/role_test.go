@@ -36,12 +36,11 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
 )
 
 // TestConnAndSessLimits verifies that role sets correctly calculate
@@ -5257,4 +5256,306 @@ func TestPrivateKeyPolicy(t *testing.T) {
 			require.Equal(t, tc.expectPrivateKeyPolicy, set.PrivateKeyPolicy(tc.authPrefPrivateKeyPolicy))
 		})
 	}
+}
+
+func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
+	devEnvRole := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeUsers:  []string{"devuser"},
+				KubeGroups: []string{"devgroup"},
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"env": []string{"dev"},
+				},
+			},
+		},
+	}
+
+	prodEnvRole := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeUsers:  []string{"produser"},
+				KubeGroups: []string{"prodgroup"},
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	}
+
+	anyEnvRole := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeUsers:  []string{"anyenvrole"},
+				KubeGroups: []string{"anyenvgroup"},
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"env": []string{"*"},
+				},
+			},
+		},
+	}
+
+	rootUser := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeUsers:  []string{"root"},
+				KubeGroups: []string{"rootgroup"},
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+	}
+
+	roleWithMultipleLabels := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeUsers:  []string{"multiplelabelsuser"},
+				KubeGroups: []string{"multiplelabelsgroup"},
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"region": []string{"*"},
+					"env":    []string{"dev"},
+				},
+			},
+		},
+	}
+
+	tt := []struct {
+		name                 string
+		server               types.KubeCluster
+		roleSet              RoleSet
+		expectedUsers        []string
+		expectedDeniedUsers  []string
+		expectedGroups       []string
+		expectedDeniedGroups []string
+	}{
+		{
+			name: "env dev user and group is added",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "dev",
+			}),
+			roleSet:        NewRoleSet(devEnvRole),
+			expectedUsers:  []string{"devuser"},
+			expectedGroups: []string{"devgroup"},
+		},
+		{
+			name: "env prod user and group is added",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(prodEnvRole),
+			expectedUsers:  []string{"produser"},
+			expectedGroups: []string{"prodgroup"},
+		},
+		{
+			name: "only the correct prod is added",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "prod",
+			}),
+			roleSet:              NewRoleSet(prodEnvRole, devEnvRole),
+			expectedUsers:        []string{"produser"},
+			expectedDeniedUsers:  []string{"devuser"},
+			expectedGroups:       []string{"prodgroup"},
+			expectedDeniedGroups: []string{"devgroup"},
+		},
+		{
+			name: "users and groups from role not authorized are denied",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "staging",
+			}),
+			roleSet:              NewRoleSet(devEnvRole, prodEnvRole),
+			expectedUsers:        nil,
+			expectedDeniedUsers:  []string{"devuser", "produser"},
+			expectedGroups:       nil,
+			expectedDeniedGroups: []string{"devgroup", "prodgroup"},
+		},
+		{
+			name: "role with wildcard gets group and user",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(anyEnvRole),
+			expectedUsers:  []string{"anyenvrole"},
+			expectedGroups: []string{"anyenvgroup"},
+		},
+		{
+			name: "can return multiple users and groups",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(anyEnvRole, prodEnvRole),
+			expectedUsers:  []string{"anyenvrole", "produser"},
+			expectedGroups: []string{"anyenvgroup", "prodgroup"},
+		},
+		{
+			name: "can return multiple users and groups from same role",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "prod",
+			}),
+			roleSet: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						KubeUsers:  []string{"role1", "role2", "role3"},
+						Namespaces: []string{apidefaults.Namespace},
+						KubernetesLabels: types.Labels{
+							"env": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedUsers: []string{"role1", "role2", "role3"},
+		},
+		{
+			name: "works with full access",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(rootUser),
+			expectedUsers:  []string{"root"},
+			expectedGroups: []string{"rootgroup"},
+		},
+		{
+			name: "works with server with multiple labels",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env":    "prod",
+				"region": "us-east-1",
+			}),
+			roleSet:        NewRoleSet(prodEnvRole),
+			expectedUsers:  []string{"produser"},
+			expectedGroups: []string{"prodgroup"},
+		},
+		{
+			name: "don't add login from unrelated labels",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "dev",
+			}),
+			roleSet: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						KubeGroups: []string{"anyregiongroup"},
+						Namespaces: []string{apidefaults.Namespace},
+						KubernetesLabels: types.Labels{
+							"region": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedUsers:        nil,
+			expectedGroups:       nil,
+			expectedDeniedGroups: []string{"anyregiongroup"},
+		},
+		{
+			name: "works with roles with multiple labels that role shouldn't access",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "dev",
+			}),
+			roleSet:              NewRoleSet(roleWithMultipleLabels),
+			expectedUsers:        nil,
+			expectedDeniedUsers:  []string{"multiplelabelsuser"},
+			expectedGroups:       nil,
+			expectedDeniedGroups: []string{"multiplelabelsgroup"},
+		},
+		{
+			name: "works with roles with multiple labels that role shouldn't access",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env":    "dev",
+				"region": "us-west-1",
+			}),
+			roleSet:        NewRoleSet(roleWithMultipleLabels),
+			expectedUsers:  []string{"multiplelabelsuser"},
+			expectedGroups: []string{"multiplelabelsgroup"},
+		},
+		{
+			name: "works with roles with regular expressions",
+			server: makeTestKubeCluster(t, map[string]string{
+				"region": "us-west-1",
+			}),
+			roleSet: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						KubeUsers:  []string{"rolewithregexpuser"},
+						Namespaces: []string{apidefaults.Namespace},
+						KubernetesLabels: types.Labels{
+							"region": []string{"^us-west-1|eu-central-1$"},
+						},
+					},
+				},
+			}),
+			expectedUsers: []string{"rolewithregexpuser"},
+		},
+		{
+			name: "works with denied roles",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "dev",
+			}),
+			roleSet: NewRoleSet(devEnvRole, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Deny: types.RoleConditions{
+						KubeUsers:  []string{"devuser"},
+						KubeGroups: []string{"devgroup"},
+						Namespaces: []string{apidefaults.Namespace},
+						KubernetesLabels: types.Labels{
+							"env": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedUsers:        nil,
+			expectedDeniedUsers:  []string{"devuser"},
+			expectedDeniedGroups: []string{"devgroup"},
+		},
+		{
+			name: "works with denied roles of unrelated labels",
+			server: makeTestKubeCluster(t, map[string]string{
+				"env": "dev",
+			}),
+			roleSet: NewRoleSet(devEnvRole, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Deny: types.RoleConditions{
+						KubeUsers:  []string{"devuser"},
+						KubeGroups: []string{"devgroup"},
+						Namespaces: []string{apidefaults.Namespace},
+						KubernetesLabels: types.Labels{
+							"region": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedUsers:        nil,
+			expectedDeniedUsers:  []string{"devuser"},
+			expectedDeniedGroups: []string{"devgroup"},
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			users, groups := tc.roleSet.EnumerateKubernetesUsersAndGroups(tc.server)
+			validateEnumeration(t, users, tc.expectedUsers, tc.expectedDeniedUsers, false)
+			validateEnumeration(t, groups, tc.expectedGroups, tc.expectedDeniedGroups, false)
+		})
+	}
+}
+
+// makeTestKubeCluster creates a kube cluster with labels and an empty spec.
+func makeTestKubeCluster(t *testing.T, labels map[string]string) types.KubeCluster {
+	s, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   "kube_cluster",
+			Labels: labels,
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	return s
+}
+
+func validateEnumeration(t *testing.T, enum EnumerationResult, allowed, denied []string, wildcard bool) {
+	require.Equal(t, allowed, enum.Allowed())
+	require.Equal(t, denied, enum.Denied())
+	require.Equal(t, wildcard, enum.wildcardAllowed)
+	require.Equal(t, wildcard, enum.wildcardDenied)
 }
