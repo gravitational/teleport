@@ -453,30 +453,27 @@ In order to enable Desktop Access in Teleport, add the following section in
 configuration fields, see the
 [configuration reference](./reference/configuration.mdx) page.
 
-<Tabs>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-
-For Teleport Self-Hosted, Windows Desktop Service can connect to the auth service with a
-join token. The Proxy will connect to the desktop listen address port.
+<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={["oss", "enterprise"]}>
+The Teleport Windows Desktop Service will establish a reverse tunnel to
+the proxy service. This requires setting `proxy_server` to your proxy address and
+providing a join token.
 
 First, generate a join token with the following command:
 
 ```code
 $ tctl tokens add --type=windowsdesktop
-$ tctl status
 ```
 
 Copy the join token and `ca_pin` to a file on the instance where you will run Windows Desktop
 Service, and then use the following configuration:
 
 ```yaml
+version: v3
 teleport:
-  auth_servers:
-  - auth.example.com:3025
-  ca_pin: "sha:..."
+  auth_token: /path/to/token
+  proxy_server: teleport.example.com # replace with your proxy address
 windows_desktop_service:
   enabled: yes
-  listen_addr: "0.0.0.0:3028"
   ldap:
     addr: "$LDAP_SERVER_ADDRESS"
     domain: "$LDAP_DOMAIN_NAME"
@@ -486,8 +483,8 @@ windows_desktop_service:
   discovery:
     base_dn: "*"
 ```
-</TabItem>
-<TabItem scope={["cloud"]} label="Cloud">
+</Details>
+<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={"cloud"}>
 For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
 the hosted proxy. This requires setting `proxy_server` to your cloud tenant and
 providing a join token.
@@ -517,8 +514,7 @@ windows_desktop_service:
   discovery:
     base_dn: "*"
 ```
-</TabItem>
-</Tabs>
+</Details>
 
 Start Teleport after updating `/etc/teleport.yaml`
 
