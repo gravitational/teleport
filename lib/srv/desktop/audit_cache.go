@@ -118,7 +118,9 @@ func (c *sharedDirectoryAuditCache) GetName(sid sessionID, did directoryID) (nam
 	return
 }
 
-func (c *sharedDirectoryAuditCache) GetReadRequestInfo(sid sessionID, cid completionID) (info readRequestInfo, ok bool) {
+// TakeReadRequestInfo gets the readRequestInfo for completion id cid of session id sid,
+// removing the readRequestInfo from the cache in the process.
+func (c *sharedDirectoryAuditCache) TakeReadRequestInfo(sid sessionID, cid completionID) (info readRequestInfo, ok bool) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -128,10 +130,13 @@ func (c *sharedDirectoryAuditCache) GetReadRequestInfo(sid sessionID, cid comple
 	}
 
 	info, ok = entry.readRequestCache[cid]
+	delete(entry.readRequestCache, cid)
 	return
 }
 
-func (c *sharedDirectoryAuditCache) GetWriteRequestInfo(sid sessionID, cid completionID) (info writeRequestInfo, ok bool) {
+// TakeWriteRequestInfo gets the writeRequestInfo for completion id cid of session id sid,
+// removing the writeRequestInfo from the cache in the process.
+func (c *sharedDirectoryAuditCache) TakeWriteRequestInfo(sid sessionID, cid completionID) (info writeRequestInfo, ok bool) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -141,6 +146,7 @@ func (c *sharedDirectoryAuditCache) GetWriteRequestInfo(sid sessionID, cid compl
 	}
 
 	info, ok = entry.writeRequestCache[cid]
+	delete(entry.writeRequestCache, cid)
 	return
 }
 

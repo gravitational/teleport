@@ -339,21 +339,31 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 // and properly cleaned up upon session end.
 func TestAuditCacheLifecycle(t *testing.T) {
 	s, id, emitter := setup()
-	sidString := "session-0"
-	sid := sessionID(sidString)
-	handler := s.makeTDPReceiveHandler(context.Background(),
+	sid := "session-0"
+	desktopAddr := "windows.example.com"
+	testDirName := "test-dir"
+	path := "test/path/test-file.txt"
+	var did uint32 = 2
+	var cid uint32 = 999
+	var offset uint64 = 500
+	var length uint32 = 1000
+	recvHandler := s.makeTDPReceiveHandler(context.Background(),
 		emitter, func() int64 { return 0 },
-		id, sidString, "windows.example.com")
+		id, sid, desktopAddr)
+	sendHandler := s.makeTDPSendHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sid, desktopAddr)
 
+	// SharedDirectoryAnnounce initializes the nameCache.
 	msg := tdp.SharedDirectoryAnnounce{
 		DirectoryID: 2,
-		Name:        "test-dir",
+		Name:        testDirName,
 	}
-	handler(msg)
+	recvHandler(msg)
 
 	// Check than an initialized audit cache entry is created
 	// for sessionID upon receipt of a tdp.SharedDirectoryAnnounce.
-	entry, ok := s.auditCache.m[sid]
+	entry, ok := s.auditCache.m[sessionID(sid)]
 	require.True(t, ok)
 	require.NotNil(t, entry.nameCache)
 	require.NotNil(t, entry.readRequestCache)
@@ -361,35 +371,90 @@ func TestAuditCacheLifecycle(t *testing.T) {
 
 	// Confirm that audit cache entry for sid
 	// is in the expected state.
-	name, ok := s.auditCache.GetName(sid, 2)
+	name, ok := s.auditCache.GetName(sessionID(sid), directoryID(did))
 	require.True(t, ok)
-	require.Equal(t, directoryName("test-dir"), name)
-	_, ok = s.auditCache.GetReadRequestInfo(sid, 999)
+	require.Equal(t, directoryName(testDirName), name)
+	_, ok = s.auditCache.TakeReadRequestInfo(sessionID(sid), completionID(cid))
 	require.False(t, ok)
-	_, ok = s.auditCache.GetWriteRequestInfo(sid, 999)
+	_, ok = s.auditCache.TakeWriteRequestInfo(sessionID(sid), completionID(cid))
 	require.False(t, ok)
 
-	// Simulate a session end event
-	startTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
-	desktop := &types.WindowsDesktopV3{}
+	// A SharedDirectoryReadRequest should add a corresponding entry in the readRequestCache.
+	readReq := tdp.SharedDirectoryReadRequest{
+		CompletionID: cid,
+		DirectoryID:  did,
+		Path:         path,
+		Offset:       offset,
+		Length:       length,
+	}
+	encoded, err := readReq.Encode()
+	require.NoError(t, err)
+	sendHandler(readReq, encoded)
+
+	// A SharedDirectoryWriteRequest should add a corresponding entry in the writeRequestCache.
+	writeReq := tdp.SharedDirectoryWriteRequest{
+		CompletionID:    cid,
+		DirectoryID:     did,
+		Path:            path,
+		Offset:          offset,
+		WriteDataLength: length,
+	}
+	encoded, err = writeReq.Encode()
+	require.NoError(t, err)
+	sendHandler(writeReq, encoded)
+
+	// Check that the readRequestCache was properly filled out.
+	_, ok = entry.readRequestCache[completionID(cid)]
+	require.True(t, ok)
+
+	// Check that the writeRequestCache was properly filled out.
+	_, ok = entry.writeRequestCache[completionID(cid)]
+	require.True(t, ok)
+
+	// SharedDirectoryReadResponse should cause the entry in the readRequestCache to be cleaned up.
+	readRes := tdp.SharedDirectoryReadResponse{
+		CompletionID:   cid,
+		ErrCode:        tdp.ErrCodeNil,
+		ReadDataLength: length,
+		ReadData:       []byte{}, // irrelevant in this context
+	}
+	recvHandler(readRes)
+
+	// SharedDirectoryWriteResponse should cause the entry in the writeRequestCache to be cleaned up.
+	writeRes := tdp.SharedDirectoryWriteResponse{
+		CompletionID: cid,
+		ErrCode:      tdp.ErrCodeNil,
+		BytesWritten: length,
+	}
+	recvHandler(writeRes)
+
+	// Check that the readRequestCache was properly cleaned up.
+	_, ok = entry.readRequestCache[completionID(cid)]
+	require.False(t, ok)
+
+	// Check that the writeRequestCache was properly cleaned up.
+	_, ok = entry.writeRequestCache[completionID(cid)]
+	require.False(t, ok)
+
+	// Simulate a session end event, which should clean up the cache for sessionID(sid) entirely.
 	s.onSessionEnd(
 		context.Background(),
 		s.cfg.Emitter,
 		id,
-		startTime,
+		s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		true,
 		"Administrator",
-		sidString,
-		desktop,
+		sid,
+		&types.WindowsDesktopV3{},
 	)
 
-	// Confirm that the audit cache was cleaned up
-	_, ok = s.auditCache.m[sid]
+	// Confirm that the audit cache at sessionID(sid) was cleaned up.
+	_, ok = s.auditCache.m[sessionID(sid)]
 	require.False(t, ok)
-	_, ok = s.auditCache.GetName(sid, 2)
+	_, ok = s.auditCache.GetName(sessionID(sid), directoryID(did))
 	require.False(t, ok)
-	_, ok = s.auditCache.GetReadRequestInfo(sid, 999)
+	_, ok = s.auditCache.TakeReadRequestInfo(sessionID(sid), completionID(cid))
 	require.False(t, ok)
-	_, ok = s.auditCache.GetWriteRequestInfo(sid, 999)
+	_, ok = s.auditCache.TakeWriteRequestInfo(sessionID(sid), completionID(cid))
 	require.False(t, ok)
 }

@@ -225,7 +225,7 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 	var name directoryName
 	code := libevents.DesktopSharedDirectoryReadCode
 	// Gather info from the audit cache
-	info, ok := s.auditCache.GetReadRequestInfo(sessionID(sid), completionID(m.CompletionID))
+	info, ok := s.auditCache.TakeReadRequestInfo(sessionID(sid), completionID(m.CompletionID))
 	if ok {
 		did = info.directoryID
 		// Only search for the directory name if we retrieved the directoryID from the audit cache.
@@ -300,7 +300,7 @@ func (s *WindowsService) onSharedDirectoryWriteResponse(
 	var name directoryName
 	code := libevents.DesktopSharedDirectoryWriteCode
 	// Gather info from the audit cache
-	info, ok := s.auditCache.GetWriteRequestInfo(sessionID(sid), completionID(m.CompletionID))
+	info, ok := s.auditCache.TakeWriteRequestInfo(sessionID(sid), completionID(m.CompletionID))
 	if ok {
 		did = info.directoryID
 		// Only search for the directory name if we retrieved the directoryID from the audit cache.
