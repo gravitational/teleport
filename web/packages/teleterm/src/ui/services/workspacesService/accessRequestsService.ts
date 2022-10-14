@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
-import { AccessRequest } from 'e-teleport/services/workflow';
 
 import { PendingAccessRequest } from '../workspacesService';
 
@@ -23,13 +22,11 @@ export class AccessRequestsService {
     private getState: () => {
       isBarCollapsed: boolean;
       pending: PendingAccessRequest;
-      assumed: Record<string, AccessRequest>;
     },
     private setState: (
       draftState: (draft: {
         isBarCollapsed: boolean;
         pending: PendingAccessRequest;
-        assumed: Record<string, AssumedAccessRequest>;
       }) => void
     ) => void
   ) {}
@@ -46,42 +43,6 @@ export class AccessRequestsService {
 
   getPendingAccessRequest() {
     return this.getState().pending;
-  }
-
-  getAssumed() {
-    return this.getState().assumed;
-  }
-
-  getAssumedRoles() {
-    // return only unique roles from the flatMap of all roles
-    // assumed in each request
-    return [
-      ...new Set(
-        Object.values(this.getAssumed()).flatMap(request => request.roles)
-      ),
-    ];
-  }
-
-  addToAssumed({ id, expires, roles }: AccessRequest) {
-    this.setState(draftState => {
-      draftState.assumed[id] = {
-        id,
-        expires,
-        roles,
-      };
-    });
-  }
-
-  removeFromAssumed(request: AccessRequest) {
-    this.setState(draftState => {
-      delete draftState.assumed[request.id];
-    });
-  }
-
-  clearAssumed() {
-    this.setState(draftState => {
-      draftState.assumed = {};
-    });
   }
 
   clearPendingAccessRequest() {
@@ -123,8 +84,3 @@ export function getEmptyPendingAccessRequest() {
     windows_desktop: {},
   };
 }
-
-export type AssumedAccessRequest = Pick<
-  AccessRequest,
-  'id' | 'expires' | 'roles'
->;

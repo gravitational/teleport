@@ -69,7 +69,6 @@ describe('restoring workspace', () => {
     const testClusterUri = '/clusters/test-uri';
     const testWorkspace: Workspace = {
       accessRequests: {
-        assumed: {},
         isBarCollapsed: true,
         pending: getEmptyPendingAccessRequest(),
       },
@@ -93,7 +92,6 @@ describe('restoring workspace', () => {
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [testClusterUri]: {
         accessRequests: {
-          assumed: {},
           pending: {
             app: {},
             db: {},
@@ -127,7 +125,6 @@ describe('restoring workspace', () => {
       [testClusterUri]: {
         accessRequests: {
           isBarCollapsed: false,
-          assumed: {},
           pending: {
             app: {},
             db: {},

@@ -1,19 +1,18 @@
 import { useStore } from 'shared/libs/stores';
 
 import { isEqual } from 'lodash';
-import isPast from 'date-fns/isPast';
-
-import { AccessRequest } from 'e-teleport/services/workflow';
 
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
+import {
+  StatePersistenceService,
+  WorkspacesPersistedState,
+} from 'teleterm/ui/services/statePersistence';
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { routing } from 'teleterm/ui/uri';
-import { LoggedInUser } from 'teleterm/services/tshd/types';
 
 import {
   AccessRequestsService,
@@ -34,10 +33,8 @@ export interface Workspace {
   accessRequests: {
     isBarCollapsed: boolean;
     pending: PendingAccessRequest;
-    assumed: Record<string, AccessRequest>;
   };
   previous?: {
-    assumed: Record<string, AccessRequest>;
     documents: Document[];
     location: string;
   };
@@ -260,13 +257,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
         workspaces[cluster.uri] = {
           ...workspaceDefaultState,
-          accessRequests: {
-            ...workspaceDefaultState.accessRequests,
-            assumed: this.removeExpiredAssumedRoles(
-              persistedWorkspace?.accessRequests?.assumed || {},
-              cluster.loggedInUser
-            ),
-          },
           previous: this.canReopenPreviousDocuments({
             previousDocuments: persistedWorkspaceDocuments,
             currentDocuments: workspaceDefaultState.documents,
@@ -287,22 +277,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     if (persistedState.rootClusterUri) {
       this.setActiveWorkspace(persistedState.rootClusterUri);
     }
-  }
-
-  private removeExpiredAssumedRoles(
-    assumed: Record<string, AccessRequest>,
-    user: LoggedInUser
-  ) {
-    const validRequests = {};
-    const requests = Object.values(assumed);
-    requests.forEach(request => {
-      const expired = isPast(new Date(request.expires));
-      // only add any assumed that still exist on the loggedInUser cert
-      if (user.activeRequestsList.includes(request.id) && !expired) {
-        validRequests[request.id] = request;
-      }
-    });
-    return validRequests;
   }
 
   private reopenPreviousDocuments(clusterUri: string): void {
@@ -362,7 +336,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     ).createClusterDocument({ clusterUri: localClusterUri });
     return {
       accessRequests: {
-        assumed: {},
         pending: getEmptyPendingAccessRequest(),
         isBarCollapsed: false,
       },
@@ -373,19 +346,13 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   }
 
   private persistState(): void {
-    const stateToSave: WorkspacesState = {
+    const stateToSave: WorkspacesPersistedState = {
       rootClusterUri: this.state.rootClusterUri,
       workspaces: {},
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
       stateToSave.workspaces[w] = {
-        accessRequests: {
-          isBarCollapsed: false,
-          assumed:
-            workspace.previous?.assumed || workspace.accessRequests?.assumed,
-          pending: getEmptyPendingAccessRequest(),
-        },
         localClusterUri: workspace.localClusterUri,
         location: workspace.previous?.location || workspace.location,
         documents: workspace.previous?.documents || workspace.documents,

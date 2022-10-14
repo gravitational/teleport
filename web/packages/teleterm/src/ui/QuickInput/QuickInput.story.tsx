@@ -37,7 +37,6 @@ export const Story = () => {
         location: '',
         localClusterUri: '/clusters/localhost',
         accessRequests: {
-          assumed: {},
           pending: getEmptyPendingAccessRequest(),
           isBarCollapsed: true,
         },
