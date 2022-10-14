@@ -44,7 +44,7 @@ import (
 var (
 	errHasExcludedCredential   = errors.New("device already holds a registered credential")
 	errNoPasswordless          = errors.New("device not registered for passwordless")
-	errNoPlatform              = errors.New("device cannot fulfil platform attachment requirement")
+	errNoPlatform              = errors.New("device cannot fulfill platform attachment requirement")
 	errNoRK                    = errors.New("device lacks resident key capabilities")
 	errNoRegisteredCredentials = errors.New("device lacks registered credentials")
 	errNoUV                    = errors.New("device lacks PIN or user verification capabilities")
@@ -695,7 +695,7 @@ func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinA
 		}
 
 		// U2F devices tend to cause problems with the waitForTouch strategy below,
-		// so we filter then silently, as we used to do with all devices in previous
+		// so we filter them silently, as we used to do with all devices in previous
 		// versions.
 		if info.u2f {
 			log.Warnf("FIDO2: Device %v: U2F device filtered due to lack of capabilities", info.path)
