@@ -20,6 +20,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -33,7 +34,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	logrus "github.com/sirupsen/logrus"
-	"go.uber.org/atomic"
 )
 
 // NewAuditWriter returns a new instance of session writer
@@ -55,13 +55,10 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
-		cancel:         cancel,
-		closeCtx:       ctx,
-		eventsCh:       make(chan apievents.AuditEvent),
-		doneCh:         make(chan struct{}),
-		lostEvents:     atomic.NewInt64(0),
-		acceptedEvents: atomic.NewInt64(0),
-		slowWrites:     atomic.NewInt64(0),
+		cancel:   cancel,
+		closeCtx: ctx,
+		eventsCh: make(chan apievents.AuditEvent),
+		doneCh:   make(chan struct{}),
 	}
 	go func() {
 		writer.processEvents()
@@ -196,9 +193,9 @@ type AuditWriter struct {
 	doneCh chan struct{}
 
 	backoffUntil   time.Time
-	lostEvents     *atomic.Int64
-	acceptedEvents *atomic.Int64
-	slowWrites     *atomic.Int64
+	lostEvents     atomic.Int64
+	acceptedEvents atomic.Int64
+	slowWrites     atomic.Int64
 }
 
 // AuditWriterStats provides stats about lost events and slow writes
@@ -294,7 +291,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		return trace.Wrap(err)
 	}
 
-	a.acceptedEvents.Inc()
+	a.acceptedEvents.Add(1)
 
 	// Without serialization, EmitAuditEvent will call grpc's method directly.
 	// When BPF callback is emitting events concurrently with session data to the grpc stream,
@@ -304,7 +301,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 
 	// If backoff is in effect, lose event, return right away
 	if isBackoff := a.checkAndResetBackoff(a.cfg.Clock.Now()); isBackoff {
-		a.lostEvents.Inc()
+		a.lostEvents.Add(1)
 		return nil
 	}
 
@@ -317,7 +314,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	case <-a.closeCtx.Done():
 		return trace.ConnectionProblem(a.closeCtx.Err(), "audit writer is closed")
 	default:
-		a.slowWrites.Inc()
+		a.slowWrites.Add(1)
 	}
 
 	// Channel is blocked.
@@ -361,17 +358,17 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		if setBackoff := a.maybeSetBackoff(a.cfg.Clock.Now().UTC().Add(a.cfg.BackoffDuration)); setBackoff {
 			a.log.Errorf("Audit write timed out after %v. Will be losing events for the next %v.", a.cfg.BackoffTimeout, a.cfg.BackoffDuration)
 		}
-		a.lostEvents.Inc()
+		a.lostEvents.Add(1)
 		return nil
 	case <-ctx.Done():
-		a.lostEvents.Inc()
+		a.lostEvents.Add(1)
 		stopped := t.Stop()
 		if !stopped {
 			<-t.C
 		}
 		return trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
 	case <-a.closeCtx.Done():
-		a.lostEvents.Inc()
+		a.lostEvents.Add(1)
 		stopped := t.Stop()
 		if !stopped {
 			<-t.C
