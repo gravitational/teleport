@@ -517,13 +517,13 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		printSessions(filteredSessions)
+		printSessions(cf.Stdout(), filteredSessions)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeKubeSessions(sessions, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", c.format)
 	}
@@ -541,14 +541,14 @@ func serializeKubeSessions(sessions []types.SessionTracker, format string) (stri
 	return string(out), trace.Wrap(err)
 }
 
-func printSessions(sessions []types.SessionTracker) {
+func printSessions(output io.Writer, sessions []types.SessionTracker) {
 	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason"})
 	for _, s := range sessions {
 		table.AddRow([]string{s.GetSessionID(), s.GetState().String(), s.GetCreated().Format(time.RFC3339), s.GetHostname(), s.GetAddress(), s.GetLogin(), s.GetReason()})
 	}
 
-	output := table.AsBuffer().String()
-	fmt.Println(output)
+	tableOutput := table.AsBuffer().String()
+	fmt.Fprintln(output, tableOutput)
 }
 
 type kubeCredentialsCommand struct {
@@ -588,7 +588,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
 			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", c.kubeCluster)
-			return c.writeResponse(k, c.kubeCluster)
+			return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
 		}
 		// Otherwise, cert for this k8s cluster is missing or expired. Request
 		// a new one.
@@ -612,10 +612,10 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	return c.writeResponse(k, c.kubeCluster)
+	return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
 }
 
-func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName string) error {
+func (c *kubeCredentialsCommand) writeResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
 	crt, err := key.KubeTLSCertificate(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -644,7 +644,7 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Println(string(data))
+	fmt.Fprintln(output, string(data))
 	return nil
 }
 
@@ -656,6 +656,8 @@ type kubeLSCommand struct {
 	format         string
 	listAll        bool
 	siteName       string
+	verbose        bool
+	quiet          bool
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
@@ -668,6 +670,8 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("all", "List kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
+	c.Flag("verbose", "Show an untruncated list of labels.").Short('v').BoolVar(&c.verbose)
+	c.Flag("quiet", "Quiet mode.").Short('q').BoolVar(&c.quiet)
 	return c
 }
 
@@ -732,27 +736,37 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(2)
-		} else {
-			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Labels", "Selected"})
-		}
+		var (
+			t       asciitable.Table
+			columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+			rows    [][]string
+		)
+
 		for _, cluster := range kubeClusters {
 			var selectedMark string
 			if cluster.GetName() == selectedCluster {
 				selectedMark = "*"
 			}
-
-			t.AddRow([]string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
+			rows = append(rows, []string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
 		}
-		fmt.Println(t.AsBuffer().String())
+
+		if c.quiet {
+			t = asciitable.MakeHeadlessTable(2)
+			for _, row := range rows {
+				t.AddRow(row[:2])
+			}
+		} else if c.verbose {
+			t = asciitable.MakeTable(columns, rows...)
+		} else {
+			t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
+		}
+		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -832,13 +846,13 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		for _, listing := range listings {
 			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.GetName(), formatKubeLabels(listing.KubeCluster)})
 		}
-		fmt.Println(t.AsBuffer().String())
+		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeKubeListings(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("Unrecognized format %q", c.format)
 	}

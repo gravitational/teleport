@@ -597,7 +597,7 @@ func TestSSHSection(t *testing.T) {
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.True,
 		}, {
-			desc: "diasbled",
+			desc: "disabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["enabled"] = "no"
 			},
@@ -1130,7 +1130,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 			AuthServer: "auth-server",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-server", fc.AuthServers[0])
+		require.Equal(t, "auth-server", fc.AuthServer)
 	})
 
 	t.Run("Data dir", func(t *testing.T) {
