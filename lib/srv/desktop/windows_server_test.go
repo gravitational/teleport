@@ -353,7 +353,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 
 	// Check than an initialized audit cache entry is created
 	// for sessionID upon receipt of a tdp.SharedDirectoryAnnounce.
-	entry, ok := s.auditCache.get(sid)
+	entry, ok := s.auditCache.m[sid]
 	require.True(t, ok)
 	require.NotNil(t, entry.nameCache)
 	require.NotNil(t, entry.readRequestCache)
@@ -384,7 +384,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	)
 
 	// Confirm that the audit cache was cleaned up
-	_, ok = s.auditCache.get(sid)
+	_, ok = s.auditCache.m[sid]
 	require.False(t, ok)
 	_, ok = s.auditCache.GetName(sid, 2)
 	require.False(t, ok)
