@@ -1,5 +1,7 @@
 <div align="center">
-   <img src="./assets/img/readme-header.png" width=750/>
+   <a href="https://goteleport.com/teleport-connect-2022">
+   <img src="./assets/img/user-conference-2022.png" width=750/>
+   </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/teleport/download">
       <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
@@ -120,7 +122,7 @@ View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
-To run a full test suite locally, see [the test dependecies list](BUILD_macos.md#local-tests-dependencies) 
+To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies) 
 
 ## Building Teleport
 
