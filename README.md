@@ -120,7 +120,7 @@ View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
-To run a full test suite locally, see [the test dependecies list](BUILD_macos.md#local-tests-dependencies) 
+To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies) 
 
 ## Building Teleport
 
