@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package webauthncli
+package types
 
-// HasPlatformSupport returns true if the platform supports client-side
-// WebAuthn-compatible logins.
-func HasPlatformSupport() bool {
-	return false
+import (
+	"strings"
+)
+
+// GetSortByFromString expects a string in format `<fieldName>:<asc|desc>` where
+// index 0 is fieldName and index 1 is direction.
+// If a direction is not set, or is not recognized, it defaults to ASC.
+func GetSortByFromString(sortStr string) SortBy {
+	var sortBy SortBy
+
+	if sortStr == "" {
+		return sortBy
+	}
+
+	vals := strings.Split(sortStr, ":")
+	if vals[0] != "" {
+		sortBy.Field = vals[0]
+		if len(vals) > 1 && vals[1] == "desc" {
+			sortBy.IsDesc = true
+		}
+	}
+
+	return sortBy
 }
