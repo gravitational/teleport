@@ -164,16 +164,16 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(
 	desktopAddr string,
 	m tdp.SharedDirectoryAcknowledge,
 ) {
-	if m.ErrCode != tdp.ErrCodeNil {
-		return
-	}
-
 	code := libevents.DesktopSharedDirectoryStartCode
 	name, ok := s.auditCache.GetName(sessionID(sid), directoryID(m.DirectoryID))
 	if !ok {
 		code = libevents.DesktopSharedDirectoryStartFailureCode
 		name = "unknown"
 		s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, m.DirectoryID)
+	}
+
+	if m.ErrCode != tdp.ErrCodeNil {
+		code = libevents.DesktopSharedDirectoryStartFailureCode
 	}
 
 	event := &events.DesktopSharedDirectoryStart{

@@ -250,8 +250,8 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			sendsSda: true,
 			errCode:  tdp.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
-				// no event is expected on failure
-				return nil
+				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryStartFailureCode
+				return baseEvent
 			},
 		},
 		{
@@ -319,15 +319,9 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			expected := test.expected(baseEvent)
 			event := emitter.LastEvent()
 
-			var startEvent *events.DesktopSharedDirectoryStart
-			if expected != nil {
-				var ok bool
-				require.NotNil(t, event)
-				startEvent, ok = event.(*events.DesktopSharedDirectoryStart)
-				require.True(t, ok)
-			} else {
-				require.Nil(t, event)
-			}
+			require.NotNil(t, event)
+			startEvent, ok := event.(*events.DesktopSharedDirectoryStart)
+			require.True(t, ok)
 
 			require.Empty(t, cmp.Diff(expected, startEvent))
 		})
