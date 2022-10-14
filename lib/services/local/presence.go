@@ -248,37 +248,19 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	if n := server.GetNamespace(); n != apidefaults.Namespace {
 		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
-
 	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	key := backend.Key(nodesPrefix, server.GetNamespace(), server.GetName())
-
-	item := backend.Item{
-		Key:     key,
+	lease, err := s.Put(ctx, backend.Item{
+		Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
-	}
-
-	prevItem, err := s.Get(ctx, key)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	var lease *backend.Lease
-	if err == nil {
-		lease, err = s.CompareAndSwap(ctx, *prevItem, item)
-	} else {
-		lease, err = s.Create(ctx, item)
-	}
-
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if server.Expiry().IsZero() {
 		return &types.KeepAlive{}, nil
 	}
@@ -1533,8 +1515,8 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{nodesPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToServer(types.KindNode)
 	case types.KindWindowsDesktopService:
-		keyPrefix = []string{windowsDesktopServicesPrefix, req.Namespace}
-		unmarshalItemFunc = backendItemToServer(types.KindWindowsDesktopService)
+		keyPrefix = []string{windowsDesktopServicesPrefix}
+		unmarshalItemFunc = backendItemToWindowsDesktopService
 	case types.KindKubeService:
 		keyPrefix = []string{kubeServicesPrefix}
 		unmarshalItemFunc = backendItemToServer(types.KindKubeService)
@@ -1736,7 +1718,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 }
 
 // backendItemToDatabaseServer unmarshals `backend.Item` into a
-// `types.DatabaseServer`, returning it as a `types.Resource`.
+// `types.DatabaseServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalDatabaseServer(
 		item.Value,
@@ -1746,7 +1728,7 @@ func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, e
 }
 
 // backendItemToApplicationServer unmarshals `backend.Item` into a
-// `types.AppServer`, returning it as a `types.Resource`.
+// `types.AppServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalAppServer(
 		item.Value,
@@ -1756,7 +1738,7 @@ func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels
 }
 
 // backendItemToKubernetesServer unmarshals `backend.Item` into a
-// `types.KubeServer`, returning it as a `types.Resource`.
+// `types.KubeServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalKubeServer(
 		item.Value,
@@ -1767,7 +1749,7 @@ func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels,
 
 // backendItemToServer returns `backendItemToResourceFunc` to unmarshal a
 // `backend.Item` into a `types.ServerV2` with a specific `kind`, returning it
-// as a `types.Resource`.
+// as a `types.ResourceWithLabels`.
 func backendItemToServer(kind string) backendItemToResourceFunc {
 	return func(item backend.Item) (types.ResourceWithLabels, error) {
 		return services.UnmarshalServer(
@@ -1776,6 +1758,16 @@ func backendItemToServer(kind string) backendItemToResourceFunc {
 			services.WithExpires(item.Expires),
 		)
 	}
+}
+
+// backendItemToWindowsDesktopService unmarshals `backend.Item` into a
+// `types.WindowsDesktopService`, returning it as a `types.ResourceWithLabels`.
+func backendItemToWindowsDesktopService(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalWindowsDesktopService(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
 }
 
 const (

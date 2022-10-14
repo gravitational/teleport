@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
@@ -1437,15 +1438,20 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.Delet
 }
 
 // GenerateAppToken creates a JWT token with application access.
-func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
+func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	traits := wrappers.Traits{}
+	for traitName, traitValues := range req.Traits {
+		traits[traitName] = traitValues.Values
+	}
 	token, err := auth.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: req.Username,
 		Roles:    req.Roles,
+		Traits:   traits,
 		URI:      req.URI,
 		Expires:  req.Expires,
 	})
@@ -3903,32 +3909,7 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 		return nil, trace.Wrap(err)
 	}
 
-	var createTracker types.SessionTracker = req.SessionTracker
-	// DELETE IN 11.0.0
-	// Early v9 versions use a flattened out types.SessionTrackerV1
-	if req.SessionTracker == nil {
-		spec := types.SessionTrackerSpecV1{
-			SessionID:         req.ID,
-			Kind:              req.Type,
-			State:             types.SessionState_SessionStatePending,
-			Reason:            req.Reason,
-			Invited:           req.Invited,
-			Hostname:          req.Hostname,
-			Address:           req.Address,
-			ClusterName:       req.ClusterName,
-			Login:             req.Login,
-			Participants:      []types.Participant{*req.Initiator},
-			Expires:           req.Expires,
-			KubernetesCluster: req.KubernetesCluster,
-			HostUser:          req.HostUser,
-		}
-		createTracker, err = types.NewSessionTracker(spec)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, createTracker)
+	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4227,7 +4208,10 @@ func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster.SetOrigin(types.OriginDynamic)
+	// if origin is not set, force it to be dynamic.
+	if len(cluster.Origin()) == 0 {
+		cluster.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateKubernetesCluster(ctx, cluster); err != nil {
 		return nil, trace.Wrap(err)
 	}

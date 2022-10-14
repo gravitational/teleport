@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
@@ -154,7 +155,6 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
 			Component:         teleport.ComponentKube,
-			DynamicLabels:     nil,
 			LockWatcher:       proxyLockWatcher,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
@@ -162,8 +162,9 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			},
 			Clock: clockwork.NewRealClock(),
 		},
-		TLS:         tlsConfig,
-		AccessPoint: testCtx.authClient,
+		DynamicLabels: nil,
+		TLS:           tlsConfig,
+		AccessPoint:   testCtx.authClient,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
@@ -213,7 +214,7 @@ func (c *testContext) startKubeService(t *testing.T) {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 }
 
