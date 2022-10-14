@@ -4506,6 +4506,7 @@ func (process *TeleportProcess) initApps() {
 			log.Infof("Shutting down.")
 			warnOnErr(appServer.Close(), log)
 			agentPool.Stop()
+			warnOnErr(asyncEmitter.Close(), log)
 			warnOnErr(conn.Close(), log)
 			log.Infof("Exited.")
 		})
