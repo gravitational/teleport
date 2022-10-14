@@ -105,6 +105,9 @@ type UserContext struct {
 	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// AccessCapabilities defines allowable access request rules defined in a user's roles.
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
+	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
+	// obtained
+	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
