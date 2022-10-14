@@ -44,11 +44,7 @@ const props: State = {
   hostname: 'host.com',
   fetchAttempt: { status: 'processing' },
   tdpConnection: { status: 'processing' },
-  clipboardState: {
-    enabled: false,
-    permission: { state: '' },
-    errorText: '',
-  },
+  clipboardSharingEnabled: false,
   tdpClient: fakeClient(),
   username: 'user',
   onWsOpen: () => {},
@@ -56,7 +52,7 @@ const props: State = {
   wsConnection: 'closed',
   disconnected: false,
   setDisconnected: () => {},
-  setClipboardState: () => {},
+  setClipboardSharingEnabled: () => {},
   directorySharingState: {
     canShare: true,
     isSharing: false,
@@ -72,10 +68,8 @@ const props: State = {
   onMouseUp: () => {},
   onMouseWheelScroll: () => {},
   onContextMenu: () => false,
-  onMouseEnter: () => {},
-  onClipboardData: () => {},
+  onClipboardData: async () => {},
   setTdpConnection: () => {},
-  windowOnFocus: () => {},
   webauthn: {
     errorText: '',
     requested: false,
@@ -90,11 +84,7 @@ export const Processing = () => (
     {...props}
     fetchAttempt={{ status: 'processing' }}
     tdpConnection={{ status: 'processing' }}
-    clipboardState={{
-      enabled: true,
-      permission: { state: 'prompt' },
-      errorText: '',
-    }}
+    clipboardSharingEnabled={true}
     wsConnection={'open'}
     disconnected={false}
   />
@@ -114,11 +104,7 @@ export const ConnectedSettingsFalse = () => {
       tdpConnection={{ status: 'success' }}
       wsConnection={'open'}
       disconnected={false}
-      clipboardState={{
-        enabled: false,
-        permission: { state: '' },
-        errorText: '',
-      }}
+      clipboardSharingEnabled={false}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
@@ -140,11 +126,7 @@ export const ConnectedSettingsTrue = () => {
       tdpConnection={{ status: 'success' }}
       wsConnection={'open'}
       disconnected={false}
-      clipboardState={{
-        enabled: true,
-        permission: { state: 'granted' },
-        errorText: '',
-      }}
+      clipboardSharingEnabled={true}
       directorySharingState={{
         canShare: true,
         isSharing: true,
@@ -190,21 +172,6 @@ export const ConnectionError = () => (
   />
 );
 
-export const ClipboardError = () => (
-  <DesktopSession
-    {...props}
-    fetchAttempt={{ status: 'success' }}
-    tdpConnection={{ status: 'success' }}
-    wsConnection={'open'}
-    disconnected={false}
-    clipboardState={{
-      enabled: true,
-      permission: { state: 'prompt' },
-      errorText: 'clipboard error',
-    }}
-  />
-);
-
 export const DismissibleError = () => (
   <DesktopSession
     {...props}
@@ -230,11 +197,7 @@ export const WebAuthnPrompt = () => (
     {...props}
     fetchAttempt={{ status: 'processing' }}
     tdpConnection={{ status: 'processing' }}
-    clipboardState={{
-      enabled: true,
-      permission: { state: 'prompt' },
-      errorText: '',
-    }}
+    clipboardSharingEnabled={true}
     wsConnection={'open'}
     disconnected={false}
     webauthn={{
