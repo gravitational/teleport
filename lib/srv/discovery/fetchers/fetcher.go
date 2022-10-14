@@ -25,6 +25,8 @@ import (
 const (
 	// Azure identifies that a fetcher is watching resources from Azure.
 	Azure = "azure"
+	// AWS identifies that a fetcher is watching resources from AWS.
+	AWS = "aws"
 )
 
 // Fetcher defines the common methods across all fetchers.
