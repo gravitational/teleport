@@ -32,7 +32,7 @@ limitations under the License.
 //
 // In the meantime, we just try to resolve from these paths instead.
 #define UACC_UTMP_PATH "/var/run/utmp"
-#define UACC_WTMP_PATH "/var/run/wtmp"
+#define UACC_WTMP_PATH "/var/log/wtmp"
 
 int UACC_UTMP_MISSING_PERMISSIONS = 1;
 int UACC_UTMP_WRITE_ERROR = 2;
