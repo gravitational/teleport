@@ -444,13 +444,36 @@ the filepath to the `der_ca_file` configuration variable.
   order to resolve this.
 </Admonition>
 
+Install Teleport on the host where you will run the Teleport Deskop Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
 In order to enable Desktop Access in Teleport, add the following section in
-`teleport.yaml` on your Linux server. For a detailed description of these
+`/etc/teleport.yaml` on your Linux server. For a detailed description of these
 configuration fields, see the
 [configuration reference](./reference/configuration.mdx) page.
 
-<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
+
+For Teleport Self-Hosted, Windows Desktop Service can connect to the auth service with a
+join token. The Proxy will connect to the desktop listen address port.
+
+First, generate a join token with the following command:
+
+```code
+$ tctl tokens add --type=windowsdesktop
+$ tctl status
+```
+
+Copy the join token and `ca_pin` to a file on the instance where you will run Windows Desktop
+Service, and then use the following configuration:
+
 ```yaml
+teleport:
+  auth_servers:
+  - auth.example.com:3025
+  ca_pin: "sha:..."
 windows_desktop_service:
   enabled: yes
   listen_addr: "0.0.0.0:3028"
@@ -463,8 +486,8 @@ windows_desktop_service:
   discovery:
     base_dn: "*"
 ```
-</Details>
-<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={"cloud"}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Cloud">
 For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
 the hosted proxy. This requires setting `proxy_server` to your cloud tenant and
 providing a join token.
@@ -494,9 +517,14 @@ windows_desktop_service:
   discovery:
     base_dn: "*"
 ```
-</Details>
+</TabItem>
+</Tabs>
 
-After updating `teleport.yaml`, start Teleport as usual using `teleport start`.
+Start Teleport after updating `/etc/teleport.yaml`
+
+```code
+sudo teleport start
+```
 
 ## Step 7/7. Log in using Teleport
 
