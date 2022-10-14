@@ -1,9 +1,13 @@
 ---
-title: Hardware Key Support (YubiKey)
+title: Hardware Key Support (Preview)
 description: Hardware Key Support
 ---
 
 ## Introduction
+
+<Admonition type="warning" title="Preview">
+  Hardware Key Support is currently in Preview mode.
+</Admonition>
 
 By default, `tsh`, Teleport Connect, and other Teleport clients store a user's login session directly on their filesystem. If a user's filesystem is compromised, any of their active Teleport login sessions would also be compromised.
 
@@ -14,25 +18,18 @@ To prevent these types of exfiltration attacks altogether, Teleport clients supp
 Additionally, this feature can be configured to require touch for every Teleport request, including non-session requests. With touch required, Hardware Key Support provides better security in comparison to our per-session MFA offering.
 
 <ScopedBlock scope="oss">
-
   Hardware Key Support requires Teleport Enterprise.
-
 </ScopedBlock>
 
 <Admonition type="note" title="PIV support">
-
   Hardware Key Support requires users to use a PIV-compatible hardware key. Currently, this feature is only guarenteed to support YubiKey series 5+.
-
 </Admonition>
 
 <Admonition type="note" title="touch caching">
-
   A user's touch is cached on the YubiKey for 15 seconds to prevent excessive touch prompts.
-
 </Admonition>
 
 <Admonition type="warning" title="Compatibility Issues">
-
   Hardware Key Support provides the best security available, but it is a new feature with some compatiblity trade-offs. We hope to improve compatibility in the future.
   
   Supported (`tsh`, `tctl`, and Teleport Connect):
@@ -51,7 +48,6 @@ Additionally, this feature can be configured to require touch for every Teleport
     - Desktop Access
 
   To navigate these incompatiblities, we recommend enabling Hardware Key support only when necessary, such as for roles with access to critical infrastructure. These roles can be accessed as needed with Access Requests so that users can avoid these issues for their normal login sessions.
-
 </Admonition>
 
 ## Prerequisites
