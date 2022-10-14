@@ -48,7 +48,7 @@ similar to: **"access to db denied"**.
 **Solution:** Configure the database instance and Teleport role-based access control (RBAC) to allow the user 
 access.
 
-Check that the database user and database name (aka schema) exist in the database instance.
+Check that the database user and database name (aka schema) you are trying to access via `tsh` exist in the database instance.
 When referring to "database name" or `db_names`, this is not the same as the `name` field in `db_service`;
 this is referring to database names or schemas within a particular database instance.
 When connecting to a PostgreSQL or MongoDB instance, be sure to specify `--db-name`:
