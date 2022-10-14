@@ -658,7 +658,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are singed by AWS Signature Version
+		//  Requests from AWS applications are signed by AWS Signature Version
 		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
