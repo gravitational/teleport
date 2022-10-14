@@ -1385,7 +1385,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to easily edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an easy 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](https://goteleport.com/teleport/docs/enterprise/workflow/#adding-a-reason-to-access-workflows)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](./docs/pages/enterprise/workflow/index.mdx)
 
 ##### Signed RPM and Releases
 
@@ -1647,12 +1647,12 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](https://gravitational.com/teleport/docs/enterprise/workflow/?utm_source=github&utm_medium=changelog&utm_campaign=4_3). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/enterprise/workflow/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
-*   [PagerDuty](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_pagerduty/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
-*   [Jira Server](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_jira_server/?utm_source=github&utm_medium=changelog&utm_campaign=4_3) and [Jira Cloud](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_jira_cloud/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
-*   [Slack](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_slack/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
-*   [Mattermost](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_mattermost/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
+*   [PagerDuty](./docs/pages/enterprise/workflow/ssh-approval-pagerduty.mdx)
+*   [Jira Server](./docs/pages/enterprise/workflow/ssh-approval-jira-server.mdx) and [Jira Cloud](./docs/pages/enterprise/workflow/ssh-approval-jira-cloud.mdx)
+*   [Slack](./docs/pages/enterprise/workflow/ssh-approval-slack.mdx)
+*   [Mattermost](./docs/pages/enterprise/workflow/ssh-approval-mattermost.mdx)
 
 #### Improvements
 
@@ -1683,7 +1683,7 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 #### Documentation
 
 *   [Moved SSO under Enterprise Section](https://gravitational.com/teleport/docs/enterprise/sso/ssh_sso/)
-*   [Documented Teleport Plugins](https://gravitational.com/teleport/docs/enterprise/workflow/)
+*   [Documented Teleport Plugins](./docs/pages/enterprise/workflow/index.mdx)
 *   [Documented Kubernetes Role Mapping](https://gravitational.com/teleport/docs/kubernetes_ssh/#kubernetes-groups-and-users)
 
 #### Upgrade Notes
