@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
 
 package webauthncli
 
-// HasPlatformSupport returns true if the platform supports client-side
-// WebAuthn-compatible logins.
-func HasPlatformSupport() bool {
+func isU2FAvailable() bool {
 	return false
 }

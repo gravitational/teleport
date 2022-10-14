@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/webauthncli"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1135,6 +1136,10 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
 	c.LoadAllCAs = cp.LoadAllCAs
+	c.AuthenticatorAttachment, err = parseMFAMode(cp.MFAMode)
+	if err != nil {
+		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
+	}
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1170,6 +1175,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
+	cp.MFAMode = c.AuthenticatorAttachment.String()
 	cp.LoadAllCAs = c.LoadAllCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
@@ -4614,4 +4620,17 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
+}
+
+func parseMFAMode(in string) (webauthncli.AuthenticatorAttachment, error) {
+	switch in {
+	case "auto", "":
+		return webauthncli.AttachmentAuto, nil
+	case "platform":
+		return webauthncli.AttachmentPlatform, nil
+	case "cross-platform":
+		return webauthncli.AttachmentCrossPlatform, nil
+	default:
+		return 0, trace.BadParameter("unsupported mfa mode %q", in)
+	}
 }
