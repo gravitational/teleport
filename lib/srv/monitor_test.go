@@ -210,5 +210,5 @@ func TestTrackingReadConnEOF(t *testing.T) {
 	// Make sure it returns an EOF and not a wrapped exception.
 	buf := make([]byte, 64)
 	_, err = tc.Read(buf)
-	require.True(t, err == io.EOF)
+	require.Equal(t, io.EOF, err)
 }
