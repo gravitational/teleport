@@ -546,7 +546,7 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c8"
-          href="https://gravitational.zendesk.com/hc/en-us/requests/new"
+          href="https://support.goteleport.com"
           rel="noreferrer"
         >
           Create a Support Ticket
