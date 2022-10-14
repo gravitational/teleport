@@ -18,6 +18,9 @@ package types
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -634,6 +637,17 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.GetName())
 	}
+
+	switch runtime.GOOS {
+	case "linux":
+		// cannot use defaults here due to import cycle
+		if d.Spec.Protocol == "sqlserver" {
+			if d.Spec.AD.Krb5File == "" {
+				d.Spec.AD.Krb5File = filepath.Join(string(os.PathSeparator), "etc", "krb5.conf")
+			}
+		}
+	}
+
 	return nil
 }
 

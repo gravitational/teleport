@@ -103,6 +103,8 @@ type AuthInterface interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 	// GetClusterName returns a types.ClusterName interface
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	// GenerateCertAuthorityCRL generates a certificate revocation list for a certificate authority
+	GenerateCertAuthorityCRL(ctx context.Context, t types.CertAuthType) ([]byte, error)
 }
 
 // GenerateCredentials generates a private key / certificate pair for the given

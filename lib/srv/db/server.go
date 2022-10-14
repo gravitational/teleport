@@ -20,6 +20,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -123,6 +125,19 @@ type Config struct {
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
 }
+
+const (
+	// sqlServerCertTTL is the TTL for certificates issued to the
+	// Database Service in order to authenticate with the LDAP server.
+	// It is set longer than the Windows certificates for users because it is
+	// not used for interactive login and is only used when issuing certs for
+	// a restrictive service account.
+	sqlServerCertTTL = 8 * time.Hour
+
+	// sqlServerCertRetryInterval indicates how often to retry
+	// issuing an LDAP certificate if the operation fails.
+	sqlServerCertRetryInterval = 10 * time.Minute
+)
 
 // NewAuditFn defines a function that creates an audit logger.
 type NewAuditFn func(common.AuditConfig) (common.Audit, error)
@@ -230,6 +245,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 type Server struct {
 	// cfg is the database server configuration.
 	cfg Config
+	// ca is a certificate store client for Windows SQLServer LDAP connections
+	caClients map[string]*windows.CertificateStoreClient
 	// closeContext is used to indicate the server is closing.
 	closeContext context.Context
 	// closeFunc is the cancel function of the close context.
@@ -300,6 +317,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
+		caClients:        make(map[string]*windows.CertificateStoreClient),
 		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
 		closeContext:     ctx,
 		closeFunc:        cancel,
@@ -324,6 +342,65 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		types.UserCA, types.DatabaseCA)
 
 	return server, nil
+}
+
+func (s *Server) startSQLServerLDAP(ctx context.Context, database types.Database) error {
+	clusterName, err := s.cfg.AuthClient.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	caCert, err := x509.ParseCertificate([]byte(database.GetAD().LDAPCert))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ad := database.GetAD()
+	serverName := ad.KDCHostName
+
+	if ad.ServerName != "" {
+		serverName = ad.ServerName
+	}
+
+	s.caClients[database.GetName()] = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
+		AuthClient:  s.cfg.AuthClient,
+		Log:         s.log,
+		ClusterName: clusterName.GetClusterName(),
+		LC: &windows.LDAPClient{
+			Cfg: windows.LDAPConfig{
+				Addr:               database.GetAD().KDCHostName,
+				Domain:             database.GetAD().Domain,
+				Username:           database.GetAD().LDAPUserName,
+				InsecureSkipVerify: database.GetAD().InsecureSkipVerify,
+				ServerName:         serverName,
+				CA:                 caCert,
+			}},
+		LDAPCertTTL:   sqlServerCertTTL,
+		RetryInterval: sqlServerCertRetryInterval,
+		CAType:        types.DatabaseCA,
+	})
+	err = s.caClients[database.GetName()].InitializeLDAP(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *Server) stopSQLServerLDAP(ctx context.Context, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if client, ok := s.caClients[name]; ok {
+		err := client.Close()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		delete(s.caClients, name)
+	}
+	return nil
 }
 
 // startDatabase performs initialization actions for the provided database
@@ -358,6 +435,13 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 		// Log, but do not fail. We will fetch the version later.
 		s.log.Warnf("Failed to fetch the MySQL version for %s: %v", database.GetName(), err)
 	}
+
+	if database.GetProtocol() == defaults.ProtocolSQLServer {
+		if err := s.startSQLServerLDAP(ctx, database); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
 	if err := s.startHeartbeat(ctx, database); err != nil {
@@ -375,6 +459,9 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 // stopDatabase uninitializes the database with the specified name.
 func (s *Server) stopDatabase(ctx context.Context, name string) error {
 	s.stopDynamicLabels(name)
+	if err := s.stopSQLServerLDAP(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}

@@ -180,12 +180,24 @@ func ValidateDatabase(db types.Database) error {
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
 	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
-		if db.GetAD().KeytabFile == "" {
-			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
+
+		if db.GetAD().LDAPCert == "" && db.GetAD().KDCHostName == "" {
+			if db.GetAD().KeytabFile == "" {
+				return trace.BadParameter("missing keytab file path for database %q", db.GetName())
+			}
+		} else {
+			if db.GetAD().LDAPCert == "" {
+				return trace.BadParameter("missing Windows LDAP certificate from active directory for database %q", db.GetName())
+			}
+			if db.GetAD().KDCHostName == "" {
+				return trace.BadParameter("missing kdc_host_name for x509 SQL Server configuration for database %q", db.GetName())
+			}
 		}
+
 		if db.GetAD().Krb5File == "" {
 			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
 		}
+
 		if db.GetAD().Domain == "" {
 			return trace.BadParameter("missing Active Directory domain for database %q", db.GetName())
 		}

@@ -502,7 +502,7 @@ message AzureRedis {
 message AD {
   // KeytabFile is the path to the Kerberos keytab file.
   string KeytabFile = 1 [(gogoproto.jsontag) = "keytab_file,omitempty"];
-  // Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+  // Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf on linux.
   string Krb5File = 2 [(gogoproto.jsontag) = "krb5_file,omitempty"];
   // Domain is the Active Directory domain the database resides in.
   string Domain = 3 [(gogoproto.jsontag) = "domain"];
@@ -510,8 +510,17 @@ message AD {
   string SPN = 4 [(gogoproto.jsontag) = "spn"];
   // LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
   string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
-  // KDCHostName is the host name for a KDC for x509 Authentication.
+  // KDCHostName is the host name for a KDC for x509 Authentication. An optional port number, separated from the hostname
+  // by colon, may be included.
   string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
+  // LDAPUsername is an LDAP username, like "EXAMPLE\Administrator", where
+  // "EXAMPLE" is the NetBIOS version of Domain.
+  string LDAPUserName = 7 [(gogoproto.jsontag) = "ldap_user_name,omitempty"];
+  // ServerName allows providing a custom hostname. This value will override the
+  // servername/hostname on a certificate during validation.
+  string ServerName = 8 [(gogoproto.jsontag) = "server_name,omitempty"];
+  // InsecureSkipVerify allows skipping client side certificate verification.
+  bool InsecureSkipVerify = 9 [(gogoproto.jsontag) = "insecure_skip_verify"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by

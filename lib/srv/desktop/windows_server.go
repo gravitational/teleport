@@ -19,12 +19,10 @@ package desktop
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -42,7 +40,6 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -57,15 +54,6 @@ const (
 	// dnsDialTimeout is the timeout for dialing the LDAP server
 	// when resolving Windows Desktop hostnames
 	dnsDialTimeout = 5 * time.Second
-
-	// ldapDialTimeout is the timeout for dialing the LDAP server
-	// when making an initial connection
-	ldapDialTimeout = 5 * time.Second
-
-	// ldapRequestTimeout is the timeout for making LDAP requests.
-	// It is larger than the dial timeout because LDAP queries in large
-	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 20 * time.Second
 
 	// windowsDesktopServiceCertTTL is the TTL for certificates issued to the
 	// Windows Desktop Service in order to authenticate with the LDAP server.
@@ -103,11 +91,6 @@ type WindowsService struct {
 	middleware *auth.Middleware
 
 	ca *windows.CertificateStoreClient
-	lc *windows.LDAPClient
-
-	mu              sync.Mutex // mu protects the fields that follow
-	ldapInitialized bool
-	ldapCertRenew   *time.Timer
 
 	streamer libevents.Streamer
 
@@ -319,7 +302,6 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 				return d.DialContext(ctx, network, dnsAddr)
 			},
 		},
-		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
@@ -327,17 +309,20 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
-		AccessPoint: s.cfg.AccessPoint,
-		LDAPConfig:  s.cfg.LDAPConfig,
-		Log:         s.cfg.Log,
-		ClusterName: s.clusterName,
-		LC:          s.lc,
+		AuthClient:    s.cfg.AuthClient,
+		LDAPConfig:    s.cfg.LDAPConfig,
+		Log:           s.cfg.Log,
+		ClusterName:   s.clusterName,
+		LC:            &windows.LDAPClient{Cfg: cfg.LDAPConfig},
+		LDAPCertTTL:   windowsDesktopServiceCertTTL,
+		RetryInterval: windowsDesktopServiceCertRetryInterval,
+		CAType:        types.UserCA,
 	})
 
 	// initialize LDAP - if this fails it will automatically schedule a retry.
 	// we don't want to return an error in this case, because failure to start
 	// the service brings down the entire Teleport process
-	if err := s.initializeLDAP(); err != nil {
+	if err := s.ca.InitializeLDAP(ctx); err != nil {
 		s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
 	}
 
@@ -414,122 +399,6 @@ func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.Sessio
 	return libevents.NewTeeStreamer(fileStreamer, s.cfg.Emitter), nil
 }
 
-func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
-	// trim NETBIOS name from username
-	user := s.cfg.Username
-	if i := strings.LastIndex(s.cfg.Username, `\`); i != -1 {
-		user = user[i+1:]
-	}
-
-	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, err := x509.ParseCertificate(certDER)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing cert DER")
-	}
-
-	key, err := x509.ParsePKCS1PrivateKey(keyDER)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing key DER")
-	}
-
-	tc := &tls.Config{
-		Certificates: []tls.Certificate{
-			{
-				Certificate: [][]byte{cert.Raw},
-				PrivateKey:  key,
-			},
-		},
-		InsecureSkipVerify: s.cfg.InsecureSkipVerify,
-		ServerName:         s.cfg.ServerName,
-	}
-
-	if s.cfg.CA != nil {
-		pool := x509.NewCertPool()
-		pool.AddCert(s.cfg.CA)
-		tc.RootCAs = pool
-	}
-
-	return tc, nil
-}
-
-// initializeLDAP requests a TLS certificate from the auth server to be used for
-// authenticating with the LDAP server. If the certificate is obtained, and
-// authentication with the LDAP server succeeds, it schedules a renewal to take
-// place before the certificate expires. If we are unable to obtain a certificate
-// and authenticate with the LDAP server, then the operation will be automatically
-// retried.
-func (s *WindowsService) initializeLDAP() error {
-	tc, err := s.tlsConfigForLDAP()
-	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
-		s.cfg.Log.Warn("Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
-	}
-	if err != nil {
-		s.mu.Lock()
-		s.ldapInitialized = false
-		// in the case where we're not licensed for desktop access, we retry less frequently,
-		// since this is likely not an intermittent error that will resolve itself quickly
-		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval * 3)
-		s.mu.Unlock()
-		return trace.Wrap(err)
-	}
-
-	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
-		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
-	if err != nil {
-		s.mu.Lock()
-		s.ldapInitialized = false
-		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval)
-		s.mu.Unlock()
-		return trace.Wrap(err, "dial")
-	}
-
-	conn.SetTimeout(ldapRequestTimeout)
-	s.lc.SetClient(conn)
-
-	// Note: admin still needs to import our CA into the Group Policy following
-	// https://docs.vmware.com/en/VMware-Horizon-7/7.13/horizon-installation/GUID-7966AE16-D98F-430E-A916-391E8EAAFE18.html
-	//
-	// We can find the group policy object via LDAP, but it only contains an
-	// SMB file path with the actual policy. See
-	// https://en.wikipedia.org/wiki/Group_Policy
-	//
-	// In theory, we could update the policy file(s) over SMB following
-	// https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format,
-	// but I'm leaving this for later.
-	//
-	if err := s.ca.Update(s.closeCtx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.mu.Lock()
-	s.ldapInitialized = true
-	s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertTTL / 3)
-	s.mu.Unlock()
-
-	return nil
-}
-
-// scheduleNextLDAPCertRenewalLocked schedules a renewal of our LDAP credentials
-// after some amount of time has elapsed. If an existing renewal is already
-// scheduled, it is canceled and this new one takes its place.
-//
-// The lock on s.mu MUST be held.
-func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) {
-	if s.ldapCertRenew != nil {
-		s.ldapCertRenew.Reset(after)
-	} else {
-		s.ldapCertRenew = time.AfterFunc(after, func() {
-			if err := s.initializeLDAP(); err != nil {
-				s.cfg.Log.WithError(err).Error("couldn't renew certificate for LDAP auth")
-			}
-		})
-	}
-}
-
 func (s *WindowsService) startServiceHeartbeat() error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         s.closeCtx,
@@ -590,15 +459,8 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 // Close instructs the server to stop accepting new connections and abort all
 // established ones. Close does not wait for the connections to be finished.
 func (s *WindowsService) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.ldapCertRenew != nil {
-		s.ldapCertRenew.Stop()
-	}
 	s.close()
-	s.lc.Close()
-	return nil
+	return s.ca.Close()
 }
 
 // Serve starts serving TLS connections for plainLis. plainLis should be a TCP
@@ -628,12 +490,6 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
-func (s *WindowsService) ldapReady() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ldapInitialized
-}
-
 // handleConnection handles TLS connections from a Teleport proxy.
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
@@ -652,7 +508,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// don't handle connections until the LDAP initialization retry loop has succeeded
 	// (it would fail anyway, but this presents a better error to the user)
-	if !s.ldapReady() {
+	if !s.ca.LDAPReady() {
 		const msg = "This service cannot accept connections until LDAP initialization has completed."
 		log.Error(msg)
 		sendTDPError(msg)

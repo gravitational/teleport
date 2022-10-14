@@ -75,6 +75,7 @@ func (c *connector) kinitClient(ctx context.Context, session *common.Session, au
 	}
 
 	cert, err := x509.ParseCertificate(ldapPem.Bytes)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
