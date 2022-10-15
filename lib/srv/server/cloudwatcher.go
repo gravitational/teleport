@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
@@ -101,7 +102,7 @@ func (w *EC2Watcher) Stop() {
 	w.cancel()
 }
 
-// NewEC2Watcher creates a new cloud watcher instance.
+// NewEC2Watcher creates a new EC2 watcher instance.
 func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*EC2Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := EC2Watcher{
@@ -209,56 +210,147 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instance
 	return instances, nil
 }
 
+// AzureInstances contains information about discovered Azure virtual machines.
+type AzureInstances struct {
+	// Region is the Azure region where the instances are located.
+	Region string
+	// SubscriptionID is the subscription ID for the instances.
+	SubscriptionID string
+	// ResourceGroup is the resource group for the instances.
+	ResourceGroup string
+	// Instances is a list of discovered Azure virtual machines.
+	Instances []*armcompute.VirtualMachine
+}
+
+// AzureWatcher allows callers to discover Azure virtual machines matching specified filters.
+type AzureWatcher struct {
+	// InstancesC can be used to consume newly discoverd Azure virtual machines.
+	InstancesC chan AzureInstances
+
+	fetchers      []*azureInstanceFetcher
+	fetchInterval time.Duration
+	ctx           context.Context
+	cancel        context.CancelFunc
+}
+
+// Run starts the watcher's main watch loop.
+func (w *AzureWatcher) Run() {
+	ticker := time.NewTicker(w.fetchInterval)
+	defer ticker.Stop()
+	for {
+		for _, fetcher := range w.fetchers {
+			instancesColl, err := fetcher.GetAzureVMs(w.ctx)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					continue
+				}
+				log.WithError(err).Error("Failed to fetch Azure VMs")
+				continue
+			}
+			for _, inst := range instancesColl {
+				select {
+				case w.InstancesC <- inst:
+				case <-w.ctx.Done():
+				}
+			}
+		}
+		select {
+		case <-ticker.C:
+			continue
+		case <-w.ctx.Done():
+			return
+		}
+	}
+}
+
+// Stop stops the watcher.
+func (w *AzureWatcher) Stop() {
+	w.cancel()
+}
+
+// NewAzureWatcher creates a new Azure watcher instance.
+func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*AzureWatcher, error) {
+	cancelCtx, cancelFn := context.WithCancel(ctx)
+	watcher := AzureWatcher{
+		fetchers:      []*azureInstanceFetcher{},
+		ctx:           cancelCtx,
+		cancel:        cancelFn,
+		fetchInterval: time.Minute,
+		InstancesC:    make(chan AzureInstances, 2),
+	}
+	for _, matcher := range matchers {
+		for _, subscription := range matcher.Subscriptions {
+			for _, resourceGroup := range matcher.ResourceGroups {
+				cl, err := clients.GetAzureVirtualMachinesClient(subscription)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
+					Matcher:       matcher,
+					Subscription:  subscription,
+					ResourceGroup: resourceGroup,
+					AzureClient:   cl,
+				})
+				watcher.fetchers = append(watcher.fetchers, fetcher)
+			}
+		}
+	}
+	return &watcher, nil
+}
+
+type azureFetcherConfig struct {
+	Matcher       services.AzureMatcher
+	Subscription  string
+	ResourceGroup string
+	AzureClient   *azure.VirtualMachinesClient
+}
+
 type azureInstanceFetcher struct {
-	Azure         *armcompute.VirtualMachinesClient
+	Azure         *azure.VirtualMachinesClient
 	Regions       []string
+	Subscription  string
 	ResourceGroup string
 	Labels        types.Labels
 }
 
-func (f *azureInstanceFetcher) matchVM(vm *armcompute.VirtualMachine) bool {
-	matchRegion := false
-	for _, region := range f.Regions {
-		if region == *vm.Location {
-			matchRegion = true
-			break
-		}
+func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
+	return &azureInstanceFetcher{
+		Azure:         cfg.AzureClient,
+		Regions:       cfg.Matcher.Regions,
+		Subscription:  cfg.Subscription,
+		ResourceGroup: cfg.ResourceGroup,
+		Labels:        cfg.Matcher.ResourceTags,
 	}
-	if !matchRegion {
-		return false
-	}
-	return true
 }
 
+// GetAzureVMs fetches all Azure virtual machines matching configured filters.
 func (f *azureInstanceFetcher) GetAzureVMs(ctx context.Context) ([]AzureInstances, error) {
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
 	for _, region := range f.Regions {
 		instancesByRegion[region] = []*armcompute.VirtualMachine{}
 	}
 
-	pager := f.Azure.NewListPager(f.ResourceGroup, nil)
-	for pager.More() {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	vms, err := f.Azure.ListVirtualMachines(ctx, f.ResourceGroup)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, vm := range vms {
+		if _, ok := instancesByRegion[*vm.Location]; !ok {
+			continue
 		}
-		for _, vm := range resp.Value {
-			if _, ok := instancesByRegion[*vm.Location]; !ok {
-				continue
+		vmTags := make(map[string]string, len(vm.Tags))
+		for key, value := range vm.Tags {
+			if value == nil {
+				vmTags[key] = ""
+			} else {
+				vmTags[key] = *value
 			}
-			vmTags := make(map[string]string, len(vm.Tags))
-			for key, value := range vm.Tags {
-				if value == nil {
-					vmTags[key] = ""
-				} else {
-					vmTags[key] = *value
-				}
-			}
-			if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
-				continue
-			}
-			instancesByRegion[*vm.Location] = append(instancesByRegion[*vm.Location], vm)
 		}
+		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
+			continue
+		}
+		instancesByRegion[*vm.Location] = append(instancesByRegion[*vm.Location], vm)
 	}
 
 	var instances []AzureInstances
@@ -273,28 +365,4 @@ func (f *azureInstanceFetcher) GetAzureVMs(ctx context.Context) ([]AzureInstance
 	}
 
 	return instances, nil
-}
-
-type AzureInstances struct {
-	Region         string
-	SubscriptionID string
-	ResourceGroup  string
-	Instances      []*armcompute.VirtualMachine
-}
-
-type AzureWatcher struct {
-	InstancesC chan AzureInstances
-
-	fetchers      []*azureInstanceFetcher
-	fetchInterval time.Duration
-	ctx           context.Context
-	cancel        context.CancelFunc
-}
-
-func (w *AzureWatcher) Run() {}
-
-func (w *AzureWatcher) Stop() {}
-
-func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*AzureWatcher, error) {
-	return &AzureWatcher{}, nil
 }

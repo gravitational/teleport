@@ -135,16 +135,28 @@ outer:
 }
 
 func genEC2InstancesLogStr(instances []*ec2.Instance) string {
+	return genInstancesLogStr(instances, func(i *ec2.Instance) string {
+		return aws.StringValue(i.InstanceId)
+	})
+}
+
+func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
+	return genInstancesLogStr(instances, func(i *armcompute.VirtualMachine) string {
+		return *i.ID
+	})
+}
+
+func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 	var logInstances strings.Builder
 	for idx, inst := range instances {
 		if idx == 10 || idx == (len(instances)-1) {
-			logInstances.WriteString(aws.StringValue(inst.InstanceId))
+			logInstances.WriteString(getID(inst))
 			break
 		}
-		logInstances.WriteString(aws.StringValue(inst.InstanceId) + ", ")
+		logInstances.WriteString(getID(inst) + ", ")
 	}
 	if len(instances) > 10 {
-		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunacted", len(instances)-10))
+		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs truncated", len(instances)-10))
 	}
 
 	return fmt.Sprintf("[%s]", logInstances.String())
@@ -197,8 +209,6 @@ func (s *Server) handleEC2Discovery() {
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 	return trace.NotImplemented("Automatic Azure node joining not implemented")
 }
-
-func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string
 
 func (s *Server) handleAzureDiscovery() {
 	go s.azureWatcher.Run()

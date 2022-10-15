@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
@@ -49,6 +50,29 @@ func (m *ARMSubscriptionsMock) NewListPager(_ *armsubscription.SubscriptionsClie
 			return armsubscription.SubscriptionsClientListResponse{
 				ListResult: armsubscription.ListResult{
 					Value: m.Subscriptions,
+				},
+			}, nil
+		},
+	})
+}
+
+type ARMVirtualMachinesMock struct {
+	VirtualMachines map[string][]*armcompute.VirtualMachine
+}
+
+func (m *ARMVirtualMachinesMock) NewListPager(resourceGroup string, _ *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse] {
+	vms, ok := m.VirtualMachines[resourceGroup]
+	if !ok {
+		vms = []*armcompute.VirtualMachine{}
+	}
+	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListResponse]{
+		More: func(page armcompute.VirtualMachinesClientListResponse) bool {
+			return page.NextLink != nil && len(*page.NextLink) > 0
+		},
+		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListResponse) (armcompute.VirtualMachinesClientListResponse, error) {
+			return armcompute.VirtualMachinesClientListResponse{
+				VirtualMachineListResult: armcompute.VirtualMachineListResult{
+					Value: vms,
 				},
 			}, nil
 		},
