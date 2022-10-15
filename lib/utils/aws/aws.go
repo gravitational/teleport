@@ -30,6 +30,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -142,7 +145,7 @@ func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
 
 // drainBody drains the body, close the reader and returns the read bytes.
 func drainBody(b io.ReadCloser) ([]byte, error) {
-	payload, err := io.ReadAll(b)
+	payload, err := utils.ReadAtMost(b, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
