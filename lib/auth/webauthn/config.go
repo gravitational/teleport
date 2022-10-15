@@ -45,6 +45,11 @@ func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 		attestation = protocol.PreferDirectAttestation
 	}
 
+	residentKeyRequirement := protocol.ResidentKeyRequirementDiscouraged
+	if p.requireResidentKey {
+		residentKeyRequirement = protocol.ResidentKeyRequirementRequired
+	}
+
 	// Default to "discouraged", otherwise some browsers may do needless PIN
 	// prompts.
 	userVerification := protocol.VerificationDiscouraged
@@ -60,6 +65,7 @@ func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 		AttestationPreference: attestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
 			RequireResidentKey: &p.requireResidentKey,
+			ResidentKey:        residentKeyRequirement,
 			UserVerification:   userVerification,
 		},
 		Timeout: int(defaults.WebauthnChallengeTimeout.Milliseconds()),

@@ -1213,13 +1213,11 @@ func tlsClientConfig(cfg *rest.Config) (*tls.Config, error) {
 		return nil, trace.BadParameter("failed to append certs from PEM")
 	}
 
-	tlsConfig := &tls.Config{
+	return &tls.Config{
 		RootCAs:      pool,
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-	}
-	tlsConfig.BuildNameToCertificate()
-	return tlsConfig, nil
+	}, nil
 }
 
 func kubeProxyTLSConfig(cfg kube.ProxyConfig) (*tls.Config, error) {

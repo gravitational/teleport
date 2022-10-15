@@ -77,9 +77,15 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	// Reset functions after tests.
 	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+	oldHasPlatformSupport := *client.HasPlatformSupport
+	*client.HasPlatformSupport = func() bool {
+		return true
+	}
+
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
 		*client.PromptWebauthn = oldWebauthn
+		*client.HasPlatformSupport = oldHasPlatformSupport
 	})
 
 	waitForCancelFn := func(ctx context.Context) (string, error) {
@@ -264,6 +270,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	customizedOpts := &client.PromptMFAChallengeOpts{
+		HintBeforePrompt:        "some hint explaining the imminent prompt",
 		PromptDevicePrefix:      "llama",
 		Quiet:                   true,
 		AllowStdinHijack:        true,
@@ -341,7 +348,8 @@ type standaloneBundle struct {
 }
 
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
-//  function and reusing in other places.
+//
+//	function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
@@ -369,7 +377,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{randomAddr} // must be present
+	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -452,7 +460,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.WebAddr = randomAddr

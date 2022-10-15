@@ -465,6 +465,7 @@
                 "replicaCount",
                 "requireAntiAffinity",
                 "certManager",
+                "minReadySeconds",
                 "podDisruptionBudget"
             ],
             "properties": {
@@ -514,6 +515,11 @@
                             "default": "cert-manager.io"
                         }
                     }
+                },
+                "minReadySeconds": {
+                    "$id": "#/properties/highAvailability/properties/minReadySeconds",
+                    "type": "integer",
+                    "default": 15
                 },
                 "podDisruptionBudget": {
                     "$id": "#/properties/highAvailability/properties/podDisruptionBudget",

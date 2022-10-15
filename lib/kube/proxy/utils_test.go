@@ -26,24 +26,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type testContext struct {
@@ -64,8 +66,15 @@ type kubeClusterConfig struct {
 	apiEndpoint string
 }
 
+// testConfig defines the suite options.
+type testConfig struct {
+	clusters         []kubeClusterConfig
+	resourceMatchers []services.ResourceMatcher
+	onReconcile      func(types.KubeClusters)
+}
+
 // setupTestContext creates a kube service with clusters configured.
-func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeClusterConfig) *testContext {
+func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testContext {
 	testCtx := &testContext{
 		clusterName: "root.example.com",
 		hostID:      uuid.New().String(),
@@ -73,7 +82,7 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
-	kubeConfigLocation := newKubeConfigFile(ctx, t, clusters...)
+	kubeConfigLocation := newKubeConfigFile(ctx, t, cfg.clusters...)
 
 	// Create and start test auth server.
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
@@ -128,7 +137,7 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 	keyGen := native.New(testCtx.ctx)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
-	heartbeatsWaitChannel := make(chan struct{}, len(clusters))
+	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters)+1)
 
 	// Create kubernetes service server.
 	testCtx.kubeServer, err = NewTLSServer(TLSServerConfig{
@@ -146,7 +155,6 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
 			Component:         teleport.ComponentKube,
-			DynamicLabels:     nil,
 			LockWatcher:       proxyLockWatcher,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
@@ -154,8 +162,9 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 			},
 			Clock: clockwork.NewRealClock(),
 		},
-		TLS:         tlsConfig,
-		AccessPoint: testCtx.authClient,
+		DynamicLabels: nil,
+		TLS:           tlsConfig,
+		AccessPoint:   testCtx.authClient,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
@@ -170,14 +179,24 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 			default:
 			}
 		},
-		GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers: cfg.resourceMatchers,
+		OnReconcile:      cfg.onReconcile,
 	})
 	require.NoError(t, err)
 
+	// Waits for len(clusters) heartbeats to start
+	waitForHeartbeats := len(cfg.clusters)
+	// we must also wait for the legacy heartbeat.
+	// FIXME (tigrato): his check was added to force
+	// the person that removes the legacy heartbeat to adapt this code as well
+	// in order to wait just for len(cfg.clusters).
+	_ = testCtx.kubeServer.legacyHeartbeat
+	waitForHeartbeats++
+
 	testCtx.startKubeService(t)
 
-	// Waits for len(clusters) heartbeats to start
-	for i := 0; i < len(clusters); i++ {
+	for i := 0; i < waitForHeartbeats; i++ {
 		<-heartbeatsWaitChannel
 	}
 
@@ -195,7 +214,7 @@ func (c *testContext) startKubeService(t *testing.T) {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 }
 
@@ -280,7 +299,7 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	require.NoError(t, err)
 
-	privPEM, _, err := native.GenerateKeyPair()
+	privPEM, _, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	priv, err := tlsca.ParsePrivateKeyPEM(privPEM)

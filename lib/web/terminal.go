@@ -152,7 +152,7 @@ type TerminalHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
 
-	// params is the initial PTY size.
+	// params describes the request for a PTY
 	params TerminalRequest
 
 	// ctx is a web session context for the currently logged in user.

@@ -39,6 +39,12 @@ const (
 	DefaultJoinMethod     = "token"
 )
 
+var SupportedJoinMethods = []string{
+	string(types.JoinMethodToken),
+	string(types.JoinMethodIAM),
+	string(types.JoinMethodGitHub),
+}
+
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentTBot,
 })

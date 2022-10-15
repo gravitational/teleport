@@ -24,9 +24,13 @@ const (
 	rpmPackage = "rpm"
 	// debPackage is the DEB package type
 	debPackage = "deb"
+
+	// tagCleanupPipelineName is the name of the pipeline that cleans up
+	// artifacts from a previous partially-failed build
+	tagCleanupPipelineName = "clean-up-previous-build"
 )
 
-const releasesHost = "https://releases-staging.platform.teleport.sh"
+const releasesHost = "https://releases-prod.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(b buildType) []string {
@@ -187,30 +191,6 @@ done && ls -l`)
 	return commands
 }
 
-type s3Settings struct {
-	region      string
-	source      string
-	target      string
-	stripPrefix string
-}
-
-// uploadToS3Step generates an S3 upload step
-func uploadToS3Step(s s3Settings) step {
-	return step{
-		Name:  "Upload to S3",
-		Image: "plugins/s3",
-		Settings: map[string]value{
-			"bucket":       {fromSecret: "AWS_S3_BUCKET"},
-			"access_key":   {fromSecret: "AWS_ACCESS_KEY_ID"},
-			"secret_key":   {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			"region":       {raw: s.region},
-			"source":       {raw: s.source},
-			"target":       {raw: s.target},
-			"strip_prefix": {raw: s.stripPrefix},
-		},
-	}
-}
-
 // tagPipelines builds all applicable tag pipeline combinations
 func tagPipelines() []pipeline {
 	var ps []pipeline
@@ -244,6 +224,8 @@ func tagPipelines() []pipeline {
 
 	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
 	ps = append(ps, windowsTagPipeline())
+
+	ps = append(ps, tagCleanupPipeline())
 	return ps
 }
 
@@ -288,8 +270,9 @@ func tagPipeline(b buildType) pipeline {
 		"RUNTIME":          goRuntime,
 	}
 	p.Trigger = triggerTag
+	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes()
+	p.Volumes = []volume{volumeAwsConfig, volumeDocker}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -307,7 +290,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: tagEnvironment,
-			Volumes:     dockerVolumeRefs(),
+			Volumes:     []volumeRef{volumeRefDocker},
 			Commands:    tagBuildCommands(b),
 		},
 		{
@@ -315,20 +298,27 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(b),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
-			Failure:  "ignore",
 			Environment: map[string]value{
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 	}
@@ -434,11 +424,9 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	environment := map[string]value{
-		"ARCH":                  {raw: b.arch},
-		"TMPDIR":                {raw: "/go"},
-		"ENT_TARBALL_PATH":      {raw: "/go/artifacts"},
-		"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
-		"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+		"ARCH":             {raw: b.arch},
+		"TMPDIR":           {raw: "/go"},
+		"ENT_TARBALL_PATH": {raw: "/go/artifacts"},
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
@@ -472,8 +460,14 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := dockerVolumes()
-	packageDockerVolumeRefs := dockerVolumeRefs()
+	packageDockerVolumes := []volume{
+		volumeDocker,
+		volumeAwsConfig,
+	}
+	packageDockerVolumeRefs := []volumeRef{
+		volumeRefDocker,
+		volumeRefAwsConfig,
+	}
 	packageDockerService := dockerService()
 
 	switch packageType {
@@ -488,8 +482,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			`rm -rf $GNUPG_DIR`,
 		)
 		// RPM builds require tmpfs to hold the key material in memory.
-		packageDockerVolumes = dockerVolumes(volumeTmpfs)
-		packageDockerVolumeRefs = dockerVolumeRefs(volumeRefTmpfs)
+		packageDockerVolumes = append(packageDockerVolumes, volumeTmpfs)
+		packageDockerVolumeRefs = append(packageDockerVolumeRefs, volumeRefTmpfs)
 		packageDockerService = dockerService(volumeRefTmpfs)
 	case debPackage:
 		packageBuildCommands = append(packageBuildCommands,
@@ -499,11 +493,39 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		panic("packageType is not set")
 	}
 
+	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
+	})
+	assumeBuildRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+			awsSecretAccessKey: value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+			role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Build AWS Role",
+	})
+	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Upload AWS Role",
+	})
+
 	pipelineName := fmt.Sprintf("%s-%s", dependentPipeline, packageType)
 
 	p := newKubePipeline(pipelineName)
 	p.Trigger = triggerTag
-	p.DependsOn = []string{dependentPipeline}
+	p.DependsOn = []string{dependentPipeline, tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = packageDockerVolumes
 	p.Services = []service{
@@ -519,17 +541,18 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
+		assumeDownloadRoleStep,
 		{
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"AWS_REGION":    {raw: "us-west-2"},
+				"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
 			},
 			Commands: tagDownloadArtifactCommands(b),
+			Volumes:  []volumeRef{volumeRefAwsConfig},
 		},
+		assumeBuildRoleStep,
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
@@ -542,22 +565,26 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
+		assumeUploadRoleStep,
+		kubernetesUploadToS3Step(kubernetesS3Settings{
+			region:       "us-west-2",
+			source:       "/go/artifacts/",
+			target:       "teleport/tag/${DRONE_TAG##v}",
+			configVolume: volumeRefAwsConfig,
 		}),
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 	}
 	return p
+}
+
+func tagCleanupPipeline() pipeline {
+	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "relcli auto_destroy -f -v 6")
 }
