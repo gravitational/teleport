@@ -33,7 +33,7 @@ import (
 // connector to use. This test doesn't cover the connection flow, only the
 // selection logic.
 func TestConnectorSelection(t *testing.T) {
-        t.Parallel()
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
