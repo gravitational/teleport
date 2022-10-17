@@ -584,7 +584,7 @@ matches snapshot for join-params-iam.yaml:
         teleport:
           join_params:
             method: "iam"
-            token_name: "iam-token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO

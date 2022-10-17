@@ -23,11 +23,7 @@ data:
     teleport:
       join_params:
         method: "{{ .Values.joinParams.method }}"
-  {{- if eq .Values.joinParams.method "token" }}
         token_name: "/etc/teleport-secrets/auth-token"
-  {{- else }}
-        token_name: "{{ .Values.joinParams.tokenName }}"
-  {{- end }}
       proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
       {{- if .Values.caPin }}
       ca_pin: {{- toYaml .Values.caPin | nindent 8 }}
