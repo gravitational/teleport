@@ -109,6 +109,19 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
+// GetCluster returns cluster information
+func (s *Service) GetCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+	cluster, err := s.ResolveCluster(uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	features, err := cluster.GetClusterFeatures(ctx)
+	cluster.Features = features
+
+	return cluster, nil
+}
+
 // ClusterLogout logs a user out from the cluster
 func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 	cluster, err := s.ResolveCluster(uri)

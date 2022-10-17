@@ -76,7 +76,7 @@ func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterReque
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, err := s.DaemonService.GetCluster(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,6 +91,9 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		Name:      cluster.Name,
 		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
+		Features: &api.Features{
+			AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
+		},
 		LoggedInUser: &api.LoggedInUser{
 			Name:           loggedInUser.Name,
 			SshLogins:      loggedInUser.SSHLogins,
