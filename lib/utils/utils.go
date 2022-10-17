@@ -37,12 +37,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/modules"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // WriteContextCloser provides close method with context
@@ -452,9 +454,24 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
+// HostUUIDExistsLocaly checks if dataDir/host_uuid file exists in local storage.
+func HostUUIDExistsLocaly(dataDir string) bool {
+	_, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
+	return err == nil
+}
+
 // ReadHostUUID reads host UUID from the file in the data dir
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
+	// When running in a Kubernetes Cluster we need to check if the `host_uuid`
+	// was previously written into the Secret.
+	if err != nil && kubernetes.InKubeCluster() {
+		// if not present return an error to generate a new uuid it.
+		if hostUUID, lerr := loadHostUUIDFromKubeSecret(); lerr == nil {
+			err = nil
+			out = hostUUID
+		}
+	}
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -469,6 +486,39 @@ func ReadHostUUID(dataDir string) (string, error) {
 	return id, nil
 }
 
+// writeHostUUIDToKubeSecret reads the host_uuid from the Kubernetes secret
+// with the expected key: `/host_uuid`.
+func loadHostUUIDFromKubeSecret() ([]byte, error) {
+	st, err := kubernetes.New()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	k, err := st.Get(context.Background(), backend.Key(HostUUIDFile))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return k.Value, nil
+}
+
+// writeHostUUIDToKubeSecret writes the host_uuid into the Kubernetes secret
+// under the key `/host_uuid`.
+func writeHostUUIDToKubeSecret(id string) error {
+	st, err := kubernetes.New()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = st.Put(
+		context.Background(),
+		backend.Item{
+			Key:   backend.Key(HostUUIDFile),
+			Value: []byte(id),
+		},
+	)
+	return trace.Wrap(err)
+}
+
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
 	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
@@ -478,6 +528,12 @@ func WriteHostUUID(dataDir string, id string) error {
 			return err
 		}
 		return trace.ConvertSystemError(err)
+	}
+	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
+	// This is required because `host_uuid` is part of the client secret
+	// and Auth connection will fail if we present a different `host_uuid`.
+	if kubernetes.InKubeCluster() {
+		return trace.Wrap(writeHostUUIDToKubeSecret(id))
 	}
 	return nil
 }
