@@ -108,7 +108,7 @@ fail to join the Teleport cluster.
 ## `joinParams`
 
 `joinParams` controls how the Teleport agent joins the Teleport cluster.
-Those sub-values must be configured for the agent to connect to its cluster.
+These sub-values must be configured for the agent to connect to a cluster.
 
 ### `joinParams.method`
 | Type | Default value | Required? |
@@ -127,7 +127,7 @@ Possible values are `token`, `iam` and `ec2`.
 Using the IAM joining method requires either the pods to have access to [instance
 metadata](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html),
 or [IAM roles for service
-account](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) to be
+accounts](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) to be
 set up on the pods's service account. For access to instance metadata (the quickest solution), see
 [AWS's examples on how to restrict instance metadata access to a few
 pods](https://aws.github.io/aws-eks-best-practices/security/docs/iam/#restrict-access-to-the-instance-profile-assigned-to-the-worker-node).
