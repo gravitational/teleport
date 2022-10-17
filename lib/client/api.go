@@ -55,6 +55,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/touchid"
+	"github.com/gravitational/teleport/lib/auth/webauthncli"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -239,7 +241,7 @@ type Config struct {
 	UseKeyPrincipals bool
 
 	// Agent is used when SkipLocalAuth is true
-	Agent agent.Agent
+	Agent agent.ExtendedAgent
 
 	// PreloadKey is a key with which to initialize a local in-memory keystore.
 	PreloadKey *Key
@@ -399,6 +401,10 @@ type Config struct {
 
 	// PrivateKeyPolicy is a key policy that this client will try to follow during login.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
+
+	// LoadAllCAs indicates that tsh should load the CAs of all clusters
+	// instead of just the current cluster.
+	LoadAllCAs bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1130,6 +1136,11 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.TLSRoutingEnabled = cp.TLSRoutingEnabled
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
+	c.LoadAllCAs = cp.LoadAllCAs
+	c.AuthenticatorAttachment, err = parseMFAMode(cp.MFAMode)
+	if err != nil {
+		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
+	}
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1165,6 +1176,8 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
+	cp.MFAMode = c.AuthenticatorAttachment.String()
+	cp.LoadAllCAs = c.LoadAllCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
@@ -1492,7 +1505,8 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		Username:   c.Username,
 		KeysOption: c.AddKeysToAgent,
 		Insecure:   c.InsecureSkipVerify,
-		SiteName:   tc.SiteName,
+		Site:       tc.SiteName,
+		LoadAllCAs: tc.LoadAllCAs,
 	}
 
 	// sometimes we need to use external auth without using local auth
@@ -1713,7 +1727,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, applyOpts func(opts *PromptMFAChallengeOpts)) (*Key, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -1730,7 +1744,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return proxyClient.IssueUserCertsWithMFA(
 		ctx, params,
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
+			return tc.PromptMFAChallenge(ctx, proxyAddr, c, applyOpts)
 		})
 }
 
@@ -2328,7 +2342,9 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	}
 
 	if !quiet {
-		config.cfg.ProgressWriter = tc.Stdout
+		config.cfg.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
+			return sftp.NewProgressBar(fileInfo.Size(), fileInfo.Name(), tc.Stdout)
+		}
 	}
 
 	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
@@ -3437,6 +3453,12 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
 		return tc.pwdlessLogin, nil
+	case authType == constants.Local && tc.canDefaultToPasswordless(pr):
+		log.Debug("Trying passwordless login because credentials were found")
+		// if passwordless is enabled and there are passwordless credentials
+		// registered, we can try to go with passwordless login even though
+		// auth=local was selected.
+		return tc.pwdlessLogin, nil
 	case authType == constants.Local:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
@@ -3456,6 +3478,30 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}
+}
+
+// hasTouchIDCredentials provides indirection for tests.
+var hasTouchIDCredentials = touchid.HasCredentials
+
+// canDefaultToPasswordless checks without user interaction
+// if there is any registered passwordless login.
+func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
+	if !pr.Auth.AllowPasswordless {
+		return false
+	}
+	if tc.Config.AuthenticatorAttachment == wancli.AttachmentCrossPlatform {
+		return false
+	}
+	if pr.Auth.Webauthn == nil {
+		return false
+	}
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
@@ -3482,7 +3528,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiaiting login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Re-intiaiting login with YubiKey generated private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}
@@ -3805,10 +3851,11 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		}
 	}
 
-	// Update tc with proxy settings specified in Ping response.
+	// Update tc with proxy and auth settings specified in Ping response.
 	if err := tc.applyProxySettings(pr.Proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tc.applyAuthSettings(pr.Auth)
 
 	tc.lastPing = pr
 
@@ -4096,6 +4143,12 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	return nil
 }
 
+// applyAuthSettings updates configuration changes based on the advertised
+// authentication settings, overriding existing fields in tc.
+func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
+	tc.LoadAllCAs = authSettings.LoadAllCAs
+}
+
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
 func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthority) error {
 	_, span := tc.Tracer.Start(
@@ -4195,7 +4248,7 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 }
 
 // connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.Agent {
+func connectToSSHAgent() agent.ExtendedAgent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
@@ -4598,4 +4651,17 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
+}
+
+func parseMFAMode(in string) (webauthncli.AuthenticatorAttachment, error) {
+	switch in {
+	case "auto", "":
+		return webauthncli.AttachmentAuto, nil
+	case "platform":
+		return webauthncli.AttachmentPlatform, nil
+	case "cross-platform":
+		return webauthncli.AttachmentCrossPlatform, nil
+	default:
+		return 0, trace.BadParameter("unsupported mfa mode %q", in)
+	}
 }

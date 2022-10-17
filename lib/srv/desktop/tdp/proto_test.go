@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"os"
@@ -59,14 +60,15 @@ func TestEncodeDecode(t *testing.T) {
 		MouseWheel{Axis: HorizontalWheelAxis, Delta: -123},
 		Error{Message: "An error occurred"},
 	} {
+		t.Run(fmt.Sprintf("%T", m), func(t *testing.T) {
+			buf, err := m.Encode()
+			require.NoError(t, err)
 
-		buf, err := m.Encode()
-		require.NoError(t, err)
+			out, err := Decode(buf)
+			require.NoError(t, err)
 
-		out, err := Decode(buf)
-		require.NoError(t, err)
-
-		require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
+			require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
+		})
 	}
 }
 
@@ -104,7 +106,7 @@ func BenchmarkEncodePNG(b *testing.B) {
 	}
 }
 
-func loadBitmaps(b *testing.B) []PNGFrame {
+func loadBitmaps(b *testing.B) []PNG2Frame {
 	b.Helper()
 
 	f, err := os.Open(filepath.Join("testdata", "png_frames.json"))
@@ -113,7 +115,7 @@ func loadBitmaps(b *testing.B) []PNGFrame {
 
 	enc := PNGEncoder()
 
-	var result []PNGFrame
+	var result []PNG2Frame
 	type record struct {
 		Top, Left, Right, Bottom int
 		Pix                      []byte
@@ -161,9 +163,14 @@ func TestMFA(t *testing.T) {
 			},
 		},
 	}
-	err := c.OutputMessage(mfaWant)
+	err := c.WriteMessage(mfaWant)
 	require.NoError(t, err)
-	mfaGot, err := DecodeMFAChallenge(bufio.NewReader(&buff))
+
+	mt, err := buff.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, TypeMFA, MessageType(mt))
+
+	mfaGot, err := DecodeMFAChallenge(&buff)
 	require.NoError(t, err)
 	require.Equal(t, mfaWant, mfaGot)
 
@@ -187,9 +194,9 @@ func TestMFA(t *testing.T) {
 			},
 		},
 	}
-	err = c.OutputMessage(respWant)
+	err = c.WriteMessage(respWant)
 	require.NoError(t, err)
-	respGot, err := c.InputMessage()
+	respGot, err := c.ReadMessage()
 	require.NoError(t, err)
 	require.Equal(t, respWant, respGot)
 }
