@@ -20,12 +20,12 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
@@ -385,9 +385,6 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("bad IssuerURL '%v', err: %v", o.GetIssuerURL(), err)
 	}
 
-	// DELETE IN 11.0.0
-	o.CheckSetRedirectURL()
-
 	if len(o.GetRedirectURLs()) == 0 {
 		return trace.BadParameter("RedirectURL: missing redirect_url")
 	}
@@ -421,16 +418,6 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// RedirectURL must be checked/set when communicating with an old server or client.
-// DELETE IN 11.0.0
-func (o *OIDCConnectorV3) CheckSetRedirectURL() {
-	if o.Spec.RedirectURL == "" && len(o.Spec.RedirectURLs) != 0 {
-		o.Spec.RedirectURL = o.Spec.RedirectURLs[0]
-	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
-		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
-	}
 }
 
 // GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.

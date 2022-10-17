@@ -811,7 +811,9 @@ func TestProtocolString(t *testing.T) {
 }
 
 // server is used to implement test.PingerServer
-type server struct{}
+type server struct {
+	test.UnimplementedPingerServer
+}
 
 func (s *server) Ping(ctx context.Context, req *test.Request) (*test.Response, error) {
 	return &test.Response{Payload: "grpc backend"}, nil

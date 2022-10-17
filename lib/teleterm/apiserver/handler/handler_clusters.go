@@ -92,9 +92,10 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
-			Name:      loggedInUser.Name,
-			SshLogins: loggedInUser.SSHLogins,
-			Roles:     loggedInUser.Roles,
+			Name:           loggedInUser.Name,
+			SshLogins:      loggedInUser.SSHLogins,
+			Roles:          loggedInUser.Roles,
+			ActiveRequests: loggedInUser.ActiveRequests,
 		},
 	}
 }

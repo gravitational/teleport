@@ -338,6 +338,8 @@ var forwardedHeaderNames = []string{
 	"X-Forwarded-Host",
 	"X-Forwarded-Server",
 	"X-Forwarded-For",
+	"X-Forwarded-Ssl",
+	"X-Forwarded-Port",
 }
 
 type appAccessTestFunc func(*Pack, *testing.T)

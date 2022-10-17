@@ -1,7 +1,8 @@
-# Build the manager binary
-FROM golang:1.18 as builder
+ARG BUILDBOX
+FROM $BUILDBOX as builder
 
-WORKDIR /workspace
+WORKDIR /go/src/github.com/gravitational/teleport
+
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -22,10 +23,10 @@ COPY operator/main.go operator/main.go
 COPY operator/namespace.go operator/namespace.go
 
 # Build
-RUN GOOS=linux GOARCH=amd64 go build -a -o teleport-operator github.com/gravitational/teleport/operator
+RUN GOOS=linux GOARCH=amd64 go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/operator
 
 FROM gcr.io/distroless/cc
 WORKDIR /
-COPY --from=builder /workspace/teleport-operator .
+COPY --from=builder /go/bin/teleport-operator .
 
 ENTRYPOINT ["/teleport-operator"]
