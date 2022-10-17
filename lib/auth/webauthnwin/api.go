@@ -21,7 +21,9 @@ package webauthnwin
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
@@ -89,7 +91,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
+	promptPlatform()
 	resp, err := native.GetAssertion(origin, &getAssertionRequest{
 		rpID:                  rpid,
 		clientData:            cd,
@@ -139,6 +141,7 @@ func Register(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	promptPlatform()
 	resp, err := native.MakeCredential(origin, &makeCredentialRequest{
 		rp:                    rp,
 		user:                  u,
@@ -156,6 +159,19 @@ func Register(
 			Webauthn: wanlib.CredentialCreationResponseToProto(resp),
 		},
 	}, nil
+}
+
+var (
+	// PromptPlatformMessage is the message shown before Touch ID prompts.
+	PromptPlatformMessage = "Using platform authenticator, follow the OS dialogs"
+	// PromptWriter is the writer used for prompt messages.
+	PromptWriter io.Writer = os.Stderr
+)
+
+func promptPlatform() {
+	if PromptPlatformMessage != "" {
+		fmt.Fprintln(PromptWriter, PromptPlatformMessage)
+	}
 }
 
 // CheckSupport is the result from a Windows webauthn support check.
