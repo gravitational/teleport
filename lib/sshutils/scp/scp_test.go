@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -606,13 +606,13 @@ func fromOS(t *testing.T, dir string, fs *testFS) {
 		}
 		if fi.IsDir() {
 			require.NoError(t, fs.MkDir(relpath, int(fi.Mode())))
-			require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+			require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 			return nil
 		}
 		wc, err := fs.CreateFile(relpath, uint64(fi.Size()))
 		require.NoError(t, err)
 		defer wc.Close()
-		require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+		require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 		f, err := os.Open(path)
 		require.NoError(t, err)
 		defer f.Close()

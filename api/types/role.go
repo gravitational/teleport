@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -176,6 +177,9 @@ type Role interface {
 	GetHostSudoers(RoleConditionType) []string
 	// SetHostSudoers sets the list of sudoers entries for the role
 	SetHostSudoers(RoleConditionType, []string)
+
+	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 }
 
 // NewRole constructs new standard V5 role.
@@ -658,6 +662,18 @@ func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 	}
 }
 
+// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	switch r.Spec.Options.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return keys.PrivateKeyPolicyHardwareKey
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
@@ -672,6 +688,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// DELETE IN 13.0.0
+	r.CheckSetRequireSessionMFA()
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
@@ -821,6 +840,16 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// RequireSessionMFA must be checked/set when communicating with an old server or client.
+// DELETE IN 13.0.0
+func (r *RoleV5) CheckSetRequireSessionMFA() {
+	if r.Spec.Options.RequireMFAType != RequireMFAType_OFF {
+		r.Spec.Options.RequireSessionMFA = r.Spec.Options.RequireMFAType.IsSessionMFARequired()
+	} else if r.Spec.Options.RequireSessionMFA {
+		r.Spec.Options.RequireMFAType = RequireMFAType_SESSION
+	}
 }
 
 // String returns the human readable representation of a role.

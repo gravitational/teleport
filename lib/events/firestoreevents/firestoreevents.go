@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 
@@ -300,7 +301,7 @@ func New(cfg EventsConfig) (*Log, error) {
 		}
 	}
 	if !b.DisableExpiredDocumentPurge {
-		go firestorebk.RetryingAsyncFunctionRunner(b.svcContext, utils.LinearConfig{
+		go firestorebk.RetryingAsyncFunctionRunner(b.svcContext, retryutils.LinearConfig{
 			Step: b.RetryPeriod / 10,
 			Max:  b.RetryPeriod,
 		}, b.Logger, b.purgeExpiredEvents, "purgeExpiredEvents")

@@ -481,8 +481,21 @@ const (
 	// RPC request command.
 	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
 
+	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
+	// a generic request.
+	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
+
+	// DatabaseSessionCassandraBatchEvent is emitted when a Cassandra client executes a batch of queries.
+	DatabaseSessionCassandraBatchEvent = "db.session.cassandra.batch"
+	// DatabaseSessionCassandraPrepareEvent is emitted when a Cassandra client sends prepare packet.
+	DatabaseSessionCassandraPrepareEvent = "db.session.cassandra.prepare"
+	// DatabaseSessionCassandraExecuteEvent is emitted when a Cassandra client sends executed packet.
+	DatabaseSessionCassandraExecuteEvent = "db.session.cassandra.execute"
+	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
+	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -498,6 +511,13 @@ const (
 	// KubeRequestEvent fires when a proxy handles a generic kubernetes
 	// request.
 	KubeRequestEvent = "kube.request"
+
+	// KubernetesClusterCreateEvent is emitted when a kubernetes cluster resource is created.
+	KubernetesClusterCreateEvent = "kube.create"
+	// KubernetesClusterUpdateEvent is emitted when a kubernetes cluster resource is updated.
+	KubernetesClusterUpdateEvent = "kube.update"
+	// KubernetesClusterDeleteEvent is emitted when a kubernetes cluster resource is deleted.
+	KubernetesClusterDeleteEvent = "kube.delete"
 
 	// MFADeviceAddEvent is an event type for users adding MFA devices.
 	MFADeviceAddEvent = "mfa.add"
@@ -539,13 +559,16 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
-
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
+
+	// SSMRunEvent is emitted when a run of an install script
+	// completes on a discovered EC2 node
+	SSMRunEvent = "ssm.run"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent

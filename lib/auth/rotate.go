@@ -135,8 +135,8 @@ type rotationReq struct {
 //
 // Here are the supported rotation states:
 //
-//  * Standby - the cluster is in standby mode and ready to take action.
-//  * In-progress - cluster CA rotation is in progress.
+//   - Standby - the cluster is in standby mode and ready to take action.
+//   - In-progress - cluster CA rotation is in progress.
 //
 // In-progress state is split into multiple phases and the cluster
 // can traverse between phases using supported transitions.
@@ -183,7 +183,7 @@ type rotationReq struct {
 // reload again, but the "new" CA is discarded and is no longer trusted,
 // cluster goes back to the original state.
 //
-// Rotation modes
+// # Rotation modes
 //
 // There are two rotation modes supported - manual or automatic.
 //
@@ -200,7 +200,6 @@ type rotationReq struct {
 //
 // It is possible to switch from automatic to manual by setting the phase
 // to the rollback phase.
-//
 func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
@@ -699,10 +698,10 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 
 // updateClients swaps old and new CA key sets.
 //
-// * Old CAs continue to be trusted, but are no longer used for signing.
-// * New CAs are used for signing.
-// * Remote components will reload with new certificates used for client
-//   connections.
+//   - Old CAs continue to be trusted, but are no longer used for signing.
+//   - New CAs are used for signing.
+//   - Remote components will reload with new certificates used for client
+//     connections.
 func updateClients(ca types.CertAuthority, mode string) error {
 	oldActive, oldTrusted := ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()
 	if err := ca.SetActiveKeys(oldTrusted); err != nil {

@@ -53,7 +53,6 @@ func TestMain(m *testing.M) {
 // to verify backwards compatibility. Gogoproto is incompatible with ApiV2 protoc-gen-go code.
 //
 // Track the issue here: https://github.com/gogo/protobuf/issues/678
-//
 func TestMarshal(t *testing.T) {
 	meta := adminpb.IndexOperationMetadata{}
 	data, err := proto.Marshal(&meta)
@@ -271,8 +270,13 @@ func TestDeleteDocuments(t *testing.T) {
 
 			lis, err := net.Listen("tcp", "localhost:0")
 			require.NoError(t, err)
-			go func() { require.NoError(t, srv.Serve(lis)) }()
-			t.Cleanup(srv.Stop)
+
+			errCh := make(chan error, 1)
+			go func() { errCh <- srv.Serve(lis) }()
+			t.Cleanup(func() {
+				srv.Stop()
+				require.NoError(t, <-errCh)
+			})
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
