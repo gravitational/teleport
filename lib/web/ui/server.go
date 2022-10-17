@@ -114,10 +114,9 @@ type KubeCluster struct {
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
 	Labels []Label `json:"labels"`
-	// TODO: fix comments
-	// KubeUsers are the list of allowed Kubernetes RBAC users that the user can impersonate.
+	// KubeUsers is the list of allowed Kubernetes RBAC users that the user can impersonate.
 	KubeUsers []string `json:"kubernetes_users"`
-	// KubeGroups are the list of allowed Kubernetes RBAC groups that the user can impersonate.
+	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
 	KubeGroups []string `json:"kubernetes_groups"`
 }
 
@@ -145,13 +144,13 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 
 		sort.Sort(sortedLabels(uiLabels))
 
-		kubeUsers, kubeGroups := userRoles.EnumerateKubernetesUsersAndGroups(cluster)
+		kubeUsers, kubeGroups := userRoles.GetAllowedKubeUsersAndGroupsForCluster(cluster)
 
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
 			Name:       cluster.GetName(),
 			Labels:     uiLabels,
-			KubeUsers:  nonNilSlice(kubeUsers.Allowed()),
-			KubeGroups: nonNilSlice(kubeGroups.Allowed()),
+			KubeUsers:  nonNilSlice(kubeUsers),
+			KubeGroups: nonNilSlice(kubeGroups),
 		})
 	}
 

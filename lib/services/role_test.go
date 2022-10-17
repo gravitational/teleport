@@ -5258,7 +5258,7 @@ func TestPrivateKeyPolicy(t *testing.T) {
 	}
 }
 
-func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
+func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 	devEnvRole := &types.RoleV5{
 		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
@@ -5326,17 +5326,15 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 	}
 
 	tt := []struct {
-		name                 string
-		server               types.KubeCluster
-		roleSet              RoleSet
-		expectedUsers        []string
-		expectedDeniedUsers  []string
-		expectedGroups       []string
-		expectedDeniedGroups []string
+		name           string
+		cluster        types.KubeCluster
+		roleSet        RoleSet
+		expectedUsers  []string
+		expectedGroups []string
 	}{
 		{
 			name: "env dev user and group is added",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
 			roleSet:        NewRoleSet(devEnvRole),
@@ -5345,7 +5343,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "env prod user and group is added",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "prod",
 			}),
 			roleSet:        NewRoleSet(prodEnvRole),
@@ -5354,29 +5352,25 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "only the correct prod is added",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "prod",
 			}),
-			roleSet:              NewRoleSet(prodEnvRole, devEnvRole),
-			expectedUsers:        []string{"produser"},
-			expectedDeniedUsers:  []string{"devuser"},
-			expectedGroups:       []string{"prodgroup"},
-			expectedDeniedGroups: []string{"devgroup"},
+			roleSet:        NewRoleSet(prodEnvRole, devEnvRole),
+			expectedUsers:  []string{"produser"},
+			expectedGroups: []string{"prodgroup"},
 		},
 		{
 			name: "users and groups from role not authorized are denied",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "staging",
 			}),
-			roleSet:              NewRoleSet(devEnvRole, prodEnvRole),
-			expectedUsers:        nil,
-			expectedDeniedUsers:  []string{"devuser", "produser"},
-			expectedGroups:       nil,
-			expectedDeniedGroups: []string{"devgroup", "prodgroup"},
+			roleSet:        NewRoleSet(devEnvRole, prodEnvRole),
+			expectedUsers:  nil,
+			expectedGroups: nil,
 		},
 		{
 			name: "role with wildcard gets group and user",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "prod",
 			}),
 			roleSet:        NewRoleSet(anyEnvRole),
@@ -5385,7 +5379,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "can return multiple users and groups",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "prod",
 			}),
 			roleSet:        NewRoleSet(anyEnvRole, prodEnvRole),
@@ -5394,7 +5388,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "can return multiple users and groups from same role",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "prod",
 			}),
 			roleSet: NewRoleSet(&types.RoleV5{
@@ -5412,7 +5406,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "works with full access",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "prod",
 			}),
 			roleSet:        NewRoleSet(rootUser),
@@ -5421,7 +5415,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "works with server with multiple labels",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env":    "prod",
 				"region": "us-east-1",
 			}),
@@ -5431,7 +5425,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "don't add login from unrelated labels",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
 			roleSet: NewRoleSet(&types.RoleV5{
@@ -5445,24 +5439,21 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 					},
 				},
 			}),
-			expectedUsers:        nil,
-			expectedGroups:       nil,
-			expectedDeniedGroups: []string{"anyregiongroup"},
+			expectedUsers:  nil,
+			expectedGroups: nil,
 		},
 		{
 			name: "works with roles with multiple labels that role shouldn't access",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
-			roleSet:              NewRoleSet(roleWithMultipleLabels),
-			expectedUsers:        nil,
-			expectedDeniedUsers:  []string{"multiplelabelsuser"},
-			expectedGroups:       nil,
-			expectedDeniedGroups: []string{"multiplelabelsgroup"},
+			roleSet:        NewRoleSet(roleWithMultipleLabels),
+			expectedUsers:  nil,
+			expectedGroups: nil,
 		},
 		{
 			name: "works with roles with multiple labels that role shouldn't access",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env":    "dev",
 				"region": "us-west-1",
 			}),
@@ -5472,7 +5463,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "works with roles with regular expressions",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"region": "us-west-1",
 			}),
 			roleSet: NewRoleSet(&types.RoleV5{
@@ -5490,7 +5481,7 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 		},
 		{
 			name: "works with denied roles",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
 			roleSet: NewRoleSet(devEnvRole, &types.RoleV5{
@@ -5505,13 +5496,11 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 					},
 				},
 			}),
-			expectedUsers:        nil,
-			expectedDeniedUsers:  []string{"devuser"},
-			expectedDeniedGroups: []string{"devgroup"},
+			expectedUsers: nil,
 		},
 		{
 			name: "works with denied roles of unrelated labels",
-			server: makeTestKubeCluster(t, map[string]string{
+			cluster: makeTestKubeCluster(t, map[string]string{
 				"env": "dev",
 			}),
 			roleSet: NewRoleSet(devEnvRole, &types.RoleV5{
@@ -5526,16 +5515,14 @@ func TestEnumerateKubernetesUsersAndGroups(t *testing.T) {
 					},
 				},
 			}),
-			expectedUsers:        nil,
-			expectedDeniedUsers:  []string{"devuser"},
-			expectedDeniedGroups: []string{"devgroup"},
+			expectedUsers: nil,
 		},
 	}
-	for _, tc := range tt {
+	for _, tc := range tt[:1] {
 		t.Run(tc.name, func(t *testing.T) {
-			users, groups := tc.roleSet.EnumerateKubernetesUsersAndGroups(tc.server)
-			validateEnumeration(t, users, tc.expectedUsers, tc.expectedDeniedUsers, false)
-			validateEnumeration(t, groups, tc.expectedGroups, tc.expectedDeniedGroups, false)
+			users, groups := tc.roleSet.GetAllowedKubeUsersAndGroupsForCluster(tc.cluster)
+			require.Equal(t, tc.expectedUsers, users)
+			require.Equal(t, tc.expectedGroups, groups)
 		})
 	}
 }
@@ -5551,11 +5538,4 @@ func makeTestKubeCluster(t *testing.T, labels map[string]string) types.KubeClust
 	)
 	require.NoError(t, err)
 	return s
-}
-
-func validateEnumeration(t *testing.T, enum EnumerationResult, allowed, denied []string, wildcard bool) {
-	require.Equal(t, allowed, enum.Allowed())
-	require.Equal(t, denied, enum.Denied())
-	require.Equal(t, wildcard, enum.wildcardAllowed)
-	require.Equal(t, wildcard, enum.wildcardDenied)
 }
