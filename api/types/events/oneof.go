@@ -423,6 +423,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_Unknown{
 			Unknown: e,
 		}
+	case *CassandraBatch:
+		out.Event = &OneOf_CassandraBatch{
+			CassandraBatch: e,
+		}
+	case *CassandraPrepare:
+		out.Event = &OneOf_CassandraPrepare{
+			CassandraPrepare: e,
+		}
+	case *CassandraRegister:
+		out.Event = &OneOf_CassandraRegister{
+			CassandraRegister: e,
+		}
+	case *CassandraExecute:
+		out.Event = &OneOf_CassandraExecute{
+			CassandraExecute: e,
+		}
 	case *KubernetesClusterCreate:
 		out.Event = &OneOf_KubernetesClusterCreate{
 			KubernetesClusterCreate: e,

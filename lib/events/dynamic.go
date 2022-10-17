@@ -269,6 +269,17 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DesktopSharedDirectoryWrite{}
 	case UnknownEvent:
 		e = &events.Unknown{}
+
+	// Cassandra events.
+	case CassandraBatchEventCode:
+		e = &events.CassandraBatch{}
+	case CassandraRegisterEventCode:
+		e = &events.CassandraRegister{}
+	case CassandraPrepareEventCode:
+		e = &events.CassandraPrepare{}
+	case CassandraExecuteEventCode:
+		e = &events.CassandraExecute{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
 		unknown := &events.Unknown{}

@@ -72,8 +72,8 @@ var fidoNewDevice = func(path string) (FIDODevice, error) {
 	return libfido2.NewDevice(path)
 }
 
-// IsFIDO2Available returns true if libfido2 is available in the current build.
-func IsFIDO2Available() bool {
+// isLibfido2Enabled returns true if libfido2 is available in the current build.
+func isLibfido2Enabled() bool {
 	val, ok := os.LookupEnv("TELEPORT_FIDO2")
 	// Default to enabled, otherwise obey the env variable.
 	return !ok || val == "1"
@@ -87,14 +87,11 @@ func fido2Login(
 	switch {
 	case origin == "":
 		return nil, "", trace.BadParameter("origin required")
-	case assertion == nil:
-		return nil, "", trace.BadParameter("assertion required")
 	case prompt == nil:
 		return nil, "", trace.BadParameter("prompt required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", trace.BadParameter("assertion challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", trace.BadParameter("assertion relying party ID required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 	if opts == nil {
 		opts = &LoginOpts{}
@@ -320,41 +317,17 @@ func fido2Register(
 	switch {
 	case origin == "":
 		return nil, trace.BadParameter("origin required")
-	case cc == nil:
-		return nil, trace.BadParameter("credential creation required")
 	case prompt == nil:
 		return nil, trace.BadParameter("prompt required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, trace.BadParameter("credential creation challenge required")
-	case cc.Response.RelyingParty.ID == "":
-		return nil, trace.BadParameter("credential creation relying party ID required")
 	}
-
-	var rrk bool
-	switch cc.Response.AuthenticatorSelection.ResidentKey {
-	case "":
-		// If ResidentKey is not set, then fallback to the legacy RequireResidentKey
-		// field.
-		rrk = cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
-	case protocol.ResidentKeyRequirementRequired:
-		rrk = true
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rrk, err := cc.RequireResidentKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	log.Debugf("FIDO2: registration: resident key=%v", rrk)
-
-	if rrk {
-		// Be more pedantic with resident keys, some of this info gets recorded with
-		// the credential.
-		switch {
-		case len(cc.Response.RelyingParty.Name) == 0:
-			return nil, trace.BadParameter("relying party name required for resident credential")
-		case len(cc.Response.User.Name) == 0:
-			return nil, trace.BadParameter("user name required for resident credential")
-		case len(cc.Response.User.DisplayName) == 0:
-			return nil, trace.BadParameter("user display name required for resident credential")
-		case len(cc.Response.User.ID) == 0:
-			return nil, trace.BadParameter("user ID required for resident credential")
-		}
-	}
 
 	// Can we create ES256 keys?
 	// TODO(codingllama): Consider supporting other algorithms and respecting

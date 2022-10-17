@@ -28,8 +28,8 @@ import (
 
 var errFIDO2Unavailable = errors.New("FIDO2 unavailable in current build")
 
-// IsFIDO2Available returns true if libfido2 is available in the current build.
-func IsFIDO2Available() bool {
+// isLibfido2Enabled returns true if libfido2 is available in the current build.
+func isLibfido2Enabled() bool {
 	return false
 }
 
