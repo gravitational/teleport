@@ -14,10 +14,29 @@
 
 package webauthn
 
-import "github.com/duo-labs/webauthn/protocol"
+import (
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/gravitational/trace"
+)
 
 // CredentialAssertion is the payload sent to authenticators to initiate login.
 type CredentialAssertion protocol.CredentialAssertion
+
+// Validate performs client-side validation of CredentialAssertion.
+// It makes sure that data are valid and can be sent to authenticator.
+// This is general purpose validation and authenticator should add its own
+// on top of it, if necessary.
+func (ca *CredentialAssertion) Validate() error {
+	switch {
+	case ca == nil:
+		return trace.BadParameter("credential assertion required")
+	case len(ca.Response.Challenge) == 0:
+		return trace.BadParameter("credential assertion challenge required")
+	case ca.Response.RelyingPartyID == "":
+		return trace.BadParameter("credential assertion relying party ID required")
+	}
+	return nil
+}
 
 // CredentialAssertionResponse is the reply from authenticators to complete
 // login.
@@ -36,6 +55,54 @@ type CredentialAssertionResponse struct {
 // CredentialCreation is the payload sent to authenticators to initiate
 // registration.
 type CredentialCreation protocol.CredentialCreation
+
+// RequireResidentKey returns information whether resident key is required or
+// not. It checks ResidentKey and fallbacks to RequireResidentKey.
+func (cc *CredentialCreation) RequireResidentKey() (bool, error) {
+	as := cc.Response.AuthenticatorSelection
+	switch as.ResidentKey {
+	case protocol.ResidentKeyRequirementRequired:
+		if as.RequireResidentKey != nil && !*as.RequireResidentKey {
+			return false, trace.BadParameter("invalid combination of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
+		}
+		return true, nil
+	case protocol.ResidentKeyRequirementDiscouraged:
+		if as.RequireResidentKey != nil && *as.RequireResidentKey {
+			return false, trace.BadParameter("invalid combination of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
+		}
+		return false, nil
+	case protocol.ResidentKeyRequirementPreferred:
+		return false, nil
+	}
+	// If ResidentKey is not set, then fallback to the legacy RequireResidentKey
+	// field.
+	return as.RequireResidentKey != nil && *as.RequireResidentKey, nil
+}
+
+// Validate performs client-side validation of CredentialCreation.
+// It makes sure that data are valid and can be sent to authenticator.
+// This is general purpose validation and authenticator should add its own
+// on top of it, if necessary.
+func (cc *CredentialCreation) Validate() error {
+	switch {
+	case cc == nil:
+		return trace.BadParameter("credential creation required")
+	case len(cc.Response.Challenge) == 0:
+		return trace.BadParameter("credential creation challenge required")
+	case cc.Response.RelyingParty.ID == "":
+		return trace.BadParameter("credential creation relying party ID required")
+	case len(cc.Response.RelyingParty.Name) == 0:
+		return trace.BadParameter("relying party name required")
+	case len(cc.Response.User.Name) == 0:
+		return trace.BadParameter("user name required")
+	case len(cc.Response.User.DisplayName) == 0:
+		return trace.BadParameter("user display name required")
+	case len(cc.Response.User.ID) == 0:
+		return trace.BadParameter("user ID required")
+	default:
+		return nil
+	}
+}
 
 // CredentialCreationResponse is the reply from authenticators to complete
 // registration.

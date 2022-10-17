@@ -396,6 +396,8 @@ type AuthenticationSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+	// LoadAllCAs tells tsh to load CAs for all clusters when trying to ssh into a node.
+	LoadAllCAs bool `json:"load_all_cas,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.

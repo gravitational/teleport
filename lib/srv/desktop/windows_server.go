@@ -895,7 +895,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNGFrame), byte(tdp.TypeError):
+		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -1302,16 +1302,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.cfg.Log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionID)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

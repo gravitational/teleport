@@ -488,6 +488,9 @@ message PingResponse {
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
+  // LoadAllCAs signals whether or not tsh should load all CAs when trying
+  // to ssh into a node.
+  bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
 }
 
 // Features are auth server features.
@@ -613,6 +616,8 @@ message GenerateAppTokenRequest {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "expires"
   ];
+  // Traits are the traits assigned to the user within Teleport.
+  map<string, wrappers.StringValues> Traits = 5 [(gogoproto.jsontag) = "traits"];
 }
 
 // GenerateAppTokenResponse contains a signed application token.
@@ -1608,69 +1613,7 @@ message ListResourcesResponse {
 //
 // This is not specific to any session type. Relevant fields should be set for a given session type.
 message CreateSessionTrackerRequest {
-  // Namespace is a session namespace, separating sessions from each other.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string Namespace = 1 [(gogoproto.jsontag) = "namespace,omitempty"];
-
-  // Type describes what type of session this is.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string Type = 2 [(gogoproto.jsontag) = "type,omitempty"];
-
-  // Reason is an arbitrary string that may be used to describe the session and/or it's
-  // purpose.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string Reason = 3 [(gogoproto.jsontag) = "reason,omitempty"];
-
-  // Invited is a list of invited users, this field is interpreted by different
-  // clients on a best-effort basis and used for delivering notifications to invited users.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  repeated string Invited = 4 [(gogoproto.jsontag) = "invited,omitempty"];
-
-  // Hostname is the address of the target this session is connected to.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string Hostname = 5 [(gogoproto.jsontag) = "target_hostname,omitempty"];
-
-  // Address is the address of the target this session is connected to.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string Address = 6 [(gogoproto.jsontag) = "target_address,omitempty"];
-
-  // ClusterName is the name of cluster that this session belongs to.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string ClusterName = 7 [(gogoproto.jsontag) = "cluster_name,omitempty"];
-
-  // Login is the local login/user on the target used by the session.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string Login = 8 [(gogoproto.jsontag) = "login,omitempty"];
-
-  // Initiator is the participant that initiated the session.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  types.Participant Initiator = 9 [(gogoproto.jsontag) = "initiator,omitempty"];
-
-  // Expires encodes the time at which this session expires and becomes invalid.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  google.protobuf.Timestamp Expires = 10 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "expires,omitempty"
-  ];
-
-  // The Kubernetes cluster this session belongs to.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string KubernetesCluster = 11 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
-
-  // HostUser is the user regarded as the owner of this session, RBAC checks are performed
-  // against the require policies of this user.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string HostUser = 12 [(gogoproto.jsontag) = "host_user,omitempty"];
-
-  // ID is the ID of the session.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  string ID = 13 [(gogoproto.jsontag) = "id,omitempty"];
-
-  // HostPolicies is a list of RBAC policy sets held by the host user at the time of session
-  // creation.
-  // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
-  repeated types.SessionTrackerPolicySet HostPolicies = 14 [(gogoproto.jsontag) = "host_policies,omitempty"];
+  reserved 1 to 14;
 
   // SessionTracker is the session tracker to be created.
   types.SessionTrackerV1 SessionTracker = 15 [(gogoproto.jsontag) = "session_tracker,omitempty"];
