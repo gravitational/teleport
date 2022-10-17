@@ -186,7 +186,7 @@ const Container = styled(Flex)`
   background: ${props => props.theme.colors.primary.light};
   min-height: 40px;
   width: 320px;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   color: ${props => props.theme.colors.text.primary};
   border-radius: 4px;
