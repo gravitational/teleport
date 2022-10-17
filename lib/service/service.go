@@ -889,10 +889,16 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 			return nil, trace.Wrap(err)
 		}
 	} else if kubernetes.InKubeCluster() && utils.HostUUIDExistsLocaly(cfg.DataDir) {
-		// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
-		// This is only required if PV storage is removed later.
-		if err := persistHostUUIDToStorages(supervisor.ExitContext(), cfg); err != nil {
-			return nil, trace.Wrap(err)
+		// This case is used when loading a Teleport pre-11 agent with storage attached.
+		// In this case, we have to copy the "host_uuid" from the agent to the secret
+		// in case storage is removed later.
+		// loadHostUUIDFromKubeSecret will check if the `host_uuid` is already in the secret.
+		if id, err := loadHostUUIDFromKubeSecret(supervisor.ExitContext()); err != nil || len(id) == 0 {
+			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
+			// This is only required if PV storage is removed later.
+			if err := writeHostUUIDToKubeSecret(supervisor.ExitContext(), cfg.HostUUID); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
@@ -4831,8 +4837,8 @@ func isDebugMode() bool {
 // storage: `dataDir/host_uuid`.
 func readHostUUIDFromStorages(ctx context.Context, dataDir string) (string, error) {
 	if kubernetes.InKubeCluster() {
-		if hostUUID, err := loadHostUUIDFromKubeSecret(ctx); err == nil && len(string(hostUUID)) > 0 {
-			return string(hostUUID), nil
+		if hostUUID, err := loadHostUUIDFromKubeSecret(ctx); err == nil && len(hostUUID) > 0 {
+			return hostUUID, nil
 		}
 	}
 	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
