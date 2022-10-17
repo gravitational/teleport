@@ -55,6 +55,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/touchid"
+	"github.com/gravitational/teleport/lib/auth/webauthncli"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1135,6 +1137,10 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.KeysDir = profileDir
 	c.AuthConnector = cp.AuthConnector
 	c.LoadAllCAs = cp.LoadAllCAs
+	c.AuthenticatorAttachment, err = parseMFAMode(cp.MFAMode)
+	if err != nil {
+		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
+	}
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -1170,6 +1176,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SiteName = c.SiteName
 	cp.TLSRoutingEnabled = c.TLSRoutingEnabled
 	cp.AuthConnector = c.AuthConnector
+	cp.MFAMode = c.AuthenticatorAttachment.String()
 	cp.LoadAllCAs = c.LoadAllCAs
 
 	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
@@ -3446,6 +3453,12 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
 		return tc.pwdlessLogin, nil
+	case authType == constants.Local && tc.canDefaultToPasswordless(pr):
+		log.Debug("Trying passwordless login because credentials were found")
+		// if passwordless is enabled and there are passwordless credentials
+		// registered, we can try to go with passwordless login even though
+		// auth=local was selected.
+		return tc.pwdlessLogin, nil
 	case authType == constants.Local:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
@@ -3465,6 +3478,30 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}
+}
+
+// hasTouchIDCredentials provides indirection for tests.
+var hasTouchIDCredentials = touchid.HasCredentials
+
+// canDefaultToPasswordless checks without user interaction
+// if there is any registered passwordless login.
+func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
+	if !pr.Auth.AllowPasswordless {
+		return false
+	}
+	if tc.Config.AuthenticatorAttachment == wancli.AttachmentCrossPlatform {
+		return false
+	}
+	if pr.Auth.Webauthn == nil {
+		return false
+	}
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
@@ -3491,7 +3528,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiaiting login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Re-intiaiting login with YubiKey generated private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}
@@ -4614,4 +4651,17 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
+}
+
+func parseMFAMode(in string) (webauthncli.AuthenticatorAttachment, error) {
+	switch in {
+	case "auto", "":
+		return webauthncli.AttachmentAuto, nil
+	case "platform":
+		return webauthncli.AttachmentPlatform, nil
+	case "cross-platform":
+		return webauthncli.AttachmentCrossPlatform, nil
+	default:
+		return 0, trace.BadParameter("unsupported mfa mode %q", in)
+	}
 }
