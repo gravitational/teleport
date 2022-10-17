@@ -72,10 +72,8 @@ func (c *Cluster) GetClusterFeatures(ctx context.Context) (*proto.Features, erro
 		defer proxyClient.Close()
 
 		authPingResponse, err = proxyClient.CurrentCluster().Ping(ctx)
-
 		return trace.Wrap(err)
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
