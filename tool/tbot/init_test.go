@@ -202,7 +202,7 @@ func TestInitMaybeACLs(t *testing.T) {
 
 		// This isn't a default, but unfortunately we need to specify a
 		// non-nobody owner for CI purposes.
-		Owner: fmt.Sprintf("%s:%s", currentUser.Name, currentGroup.Name),
+		Owner: fmt.Sprintf("%s:%s", currentUser.Username, currentGroup.Name),
 	}
 	cfg := testConfigFromCLI(t, cf)
 

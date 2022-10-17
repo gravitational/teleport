@@ -354,7 +354,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	routeToDatabase, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -412,11 +412,18 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		var opts = []dbcmd.ConnectCommandFunc{
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
+		}
+		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
+			return trace.Wrap(err)
+		}
+
+		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
 			return trace.Wrap(err)
@@ -425,7 +432,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		// shared template arguments
 		templateArgs := map[string]any{
 			"database": routeToDatabase.ServiceName,
-			"type":     dbProtocolToText(routeToDatabase.Protocol),
+			"type":     defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
 			"cluster":  client.SiteName,
 			"address":  listener.Addr().String(),
 		}
@@ -456,6 +463,20 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
+func maybeAddDBUserPassword(db types.Database, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	if db != nil && db.GetProtocol() == defaults.ProtocolCassandra && db.IsAWSHosted() {
+		// Cassandra client always prompt for password, so we need to provide it
+		// Provide an auto generated random password to skip the prompt in case of
+		// connection to AWS hosted cassandra.
+		password, err := utils.CryptoRandomHex(16)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return append(opts, dbcmd.WithPassword(password)), nil
+	}
+	return opts, nil
+}
+
 type templateCommandItem struct {
 	Description string
 	Command     string
@@ -484,10 +505,10 @@ type localProxyOpts struct {
 	listener                net.Listener
 	protocols               []alpncommon.Protocol
 	insecure                bool
-	certFile                string
-	keyFile                 string
+	certs                   []tls.Certificate
 	rootCAs                 *x509.CertPool
 	alpnConnUpgradeRequired bool
+	middleware              alpnproxy.LocalProxyMiddleware
 }
 
 // protocol returns the first protocol or string if configuration doesn't contain any protocols.
@@ -498,16 +519,12 @@ func (l *localProxyOpts) protocol() string {
 	return string(l.protocols[0])
 }
 
-func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
+func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
 	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	address, err := utils.ParseAddr(opts.proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := mkLocalProxyCerts(opts.certFile, opts.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -524,9 +541,10 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		Listener:                opts.listener,
 		ParentContext:           ctx,
 		SNI:                     address.Host(),
-		Certs:                   certs,
+		Certs:                   opts.certs,
 		RootCAs:                 opts.rootCAs,
 		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
+		Middleware:              opts.middleware,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -690,10 +708,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 
 // getTLSCertExpireTime returns the certificate NotAfter time.
 func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	if len(cert.Certificate) < 1 {
-		return time.Time{}, trace.NotFound("invalid certificate length")
-	}
-	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	x509cert, err := utils.TLSCertToX509(cert)
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
@@ -708,24 +723,6 @@ Use following credentials to connect to the {{.database}} proxy:
   cert_file={{.cert}}
   key_file={{.key}}
 `))
-
-func dbProtocolToText(protocol string) string {
-	switch protocol {
-	case defaults.ProtocolPostgres:
-		return "PostgreSQL"
-	case defaults.ProtocolCockroachDB:
-		return "CockroachDB"
-	case defaults.ProtocolMySQL:
-		return "MySQL"
-	case defaults.ProtocolMongoDB:
-		return "MongoDB"
-	case defaults.ProtocolRedis:
-		return "Redis"
-	case defaults.ProtocolSQLServer:
-		return "SQL Server"
-	}
-	return ""
-}
 
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(

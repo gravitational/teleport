@@ -20,16 +20,15 @@ package filesessions
 import (
 	"context"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -51,11 +50,11 @@ func TestStreams(t *testing.T) {
 		test.Stream(t, handler)
 	})
 	t.Run("Resume", func(t *testing.T) {
-		completeCount := atomic.NewUint64(0)
+		var completeCount atomic.Uint64
 		handler, err := NewHandler(Config{
 			Directory: dir,
 			OnBeforeComplete: func(ctx context.Context, upload events.StreamUpload) error {
-				if completeCount.Inc() <= 1 {
+				if completeCount.Add(1) <= 1 {
 					return trace.ConnectionProblem(nil, "simulate failure %v", completeCount.Load())
 				}
 				return nil

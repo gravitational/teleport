@@ -122,9 +122,10 @@ auth_service:
       slot_number: 1
       pin: "example_pin"
   authentication:
-    u2f:
-      app_id: "app-id"
-      device_attestation_cas:
+    second_factor: "optional"
+    webauthn:
+      rp_id: "goteleport.com"
+      attestation_allowed_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
         -----BEGIN CERTIFICATE-----
