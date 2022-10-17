@@ -128,6 +128,10 @@ func ParseMSSQLEndpoint(endpoint string) (name string, err error) {
 		return "", trace.BadParameter("failed to parse %v as Azure MSSQL endpoint", endpoint)
 	}
 
+	if parts[0] == "" {
+		return "", trace.BadParameter("endpoint %v must contain database name", endpoint)
+	}
+
 	return parts[0], nil
 }
 
