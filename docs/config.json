@@ -380,7 +380,7 @@
             {
               "title": "Troubleshooting",
               "slug": "/management/admin/troubleshooting/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Upgrading the Teleport Binary",
@@ -389,6 +389,10 @@
             {
               "title": "Run Teleport as a Daemon",
               "slug": "/management/admin/daemon/"
+            },
+            {
+              "title": "Run Teleport with Self-Signed Certificates",
+              "slug": "/management/admin/self-signed-certs/"
             }
           ]
         },
@@ -418,6 +422,11 @@
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
               "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Proxy Peering Migration",
+              "slug": "/management/operations/proxy-peering/",
+              "forScopes": ["enterprise"]
             }
           ]
         },
@@ -449,7 +458,13 @@
             },
             {
               "title": "Fluentd",
-              "slug": "/management/guides/fluentd/"
+              "slug": "/management/guides/fluentd/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Monitor Audit Events with the Elastic Stack",
+              "slug": "/management/guides/elastic-stack/",
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "EC2 Tags",
@@ -467,6 +482,32 @@
             {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
+            }
+          ]
+        },
+        {
+          "title": "Diagnostics",
+          "slug": "/management/diagnostics/",
+          "entries": [
+            {
+              "title": "Health Monitoring",
+              "slug": "/management/diagnostics/monitoring/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Metrics",
+              "slug": "/management/diagnostics/metrics/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Collecting Profiles",
+              "slug": "/management/diagnostics/profiles/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Distributed Tracing",
+              "slug": "/management/diagnostics/tracing/",
+              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         }
@@ -597,6 +638,10 @@
             {
               "title": "Host User Creation",
               "slug": "/server-access/guides/host-user-creation/"
+            },
+            {
+              "title": "EC2 Instance Discovery (Preview)",
+              "slug": "/server-access/guides/ec2-discovery/"
             }
           ]
         }
@@ -765,6 +810,10 @@
         {
           "title": "FAQ",
           "slug": "/database-access/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/database-access/troubleshooting/"
         }
       ]
     },
@@ -784,10 +833,10 @@
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
         },
-	{
-	    "title": "Directory Sharing",
-	    "slug": "/desktop-access/directory-sharing/"
-	},
+        {
+          "title": "Directory Sharing",
+          "slug": "/desktop-access/directory-sharing/"
+        },
         {
           "title": "Reference",
           "slug": "/desktop-access/reference/",
@@ -1030,6 +1079,10 @@
         {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
+        },
+        {
+          "title": "Proxy Peering",
+          "slug": "/architecture/proxy-peering/"
         }
       ]
     },
@@ -1082,7 +1135,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.1.2",
+      "version": "10.3.1",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1161,7 +1214,7 @@
     },
     {
       "source": "/metrics-logs-reference/",
-      "destination": "/reference/metrics/",
+      "destination": "/management/diagnostics/metrics/",
       "permanent": true
     },
     {
@@ -1772,6 +1825,11 @@
     {
       "source": "/setup/operations/ca-rotation/",
       "destination": "/management/operations/ca-rotation/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/proxy-peering/",
+      "destination": "/management/operations/proxy-peering/",
       "permanent": true
     },
     {

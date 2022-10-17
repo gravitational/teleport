@@ -95,7 +95,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					ServerVersion: db.MySQL.ServerVersion,
 				},
 				AWS: types.AWS{
-					Region: db.AWS.Region,
+					AccountID: db.AWS.AccountID,
+					Region:    db.AWS.Region,
 					Redshift: types.Redshift{
 						ClusterID: db.AWS.Redshift.ClusterID,
 					},
@@ -124,6 +125,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					Krb5File:   db.AD.Krb5File,
 					Domain:     db.AD.Domain,
 					SPN:        db.AD.SPN,
+				},
+				Azure: types.Azure{
+					ResourceID: db.Azure.ResourceID,
 				},
 			})
 		if err != nil {

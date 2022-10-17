@@ -37,7 +37,6 @@ jobs:
       - name: Checkout shared-workflow
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.SHARED_WORKFLOWS_GITHUB_TOKEN }}
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
           ref: main

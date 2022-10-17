@@ -41,8 +41,8 @@ teams_app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 # role.suggested_reviewers will automatically be treated as additional email recipients.
 # "*" must be provided to match non-specified roles.
 #
-# "dev" = "devs-slack-channel"
-# "*" = ["admin@email.com", "admin-slack-channel"]
+# "dev" = "devs-msteams-channel"
+# "*" = ["admin@email.com", "admin-msteams-channel"]
 "*" = ["foo@example.com"]
 
 [log]

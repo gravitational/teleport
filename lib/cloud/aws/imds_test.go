@@ -38,13 +38,13 @@ func TestEC2IsInstanceMetadataAvailable(t *testing.T) {
 		{
 			name: "not available",
 			client: func(t *testing.T, ctx context.Context, server *httptest.Server) *InstanceMetadataClient {
-				server.Close()
 				clt, err := NewInstanceMetadataClient(ctx, WithIMDSClient(imds.New(imds.Options{Endpoint: server.URL})))
 				require.NoError(t, err)
-
 				return clt
 			},
-			handler:   func(w http.ResponseWriter, r *http.Request) {},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+			},
 			assertion: require.False,
 		},
 		{
@@ -106,10 +106,11 @@ func TestEC2IsInstanceMetadataAvailable(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
 			server := httptest.NewServer(tt.handler)
-			clt := tt.client(t, ctx, server)
+			t.Cleanup(server.Close)
 
+			ctx := context.Background()
+			clt := tt.client(t, ctx, server)
 			tt.assertion(t, clt.IsAvailable(ctx))
 		})
 	}

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -55,6 +56,10 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeRefDocker = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run",
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
@@ -63,9 +68,13 @@ var (
 		Name: "tmpfs",
 		Path: "/tmpfs",
 	}
-	volumeRefDocker = volumeRef{
-		Name: "dockersock",
-		Path: "/var/run",
+	volumeAwsConfig = volume{
+		Name: "awsconfig",
+		Temp: &volumeTemp{},
+	}
+	volumeRefAwsConfig = volumeRef{
+		Name: "awsconfig",
+		Path: "/root/.aws",
 	}
 )
 
@@ -94,6 +103,16 @@ func pushTriggerForBranch(branches ...string) trigger {
 	}
 	t.Branch.Include = append(t.Branch.Include, branches...)
 	return t
+}
+
+func cloneRepoCommands(cloneDirectory, commit string) []string {
+	return []string{
+		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
+		fmt.Sprintf("cd %q", cloneDirectory),
+		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
+		`git fetch origin --tags`,
+		fmt.Sprintf("git checkout -qf %q", commit),
+	}
 }
 
 type buildType struct {
@@ -196,18 +215,6 @@ func dockerService(v ...volumeRef) service {
 	}
 }
 
-// dockerVolumes returns a slice of volumes
-// It includes the Docker socket volume by default, plus any extra volumes passed in
-func dockerVolumes(v ...volume) []volume {
-	return append(v, volumeDocker)
-}
-
-// dockerVolumeRefs returns a slice of volumeRefs
-// It includes the Docker socket volumeRef as a default, plus any extra volumeRefs passed in
-func dockerVolumeRefs(v ...volumeRef) []volumeRef {
-	return append(v, volumeRefDocker)
-}
-
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
@@ -240,6 +247,49 @@ func waitForDockerStep() step {
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{volumeRefDocker},
+	}
+}
+
+func verifyValidPromoteRunSteps(checkoutPath, commit string, isParallelismEnabled bool) []step {
+	tagStep := verifyTaggedStep()
+	cloneStep := cloneRepoStep(checkoutPath, commit)
+	verifyStep := verifyNotPrereleaseStep(checkoutPath)
+
+	if isParallelismEnabled {
+		cloneStep.DependsOn = []string{tagStep.Name}
+		verifyStep.DependsOn = []string{cloneStep.Name}
+	}
+
+	return []step{tagStep, cloneStep, verifyStep}
+}
+
+func verifyTaggedStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
+}
+
+// Note that tags are also valid here as a tag refers to a specific commit
+func cloneRepoStep(clonePath, commit string) step {
+	return step{
+		Name:     "Check out code",
+		Image:    "alpine/git:latest",
+		Commands: cloneRepoCommands(clonePath, commit),
+	}
+}
+
+func verifyNotPrereleaseStep(checkoutPath string) step {
+	return step{
+		Name:  "Check if tag is prerelease",
+		Image: "golang:1.18-alpine",
+		Commands: []string{
+			fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
+			"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
+		},
 	}
 }
