@@ -1505,7 +1505,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-	rw := newResponseStatusRecorder(w)
+	rw := httplib.NewResponseStatusRecorder(w)
 	sess.forwarder.ServeHTTP(rw, req)
 
 	if sess.noAuditEvents {
@@ -1529,7 +1529,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		},
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
-		ResponseCode:              int32(rw.getStatus()),
+		ResponseCode:              int32(rw.Status()),
 		KubernetesClusterMetadata: ctx.eventClusterMeta(),
 	}
 	r := parseResourcePath(req.URL.Path)
@@ -2060,46 +2060,4 @@ func (f *Forwarder) removeKubeDetails(name string) {
 		oldDetails.Close()
 	}
 	delete(f.clusterDetails, name)
-}
-
-type responseStatusRecorder struct {
-	http.ResponseWriter
-	flusher http.Flusher
-	status  int
-}
-
-func newResponseStatusRecorder(w http.ResponseWriter) *responseStatusRecorder {
-	rec := &responseStatusRecorder{ResponseWriter: w}
-	if flusher, ok := w.(http.Flusher); ok {
-		rec.flusher = flusher
-	}
-	return rec
-}
-
-func (r *responseStatusRecorder) WriteHeader(status int) {
-	r.status = status
-	r.ResponseWriter.WriteHeader(status)
-}
-
-// Flush optionally flushes the inner ResponseWriter if it supports that.
-// Otherwise, Flush is a noop.
-//
-// Flush is optionally used by github.com/gravitational/oxy/forward to flush
-// pending data on streaming HTTP responses (like streaming pod logs).
-//
-// Without this, oxy/forward will handle streaming responses by accumulating
-// ~32kb of response in a buffer before flushing it.
-func (r *responseStatusRecorder) Flush() {
-	if r.flusher != nil {
-		r.flusher.Flush()
-	}
-}
-
-func (r *responseStatusRecorder) getStatus() int {
-	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
-	// explicitly called.
-	if r.status == 0 {
-		return http.StatusOK
-	}
-	return r.status
 }

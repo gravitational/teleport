@@ -29,9 +29,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,16 +45,10 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // Config is the configuration for an application server.
@@ -62,6 +61,9 @@ type Config struct {
 
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *auth.Client
+
+	// Emitter is used to emit audit events.
+	Emitter apievents.Emitter
 
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.AppsAccessPoint
@@ -189,7 +191,7 @@ type Server struct {
 
 	cache *sessionChunkCache
 
-	awsSigner *appaws.SigningService
+	awsSigner *aws.SigningService
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
@@ -231,7 +233,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	awsSigner, err := appaws.NewSigningService(appaws.SigningServiceConfig{})
+	awsSigner, err := aws.NewSigningService(aws.SigningServiceConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -264,7 +266,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s.httpServer = s.newHTTPServer()
 
 	// TCP server will handle TCP applications.
-	s.tcpServer = s.newTCPServer()
+	tcpServer, err := s.newTCPServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.tcpServer = tcpServer
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -659,12 +665,12 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are singed by AWS Signature Version
+		//  Requests from AWS applications are signed by AWS Signature Version
 		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
 		//  services that support it (All services expect Amazon SimpleDB but
 		//  this AWS service has been deprecated)
 		if aws.IsSignedByAWSSigV4(r) {
-			return s.serveSession(w, r, identity, app, s.withAWSForwarder)
+			return s.serveSession(w, r, identity, app, s.withAWSSigner)
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
@@ -706,15 +712,9 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 	defer session.release()
 
-	// Create session context.
-	sessionCtx := &common.SessionContext{
-		Identity: identity,
-		App:      app,
-		Emitter:  session.streamWriter,
-	}
-
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	session.handler.ServeHTTP(w, r)
+	// session.fwd.ServeHTTP(w, common.WithSessionContext(r, session.sessionCtx))
 	return nil
 }
 
@@ -848,12 +848,18 @@ func (s *Server) newHTTPServer() *http.Server {
 }
 
 // newTCPServer creates a server that proxies TCP applications.
-func (s *Server) newTCPServer() *tcpServer {
-	return &tcpServer{
-		authClient: s.c.AuthClient,
-		hostID:     s.c.HostID,
-		log:        s.log,
+func (s *Server) newTCPServer() (*tcpServer, error) {
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: s.c.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &tcpServer{
+		audit:  audit,
+		hostID: s.c.HostID,
+		log:    s.log,
+	}, nil
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.

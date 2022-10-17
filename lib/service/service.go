@@ -4298,9 +4298,9 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		ok := false
+		shouldSkipCleanup := false
 		defer func() {
-			if !ok {
+			if !shouldSkipCleanup {
 				warnOnErr(conn.Close(), log)
 			}
 		}()
@@ -4429,9 +4429,20 @@ func (process *TeleportProcess) initApps() {
 
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
+		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer func() {
+			if !shouldSkipCleanup {
+				warnOnErr(asyncEmitter.Close(), log)
+			}
+		}()
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			DataDir:              process.Config.DataDir,
 			AuthClient:           conn.Client,
+			Emitter:              asyncEmitter,
 			AccessPoint:          accessPoint,
 			Authorizer:           authorizer,
 			TLSConfig:            tlsConfig,
@@ -4450,7 +4461,7 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		defer func() {
-			if !ok {
+			if !shouldSkipCleanup {
 				warnOnErr(appServer.Close(), log)
 			}
 		}()
@@ -4488,13 +4499,16 @@ func (process *TeleportProcess) initApps() {
 		log.Infof("All applications successfully started.")
 
 		// Cancel deferred cleanup actions, because we're going
-		// to regsiter an OnExit handler to take care of it
-		ok = true
+		// to register an OnExit handler to take care of it
+		shouldSkipCleanup = true
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
 			log.Infof("Shutting down.")
 			warnOnErr(appServer.Close(), log)
+			if asyncEmitter != nil {
+				warnOnErr(asyncEmitter.Close(), log)
+			}
 			agentPool.Stop()
 			warnOnErr(conn.Close(), log)
 			log.Infof("Exited.")

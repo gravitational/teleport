@@ -17,13 +17,9 @@ limitations under the License.
 package common
 
 import (
-	"context"
-	"net/http"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -33,32 +29,25 @@ type SessionContext struct {
 	Identity *tlsca.Identity
 	// App is the requested identity.
 	App types.Application
-	// Emitter is the audit log emitter.
-	Emitter events.Emitter
+	// ChunkID is the session chunk's uuid.
+	ChunkID string
+	// Audit is used to emit audit events for the session.
+	Audit Audit
 }
 
-// WithSessionContext adds session context to provided request.
-func WithSessionContext(r *http.Request, sessionCtx *SessionContext) *http.Request {
-	return r.WithContext(context.WithValue(
-		r.Context(),
-		contextSessionKey,
-		sessionCtx,
-	))
-}
-
-// GetSessionContext retrieves the session context from a request.
-func GetSessionContext(r *http.Request) (*SessionContext, error) {
-	sessionCtxValue := r.Context().Value(contextSessionKey)
-	sessionCtx, ok := sessionCtxValue.(*SessionContext)
-	if !ok {
-		return nil, trace.BadParameter("failed to get session context")
+// Check validates the SessionContext.
+func (sc *SessionContext) Check() error {
+	if sc.Identity == nil {
+		return trace.BadParameter("missing Identity")
 	}
-	return sessionCtx, nil
+	if sc.App == nil {
+		return trace.BadParameter("missing App")
+	}
+	if sc.ChunkID == "" {
+		return trace.BadParameter("missing ChunkID")
+	}
+	if sc.Audit == nil {
+		return trace.BadParameter("missing Audit")
+	}
+	return nil
 }
-
-type contextKey string
-
-const (
-	// contextSessionKey is the context key for the session context.
-	contextSessionKey contextKey = "app-session-context"
-)
