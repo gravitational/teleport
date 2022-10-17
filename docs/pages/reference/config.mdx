@@ -772,9 +772,10 @@ app_service:
       # Optional simple rewriting of Location header
       # Rewrite the "Location" header on redirect responses replacing the
       # host with the public address of this application.
-      # redirect:
-      #   - "localhost"
-      #   - "jenkins.internal.dev"
+      # rewrite:
+      #   redirect:
+      #     - "localhost"
+      #     - "jenkins.internal.dev"
 
 ## This section configures the 'kubernetes service'
 (!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)
