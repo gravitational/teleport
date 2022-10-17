@@ -325,7 +325,7 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 	virtualMachinesMock.GetResult = generateAzureVM(t, []string{identityResourceID(t, "identity")})
 
 	// Advance the clock to force cache expiration.
-	clock.Advance(azureVirutalMachineCacheTTL + time.Second)
+	clock.Advance(azureVirtualMachineCacheTTL + time.Second)
 
 	// Second fetch succeeds and return the matched identity.
 	resourceID, err = auth.GetAzureIdentityResourceID(ctx, identityName)

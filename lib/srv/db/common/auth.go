@@ -52,9 +52,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// azureVirutalMachineCacheTTL is the default TTL for Azure virtual machine
+// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
 // cache entries.
-const azureVirutalMachineCacheTTL = 5 * time.Minute
+const azureVirtualMachineCacheTTL = 5 * time.Minute
 
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
@@ -138,7 +138,7 @@ func NewAuth(config AuthConfig) (Auth, error) {
 	}
 
 	azureVirtualMachineCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   azureVirutalMachineCacheTTL,
+		TTL:   azureVirtualMachineCacheTTL,
 		Clock: config.Clock,
 	})
 	if err != nil {

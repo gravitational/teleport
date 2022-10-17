@@ -31,9 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
 
-// AzureAuthMethod is the authentication method used to connect to Azure SQL.
-const AzureAuthMethod = "ActiveDirectoryIntegrated"
-
 // Connector defines an interface for connecting to a SQL Server so it can be
 // swapped out in tests.
 type Connector interface {
