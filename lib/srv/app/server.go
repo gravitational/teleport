@@ -20,11 +20,9 @@ limitations under the License.
 package app
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -53,6 +51,12 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+)
+
+type appServerContextKey string
+
+const (
+	connContextKey appServerContextKey = "teleport-connContextKey"
 )
 
 // Config is the configuration for an application server.
@@ -185,6 +189,11 @@ type Server struct {
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
 
+	// connAuth is used to map an initial failure of authorization to a connection.
+	// This will force the HTTP server to serve an error and close the connection.
+	connAuthMu sync.Mutex
+	connAuth   map[net.Conn]error
+
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
 	apps map[string]types.Application
@@ -253,6 +262,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		heartbeats:    make(map[string]*srv.Heartbeat),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
+		connAuth:      make(map[net.Conn]error),
 		awsSigner:     awsSigner,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
@@ -580,6 +590,26 @@ func (s *Server) ForceHeartbeat() error {
 	return nil
 }
 
+func (s *Server) getAndDeleteConnAuth(conn net.Conn) error {
+	s.connAuthMu.Lock()
+	defer s.connAuthMu.Unlock()
+	err := s.connAuth[conn]
+	delete(s.connAuth, conn)
+	return err
+}
+
+func (s *Server) setConnAuth(conn net.Conn, err error) {
+	s.connAuthMu.Lock()
+	defer s.connAuthMu.Unlock()
+	s.connAuth[conn] = err
+}
+
+func (s *Server) deleteConnAuth(conn net.Conn) {
+	s.connAuthMu.Lock()
+	defer s.connAuthMu.Unlock()
+	delete(s.connAuth, conn)
+}
+
 // HandleConnection takes a connection and wraps it in a listener so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
@@ -588,7 +618,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// httpServer will initiate the close call.
 	closerConn := utils.NewCloserConn(conn)
 
-	if err := s.handleConnection(closerConn); err != nil {
+	tlsConn, err := s.handleConnection(closerConn)
+	// Make sure that the conn auth error is cleaned up.
+	defer s.deleteConnAuth(tlsConn)
+
+	if err != nil {
 		s.log.WithError(err).Warnf("Failed to handle client connection.")
 		if err := conn.Close(); err != nil {
 			s.log.WithError(err).Warnf("Failed to close client connection.")
@@ -600,7 +634,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	closerConn.Wait()
 }
 
-func (s *Server) handleConnection(conn net.Conn) error {
+func (s *Server) handleConnection(conn net.Conn) (net.Conn, error) {
 	// Make sure everything here is wrapped in the tracking read connection for monitoring.
 	ctx, cancel := context.WithCancel(s.closeContext)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
@@ -610,54 +644,37 @@ func (s *Server) handleConnection(conn net.Conn) error {
 		Cancel:  cancel,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
 	tlsConn, user, app, err := s.getConnectionInfo(ctx, tc)
 	if err != nil {
-		return trace.Wrap(err)
+		return tlsConn, trace.Wrap(err)
 	}
 	authCtx, _, err := s.authorizeContext(context.WithValue(ctx, auth.ContextUser, user))
 	if err != nil {
-		// If the app is not TCP, write an HTTP error response and return nil instead of the error.
-		// This will ensure that HTTP clients will see a "403 Forbidden" code and message and not a 500.
 		if !app.IsTCP() {
-			code := trace.ErrorToCode(err)
-			resp := http.Response{
-				StatusCode: code,
-				Body:       io.NopCloser(bytes.NewReader([]byte(http.StatusText(code)))),
-			}
-			if writeErr := resp.Write(tlsConn); writeErr != nil {
-				s.log.Warnf("error writing HTTP response: %v", writeErr)
-			}
-
-			// Since we're not passing this connection to the http server, we should close
-			// the connection explicitly here.
-			if closeErr := conn.Close(); closeErr != nil {
-				s.log.Warnf("error closing connection: %v", closeErr)
-			}
-
-			return nil
+			s.setConnAuth(tlsConn, err)
+		} else {
+			return tlsConn, trace.Wrap(err)
 		}
-
-		return trace.Wrap(err)
-	}
-
-	err = s.monitorConn(ctx, tc, authCtx)
-	if err != nil {
-		return trace.Wrap(err)
+	} else {
+		err = s.monitorConn(ctx, tc, authCtx)
+		if err != nil {
+			return tlsConn, trace.Wrap(err)
+		}
 	}
 
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
 	if app.IsTCP() {
 		identity := authCtx.Identity.GetIdentity()
-		return s.handleTCPApp(ctx, tlsConn, &identity, app)
+		return tlsConn, s.handleTCPApp(ctx, tlsConn, &identity, app)
 	}
 
-	return s.handleHTTPApp(ctx, tlsConn)
+	return tlsConn, s.handleHTTPApp(ctx, tlsConn)
 }
 
 // monitorConn takes a TrackingReadConn and starts a connection monitor. The tracking connection will be
@@ -732,11 +749,19 @@ func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 
 // ServeHTTP will forward the *http.Request to the target application.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := s.serveHTTP(w, r); err != nil {
+	// See if the initial auth failed. If it didn't, serve the HTTP regularly, which
+	// will include subsequent auth attempts to prevent race-type conditions.
+	err := s.getAndDeleteConnAuth(r.Context().Value(connContextKey).(net.Conn))
+	if err == nil {
+		err = s.serveHTTP(w, r)
+	}
+	if err != nil {
 		s.log.Warnf("Failed to serve request: %v.", err)
 
-		// Covert trace error type to HTTP and write response.
+		// Covert trace error type to HTTP and write response, make sure we close the
+		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+		w.Header().Set("Connection", "close")
 		http.Error(w, http.StatusText(code), code)
 	}
 }
@@ -937,6 +962,9 @@ func (s *Server) newHTTPServer() *http.Server {
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return context.WithValue(ctx, connContextKey, c)
+		},
 	}
 }
 
