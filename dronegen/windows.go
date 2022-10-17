@@ -24,7 +24,7 @@ const (
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 	webappsSrc        = `/go/src/github.com/gravitational/webapps`
 
-	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.70-beta.3-windows.exe`
+	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.70-windows.exe`
 	relcliSha256 = `1cd0e4e2912ded6c6b61a82018ac3d76eac091f9719b5a80795d79ff194788a7`
 )
 
@@ -50,26 +50,45 @@ func windowsTagPipeline() pipeline {
 		buildWindowsTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		{
-			Name: "Upload Artifacts",
+			Name: "Assume AWS Role",
 			Environment: map[string]value{
 				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
 				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
 				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"AWS_ROLE":              {fromSecret: "AWS_ROLE"},
+			},
+			Commands: []string{
+				`$Workspace = "` + perBuildWorkspace + `"`,
+				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+				`$AwsSharedCredentialsFile = "$Workspace/credentials"`,
+				`$SessionName = "drone-$Env:DRONE_REPO-$Env:DRONE_BUILD_NUMBER".replace("/", "-")`,
+				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+				`Get-STSCallerIdentity`,
+				`Save-Role -RoleArn $Env:AWS_ROLE -RoleSessionName $SessionName -FilePath $AwsSharedCredentialsFile`,
+				`Get-ChildItem -Path Env: | Where-Object {($_.Name -Like "AWS_SECRET_ACCESS_KEY") -or ($_.Name -Like "AWS_ACCESS_KEY_ID") } | Remove-Item`,
+				`Get-STSCallerIdentity -ProfileLocation $AwsSharedCredentialsFile`,
+			},
+		},
+		{
+			Name: "Upload Artifacts",
+			Environment: map[string]value{
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"AWS_REGION":    {raw: "us-west-2"},
+				"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
 				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 				`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
+				`$AwsSharedCredentialsFile = "$Workspace/credentials"`,
 				`$OutputsDir="$Workspace/outputs"`,
 				`New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null`,
 				`Get-ChildItem "$WebappsSrc/packages/teleterm/build/release`,
 				`Copy-Item -Path "$WebappsSrc/packages/teleterm/build/release/Teleport Connect Setup*.exe" -Destination $OutputsDir`,
 				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 				`Format-FileHashes -PathGlob "$OutputsDir/*.exe"`,
-				`Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
+				`Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
 			},
 		},
 		windowsRegisterArtifactsStep(p.Workspace.Path),
@@ -148,11 +167,14 @@ func updateWindowsSubreposStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY`,
 			`cd $TeleportSrc`,
 			`git submodule update --init e`,
 			`git submodule update --init --recursive webassets`,
+			`cd $WebappsSrc`,
+			`git submodule update --init packages/webapps.e`,
 			`Reset-Git -Workspace $Workspace`,
 		},
 	}
@@ -246,8 +268,8 @@ func windowsRegisterArtifactsStep(workspace string) step {
 		Name: "Register artifacts",
 		Environment: map[string]value{
 			"WORKSPACE_DIR":   {raw: workspace},
-			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT_STAGING"},
-			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY_STAGING"},
+			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT"},
+			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY"},
 			"RELCLI_BASE_URL": {raw: releasesHost},
 		},
 		Commands: []string{

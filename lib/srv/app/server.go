@@ -680,7 +680,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 // serveAWSWebConsole generates a sign-in URL for AWS management console and
 // redirects the user to it.
 func (s *Server) serveAWSWebConsole(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application) error {
-	s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
+	s.log.Debugf("Redirecting %v to AWS management console with role %v.",
 		identity.Username, identity.RouteToApp.AWSRoleARN)
 
 	url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{

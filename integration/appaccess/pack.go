@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -146,28 +147,12 @@ func (p *Pack) RootAppPublicAddr() string {
 	return p.rootAppPublicAddr
 }
 
-func (p *Pack) RootAppName() string {
-	return p.rootAppName
-}
-
-func (p *Pack) RootAppURI() string {
-	return p.rootAppURI
-}
-
 func (p *Pack) LeafAppClusterName() string {
 	return p.leafAppClusterName
 }
 
 func (p *Pack) LeafAppPublicAddr() string {
 	return p.leafAppPublicAddr
-}
-
-func (p *Pack) LeafAppName() string {
-	return p.leafAppName
-}
-
-func (p *Pack) LeafAppURI() string {
-	return p.leafAppURI
 }
 
 // initUser will create a user within the root cluster.
@@ -184,7 +169,7 @@ func (p *Pack) initUser(t *testing.T, opts AppTestOptions) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	user.SetTraits(map[string][]string{"env": {"production"}})
+	user.SetTraits(map[string][]string{"env": {"production"}, "empty": {}, "nil": nil})
 	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
@@ -270,38 +255,25 @@ func (p *Pack) initTeleportClient(t *testing.T) {
 
 // CreateAppSession creates an application session with the root cluster. The
 // application that the user connects to may be running in a leaf cluster.
-func (p *Pack) CreateAppSession(t *testing.T, publicAddr, appName, appURI, clusterName string, useWebAPI bool) string {
+func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) string {
 	require.NotEmpty(t, p.webCookie)
 	require.NotEmpty(t, p.webToken)
 
-	if useWebAPI {
-		casReq, err := json.Marshal(web.CreateAppSessionRequest{
-			FQDNHint:    publicAddr,
-			PublicAddr:  publicAddr,
-			ClusterName: clusterName,
-		})
-		require.NoError(t, err)
-		statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, statusCode)
-
-		var casResp *web.CreateAppSessionResponse
-		err = json.Unmarshal(body, &casResp)
-		require.NoError(t, err)
-
-		return casResp.CookieValue
-	}
-
-	session, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
-		Username:    p.username,
+	casReq, err := json.Marshal(web.CreateAppSessionRequest{
+		FQDNHint:    publicAddr,
 		PublicAddr:  publicAddr,
-		AppName:     appName,
-		AppURI:      appURI,
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+	statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, statusCode)
 
-	return session.GetName()
+	var casResp *web.CreateAppSessionResponse
+	err = json.Unmarshal(body, &casResp)
+	require.NoError(t, err)
+
+	return casResp.CookieValue
 }
 
 // makeWebapiRequest makes a request to the root cluster Web API.
@@ -328,11 +300,11 @@ func (p *Pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 	return statusCode, []byte(body), trace.Wrap(err)
 }
 
-func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, startTime time.Time, isMatch func(event apievents.AuditEvent) bool, checkEvent func(event apievents.AuditEvent)) {
+func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
 	require.Eventuallyf(t, func() bool {
 		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(
-			startTime,
-			time.Now(),
+			time.Now().Add(-time.Hour),
+			time.Now().Add(time.Hour),
 			apidefaults.Namespace,
 			[]string{eventType},
 			1,
@@ -344,13 +316,7 @@ func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, startTime time.T
 			return false
 		}
 
-		// Match against the first event that returns true for the given predicate.
-		for _, event := range events {
-			if isMatch(event) {
-				checkEvent(event)
-				break
-			}
-		}
+		checkEvent(events[0])
 		return true
 	}, 500*time.Millisecond, 50*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
 }
@@ -690,6 +656,14 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
+						},
 						// Make sure we can insert JWT token in custom header.
 						{
 							Name:  "X-JWT",
@@ -818,6 +792,14 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 						{
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
+						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
 						},
 					},
 				},
