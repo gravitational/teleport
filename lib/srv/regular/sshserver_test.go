@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -31,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -40,9 +42,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -123,6 +127,35 @@ func newFixtureWithoutDiskBasedLogging(t *testing.T) *sshTestFixture {
 	require.NoError(t, err)
 
 	return f
+}
+
+func (f *sshTestFixture) newSSHClient(ctx context.Context, t *testing.T, user *user.User) *tracessh.Client {
+	// set up SSH client using the user private key for signing
+	up, err := newUpack(f.testSrv, user.Username, []string{user.Username}, wildcardAllow)
+	require.NoError(t, err)
+
+	// set up an agent server and a client that uses agent for forwarding
+	keyring := agent.NewKeyring()
+	addedKey := agent.AddedKey{
+		PrivateKey:  up.pkey,
+		Certificate: up.pcert,
+	}
+	require.NoError(t, keyring.Add(addedKey))
+
+	cltConfig := &ssh.ClientConfig{
+		User:            user.Username,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+	}
+
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, cltConfig)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	return client
 }
 
 func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
@@ -267,6 +300,73 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	t.Cleanup(func() { f.ssh.assertCltClose(t, client.Close()) })
 	require.NoError(t, agent.ForwardToAgent(client.Client, keyring))
 	return f
+}
+
+// TestMultipleExecCommands asserts that multiple SSH exec commands can not be
+// sent over a single SSH channel, which is disallowed by the SSH standard
+// https://www.ietf.org/rfc/rfc4254.txt
+//
+// Conformant clients (tsh, openssh) will never try to do this, but we must
+// correctly handle the case where an attacker would try to send multiple
+// commands over the same channel to try to cover their tracks in the audit log
+// or do other nefarious things.
+//
+// We make sure that:
+//   - the first command is correctly added to the audit log
+//   - the second command does not appear in the audit log (as a proxy for testing
+//     that it was blocked/not executed)
+//   - there are no panics or unexpected errors
+//   - and we give the race detector a chance to detect any possible race
+//     conditions on this code path.
+func TestMultipleExecCommands(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = emitter
+
+	// Manually open an ssh channel
+	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)
+	require.NoError(t, err)
+
+	sendExec := func(cmd string) error {
+		type execRequest struct {
+			Command string
+		}
+		// Intentionally don't request a reply so that SendRequest won't wait,
+		// we want to maximize the chance of triggering any potential race
+		// condition.
+		_, err := channel.SendRequest(ctx, "exec", false /*wantReply*/, ssh.Marshal(&execRequest{Command: cmd}))
+		return err
+	}
+
+	t.Log("sending first exec request over channel")
+	err = sendExec("echo 1")
+	require.NoError(t, err)
+
+	t.Log("sending second exec request over channel")
+	_ = sendExec("echo 2")
+
+	var execEvent *apievents.Exec
+loop:
+	for event := range emitter.C() {
+		switch e := event.(type) {
+		case *apievents.Exec:
+			execEvent = e
+			// In branch/v8 we may not actually get a SessionEnd event because the
+			// context cancellation is not handled correctly
+			break loop
+		case *apievents.SessionEnd:
+			break loop
+		}
+	}
+
+	// The first command, which was actually executed, should be recorded
+	// correctly in the audit log
+	require.NotNil(t, execEvent)
+	require.Equal(t, "echo 1", execEvent.CommandMetadata.Command)
 }
 
 func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
@@ -732,12 +832,12 @@ func TestX11Forward(t *testing.T) {
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// Open two x11 sessions, the server should handle multiple
-	// concurrent X11 sessions.
+	// Open two x11 sessions from two separate clients to
+	// ensure concurrent X11 forwarding sessions are supported.
 	serverDisplay := x11EchoSession(ctx, t, f.ssh.clt)
-
-	client2, err := tracessh.Dial(ctx, "tcp", f.ssh.srv.Addr(), f.ssh.cltConfig)
+	user, err := user.Current()
 	require.NoError(t, err)
+	client2 := f.newSSHClient(ctx, t, user)
 	serverDisplay2 := x11EchoSession(ctx, t, client2)
 
 	// Create multiple XServer requests, the server should
@@ -764,6 +864,57 @@ func TestX11Forward(t *testing.T) {
 		x11EchoRequest(t, serverDisplay2)
 	}()
 	wg.Wait()
+}
+
+// TestRootX11ForwardPermissions tests that X11 forwarding sessions are set up
+// with the connecting user's file permissions (where needed), rather than root.
+func TestRootX11ForwardPermissions(t *testing.T) {
+	requireRoot(t)
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping test as xauth is not enabled")
+	}
+
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	}
+
+	ctx := context.Background()
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
+	role.SetOptions(roleOptions)
+	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Create a new X11 session as a non-root nonroot in the system.
+	nonroot, err := user.LookupId("1000")
+	require.NoError(t, err)
+	client := f.newSSHClient(ctx, t, nonroot)
+	serverDisplay := x11EchoSession(ctx, t, client)
+
+	// Check that the xauth entry is readable for the connecting user.
+	xauthCmd := x11.NewXAuthCommand(ctx, "")
+	uid, err := strconv.ParseUint(nonroot.Uid, 10, 32)
+	require.NoError(t, err)
+	gid, err := strconv.ParseUint(nonroot.Gid, 10, 32)
+	require.NoError(t, err)
+	xauthCmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true,
+		Credential: &syscall.Credential{
+			Uid: uint32(uid),
+			Gid: uint32(gid),
+		},
+	}
+	xauthCmd.Dir = nonroot.HomeDir
+	xauthCmd.Env = []string{fmt.Sprintf("HOME=%v", nonroot.HomeDir)}
+	_, err = xauthCmd.ReadEntry(serverDisplay)
+	require.NoError(t, err)
 }
 
 // x11EchoSession creates a new ssh session and handles x11 forwarding for the session,
@@ -832,6 +983,10 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// create a temp file to collect the shell output into:
 	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-x11-forward-test")
+	require.NoError(t, err)
+
+	// Allow non-root user to write to the temp file
+	err = tmpFile.Chmod(fs.FileMode(0777))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.Remove(tmpFile.Name())
@@ -2047,6 +2202,13 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 	require.NoError(t, err)
 	t.Cleanup(caWatcher.Close)
 	return caWatcher
+}
+
+func requireRoot(t *testing.T) {
+	t.Helper()
+	if os.Geteuid() != 0 {
+		t.Skip("This test will be skipped because tests are not being run as root.")
+	}
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

@@ -617,7 +617,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "8.3.16",
+      "version": "10.2.2",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -939,6 +939,11 @@
     {
       "source": "/setup/admin/graceful-restarts/",
       "destination": "/setup/admin/upgrading-the-teleport-binary/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+      "destination": "/enterprise/workflow/ssh-approval-pagerduty/",
       "permanent": true
     }
   ]
