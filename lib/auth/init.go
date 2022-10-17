@@ -183,6 +183,9 @@ type InitConfig struct {
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
 
+	// LoadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
+	LoadAllCAs bool
+
 	// TraceClient is used to forward spans to the upstream telemetry collector
 	TraceClient otlptrace.Client
 
@@ -943,7 +946,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	}
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
-		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
+		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionRole)
 	}
 	roles, err := types.ParseTeleportRoles(roleString)
 	if err != nil {
