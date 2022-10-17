@@ -2962,6 +2962,8 @@ message OneOf {
     events.CassandraPrepare CassandraPrepare = 102;
     events.CassandraRegister CassandraRegister = 103;
     events.CassandraExecute CassandraExecute = 104;
+    // DynamoDB audit events.
+    events.DynamoDBRequest DynamoDBRequest = 105;
   }
 }
 
@@ -3691,6 +3693,81 @@ message ElasticsearchRequest {
 
   // Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
   string Query = 12 [(gogoproto.jsontag) = "query"];
+}
+
+// DynamoDBRequest is emitted when a user executes a DynamoDB request.
+// We support DynamoDB access via app access and database access,
+// therefore this event includes either DatabaseMetadata or AppMetadata.
+message DynamoDBRequest {
+  // OperationPlane specifies DynamoDB request operation plane.
+  enum OperationPlane {
+    // GENERAL is for otherwise uncategorized operations.
+    GENERAL = 0;
+    // CONTROL is for control-plane operations: create and manage DynamoDB tables.
+    CONTROL = 1;
+    // DATA is for data-plane operations: CRUD operations on data in a table.
+    DATA = 2;
+    // STREAM is for stream operations: enable/disable a stream on a table or access data modification records in a stream.
+    STREAM = 3;
+    // TRANSACTION is for transaction opertions that provide ACID guarantees.
+    TRANSACTION = 4;
+  }
+
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionChunkID is the ID of the session that was created for this 5 minute
+  // application log chunk.
+  string SessionChunkID = 3 [(gogoproto.jsontag) = "session_chunk_id"];
+
+  // AWS contains extra AWS metadata of the request.
+  AWSRequestMetadata AWS = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // StatusCode the HTTP response code for the request.
+  uint32 StatusCode = 5 [(gogoproto.jsontag) = "status_code"];
+
+  // Path is relative path in the URL.
+  string Path = 6 [(gogoproto.jsontag) = "path"];
+
+  // RawQuery are the encoded query values.
+  string RawQuery = 7 [(gogoproto.jsontag) = "raw_query"];
+
+  // Method is the request HTTP method, like GET/POST/DELETE/etc.
+  string Method = 8 [(gogoproto.jsontag) = "method"];
+
+  // Body is the request HTTP body.
+  bytes Body = 9 [(gogoproto.jsontag) = "body"];
+
+  // Operation represents the category of operation for an API being accessed in a given request.
+  OperationPlane Operation = 10 [(gogoproto.jsontag) = "operation"];
+
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 11 [
+    (gogoproto.nullable) = true,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 12 [
+    (gogoproto.nullable) = true,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // UpgradeWindowStartMetadata contains common upgrade window information.
