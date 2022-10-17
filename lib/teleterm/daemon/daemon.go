@@ -117,6 +117,10 @@ func (s *Service) GetCluster(ctx context.Context, uri string) (*clusters.Cluster
 	}
 
 	features, err := cluster.GetClusterFeatures(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cluster.Features = features
 
 	return cluster, nil
