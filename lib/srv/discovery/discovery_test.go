@@ -351,10 +351,6 @@ func TestDiscoveryServer(t *testing.T) {
 			require.NoError(t, err)
 			defer nodeWatcher.Close()
 
-			for !nodeWatcher.IsInitialized() {
-				time.Sleep(100 * time.Millisecond)
-			}
-
 			server, err := New(context.Background(), &Config{
 				Clients: &testClients,
 				Matchers: []services.AWSMatcher{{

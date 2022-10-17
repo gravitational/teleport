@@ -451,7 +451,10 @@ func (a *Server) runPeriodicOperations() {
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
-	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
+	promTicker := interval.New(interval.Config{
+		Duration: defaults.PrometheusScrapeInterval,
+		Jitter:   utils.NewSeventhJitter(),
+	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
@@ -507,7 +510,7 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.C:
+		case <-promTicker.Next():
 			a.updateVersionMetrics()
 		case <-releaseCheck.Next():
 			a.syncReleaseAlerts(ctx, true)
@@ -716,49 +719,41 @@ func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Tar
 // updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
 // cluster via prometheus metrics
 func (a *Server) updateVersionMetrics() {
-	hostID := make(map[string]struct{})
+	const resourceLimit = 1000
+	hostID := make(map[string]bool)
 	versionCount := make(map[string]int)
 
 	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
 	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
 	// and then store hostID and version count information.
-	serverCheck := func(server interface{}) {
-		type serverKubeWindows interface {
-			Expiry() time.Time
-			GetName() string
-			GetTeleportVersion() string
-		}
-		type appDB interface {
-			serverKubeWindows
-			GetHostID() string
+	resourceCheck := func(resource types.Resource) {
+		if resource.Expiry().Before(a.clock.Now()) {
+			return
 		}
 
-		// appDB needs to be first as it also matches the serverKubeWindows interface
-		if a, ok := server.(appDB); ok {
-			if a.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[a.GetHostID()]; !present {
-				hostID[a.GetHostID()] = struct{}{}
-				versionCount[a.GetTeleportVersion()]++
-			}
-		} else if s, ok := server.(serverKubeWindows); ok {
-			if s.Expiry().Before(time.Now()) {
-				return
-			}
-			if _, present := hostID[s.GetName()]; !present {
-				hostID[s.GetName()] = struct{}{}
-				versionCount[s.GetTeleportVersion()]++
-			}
+		id := resource.GetName()
+		if r, ok := resource.(interface{ GetHostID() string }); ok {
+			id = r.GetHostID()
+		}
+
+		if hostID[id] {
+			return
+		}
+
+		if r, ok := resource.(interface{ GetTeleportVersion() string }); ok {
+			hostID[id] = true
+			versionCount[r.GetTeleportVersion()]++
 		}
 	}
+
+	client := a.Cache
 
 	proxyServers, err := a.GetProxies()
 	if err != nil {
 		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
 	}
 	for _, proxyServer := range proxyServers {
-		serverCheck(proxyServer)
+		resourceCheck(proxyServer)
 	}
 
 	authServers, err := a.GetAuthServers()
@@ -766,47 +761,30 @@ func (a *Server) updateVersionMetrics() {
 		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
 	}
 	for _, authServer := range authServers {
-		serverCheck(authServer)
+		resourceCheck(authServer)
 	}
 
-	servers, err := a.GetNodes(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
-	}
-	for _, server := range servers {
-		serverCheck(server)
-	}
+	// retrieve resources in batches to prevent excessive memory consumption
+	for _, kind := range []string{types.KindNode, types.KindKubeService, types.KindDatabaseServer, types.KindAppServer, types.KindWindowsDesktopService} {
+		for ok, startKey := true, ""; ok; ok = startKey != "" {
+			response, err := client.ListResources(a.closeCtx, proto.ListResourcesRequest{
+				ResourceType: kind,
+				Namespace:    apidefaults.Namespace,
+				Limit:        resourceLimit,
+				StartKey:     startKey,
+			})
+			if err != nil {
+				log.Debugf("Failed to get %q for teleport_registered_servers metric: %v", kind, err)
+				startKey = ""
+				continue
+			}
 
-	dbs, err := a.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, db := range dbs {
-		serverCheck(db)
-	}
+			for _, resource := range response.Resources {
+				resourceCheck(resource)
+			}
 
-	apps, err := a.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
-	if err != nil {
-		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
-	}
-	for _, app := range apps {
-		serverCheck(app)
-	}
-
-	kubeServices, err := a.GetKubeServices(a.closeCtx)
-	if err != nil {
-		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
-	}
-	for _, kubeService := range kubeServices {
-		serverCheck(kubeService)
-	}
-
-	windowsServices, err := a.GetWindowsDesktopServices(a.closeCtx)
-	if err != nil {
-		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
-	}
-	for _, windowsService := range windowsServices {
-		serverCheck(windowsService)
+			startKey = response.NextKey
+		}
 	}
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics

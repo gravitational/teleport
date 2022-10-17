@@ -18,9 +18,16 @@ package native
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -29,10 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
-	"gopkg.in/check.v1"
 )
 
 // TestPrecomputeMode verifies that package enters precompute mode when
@@ -89,13 +92,13 @@ func (s *NativeSuite) TestGenerateUserCert(c *check.C) {
 
 // TestBuildPrincipals makes sure that the list of principals for a host
 // certificate is correctly built.
-//   * If the node has role admin, then only the host ID should be listed
+//   - If the node has role admin, then only the host ID should be listed
 //     in the principals field.
-//   * If only a host ID is provided, don't include a empty node name
+//   - If only a host ID is provided, don't include a empty node name
 //     this is for backward compatibility.
-//   * If both host ID and node name are given, then both should be included
+//   - If both host ID and node name are given, then both should be included
 //     on the certificate.
-//   * If the host ID and node name are the same, only list one.
+//   - If the host ID and node name are the same, only list one.
 func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 	caPrivateKey, _, err := GenerateKeyPair()
 	c.Assert(err, check.IsNil)
@@ -248,4 +251,20 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		extVal := userCertificate.Extensions["login@github.com"]
 		c.Assert(extVal, check.Equals, "hello")
 	}
+}
+
+// TestGenerateRSAPKSC1Keypair tests that GeneratePrivateKey generates
+// a valid PKCS1 rsa key.
+func TestGeneratePKSC1RSAKey(t *testing.T) {
+	t.Parallel()
+
+	priv, err := GeneratePrivateKey()
+	require.NoError(t, err)
+
+	block, rest := pem.Decode(priv.PrivateKeyPEM())
+	require.NoError(t, err)
+	require.Empty(t, rest)
+
+	_, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	require.NoError(t, err)
 }
