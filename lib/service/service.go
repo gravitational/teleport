@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
+	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -832,6 +833,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		}
 	}
 
+	supervisor := NewSupervisor(processID, cfg.Log)
+	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// if there's no host uuid initialized yet, try to read one from the
 	// one of the identities
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
@@ -879,17 +886,20 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 			}
 			return nil, trace.Wrap(err)
 		}
+	} else if kubernetes.InKubeCluster() && utils.HostUUIDExistsLocaly(cfg.DataDir) {
+		// Forces the copy of the host_uuid into the secret if PV storage is enabled.
+		// This is only required if PV storage is removed later.
+		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
+			if errors.Is(err, fs.ErrPermission) {
+				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+			}
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	_, err = uuid.Parse(cfg.HostUUID)
 	if err != nil {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
-	}
-
-	supervisor := NewSupervisor(processID, cfg.Log)
-	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	if cfg.Clock == nil {
