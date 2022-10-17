@@ -422,6 +422,7 @@ func splitAWSMatchers(matchers []services.AWSMatcher) (ec2 []services.AWSMatcher
 	return
 }
 
+// splitAzureMatchers splits the matchers between Azure VM matchers and others.
 func splitAzureMatchers(matchers []services.AzureMatcher) (vm []services.AzureMatcher, other []services.AzureMatcher) {
 	for _, matcher := range matchers {
 		if utils.SliceContainsStr(matcher.Types, constants.AzureServiceTypeVM) {
@@ -456,6 +457,7 @@ func copyAWSMatcherWithNewTypes(matcher services.AWSMatcher, newTypes []string) 
 	return newMatcher
 }
 
+// copyAzureMatcherWithNewTypes copies an Azure Matcher and replaces the types with newTypes.
 func copyAzureMatcherWithNewTypes(matcher services.AzureMatcher, newTypes []string) services.AzureMatcher {
 	newMatcher := matcher
 	newMatcher.Types = newTypes

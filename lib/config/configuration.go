@@ -1139,6 +1139,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 			},
 		)
 	}
+
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.

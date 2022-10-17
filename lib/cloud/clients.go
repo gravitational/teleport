@@ -545,7 +545,6 @@ func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKS
 
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-
 	if client, ok := c.azureKubernetesClient[subscription]; ok { // If some other thread already got here first.
 		return client, nil
 	}
@@ -563,6 +562,7 @@ func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKS
 		})
 	c.azureKubernetesClient[subscription] = client
 	return client, nil
+
 }
 
 // TestCloudClients implements Clients
