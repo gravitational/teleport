@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -74,7 +75,39 @@ type TestWebSuite struct {
 	Clock       clockwork.FakeClock
 }
 
-func NewTestWebSuite(t *testing.T) *TestWebSuite {
+type TestWebSuiteConfig struct {
+	AssetDir       string
+	PluginRegistry plugin.Registry
+}
+
+type TestWebSuiteOption func(cfg *TestWebSuiteConfig)
+
+// WithWebSuiteAssetDir configures a TestWebSuite with an asset directory
+// other than the default of ../../webassets/teleport, as this path only
+// works from one level of the directory hierarchy.
+func WithWebSuiteAssetDir(dir string) TestWebSuiteOption {
+	return func(cfg *TestWebSuiteConfig) {
+		cfg.AssetDir = dir
+	}
+}
+
+// WithWebSuitePluginRegistry configures a TestWebSuite with a plugin
+// registry for the web.Handler created for the test suite, allowing external
+// plugins to configure a web suite for testing
+func WithWebSuitePluginRegistry(reg plugin.Registry) TestWebSuiteOption {
+	return func(cfg *TestWebSuiteConfig) {
+		cfg.PluginRegistry = reg
+	}
+}
+
+func NewTestWebSuite(t *testing.T, opts ...TestWebSuiteOption) *TestWebSuite {
+	cfg := &TestWebSuiteConfig{
+		AssetDir: "../../websuite/teleport",
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -270,7 +303,7 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	fs, err := NewDebugFileSystem(cfg.AssetDir)
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:                           revTunServer,
@@ -285,6 +318,7 @@ func NewTestWebSuite(t *testing.T) *TestWebSuite {
 		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
+		PluginRegistry:                  cfg.PluginRegistry,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.Clock))
 	require.NoError(t, err)
 
