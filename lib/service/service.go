@@ -838,10 +838,11 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// if there's no host uuid initialized yet, try to read one from the
-	// one of the identities
-	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
+	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
+	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
+	// key is empty or if not running in a Kubernetes Cluster, it will read the
+	// `host_uuid` from local data directory.
+	cfg.HostUUID, err = readHostUUIDFromStorages(supervisor.ExitContext(), cfg.DataDir)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			if errors.Is(err, fs.ErrPermission) {
@@ -849,6 +850,8 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 			}
 			return nil, trace.Wrap(err)
 		}
+		// if there's no host uuid initialized yet, try to read one from the
+		// one of the identities
 		if len(cfg.Identities) != 0 {
 			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
 			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
@@ -880,19 +883,15 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 			}
 			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
 		}
-		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
-			if errors.Is(err, fs.ErrPermission) {
-				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
-			}
+		// persistHostUUIDToStorages will persist the host_uuid to the local storage
+		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
+		if err := persistHostUUIDToStorages(supervisor.ExitContext(), cfg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else if kubernetes.InKubeCluster() && utils.HostUUIDExistsLocaly(cfg.DataDir) {
-		// Forces the copy of the host_uuid into the secret if PV storage is enabled.
+		// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
 		// This is only required if PV storage is removed later.
-		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
-			if errors.Is(err, fs.ErrPermission) {
-				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
-			}
+		if err := persistHostUUIDToStorages(supervisor.ExitContext(), cfg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4822,4 +4821,74 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 func isDebugMode() bool {
 	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
 	return v
+}
+
+// readHostUUUIDFromStorage tries to read the `host_uuid` value from different storages,
+// depending on where the process is running.
+// If the process is running in a Kubernetes Cluster, this function will attempt
+// to read the `host_uuid` from the Kubernetes Secret. If it does not exist or
+// if it is not running on a Kubernetes cluster the read is done from the local
+// storage: `dataDir/host_uuid`.
+func readHostUUIDFromStorages(ctx context.Context, dataDir string) (string, error) {
+	if kubernetes.InKubeCluster() {
+		if hostUUID, err := loadHostUUIDFromKubeSecret(ctx); err == nil && len(string(hostUUID)) > 0 {
+			return string(hostUUID), nil
+		}
+	}
+	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
+	// not found in secret.
+	hostUUID, err := utils.ReadHostUUID(dataDir)
+	return hostUUID, trace.Wrap(err)
+}
+
+// persistHostUUIDToStorages writes the HostUUID to local data and  and to
+// Kubernetes Secret if this process is running on a Kubernetes Cluster.
+func persistHostUUIDToStorages(ctx context.Context, cfg *Config) error {
+	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+		}
+		return trace.Wrap(err)
+	}
+
+	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
+	// This is required because `host_uuid` is part of the client secret
+	// and Auth connection will fail if we present a different `host_uuid`.
+	if kubernetes.InKubeCluster() {
+		return trace.Wrap(writeHostUUIDToKubeSecret(ctx, cfg.HostUUID))
+	}
+	return nil
+}
+
+// loadHostUUIDFromKubeSecret creates a Kubernetes client and reads the host_uuid
+// from the Kubernetes secret with the expected key: `/host_uuid`.
+func loadHostUUIDFromKubeSecret(ctx context.Context) (string, error) {
+	st, err := kubernetes.New()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	item, err := st.Get(ctx, backend.Key(utils.HostUUIDFile))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(item.Value), nil
+}
+
+// writeHostUUIDToKubeSecret creates a Kubernetes client and writes the `host_uuid`
+// into the Kubernetes secret under the key `/host_uuid`.
+func writeHostUUIDToKubeSecret(ctx context.Context, id string) error {
+	st, err := kubernetes.New()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = st.Put(
+		ctx,
+		backend.Item{
+			Key:   backend.Key(utils.HostUUIDFile),
+			Value: []byte(id),
+		},
+	)
+	return trace.Wrap(err)
 }
