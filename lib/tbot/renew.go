@@ -451,7 +451,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		return nil, trace.Wrap(err, "unable to generate new keypairs")
 	}
 
-	b.log.Info("Attempting to generate new identity from token")
+	expires := time.Now().Add(b.cfg.CertificateTTL)
 	params := auth.RegisterParams{
 		Token: b.cfg.Onboarding.Token,
 		ID: auth.IdentityID{
@@ -464,7 +464,9 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		CAPath:             b.cfg.Onboarding.CAPath,
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		Expires:            &expires,
 	}
+	b.log.Info("Attempting to generate new identity from token")
 	certs, err := auth.Register(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
