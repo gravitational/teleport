@@ -572,14 +572,16 @@ fn decode_clipboard(mut data: Vec<u8>, format: ClipboardFormat) -> RdpResult<Vec
             if data.last().copied() == Some(b'\0') {
                 data.pop();
             }
-
             Ok(data)
         }
         ClipboardFormat::CF_UNICODETEXT => {
             let mut data = data.as_slice();
-            let clip = data.len() - 2;
-            if data.len() >= 2 && data[clip..] == [0, 0] {
-                data = &data[..clip];
+            let len = data.len();
+            if len >= 2 {
+                let clip = len - 2;
+                if data[clip..] == [0, 0] {
+                    data = &data[..clip];
+                }
             }
 
             let units: Vec<u16> = data
@@ -806,6 +808,13 @@ mod tests {
     use super::*;
     use std::io::Cursor;
     use std::sync::mpsc::channel;
+
+    #[test]
+    fn decode_clipboard_overflow() {
+        // a single byte is invalid for CF_UNICODETEXT
+        let result = decode_clipboard(vec![54u8], ClipboardFormat::CF_UNICODETEXT).unwrap();
+        assert!(result.is_empty());
+    }
 
     #[test]
     fn encode_format_list_short() {

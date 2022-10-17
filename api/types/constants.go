@@ -288,10 +288,6 @@ const (
 	// V1 is the first version of resources. Note: The first version was
 	// not explicitly versioned.
 	V1 = "v1"
-
-	// VDeleted indicates that the version information for this resource
-	// cannot be determined as it is being included as part of a delete Event.
-	VDeleted = "deleted"
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
@@ -489,6 +485,9 @@ const (
 	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
 	// one of the "permit" labels if you need to restrict viewership of an alert.
 	AlertSupersedes = "teleport.internal/alert-supersedes"
+
+	// AlertLicenseExpired is an internal label that indicates that the license has expired.
+	AlertLicenseExpired = "teleport.internal/license-expired-warning"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

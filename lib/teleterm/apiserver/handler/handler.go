@@ -28,7 +28,7 @@ func New(cfg Config) (*Handler, error) {
 	}
 
 	return &Handler{
-		cfg,
+		Config: cfg,
 	}, nil
 }
 
@@ -49,6 +49,8 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // Handler implements teleterm api service
 type Handler struct {
+	api.UnimplementedTerminalServiceServer
+
 	// Config is the service config
 	Config
 }

@@ -14,7 +14,7 @@
 
 package main
 
-const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70-beta.3"
+const relcliImage = "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.70"
 
 func relcliPipeline(trigger trigger, name string, stepName string, command string) pipeline {
 	p := newKubePipeline(name)
@@ -31,28 +31,39 @@ func relcliPipeline(trigger trigger, name string, stepName string, command strin
 			},
 		},
 		waitForDockerStep(),
-		pullRelcliStep(),
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+				awsSecretAccessKey: value{fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
+				role:               value{fromSecret: "TELEPORT_BUILD_READ_ONLY_AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
+		pullRelcliStep(volumeRefAwsConfig),
 		executeRelcliStep(stepName, command),
 	}
 
-	p.Services = []service{
-		dockerService(volumeRefTmpfs),
+	p.Services = []service{dockerService(volumeRefTmpfs)}
+	p.Volumes = []volume{
+		volumeDocker,
+		volumeTmpfs,
+		volumeAwsConfig,
 	}
-	p.Volumes = dockerVolumes(volumeTmpfs)
 
 	return p
 }
 
-func pullRelcliStep() step {
+func pullRelcliStep(awsConfigVolumeRef volumeRef) step {
 	return step{
 		Name:  "Pull relcli",
 		Image: "docker:cli",
 		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
-			"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
-			"AWS_DEFAULT_REGION":    {raw: "us-west-2"},
+			"AWS_DEFAULT_REGION": {raw: "us-west-2"},
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{
+			volumeRefDocker,
+			volumeRefAwsConfig,
+		},
 		Commands: []string{
 			`apk add --no-cache aws-cli`,
 			`aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com`,
@@ -67,15 +78,16 @@ func executeRelcliStep(name string, command string) step {
 		Image: "docker:git",
 		Environment: map[string]value{
 			"RELCLI_BASE_URL": {raw: releasesHost},
-			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT_STAGING"},
-			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY_STAGING"},
+			"RELEASES_CERT":   {fromSecret: "RELEASES_CERT"},
+			"RELEASES_KEY":    {fromSecret: "RELEASES_KEY"},
 			"RELCLI_CERT":     {raw: "/tmpfs/creds/releases.crt"},
 			"RELCLI_KEY":      {raw: "/tmpfs/creds/releases.key"},
 		},
-		Volumes: dockerVolumeRefs(volumeRef{
-			Name: "tmpfs",
-			Path: "/tmpfs",
-		}),
+		Volumes: []volumeRef{
+			volumeRefDocker,
+			volumeRefTmpfs,
+			volumeRefAwsConfig,
+		},
 		Commands: []string{
 			`mkdir -p /tmpfs/creds`,
 			`echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"`,
@@ -85,6 +97,5 @@ func executeRelcliStep(name string, command string) step {
   -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
   $RELCLI_IMAGE ` + command,
 		},
-		Failure: "ignore",
 	}
 }
