@@ -28,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -551,6 +552,29 @@ func TestListResources(t *testing.T) {
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		},
+		"WindowsDesktopService": {
+			resourceType: types.KindWindowsDesktopService,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktop, err := types.NewWindowsDesktopServiceV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
+					},
+					types.WindowsDesktopServiceSpecV3{
+						Addr:            "localhost:1234",
+						TeleportVersion: teleport.Version,
+					})
+				if err != nil {
+					return err
+				}
+
+				_, err = presence.UpsertWindowsDesktopService(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllWindowsDesktopServices(ctx)
 			},
 		},
 	}
