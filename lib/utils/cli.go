@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 )
 
 type LoggingPurpose int
@@ -521,4 +522,27 @@ type PredicateError struct {
 
 func (p PredicateError) Error() string {
 	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
+}
+
+// FormatAlert formats and colors the alert message if possible.
+func FormatAlert(alert types.ClusterAlert) string {
+	// TODO(timothyb89): Due to complications with globally enabling +
+	// properly resetting Windows terminal ANSI processing, for now we just
+	// disable color output. Otherwise, raw ANSI escapes will be visible to
+	// users.
+	var buf bytes.Buffer
+	switch runtime.GOOS {
+	case constants.WindowsOS:
+		fmt.Fprint(&buf, alert.Spec.Message)
+	default:
+		switch alert.Spec.Severity {
+		case types.AlertSeverity_HIGH:
+			fmt.Fprint(&buf, Color(Red, alert.Spec.Message))
+		case types.AlertSeverity_MEDIUM:
+			fmt.Fprint(&buf, Color(Yellow, alert.Spec.Message))
+		default:
+			fmt.Fprint(&buf, alert.Spec.Message)
+		}
+	}
+	return buf.String()
 }
