@@ -238,6 +238,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
+		Log:                  log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
