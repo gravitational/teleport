@@ -16,7 +16,7 @@ package main
 
 import "fmt"
 
-func allBuildboxPipelineSteps() []step {
+func buildboxPipelineSteps() []step {
 	steps := []step{
 		{
 			Name:  "Check out code",
@@ -27,6 +27,27 @@ func allBuildboxPipelineSteps() []step {
 			},
 		},
 		waitForDockerStep(),
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "STAGING_BUILDBOX_DRONE_USER_ECR_KEY"},
+				awsSecretAccessKey: value{fromSecret: "STAGING_BUILDBOX_DRONE_USER_ECR_SECRET"},
+				role:               value{fromSecret: "STAGING_BUILDBOX_DRONE_ECR_AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+			name:         "Configure Staging AWS Profile",
+			profile:      "staging",
+		}),
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY"},
+				awsSecretAccessKey: value{fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET"},
+				role:               value{fromSecret: "PRODUCTION_BUILDBOX_DRONE_ECR_AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+			name:         "Configure Production AWS Profile",
+			append:       true,
+			profile:      "production",
+		}),
 	}
 
 	for _, name := range []string{"buildbox", "buildbox-arm", "buildbox-centos7"} {
@@ -35,66 +56,36 @@ func allBuildboxPipelineSteps() []step {
 			if name == "buildbox-arm" && fips {
 				continue
 			}
-			steps = append(steps, buildboxPipelineSteps(name, fips)...)
+			steps = append(steps, buildboxPipelineStep(name, fips))
 		}
 	}
 	return steps
 }
 
-func buildboxPipelineSteps(buildboxName string, fips bool) []step {
+func buildboxPipelineStep(buildboxName string, fips bool) step {
 	if fips {
 		buildboxName += "-fips"
 	}
-	assumeStagingRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyID:     value{fromSecret: "STAGING_BUILDBOX_DRONE_USER_ECR_KEY"},
-			awsSecretAccessKey: value{fromSecret: "STAGING_BUILDBOX_DRONE_USER_ECR_SECRET"},
-			role:               value{fromSecret: "STAGING_BUILDBOX_DRONE_ECR_AWS_ROLE"},
-		},
-		configVolume: volumeRefAwsConfig,
-	})
-	assumeStagingRoleStep.Name = fmt.Sprintf("Assume Staging %s AWS Role", buildboxName)
-	assumeProductionRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyID:     value{fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY"},
-			awsSecretAccessKey: value{fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET"},
-			role:               value{fromSecret: "PRODUCTION_BUILDBOX_DRONE_ECR_AWS_ROLE"},
-		},
-		configVolume: volumeRefAwsConfig,
-	})
-	assumeProductionRoleStep.Name = fmt.Sprintf("Assume Production %s AWS Role", buildboxName)
-	return []step{
-		assumeStagingRoleStep,
-		step{
-			Name:    fmt.Sprintf("Build %s and push to Staging", buildboxName),
-			Image:   "docker",
-			Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
-			Commands: []string{
-				`apk add --no-cache make aws-cli`,
-				`chown -R $UID:$GID /go`,
-				// Authenticate to staging registry
-				`aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin ` + StagingRegistry,
-				// Build buildbox image
-				fmt.Sprintf(`make -C build.assets %s`, buildboxName),
-				// Retag for staging registry
-				fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:$BUILDBOX_VERSION %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, ProductionRegistry, buildboxName, StagingRegistry, buildboxName),
-				// Push to staging registry
-				fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, StagingRegistry, buildboxName),
-			},
-		},
-		assumeProductionRoleStep,
-		step{
-			Name:    fmt.Sprintf("Push %s to Production", buildboxName),
-			Image:   "docker",
-			Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
-			Commands: []string{
-				`apk add --no-cache make aws-cli`,
-				`chown -R $UID:$GID /go`,
-				// Authenticate to production registry
-				`aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin ` + ProductionRegistry,
-				// Push to production registry
-				fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION`, ProductionRegistry, buildboxName),
-			},
+	return step{
+		Name:    "Build and push " + buildboxName,
+		Image:   "docker",
+		Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
+		Commands: []string{
+			`apk add --no-cache make aws-cli`,
+			`chown -R $UID:$GID /go`,
+			// Authenticate to staging registry
+			`aws ecr get-login-password --profile staging --region=us-west-2 | docker login -u="AWS" --password-stdin ` + StagingRegistry,
+			// Build buildbox image
+			fmt.Sprintf(`make -C build.assets %s`, buildboxName),
+			// Retag for staging registry
+			fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:$BUILDBOX_VERSION %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, ProductionRegistry, buildboxName, StagingRegistry, buildboxName),
+			// Push to staging registry
+			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, StagingRegistry, buildboxName),
+			// Authenticate to production registry
+			`docker logout ` + StagingRegistry,
+			`aws ecr-public get-login-password --profile production --region=us-east-1 | docker login -u="AWS" --password-stdin ` + ProductionRegistry,
+			// Push to production registry
+			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION`, ProductionRegistry, buildboxName),
 		},
 	}
 }
@@ -114,6 +105,6 @@ func buildboxPipeline() pipeline {
 	p.Services = []service{
 		dockerService(),
 	}
-	p.Steps = allBuildboxPipelineSteps()
+	p.Steps = buildboxPipelineSteps()
 	return p
 }
