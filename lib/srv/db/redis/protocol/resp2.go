@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
 )
 
@@ -172,7 +172,7 @@ func writeSlice(wr *redis.Writer, vals interface{}) error {
 		return trace.BadParameter("expected slice, passed %T", vals)
 	}
 
-	if err := wr.WriteByte(redis.ArrayReply); err != nil {
+	if err := wr.WriteByte(redis.RespArray); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -192,7 +192,7 @@ func writeSlice(wr *redis.Writer, vals interface{}) error {
 
 // writeInteger converts integer to Redis wire form.
 func writeInteger(wr *redis.Writer, val int64) error {
-	if err := wr.WriteByte(redis.IntReply); err != nil {
+	if err := wr.WriteByte(redis.RespInt); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -209,7 +209,7 @@ func writeInteger(wr *redis.Writer, val int64) error {
 
 // writeUinteger converts unsigned integer to Redis wire form.
 func writeUinteger(wr *redis.Writer, val uint64) error {
-	if err := wr.WriteByte(redis.IntReply); err != nil {
+	if err := wr.WriteByte(redis.RespInt); err != nil {
 		return trace.Wrap(err)
 	}
 
