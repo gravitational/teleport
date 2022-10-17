@@ -64,7 +64,7 @@ func newSharedDirectoryAuditCache() sharedDirectoryAuditCache {
 // This should be called at the start of any SetX method to ensure that we never get a
 // "panic: assignment to entry in nil map".
 //
-// It is the responsiblity of the caller to ensure that it has obtained the Lock before calling
+// It is the responsibility of the caller to ensure that it has obtained the Lock before calling
 // getInitialized, and that it calls Unlock once the entry returned by getInitialized is no longer going to
 // be modified or otherwise used.
 func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry sharedDirectoryAuditCacheEntry) {
