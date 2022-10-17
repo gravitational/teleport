@@ -197,7 +197,8 @@ RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} -
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      make install && \
      make clean)
-RUN go install github.com/golang/protobuf/protoc-gen-go@v1.5.2
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
