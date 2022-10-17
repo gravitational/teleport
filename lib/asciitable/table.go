@@ -108,6 +108,9 @@ func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncat
 	for _, column := range columns {
 		if column.Title == truncatedColumn {
 			column.MaxCellLength = width - totalLen - len("... ")
+			if column.MaxCellLength < 0 {
+				column.MaxCellLength = 0
+			}
 		}
 		t.AddColumn(column)
 	}
