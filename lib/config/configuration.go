@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -920,8 +921,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
-	applyDefaultProxyListenerAddresses(cfg)
-
 	return nil
 }
 
@@ -1431,6 +1430,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
+	}
 
 	var cert *x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
@@ -1445,11 +1447,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+		if err != nil {
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+		}
+	}
+
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
 		Addr:               fc.WindowsDesktop.LDAP.Addr,
 		Username:           fc.WindowsDesktop.LDAP.Username,
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
+		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
 	}
 
@@ -1473,6 +1483,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	if fc.WindowsDesktop.Labels != nil {
+		cfg.WindowsDesktop.Labels = make(map[string]string)
+		for k, v := range fc.WindowsDesktop.Labels {
+			cfg.WindowsDesktop.Labels[k] = v
+		}
 	}
 
 	return nil
@@ -2009,6 +2026,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+
+	// set the default proxy listener addresses for config v1, if not already set
+	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
 }

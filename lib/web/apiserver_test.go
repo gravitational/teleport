@@ -73,7 +73,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -186,7 +186,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 	})
 	require.NoError(t, err)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -940,7 +940,7 @@ func TestClusterAlertsGet(t *testing.T) {
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	_, err := s.makeTerminal(t, s.authPack(t, "foo"), session.ID("/../../../foo"))
+	_, err := s.makeTerminal(t, s.authPack(t, "foo"), withSessionID(session.ID("/../../../foo")))
 	require.Error(t, err)
 }
 
@@ -1130,7 +1130,7 @@ func TestResizeTerminal(t *testing.T) {
 	// Create a new user "foo", open a terminal to a new session, and wait for
 	// it to be ready.
 	pack1 := s.authPack(t, "foo")
-	ws1, err := s.makeTerminal(t, pack1, sid)
+	ws1, err := s.makeTerminal(t, pack1, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws1.Close()) })
 	err = s.waitForRawEvent(ws1, 5*time.Second)
@@ -1139,7 +1139,7 @@ func TestResizeTerminal(t *testing.T) {
 	// Create a new user "bar", open a terminal to the session created above,
 	// and wait for it to be ready.
 	pack2 := s.authPack(t, "bar")
-	ws2, err := s.makeTerminal(t, pack2, sid)
+	ws2, err := s.makeTerminal(t, pack2, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws2.Close()) })
 	err = s.waitForRawEvent(ws2, 5*time.Second)
@@ -1200,7 +1200,7 @@ func TestResizeTerminal(t *testing.T) {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, err := s.makeTerminal(t, s.authPack(t, "foo"))
+	ws, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1402,16 +1402,16 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	require.NoError(t, err)
 	require.NotEmpty(t, identity.MFAVerified)
 
-	msg, err := tdpConn.InputMessage()
+	msg, err := tdpConn.ReadMessage()
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientUsername{}, msg)
 
-	msg, err = tdpConn.InputMessage()
+	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
 
 	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	err = tdpConn.OutputMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
+	err = tdpConn.WriteMessage(tdp.NewPNG(img, tdp.PNGEncoder()))
 	require.NoError(t, err)
 }
 
@@ -1462,7 +1462,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			err = env.server.Auth().UpsertWindowsDesktop(context.Background(), wd)
 			require.NoError(t, err)
-			wds, err := types.NewWindowsDesktopServiceV3(wdID, types.WindowsDesktopServiceSpecV3{
+			wds, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: wdID}, types.WindowsDesktopServiceSpecV3{
 				Addr:            wdMock.listener.Addr().String(),
 				TeleportVersion: teleport.Version,
 			})
@@ -1483,21 +1483,26 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
 
-			msg, err := tdpClient.InputMessage()
+			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
-			require.IsType(t, tdp.PNGFrame{}, msg)
+			require.IsType(t, tdp.PNG2Frame{}, msg)
 		})
 	}
 }
 
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
+	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+	mt, err := br.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
+
+	mfaChallange, err := tdp.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).OutputMessage(tdp.MFA{
+	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -1531,7 +1536,7 @@ func TestActiveSessions(t *testing.T) {
 	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, sid)
+	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1576,7 +1581,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	sid := session.NewID()
 	pack := s.authPack(t, "foo")
 
-	ws, err := s.makeTerminal(t, pack, sid)
+	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1664,7 +1669,7 @@ func TestPlayback(t *testing.T) {
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
 	sid := session.NewID()
-	ws, err := s.makeTerminal(t, pack, sid)
+	ws, err := s.makeTerminal(t, pack, withSessionID(sid))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 }
@@ -4140,12 +4145,28 @@ func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID st
 	return nil, trace.NotFound("foo")
 }
 
-func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
-	var sessionID session.ID
-	if len(opts) == 0 {
-		sessionID = session.NewID()
-	} else {
-		sessionID = opts[0]
+type terminalOpt func(t *TerminalRequest)
+
+func withSessionID(sid session.ID) terminalOpt {
+	return func(t *TerminalRequest) { t.SessionID = sid }
+}
+
+func withKeepaliveInterval(d time.Duration) terminalOpt {
+	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
+}
+
+func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, error) {
+	req := TerminalRequest{
+		Server: s.srvID,
+		Login:  pack.login,
+		Term: session.TerminalParams{
+			W: 100,
+			H: 100,
+		},
+		SessionID: session.NewID(),
+	}
+	for _, opt := range opts {
+		opt(&req)
 	}
 
 	u := url.URL{
@@ -4153,15 +4174,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID
 		Scheme: client.WSS,
 		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut),
 	}
-	data, err := json.Marshal(TerminalRequest{
-		Server: s.srvID,
-		Login:  pack.login,
-		Term: session.TerminalParams{
-			W: 100,
-			H: 100,
-		},
-		SessionID: sessionID,
-	})
+	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
@@ -4471,7 +4484,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	})
 	require.NoError(t, err)
 
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)

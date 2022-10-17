@@ -42,7 +42,7 @@ func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 
 	oc, err := UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, check.IsNil)
-	err = ValidateSAMLConnector(oc)
+	err = ValidateSAMLConnector(oc, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(oc.GetIssuer(), check.Equals, "http://www.okta.com/exkafftca6RqPVgyZ0h7")
 	c.Assert(oc.GetSSO(), check.Equals, "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")

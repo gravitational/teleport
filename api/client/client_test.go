@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -38,6 +37,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // mockServer mocks an Auth Server.
@@ -648,9 +648,9 @@ func (m *mockOIDCConnectorServer) GetOIDCConnectors(ctx context.Context, req *ty
 	}, nil
 }
 
-func (m *mockOIDCConnectorServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*empty.Empty, error) {
+func (m *mockOIDCConnectorServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
 	m.connectors[oidcConnector.Metadata.Name] = oidcConnector
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // Test that client will perform properly with an old server

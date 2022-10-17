@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -558,16 +559,16 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 // maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the
 // connection scenario and returns a list of options to use in the connect
 // command.
-func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
+func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
 	database types.Database, rootClusterName string,
 ) ([]dbcmd.ConnectCommandFunc, error) {
 	if !shouldUseLocalProxyForDatabase(tc, db) {
 		return []dbcmd.ConnectCommandFunc{}, nil
 	}
 
-	// Snowflake only works in the local tunnel mode.
+	// Some protocols (Snowflake, Elasticsearch) only works in the local tunnel mode.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if db.Protocol == defaults.ProtocolSnowflake {
+	if db.Protocol == defaults.ProtocolSnowflake || db.Protocol == defaults.ProtocolElasticsearch {
 		localProxyTunnel = true
 	}
 
@@ -599,7 +600,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 
 	go func() {
 		defer listener.Close()
-		if err := lp.Start(cf.Context); err != nil {
+		if err := lp.Start(ctx); err != nil {
 			log.WithError(err).Errorf("Failed to start local proxy")
 		}
 	}()
@@ -671,7 +672,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	// For SQL Server connections, local proxy must be configured with the
 	// client certificate that will be used to route connections.
 	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer {
-		opts.certFile = arg.profile.DatabaseCertPathForCluster("", arg.routeToDatabase.ServiceName)
+		opts.certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
 		opts.keyFile = arg.profile.KeyPath()
 	}
 
@@ -731,7 +732,11 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	opts, err := maybeStartLocalProxy(cf, tc, profile, routeToDatabase, database, rootClusterName)
+	// To avoid termination of background DB teleport proxy when a SIGINT is received don't use the cf.Context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	opts, err := maybeStartLocalProxy(ctx, cf, tc, profile, routeToDatabase, database, rootClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -982,13 +987,26 @@ func formatDatabaseConnectCommand(clusterFlag string, active tlsca.RouteToDataba
 
 // formatDatabaseConnectArgs generates the arguments for "tsh db connect" command.
 func formatDatabaseConnectArgs(clusterFlag string, active tlsca.RouteToDatabase) (flags []string) {
+	// figure out if we need --db-user and --db-name
+	matchers := role.DatabaseRoleMatchers(active.Protocol, active.Username, active.Database)
+	needUser := false
+	needDatabase := false
+
+	for _, matcher := range matchers {
+		_, userMatcher := matcher.(*services.DatabaseUserMatcher)
+		needUser = needUser || userMatcher
+
+		_, nameMatcher := matcher.(*services.DatabaseNameMatcher)
+		needDatabase = needDatabase || nameMatcher
+	}
+
 	if clusterFlag != "" {
 		flags = append(flags, fmt.Sprintf("--cluster=%s", clusterFlag))
 	}
-	if active.Username == "" {
+	if active.Username == "" && needUser {
 		flags = append(flags, "--db-user=<user>")
 	}
-	if active.Database == "" {
+	if active.Database == "" && needDatabase {
 		flags = append(flags, "--db-name=<name>")
 	}
 	flags = append(flags, active.ServiceName)

@@ -481,6 +481,10 @@ const (
 	// RPC request command.
 	DatabaseSessionSQLServerRPCRequestEvent = "db.session.sqlserver.rpc_request"
 
+	// DatabaseSessionElasticsearchRequestEvent is emitted when Elasticsearch client sends
+	// a generic request.
+	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
+
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
 
