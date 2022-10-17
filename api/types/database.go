@@ -541,11 +541,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.Spec.Azure.Name = name
 		}
 	case azureutils.IsMSSQLServerEndpoint(d.Spec.URI):
-		name, err := azureutils.ParseMSSQLEndpoint(d.Spec.URI)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		if d.Spec.Azure.Name == "" {
+			name, err := azureutils.ParseMSSQLEndpoint(d.Spec.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			d.Spec.Azure.Name = name
 		}
 	}

@@ -499,7 +499,9 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 func (c *cloudClients) initInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-
+	if c.instanceMetadata != nil { // If some other thread already got here first.
+		return c.instanceMetadata, nil
+	}
 	logrus.Debug("Initializing instance metadata client.")
 	client, err := DiscoverInstanceMetadata(ctx)
 	if err != nil {

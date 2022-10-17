@@ -659,7 +659,7 @@ func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 // the current compute instance.
 func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error) {
 	if identityName == "" {
-		return "", trace.BadParameter("invalid identity name")
+		return "", trace.BadParameter("empty identity name")
 	}
 
 	vm, err := utils.FnCacheGet(ctx, a.azureVirtualMachineCache, "", a.getCurrentAzureVM)
