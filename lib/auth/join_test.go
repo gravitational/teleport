@@ -430,7 +430,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 				ID: IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: publicKey,
 				Expires:      tt.requestExpires,
