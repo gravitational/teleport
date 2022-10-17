@@ -640,6 +640,10 @@ func (s *session) BroadcastMessage(format string, args ...interface{}) {
 
 // emitSessionStartEvent emits a session start event.
 func (s *session) emitSessionStartEvent(ctx *ServerContext) {
+	var initialCommand []string
+	if execRequest, err := ctx.GetExecRequest(); err == nil {
+		initialCommand = []string{execRequest.GetCommand()}
+	}
 	sessionStartEvent := &apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionStartEvent,
@@ -656,6 +660,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 		},
 		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		InitialCommand:   initialCommand,
 	}
 
 	if s.term != nil {
