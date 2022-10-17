@@ -218,9 +218,9 @@ type RouteToDatabase struct {
 }
 
 // String returns string representation of the database routing struct.
-func (d RouteToDatabase) String() string {
+func (r RouteToDatabase) String() string {
 	return fmt.Sprintf("Database(Service=%v, Protocol=%v, Username=%v, Database=%v)",
-		d.ServiceName, d.Protocol, d.Username, d.Database)
+		r.ServiceName, r.Protocol, r.Username, r.Database)
 }
 
 // GetRouteToApp returns application routing data. If missing, returns an error.

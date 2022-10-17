@@ -221,7 +221,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	}
 
 	if flags.AuthServer != "" {
-		g.AuthServers = []string{flags.AuthServer}
+		g.AuthServer = flags.AuthServer
 	}
 
 	if flags.ProxyAddress != "" {
@@ -449,9 +449,20 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	awsMatchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
+	if err := checkAndSetDefaultsForAWSMatchers(conf.Discovery.AWSMatchers); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkAndSetDefaultsForAzureMatchers(conf.Discovery.AzureMatchers); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
-	for _, matcher := range conf.Discovery.AWSMatchers {
+// checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
+// and validates the provided types.
+func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
+	for i := range matcherInput {
+		matcher := &matcherInput[i]
 		for _, serviceType := range matcher.Types {
 			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
 				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
@@ -459,7 +470,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			}
 		}
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
 
 		if matcher.InstallParams == nil {
@@ -488,30 +499,47 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		if matcher.SSM.DocumentName == "" {
 			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
 		}
-		awsMatchers = append(awsMatchers, matcher)
 	}
+	return nil
+}
 
-	conf.Discovery.AWSMatchers = awsMatchers
+// checkAndSetDefaultsForAzureMatchers sets the default values for discovery Azure matchers
+// and validates the provided types.
+func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
+	for i := range matcherInput {
+		matcher := &matcherInput[i]
 
-	azureMatchers := make([]AzureMatcher, 0, len(conf.Discovery.AzureMatchers))
+		if len(matcher.Types) == 0 {
+			return trace.BadParameter("At least one Azure discovery service type must be specified, the supported resource types are: %v",
+				constants.SupportedAzureDiscoveryServices)
+		}
 
-	for _, matcher := range conf.Discovery.AzureMatchers {
 		for _, serviceType := range matcher.Types {
 			if !apiutils.SliceContainsStr(constants.SupportedAzureDiscoveryServices, serviceType) {
-				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
+				return trace.BadParameter("Azure discovery service type does not support %q resource type; supported resource types are: %v",
 					serviceType, constants.SupportedAzureDiscoveryServices)
 			}
 		}
-		if matcher.ResourceTags == nil || len(matcher.ResourceTags) == 0 {
-			matcher.ResourceTags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+
+		if apiutils.SliceContainsStr(matcher.Regions, types.Wildcard) || len(matcher.Regions) == 0 {
+			matcher.Regions = []string{types.Wildcard}
 		}
 
-		// TODO: add install params
-		azureMatchers = append(azureMatchers, matcher)
+		if apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) || len(matcher.Subscriptions) == 0 {
+			matcher.Subscriptions = []string{types.Wildcard}
+		}
+
+		if apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) || len(matcher.ResourceGroups) == 0 {
+			matcher.ResourceGroups = []string{types.Wildcard}
+		}
+
+		if len(matcher.ResourceTags) == 0 {
+			matcher.ResourceTags = map[string]apiutils.Strings{
+				types.Wildcard: {types.Wildcard},
+			}
+		}
+
 	}
-
-	conf.Discovery.AzureMatchers = azureMatchers
-
 	return nil
 }
 
@@ -1161,7 +1189,7 @@ type Discovery struct {
 	// AWSMatchers are used to match EC2 instances
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 
-	// AzureMatchers are used to match Azure VMs
+	// AzureMatchers are used to match Azure resources.
 	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
 }
 
@@ -1331,7 +1359,7 @@ type AzureMatcher struct {
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure database types to match: "mysql", "postgres", "vm"
+	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`
@@ -1422,6 +1450,8 @@ type DatabaseAWS struct {
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
+	// AccountID is the AWS account ID.
+	AccountID string `yaml:"account_id,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.

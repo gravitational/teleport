@@ -48,6 +48,8 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
+	// Import to register Cassandra engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
 	// Import to register Elasticsearch engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 
@@ -57,7 +59,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Config is the configuration for an database proxy server.
+// Config is the configuration for a database proxy server.
 type Config struct {
 	// Clock used to control time.
 	Clock clockwork.Clock

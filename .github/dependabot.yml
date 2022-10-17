@@ -35,3 +35,23 @@ updates:
       - codingllama
       - rosstimothy
       - zmb3
+
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - zmb3
+
+  - package-ecosystem: cargo
+    directory: "/lib/srv/desktop/rdp/rdpclient"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - rosstimothy
+      - zmb3

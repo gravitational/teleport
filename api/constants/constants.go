@@ -19,6 +19,7 @@ package constants
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -333,17 +334,24 @@ const (
 // Constants for AWS discovery
 const (
 	AWSServiceTypeEC2 = "ec2"
-)
-
-// Constants for Azure discovery
-const (
-	AzureServiceTypeVM = "vm"
+	AWSServiceTypeEKS = "eks"
 )
 
 // SupportedAWSDiscoveryServices is list of AWS services currently
 // supported by the Teleport discovery service
-var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}
+var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEKS}
 
-// SupportedAzureDiscoveryServices is a list of Azure services
-// currently supported by the Teleport discovery service
-var SupportedAzureDiscoveryServices = []string{AzureServiceTypeVM}
+// Constants for Azure discovery.
+const (
+	AzureServiceTypeKubernetes = "aks"
+	AzureServiceTypeVM         = "vm"
+)
+
+// SupportedAzureDiscoveryServices is list of Azure services currently
+// supported by the Teleport discovery service.
+var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
+
+const (
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 500
+)
