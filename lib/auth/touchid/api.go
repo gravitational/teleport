@@ -331,6 +331,24 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	}, nil
 }
 
+// HasCredentials checks if there are any credentials registered for given user.
+// If user is empty it checks if there are credentials registered for any user.
+// It does not require user interactions.
+func HasCredentials(rpid, user string) bool {
+	if !IsAvailable() {
+		return false
+	}
+	if rpid == "" {
+		return false
+	}
+	creds, err := native.FindCredentials(rpid, user)
+	if err != nil {
+		log.WithError(err).Debug("Touch ID: Could not find credentials")
+		return false
+	}
+	return len(creds) > 0
+}
+
 func pubKeyFromRawAppleKey(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
 	// Verify key length to avoid a potential panic below.
 	// 3 is the smallest number that clears it, but in practice 65 is the more
