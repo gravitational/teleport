@@ -948,40 +948,14 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
-// EnumerateKubernetesUsersAndGroups works on a given role set to return a minimal list of
+// GetAllowedKubeUsersAndGroupsForCluster works on a given role set to return a minimal list of
 // configured kubernetes_users and kubernetes_groups for a given kubernetes cluster.
 // The wildcard selector is ignored, since it is not allowed for kubernetes principals.
-func (set RoleSet) EnumerateKubernetesUsersAndGroups(kube types.KubeCluster) (EnumerationResult, EnumerationResult) {
-	kubeUsersResult := NewEnumerationResult()
-	kubeGroupsResult := NewEnumerationResult()
-
-	// gather logins for checking from the roles
-	// no need to check for wildcards
-	var kubeUsers []string
-	var kubeGroups []string
-	for _, role := range set {
-		kubeUsers = append(kubeUsers, role.GetKubeUsers(types.Allow)...)
-		kubeUsers = append(kubeUsers, role.GetKubeUsers(types.Deny)...)
-		kubeGroups = append(kubeGroups, role.GetKubeGroups(types.Allow)...)
-		kubeGroups = append(kubeGroups, role.GetKubeGroups(types.Deny)...)
-	}
-
-	kubeUsers = apiutils.Deduplicate(kubeUsers)
-	kubeGroups = apiutils.Deduplicate(kubeGroups)
-
-	// check each individual user against the cluster.
-	for _, user := range kubeUsers {
-		err := set.checkAccess(kube, AccessMFAParams{Verified: true}, NewKubeUserMatcher(user))
-		kubeUsersResult.allowedDeniedMap[user] = err == nil
-	}
-
-	// check each individual group against the cluster.
-	for _, group := range kubeGroups {
-		err := set.checkAccess(kube, AccessMFAParams{Verified: true}, NewKubeGroupMatcher(group))
-		kubeGroupsResult.allowedDeniedMap[group] = err == nil
-	}
-
-	return kubeUsersResult, kubeGroupsResult
+func (set RoleSet) GetAllowedKubeUsersAndGroupsForCluster(kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+	matcher := NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
+	// ignore error since we are only interested in Allowed  groups
+	kubeGroups, kubeUsers, _ = set.CheckKubeGroupsAndUsers(5*time.Minute, true /* force ttl override*/, matcher)
+	return
 }
 
 // EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
@@ -1948,45 +1922,6 @@ func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool
 		}
 	}
 	return false, nil
-}
-
-// kubePrincipalType is used to identify which principal we must check.
-type kubePrincipalType int
-
-const (
-	kubeUsersPrincipal kubePrincipalType = iota
-	kubeGroupsPrincipal
-)
-
-type kubePrincipalsMatcher struct {
-	principal     string
-	principalType kubePrincipalType
-}
-
-// NewKubeUserMatcher creates a RoleMatcher that checks whether the role's kubernetes_users
-// match the specified value.
-func NewKubeUserMatcher(user string) RoleMatcher {
-	return &kubePrincipalsMatcher{principal: user, principalType: kubeUsersPrincipal}
-}
-
-// NewKubeGroupMatcher creates a RoleMatcher that checks whether the role's kubernetes_groups
-// match the specified value.
-func NewKubeGroupMatcher(group string) RoleMatcher {
-	return &kubePrincipalsMatcher{principal: group, principalType: kubeGroupsPrincipal}
-}
-
-// Match matches a principal against a role.
-func (l *kubePrincipalsMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
-	var principals []string
-	switch l.principalType {
-	case kubeUsersPrincipal:
-		principals = role.GetKubeUsers(typ)
-	case kubeGroupsPrincipal:
-		principals = role.GetKubeGroups(typ)
-	default:
-		return false, trace.BadParameter("bad principal type %v", l.principal)
-	}
-	return apiutils.SliceContainsStr(principals, l.principal), nil
 }
 
 type windowsLoginMatcher struct {
