@@ -37,8 +37,8 @@ const (
 	// sshHostCertSuffix is the suffix appended to the generated host certificate.
 	sshHostCertSuffix = "-cert.pub"
 
-	// sshHostCASuffix is the suffix appended to the user CA file.
-	sshHostCASuffix = "-user-ca.pub"
+	// sshHostUserCASuffix is the suffix appended to the user CA file.
+	sshHostUserCASuffix = "-user-ca.pub"
 
 	// sshHostTrimPrefix is the prefix that should be removed from the generated
 	// SSH CA.
@@ -84,7 +84,7 @@ func (c *TemplateSSHHostCert) Describe(destination bot.Destination) []FileDescri
 			Name: c.Prefix + sshHostCertSuffix,
 		},
 		{
-			Name: c.Prefix + sshHostCASuffix,
+			Name: c.Prefix + sshHostUserCASuffix,
 		},
 	}
 
@@ -185,7 +185,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 		return trace.Wrap(err)
 	}
 
-	if err := dest.Write(c.Prefix+sshHostCASuffix, []byte(exportedCAs)); err != nil {
+	if err := dest.Write(c.Prefix+sshHostUserCASuffix, []byte(exportedCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
