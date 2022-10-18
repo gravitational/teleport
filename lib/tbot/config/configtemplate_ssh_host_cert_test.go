@@ -86,13 +86,13 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure a cert is written. We just use a dummy cert (the CA fixture)
-	certBytes, err := memory.Read(template.Prefix + "-cert.pub")
+	certBytes, err := memory.Read(template.Prefix + sshHostCertSuffix)
 	require.NoError(t, err)
 
 	require.Equal(t, fixtures.SSHCAPublicKey, string(certBytes))
 
 	// Make sure a CA is written.
-	caBytes, err := memory.Read(template.Prefix + sshHostCASuffix)
+	caBytes, err := memory.Read(template.Prefix + sshHostUserCASuffix)
 	require.NoError(t, err)
 
 	require.True(t, strings.HasPrefix(string(caBytes), fixtures.SSHCAPublicKey))
