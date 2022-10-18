@@ -178,6 +178,10 @@ func (cr *ContainerRepo) logoutCommand() string {
 }
 
 func (cr *ContainerRepo) buildCommandsWithLogin(wrappedCommands []string) []string {
+	if cr.LoginCommands == nil || len(cr.LoginCommands) == 0 {
+		return wrappedCommands
+	}
+
 	commands := make([]string, 0)
 	commands = append(commands, cr.LoginCommands...)
 	commands = append(commands, wrappedCommands...)
@@ -218,9 +222,12 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	archImageKeys := maps.Keys(archImageMap)
 	sort.SliceStable(archImageKeys, func(i, j int) bool { return archImageKeys[i].GetDisplayValue() < archImageKeys[j].GetDisplayValue() })
 
-	commands := []string{
-		fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImage.GetShellName()), // This will pull from the local registry
-	}
+	commands := buildStepDetails.BuiltImage.Repo.buildCommandsWithLogin(
+		[]string{
+			fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImage.GetShellName()),
+		},
+	)
+
 	for _, archImageKey := range archImageKeys {
 		archImage := archImageMap[archImageKey]
 

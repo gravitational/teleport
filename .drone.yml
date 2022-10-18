@@ -9137,7 +9137,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
@@ -9167,7 +9171,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
@@ -9197,7 +9205,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
@@ -9312,7 +9324,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
@@ -9344,7 +9360,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
@@ -9376,7 +9396,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
@@ -11653,7 +11677,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
@@ -11683,7 +11711,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
@@ -11713,7 +11745,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
@@ -11828,7 +11864,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
@@ -11860,7 +11900,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
@@ -11892,7 +11936,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
@@ -12023,6 +12071,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 700058377c747db00f80eae38127df375797933d7443a3cc3e8acfd3984f8198
+hmac: 1e04127f08f51c9730432011adefa22565e000d367f413e7de21a8529fa6669b
 
 ...
