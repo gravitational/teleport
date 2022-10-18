@@ -203,9 +203,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequest{
 			AppSessionRequest: e,
 		}
-	case *DynamoDBRequest:
-		out.Event = &OneOf_DynamoDBRequest{
-			DynamoDBRequest: e,
+	case *AppSessionDynamoDBRequest:
+		out.Event = &OneOf_AppSessionDynamoDBRequest{
+			AppSessionDynamoDBRequest: e,
 		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
