@@ -120,9 +120,13 @@ func (rv *ReleaseVersion) getSemvers() []*semver {
 			IsImmutable: false,
 		},
 		{
-			Name:        "canonical",
-			FilePath:    path.Join(varDirectory, "canonical-version"),
-			FieldCount:  3,
+			// For releases this is the "canonical" semver.
+			// For prereleases this is canonical + metadata.
+			// This is done to keep prereleases pushed to staging
+			//  from overwriting release versions.
+			Name:        "full",
+			FilePath:    path.Join(varDirectory, "full-version"),
+			FieldCount:  0,
 			IsImmutable: true,
 		},
 	}
@@ -133,21 +137,26 @@ func (rv *ReleaseVersion) buildSplitSemverSteps() step {
 
 	commands := make([]string, 0, len(semvers))
 	for _, semver := range semvers {
-		// Ex: semver.FieldCount = 3, cutFieldString = "1,2,3"
-		cutFieldStrings := make([]string, 0, semver.FieldCount)
-		for i := 1; i <= semver.FieldCount; i++ {
-			cutFieldStrings = append(cutFieldStrings, strconv.Itoa(i))
-		}
-		cutFieldString := strings.Join(cutFieldStrings, ",")
+		commands = append(commands, fmt.Sprintf("mkdir -pv $(dirname %q)", semver.FilePath))
+		if semver.FieldCount > 0 {
+			// Trim the semver metadata and some digits
+			// Ex: semver.FieldCount = 3, cutFieldString = "1,2,3"
+			cutFieldStrings := make([]string, 0, semver.FieldCount)
+			for i := 1; i <= semver.FieldCount; i++ {
+				cutFieldStrings = append(cutFieldStrings, strconv.Itoa(i))
+			}
+			cutFieldString := strings.Join(cutFieldStrings, ",")
 
-		commands = append(commands,
-			fmt.Sprintf("mkdir -pv $(dirname %q)", semver.FilePath),
-			fmt.Sprintf("echo %s | sed 's/v//' | cut -d'.' -f %q > %q", rv.ShellVersion, cutFieldString, semver.FilePath),
-		)
+			commands = append(commands, fmt.Sprintf("echo %s | sed 's/v//' | cut -d'.' -f %q > %q",
+				rv.ShellVersion, cutFieldString, semver.FilePath))
+		} else {
+			// Special case for full semver where only the "v" should be trimmed
+			commands = append(commands, fmt.Sprintf("echo %s | sed 's/v//' > %q", rv.ShellVersion, semver.FilePath))
+		}
 	}
 
 	return step{
-		Name:     "Build major, minor, and canonical semver",
+		Name:     "Build major, minor, and full semvers",
 		Image:    "alpine",
 		Commands: commands,
 	}
