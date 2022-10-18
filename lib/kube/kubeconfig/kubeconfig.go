@@ -78,6 +78,14 @@ type ExecValues struct {
 	TshBinaryInsecure bool
 	// Env is a map of environment variables to forward.
 	Env map[string]string
+	// Impersonate allows to define the default impersonated user.
+	// Must be a subset of kubernetes_users or if they are empty the Teleport username
+	// otherwise Teleport will deny the request.
+	Impersonate string
+	// ImpersonateGroups allows to define the default values for impersonated groups.
+	// Must be a subset of kubernetes_groups otherwise Teleport will deny
+	// the request.
+	ImpersonateGroups []string
 }
 
 // Update adds Teleport configuration to kubeconfig.
@@ -131,6 +139,8 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
 			}
 			authInfo := &clientcmdapi.AuthInfo{
+				Impersonate:       v.Exec.Impersonate,
+				ImpersonateGroups: v.Exec.ImpersonateGroups,
 				Exec: &clientcmdapi.ExecConfig{
 					APIVersion: "client.authentication.k8s.io/v1beta1",
 					Command:    v.Exec.TshBinaryPath,
@@ -321,7 +331,8 @@ func SelectContext(teleportCluster, kubeCluster string) error {
 	}
 
 	kubeContext := ContextName(teleportCluster, kubeCluster)
-	if _, ok := kc.Contexts[kubeContext]; !ok {
+	_, ok := kc.Contexts[kubeContext]
+	if !ok {
 		return trace.NotFound("kubeconfig context %q not found", kubeContext)
 	}
 	kc.CurrentContext = kubeContext
