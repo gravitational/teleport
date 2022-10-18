@@ -140,6 +140,26 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for join-params-iam.yaml
+    values:
+      - ../.lint/join-params-iam.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for join-params-token.yaml
+    values:
+      - ../.lint/join-params-token.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for log-basic.yaml
     values:
       - ../.lint/log-basic.yaml

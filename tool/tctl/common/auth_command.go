@@ -778,15 +778,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
-	networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	// Is TLS routing enabled?
+	proxyListenerMode := types.ProxyListenerMode_Separate
+	if a.config != nil && a.config.Auth.NetworkingConfig != nil {
+		proxyListenerMode = a.config.Auth.NetworkingConfig.GetProxyListenerMode()
+	}
+	if networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx); err == nil {
+		proxyListenerMode = networkConfig.GetProxyListenerMode()
 	}
 
+	// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 	kubeTLSServerName := ""
-	// Is TLS routing enabled?
-	if networkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
+		log.Debug("Using Proxy SNI for kube TLS server name")
 		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
 	}
 
