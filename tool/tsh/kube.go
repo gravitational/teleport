@@ -882,8 +882,10 @@ func selectedKubeCluster(currentTeleportCluster string) string {
 
 type kubeLoginCommand struct {
 	*kingpin.CmdClause
-	kubeCluster string
-	siteName    string
+	kubeCluster       string
+	siteName          string
+	impersonateUser   string
+	impersonateGroups []string
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
@@ -892,6 +894,8 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Flag("as", clusterHelp).StringVar(&c.impersonateUser)
+	c.Flag("as-groups", clusterHelp).StringsVar(&c.impersonateGroups)
 	return c
 }
 
@@ -899,6 +903,11 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
 	cf.SiteName = c.siteName
+	cf.kubernetesImpersonationConfig = impersonationConfig{
+		kubernetesUser:   c.impersonateUser,
+		kubernetesGroups: c.impersonateGroups,
+	}
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -913,20 +922,10 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
-	// Try updating the active kubeconfig context.
-	if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// We know that this kube cluster exists from the API, but there isn't
-		// a context for it in the current kubeconfig. This is probably a new
-		// cluster, added after the last 'tsh login'.
-		//
-		// Re-generate kubeconfig contexts and try selecting this kube cluster
-		// again.
-		if err := updateKubeConfig(cf, tc, ""); err != nil {
-			return trace.Wrap(err)
-		}
+	// Update default kubeconfig file located at ~/.kube/config or the value of
+	// KUBECONFIG env var even if the context exists.
+	if err := updateKubeConfig(cf, tc, ""); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Generate a profile specific kubeconfig which can be used
@@ -1037,25 +1036,39 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	clusterNames := kubeClustersToStrings(kubeStatus.kubeClusters)
+
+	// if cf.KubernetesCluster is set we will just add a single entry to kubeconfig.
+	if cf.KubernetesCluster != "" {
+		if !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
+			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
+		}
+		clusterNames = []string{cf.KubernetesCluster}
+	}
+
 	v.Exec = &kubeconfig.ExecValues{
 		TshBinaryPath:     cf.executablePath,
 		TshBinaryInsecure: cf.InsecureSkipVerify,
 		KubeClusters:      clusterNames,
 		Env:               make(map[string]string),
+		// Only switch the current context if kube-cluster is explicitly set on the command line.
+		SelectCluster:     cf.KubernetesCluster,
+		Impersonate:       cf.kubernetesImpersonationConfig.kubernetesUser,
+		ImpersonateGroups: cf.kubernetesImpersonationConfig.kubernetesGroups,
 	}
 
 	if cf.HomePath != "" {
 		v.Exec.Env[types.HomeEnvVar] = cf.HomePath
 	}
 
-	// Only switch the current context if kube-cluster is explicitly set on the command line.
-	if cf.KubernetesCluster != "" {
-		if !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
-			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
-		}
-		v.Exec.SelectCluster = cf.KubernetesCluster
-	}
 	return v, nil
+}
+
+// impersonationConfig allows to configure custom kubernetes impersonation values.
+type impersonationConfig struct {
+	// kubernetesUser specifies the kubernetes users to impersonate request as.
+	kubernetesUser string
+	// kubernetesGroups specifies the kubernetes groups to impersonate request as.
+	kubernetesGroups []string
 }
 
 // updateKubeConfig adds Teleport configuration to the users's kubeconfig based on the CLI
