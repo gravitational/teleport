@@ -141,6 +141,7 @@ func (rv *ReleaseVersion) buildSplitSemverSteps() step {
 		cutFieldString := strings.Join(cutFieldStrings, ",")
 
 		commands = append(commands,
+			fmt.Sprintf("mkdir -pv $(dirname %q)", semver.FilePath),
 			fmt.Sprintf("echo %s | sed 's/v//' | cut -d'.' -f %q > %q", rv.ShellVersion, cutFieldString, semver.FilePath),
 		)
 	}

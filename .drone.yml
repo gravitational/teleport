@@ -8794,8 +8794,11 @@ steps:
 - name: Build major, minor, and canonical semver
   image: alpine
   commands:
+  - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - mkdir -pv $(dirname "/go/var/canonical-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
   depends_on:
   - Wait for docker
@@ -9166,8 +9169,11 @@ steps:
 - name: Build major, minor, and canonical semver
   image: alpine
   commands:
+  - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - mkdir -pv $(dirname "/go/var/canonical-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
   depends_on:
   - Verify build is tagged
@@ -9554,8 +9560,11 @@ steps:
 - name: Build major, minor, and canonical semver
   image: alpine
   commands:
+  - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - mkdir -pv $(dirname "/go/var/canonical-version")
   - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1,2,3" >
     "/go/var/canonical-version"
   depends_on:
@@ -10240,8 +10249,11 @@ steps:
 - name: Build major, minor, and canonical semver
   image: alpine
   commands:
+  - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - mkdir -pv $(dirname "/go/var/canonical-version")
   - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f "1,2,3" >
     "/go/var/canonical-version"
   depends_on:
@@ -10925,8 +10937,11 @@ steps:
 - name: Build major, minor, and canonical semver
   image: alpine
   commands:
+  - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - mkdir -pv $(dirname "/go/var/canonical-version")
   - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f "1,2,3" >
     "/go/var/canonical-version"
   depends_on:
@@ -11596,8 +11611,11 @@ steps:
 - name: Build major, minor, and canonical semver
   image: alpine
   commands:
+  - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - mkdir -pv $(dirname "/go/var/canonical-version")
   - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
   depends_on:
   - Wait for docker
@@ -11887,6 +11905,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 114f2f3188e9e9333700512d5ed8394273e0f80590ea7c959054abf4d3b79212
+hmac: 59363424f45b54f04f30cd8c753fd0651127fed3562ad9b1e368a197d8e0b926
 
 ...
