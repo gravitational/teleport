@@ -114,7 +114,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 		return diag, diagErr
 	}
 
-	client, err := s.getKubeClient(tlsCfg)
+	client, err := s.getKubeClient(tlsCfg, req.KubernetesImpersonation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,10 +179,16 @@ func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, co
 
 // getKubeClient creates a Kubernetes client with the authentication given by tlsCfg
 // to teleport Proxy or Kube proxy depending on whether tls routing is enabled.
-func (s KubeConnectionTester) getKubeClient(tlsCfg rest.TLSClientConfig) (kubernetes.Interface, error) {
+// If custom impersonation values are provided, it also configures them to be used
+// in the request.
+func (s KubeConnectionTester) getKubeClient(tlsCfg rest.TLSClientConfig, impersonation KubernetesImpersonation) (kubernetes.Interface, error) {
 	restConfig := &rest.Config{
 		Host:            "https://" + s.cfg.KubernetesPublicProxyAddr,
 		TLSClientConfig: tlsCfg,
+		Impersonate: rest.ImpersonationConfig{
+			UserName: impersonation.KubernetesUser,
+			Groups:   impersonation.KubernetesGroups,
+		},
 	}
 
 	if s.cfg.TLSRoutingEnabled {
@@ -250,6 +256,42 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
 			return connDiag, trace.Wrap(err)
 		}
+		// WARNING: Check compatibility between this error message in the current version of
+		// Teleport and the previous version so that old agents connected to the
+		// Teleport cluster continue to be supported.
+		multipleAssignedUsers := strings.Contains(kubeErr.ErrStatus.Message, "please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
+		if multipleAssignedUsers {
+			message := `User-associated roles define multiple "kubernetes_users". Make sure that only one value is defined or that you select the target user.`
+			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
+		// WARNING: Check compatibility between this error message in the current version of
+		// Teleport and the previous version so that old agents connected to the
+		// Teleport cluster continue to be supported.
+		unauthorizedUserImpersonation := strings.Contains(kubeErr.ErrStatus.Message, "impersonation request has been denied, user header")
+		if unauthorizedUserImpersonation {
+			message := `User-associated roles do now allow the desired "kubernetes_user" impersonation. Please define a "kubernetes_user" that your roles allow to impersonate.`
+			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
+		// WARNING: Check compatibility between this error message in the current version of
+		// Teleport and the previous version so that old agents connected to the
+		// Teleport cluster continue to be supported.
+		unauthorizedGroupImpersonation := strings.Contains(kubeErr.ErrStatus.Message, "impersonation request has been denied, group header")
+		if unauthorizedGroupImpersonation {
+			message := `User-associated roles do now allow the desired "kubernetes_group" impersonation. Please define a "kubernetes_group" that your roles allow to impersonate.`
+			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
 	}
 	message = "User-associated roles define valid Kubernetes principals."
 	traceType = types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL

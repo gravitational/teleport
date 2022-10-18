@@ -4180,6 +4180,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 
 	var (
 		validKubeUsers              = []string{}
+		multiKubeUsers              = []string{"user1", "user2"}
 		validKubeGroups             = []string{"validKubeGroup"}
 		invalidKubeGroups           = []string{"invalidKubeGroups"}
 		kubeClusterName             = "kube_cluster"
@@ -4252,16 +4253,18 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	for _, tt := range []struct {
-		name             string
-		teleportUser     string
-		roleFunc         func(string, []string, []string) []types.Role
-		kubeUsers        []string
-		kubeGroups       []string
-		resourceName     string
-		expectedSuccess  bool
-		disconnectedKube bool
-		expectedMessage  string
-		expectedTraces   []types.ConnectionDiagnosticTrace
+		name               string
+		teleportUser       string
+		roleFunc           func(string, []string, []string) []types.Role
+		kubeUsers          []string
+		kubeGroups         []string
+		resourceName       string
+		selectedKubeUser   string
+		selectedKubeGroups []string
+		expectedSuccess    bool
+		disconnectedKube   bool
+		expectedMessage    string
+		expectedTraces     []types.ConnectionDiagnosticTrace
 	}{
 		{
 			name:            "kube cluster not found",
@@ -4385,6 +4388,117 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			},
 		},
 		{
+			name:            "user with multiple defined kube_users",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       multiKubeUsers,
+			teleportUser:    "multiuser",
+			resourceName:    kubeClusterName,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles define multiple "kubernetes_users". Make sure that only one value is defined or that you select the target user.`,
+					Error:   "please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user",
+				},
+			},
+		},
+		{
+			name:             "user choosed to impersonate invalid kube_users",
+			roleFunc:         roleWithFullAccess,
+			kubeGroups:       validKubeGroups,
+			kubeUsers:        multiKubeUsers,
+			teleportUser:     "userwithWrongImpUser",
+			resourceName:     kubeClusterName,
+			expectedSuccess:  false,
+			expectedMessage:  "failed",
+			selectedKubeUser: "missingUser",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles do now allow the desired "kubernetes_user" impersonation. Please define a "kubernetes_user" that your roles allow to impersonate.`,
+					Error:   `impersonation request has been denied, user header "missingUser" is not allowed in roles`,
+				},
+			},
+		},
+		{
+			name:               "user choosed to impersonate invalid kube_group",
+			roleFunc:           roleWithFullAccess,
+			kubeGroups:         validKubeGroups,
+			kubeUsers:          multiKubeUsers,
+			teleportUser:       "userwithWrongImpGroup",
+			resourceName:       kubeClusterName,
+			expectedSuccess:    false,
+			expectedMessage:    "failed",
+			selectedKubeUser:   "user1",
+			selectedKubeGroups: []string{"missingGroup"},
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles do now allow the desired "kubernetes_group" impersonation. Please define a "kubernetes_group" that your roles allow to impersonate.`,
+					Error:   `impersonation request has been denied, group header "missingGroup" value is not allowed in roles`,
+				},
+			},
+		},
+		{
+			name:            "user with multiple defined kube_users",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       validKubeUsers,
+			teleportUser:    "successwithmultiusers",
+			resourceName:    kubeClusterName,
+			expectedSuccess: true,
+			expectedMessage: "success",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "User-associated roles define valid Kubernetes principals.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_KUBE,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "You are authorized to access this Kubernetes Cluster.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Access to the Kubernetes Cluster granted.",
+					Error:   "",
+				},
+			},
+		},
+		{
 			name:            "success",
 			roleFunc:        roleWithFullAccess,
 			kubeGroups:      validKubeGroups,
@@ -4451,6 +4565,10 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				ResourceName: tt.resourceName,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
 				DialTimeout: time.Second,
+				KubernetesImpersonation: conntest.KubernetesImpersonation{
+					KubernetesUser:   tt.selectedKubeUser,
+					KubernetesGroups: tt.selectedKubeGroups,
+				},
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
