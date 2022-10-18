@@ -854,8 +854,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
-	applyDefaultProxyListenerAddresses(cfg)
-
 	return nil
 }
 
@@ -1890,6 +1888,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+
+	// set the default proxy listener addresses for config v1, if not already set
+	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
 }

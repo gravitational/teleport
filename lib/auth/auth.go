@@ -1957,6 +1957,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
 
+	sess.SetConsumedAccessRequestID(req.AccessRequestID)
+
 	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
