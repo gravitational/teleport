@@ -19,10 +19,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCredentialAssertionResponse_json(t *testing.T) {
@@ -54,5 +56,222 @@ func TestCredentialAssertionResponse_json(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respJSON, got))
 	if diff := cmp.Diff(resp, got); diff != "" {
 		t.Errorf("Unmarshal() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCredentialCreation_Validate(t *testing.T) {
+	okCC := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: make([]byte, 32),
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: "example.com",
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "Teleport",
+				},
+			},
+			Parameters: []protocol.CredentialParameter{
+				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+			User: protocol.UserEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "llama",
+				},
+				DisplayName: "Llama",
+				ID:          []byte{1, 2, 3, 4, 5}, // arbitrary
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		createCC       func() *wanlib.CredentialCreation
+		alwaysCreateRK bool
+		wantErr        string
+	}{
+		{
+			name:     "ok", // check that good params are good
+			createCC: func() *wanlib.CredentialCreation { return okCC },
+			wantErr:  "",
+		},
+		{
+			name:     "nil cc",
+			createCC: func() *wanlib.CredentialCreation { return nil },
+			wantErr:  "credential creation required",
+		},
+		{
+			name: "nil challenge",
+			createCC: func() *wanlib.CredentialCreation {
+				cp := *okCC
+				cp.Response.Challenge = nil
+				return &cp
+			},
+			wantErr: "challenge",
+		},
+		{
+			name: "empty RPID",
+			createCC: func() *wanlib.CredentialCreation {
+				cp := *okCC
+				cp.Response.RelyingParty.ID = ""
+				return &cp
+			},
+			wantErr: "relying party ID",
+		},
+		{
+			name: "empty RP name",
+			createCC: func() *wanlib.CredentialCreation {
+				cp := *okCC
+				cp.Response.RelyingParty.Name = ""
+				return &cp
+			},
+			wantErr: "relying party name",
+		},
+		{
+			name: "empty user name",
+			createCC: func() *wanlib.CredentialCreation {
+				cp := *okCC
+				cp.Response.User.Name = ""
+				return &cp
+			},
+			wantErr: "user name",
+		},
+		{
+			name: "empty user display name",
+			createCC: func() *wanlib.CredentialCreation {
+				cp := *okCC
+				cp.Response.User.DisplayName = ""
+				return &cp
+			},
+			wantErr: "user display name",
+		},
+		{
+			name: "nil user ID",
+			createCC: func() *wanlib.CredentialCreation {
+				cp := *okCC
+				cp.Response.User.ID = nil
+				return &cp
+			},
+			wantErr: "user ID",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.createCC().Validate()
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr, "Validate returned unexpected error")
+				return
+			}
+			require.NoError(t, err, "Validate errored")
+		})
+	}
+}
+
+func TestCredentialAssertion_Validate(t *testing.T) {
+	okAssertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:      make([]byte, 32),
+			RelyingPartyID: "example.com",
+			AllowedCredentials: []protocol.CredentialDescriptor{
+				{Type: protocol.PublicKeyCredentialType, CredentialID: []byte{1, 2, 3, 4, 5}},
+			},
+		},
+	}
+
+	nilChallengeAssertion := *okAssertion
+	nilChallengeAssertion.Response.Challenge = nil
+
+	emptyRPIDAssertion := *okAssertion
+	emptyRPIDAssertion.Response.RelyingPartyID = ""
+	tests := []struct {
+		name      string
+		assertion *wanlib.CredentialAssertion
+		wantErr   string
+	}{
+		{
+			name:      "ok", // check that good params are good
+			assertion: okAssertion,
+			wantErr:   "",
+		},
+		{
+			name:    "nil assertion",
+			wantErr: "assertion required",
+		},
+		{
+			name:      "assertion without challenge",
+			assertion: &nilChallengeAssertion,
+			wantErr:   "challenge",
+		},
+		{
+			name:      "assertion without RPID",
+			assertion: &emptyRPIDAssertion,
+			wantErr:   "relying party ID",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.assertion.Validate()
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr, "Validate returned unexpected error")
+				return
+			}
+			require.NoError(t, err, "Validate errored")
+		})
+	}
+}
+
+func TestRequireResidentKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      protocol.AuthenticatorSelection
+		want    bool
+		wantErr string
+	}{
+		{
+			name: "nothing set",
+			in:   protocol.AuthenticatorSelection{},
+			want: false,
+		},
+		{
+			name: "rrk=false",
+			in: protocol.AuthenticatorSelection{
+				RequireResidentKey: protocol.ResidentKeyUnrequired(),
+			},
+			want: false,
+		},
+		{
+			name: "support nil RequireResidentKey",
+			in: protocol.AuthenticatorSelection{
+				RequireResidentKey: nil,
+			},
+			want: false,
+		},
+		{
+			name: "use RequireResidentKey required",
+			in: protocol.AuthenticatorSelection{
+				RequireResidentKey: protocol.ResidentKeyRequired(),
+			},
+			want: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := &wanlib.CredentialCreation{
+				Response: protocol.PublicKeyCredentialCreationOptions{
+					AuthenticatorSelection: test.in,
+				},
+			}
+			got, err := req.RequireResidentKey()
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr, "RequireResidentKey returned unexpected error")
+				return
+			}
+			require.NoError(t, err, "RequireResidentKey errored")
+			if got != test.want {
+				assert.Equal(t, test.want, got, "RequireResidentKey mismatch")
+			}
+		})
 	}
 }
