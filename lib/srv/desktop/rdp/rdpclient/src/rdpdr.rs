@@ -43,14 +43,13 @@ use consts::{
     SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
-use rdp::core::mcs;
 use rdp::core::tpkt;
 use rdp::model::data::Message as MessageTrait;
 use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 
 pub use consts::CHANNEL_NAME;
 
@@ -845,11 +844,14 @@ impl Client {
         self.vchan.add_header_and_chunkify(None, vec![])
     }
 
-    pub fn write_client_device_list_announce<S: Read + Write>(
+    pub fn handle_client_device_list_announce(
         &mut self,
         req: ClientDeviceListAnnounce,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         self.push_active_device_id(req.device_list[0].device_id)?;
         debug!(
             "sending new drive for redirection over RDP, ClientDeviceListAnnounce: {:?}",
@@ -858,30 +860,25 @@ impl Client {
 
         let responses =
             self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, req.encode()?)?;
-        let chan = &CHANNEL_NAME.to_string();
-        for resp in responses {
-            mcs.write(chan, resp)?;
-        }
 
-        Ok(())
+        Ok(responses)
     }
 
-    pub fn handle_tdp_sd_info_response<S: Read + Write>(
+    pub fn handle_tdp_sd_info_response(
         &mut self,
         res: SharedDirectoryInfoResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryInfoResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_info_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -890,22 +887,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_create_response<S: Read + Write>(
+    pub fn handle_tdp_sd_create_response(
         &mut self,
         res: SharedDirectoryCreateResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryCreateResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_create_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -914,22 +910,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_delete_response<S: Read + Write>(
+    pub fn handle_tdp_sd_delete_response(
         &mut self,
         res: SharedDirectoryDeleteResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryDeleteResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_delete_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -938,22 +933,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_list_response<S: Read + Write>(
+    pub fn handle_tdp_sd_list_response(
         &mut self,
         res: SharedDirectoryListResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryListResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_list_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -962,22 +956,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_read_response<S: Read + Write>(
+    pub fn handle_tdp_sd_read_response(
         &mut self,
         res: SharedDirectoryReadResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_read_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -986,22 +979,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_write_response<S: Read + Write>(
+    pub fn handle_tdp_sd_write_response(
         &mut self,
         res: SharedDirectoryWriteResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_write_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(
@@ -1010,22 +1002,21 @@ impl Client {
         )))
     }
 
-    pub fn handle_tdp_sd_move_response<S: Read + Write>(
+    pub fn handle_tdp_sd_move_response(
         &mut self,
         res: SharedDirectoryMoveResponse,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    ) -> RdpResult<Messages> {
+        if !self.allow_directory_sharing {
+            return Err(try_error("directory sharing disabled"));
+        }
+
         debug!("received TDP SharedDirectoryMoveResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_move_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
-            let chan = &CHANNEL_NAME.to_string();
-            for resp in rdp_responses {
-                mcs.write(chan, resp)?;
-            }
-            return Ok(());
+            return Ok(rdp_responses);
         }
 
         Err(try_error(&format!(

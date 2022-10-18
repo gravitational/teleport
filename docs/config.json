@@ -225,6 +225,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
@@ -634,6 +635,10 @@
             {
               "title": "Visual Studio Code",
               "slug": "/server-access/guides/vscode/"
+            },
+            {
+              "title": "JetBrains SFTP",
+              "slug": "/server-access/guides/jetbrains-sftp/"
             },
             {
               "title": "Host User Creation",
