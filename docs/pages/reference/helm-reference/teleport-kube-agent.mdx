@@ -63,12 +63,15 @@ If you specify a role here, you may also need to specify some other settings whi
 
 | Type | Default value | Required? |
 | - | - | - |
-| `string` | `nil` | Yes |
+| `string` | `nil` | No |
 
 `authToken` provides a Teleport join token which will be used to join the Teleport instance to a Teleport cluster.
 
-This value **must** be provided for the chart to work. The token that you use must also be valid for every Teleport service that you
-are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
+The value `joinParams` supports more methods to join the Teleport cluster and takes precedence if both `authToken`
+and `joinParams` are set.
+
+A token must be specified for the agent to join the Teleport cluster, either though `authToken`,
+[`joinParams`](#joinparams), or [an existing Kubernetes Secret](#secretname).
 
 | Services | Service Name | `tctl tokens add` example | `teleport.yaml` static token example |
 | - | - | - | - |
@@ -98,6 +101,77 @@ fail to join the Teleport cluster.
   <TabItem label="--set">
   ```code
   $ --set authToken=<replace-with-actual-token>
+  ```
+  </TabItem>
+</Tabs>
+
+## `joinParams`
+
+`joinParams` controls how the Teleport agent joins the Teleport cluster.
+These sub-values must be configured for the agent to connect to a cluster.
+
+### `joinParams.method`
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `token` | Yes |
+
+`joinParams.method` defines which join method will be used to join the Teleport cluster.
+Possible values are `token`, `iam` and `ec2`.
+
+- For `iam`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx).
+- For `ec2`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-ec2.mdx).
+- For `token` (default value), the token must be provided through `joinParams.tokenName` or
+  [through an existing Kubernetes Secret](#secretName).
+
+<Admonition type="note" title="IAM joining requirements">
+Using the IAM joining method requires either the pods to have access to [instance
+metadata](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html),
+or [IAM roles for service
+accounts](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) to be
+set up on the pods's service account. For access to instance metadata (the quickest solution), see
+[AWS's examples on how to restrict instance metadata access to a few
+pods](https://aws.github.io/aws-eks-best-practices/security/docs/iam/#restrict-access-to-the-instance-profile-assigned-to-the-worker-node).
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  joinParams:
+    method: "token"|"ec2"|"iam"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set joinParams.method="token"|"ec2"|"iam"
+  ```
+  </TabItem>
+</Tabs>
+
+### `joinParams.tokenName`
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `nil` | Yes |
+
+When `joinParams.method` is `iam` or `ec2`, `joinParams.tokenName` contains the name of the token that will be used to
+join the cluster. In this case, the value is not sensitive as authorization is checked through AWS IAM or EC2.
+
+When `joinParams.method` is `token` (by default), `joinParams.tokenName` contains the join token itself. In this case,
+the value is sensitive and is automatically stored in a Kubernetes Secret instead of being directly included in the
+agent's configuration.
+
+If method is `token`, `joinParams.tokenName` can be empty if the token is provided through an existing Kubernetes
+Secret, see [`secretName`](#secretName) for more details and instructions.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  joinParams:
+    tokenName: "my-token"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set joinParams.token="my-token"
   ```
   </TabItem>
 </Tabs>
@@ -1022,10 +1096,11 @@ When off, the `serviceAccount.name` parameter should be set to the existing `Ser
 | - | - |
 | `string` | `teleport-kube-agent-join-token` |
 
-`secretName` is the name of the Kubernetes `Secret` used to store the Teleport join token which is used by the `teleport-kube-agent` chart.
+`secretName` is the name of the Kubernetes Secret containing the Teleport join token used by the chart.
 
-If you set this to a blank value, the chart will not attempt to create the secret itself and will instead read the value of the
-existing `teleport-kube-agent-join-token` secret. This allows you to configure this secret externally and avoid having a plaintext
+If `joinParams.method` is `token` and you set both `authToken` and `joinParams.tokenName` to a blank value, the chart
+will not attempt to create the secret itself. Instead, it will read the value from an existing secret. `secretName`
+configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
 join token stored in your Teleport chart values.
 
 To create your own join token secret, you can use a command like this:
@@ -1041,12 +1116,17 @@ $ kubectl --namespace teleport create secret generic teleport-kube-agent-join-to
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  serviceAccountName:
+  secretName: "secret-i-created-before"
+  joinParams:
+    method: "token"
+    tokenName: ""
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set serviceAccountName=""
+  $ --set secretName="secret-i-created-before" \
+    --set joinParams.method="token" \
+    --set joinParams.tokenName=""
   ```
   </TabItem>
 </Tabs>
