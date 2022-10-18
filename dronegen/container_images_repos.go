@@ -118,6 +118,19 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 	}
 }
 
+func NewLocalContainerRepo() *ContainerRepo {
+	return &ContainerRepo{
+		Name:             "Local Registry",
+		IsProductionRepo: false,
+		IsImmutable:      false,
+		RegistryDomain:   LocalRegistrySocket,
+	}
+}
+
+func GetLocalContainerRepo() *ContainerRepo {
+	return NewLocalContainerRepo()
+}
+
 func GetStagingContainerRepo(uniqueStagingTag bool) *ContainerRepo {
 	return NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, false, true, uniqueStagingTag)
 }
@@ -149,11 +162,10 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 		steps = append(steps, pushStep)
 	}
 
-	imageRepo := cr.BuildImageRepo()
 	for _, imageTag := range imageTags {
 		multiarchImageTag := *imageTag
 		multiarchImageTag.Arch = ""
-		manifestImage := buildStepDetails[0].Product.ImageBuilder(imageRepo, &multiarchImageTag)
+		manifestImage := buildStepDetails[0].Product.ImageBuilder(cr, &multiarchImageTag)
 		manifestStepName := cr.createAndPushManifestStep(manifestImage, pushStepNames, pushedImages[imageTag])
 		steps = append(steps, manifestStepName)
 	}
@@ -191,13 +203,11 @@ func (cr *ContainerRepo) BuildImageTags(version *ReleaseVersion) []*ImageTag {
 }
 
 func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []*ImageTag) (step, map[*ImageTag]*Image) {
-	imageRepo := cr.BuildImageRepo()
-
 	archImageMap := make(map[*ImageTag]*Image, len(imageTags))
 	for _, imageTag := range imageTags {
 		archTag := *imageTag
 		archTag.Arch = buildStepDetails.BuiltImage.Tag.Arch
-		archImage := buildStepDetails.Product.ImageBuilder(imageRepo, &archTag)
+		archImage := buildStepDetails.Product.ImageBuilder(cr, &archTag)
 		archImageMap[imageTag] = archImage
 	}
 

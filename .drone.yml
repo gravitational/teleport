@@ -7292,6 +7292,7 @@ steps:
 - name: Check if tag is prerelease
   image: golang:1.18-alpine
   commands:
+  - apk add git
   - mkdir -pv "/tmp/repo"
   - cd "/tmp/repo"
   - git init
@@ -7492,6 +7493,7 @@ steps:
 - name: Check if tag is prerelease
   image: golang:1.18-alpine
   commands:
+  - apk add git
   - mkdir -pv "/tmp/repo"
   - cd "/tmp/repo"
   - git init
@@ -9123,6 +9125,7 @@ steps:
 - name: Check if tag is prerelease
   image: golang:1.18-alpine
   commands:
+  - apk add git
   - mkdir -pv "/tmp/repo"
   - cd "/tmp/repo"
   - git init
@@ -9185,15 +9188,15 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker logout "quay.io"
@@ -9205,19 +9208,26 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker logout "quay.io"
@@ -9229,19 +9239,26 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker logout "quay.io"
@@ -9253,6 +9270,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:major" to Quay
   image: docker
   commands:
@@ -9275,6 +9299,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
   - Tag and push image "teleport-operator:v11-arm64" to Quay
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:minor" to Quay
   image: docker
   commands:
@@ -9297,6 +9327,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
   - Tag and push image "teleport-operator:v11-arm64" to Quay
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:canonical" to Quay
   image: docker
   commands:
@@ -9321,21 +9357,27 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
   - Tag and push image "teleport-operator:v11-arm64" to Quay
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker logout "public.ecr.aws"
@@ -9347,21 +9389,28 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker logout "public.ecr.aws"
@@ -9373,21 +9422,28 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker logout "public.ecr.aws"
@@ -9399,6 +9455,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:major" to ECR - production
   image: docker
   commands:
@@ -9423,6 +9486,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:minor" to ECR - production
   image: docker
   commands:
@@ -9447,6 +9516,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:canonical" to ECR - production
   image: docker
   commands:
@@ -9473,6 +9548,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 services:
 - name: Start Docker
   image: docker:dind
@@ -11589,6 +11670,7 @@ steps:
 - name: Check if tag is prerelease
   image: golang:1.18-alpine
   commands:
+  - apk add git
   - mkdir -pv "/tmp/repo"
   - cd "/tmp/repo"
   - git init
@@ -11651,15 +11733,15 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker logout "quay.io"
@@ -11671,19 +11753,26 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker logout "quay.io"
@@ -11695,19 +11784,26 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker logout "quay.io"
@@ -11719,6 +11815,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:major" to Quay
   image: docker
   commands:
@@ -11741,6 +11844,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
   - Tag and push image "teleport-operator:v11-arm64" to Quay
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:minor" to Quay
   image: docker
   commands:
@@ -11763,6 +11872,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
   - Tag and push image "teleport-operator:v11-arm64" to Quay
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:canonical" to Quay
   image: docker
   commands:
@@ -11787,21 +11902,27 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
   - Tag and push image "teleport-operator:v11-arm64" to Quay
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker logout "public.ecr.aws"
@@ -11813,21 +11934,28 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker logout "public.ecr.aws"
@@ -11839,21 +11967,28 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker logout "public.ecr.aws"
@@ -11865,6 +12000,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:major" to ECR - production
   image: docker
   commands:
@@ -11889,6 +12031,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:minor" to ECR - production
   image: docker
   commands:
@@ -11913,6 +12061,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 - name: Create manifest and push "teleport-operator:canonical" to ECR - production
   image: docker
   commands:
@@ -11939,6 +12093,12 @@ steps:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and canonical semver
 services:
 - name: Start Docker
   image: docker:dind
@@ -11955,6 +12115,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 16200f03fb1c08c12b9d997ad929a34d99443d5840dd324158bb46385d4c0364
+hmac: 8bcc564b1d8d7bd9b237d4ee0d6d8a5f0c42fdbd315408332364cc3ee40fbc37
 
 ...

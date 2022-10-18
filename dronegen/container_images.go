@@ -47,28 +47,21 @@ func buildContainerImagePipelines() []pipeline {
 
 // Describes a container image. Used for both local and remove images.
 type Image struct {
-	Repo string
+	Repo *ContainerRepo
 	Name string
 	Tag  *ImageTag
 }
 
 func (i *Image) GetShellName() string {
-	repo := ""
-	if !i.IsLocalImage() {
-		// Ensure one and only one "/"
-		repo = strings.TrimSuffix(i.Repo, "/")
-		repo += "/"
+	repo := strings.TrimSuffix(i.Repo.RegistryDomain, "/")
+	if i.Repo.RegistryOrg != "" {
+		repo = fmt.Sprintf("%s/%s", repo, i.Repo.RegistryOrg)
 	}
-
-	return fmt.Sprintf("%s%s:%s", repo, i.Name, i.Tag.GetShellValue())
+	return fmt.Sprintf("%s/%s:%s", repo, i.Name, i.Tag.GetShellValue())
 }
 
 func (i *Image) GetDisplayName() string {
 	return fmt.Sprintf("%s:%s", i.Name, i.Tag.GetDisplayValue())
-}
-
-func (i *Image) IsLocalImage() bool {
-	return i.Repo == ""
 }
 
 // Contains information about the tag portion of an image.

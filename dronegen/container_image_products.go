@@ -25,13 +25,13 @@ import (
 type Product struct {
 	Name                 string
 	DockerfilePath       string
-	WorkingDirectory     string                                  // Working directory to use for "docker build".
-	DockerfileTarget     string                                  // Optional. Defines a dockerfile target to stop at on build.
-	SupportedArchs       []string                                // ISAs that the builder should produce
-	SetupSteps           []step                                  // Product-specific steps that must be ran before building an image.
-	DockerfileArgBuilder func(arch string) []string              // Generator that returns "docker build --arg" strings
-	ImageBuilder         func(repo string, tag *ImageTag) *Image // Generator that returns an Image struct that defines what "docker build" should produce
-	GetRequiredStepNames func(arch string) []string              // Generator that returns the name of the steps that "docker build" should wait for
+	WorkingDirectory     string                                          // Working directory to use for "docker build".
+	DockerfileTarget     string                                          // Optional. Defines a dockerfile target to stop at on build.
+	SupportedArchs       []string                                        // ISAs that the builder should produce
+	SetupSteps           []step                                          // Product-specific steps that must be ran before building an image.
+	DockerfileArgBuilder func(arch string) []string                      // Generator that returns "docker build --arg" strings
+	ImageBuilder         func(repo *ContainerRepo, tag *ImageTag) *Image // Generator that returns an Image struct that defines what "docker build" should produce
+	GetRequiredStepNames func(arch string) []string                      // Generator that returns the name of the steps that "docker build" should wait for
 }
 
 func NewTeleportOperatorProduct(cloneDirectory string) *Product {
@@ -41,7 +41,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 		DockerfilePath:   path.Join(cloneDirectory, "operator", "Dockerfile"),
 		WorkingDirectory: cloneDirectory,
 		SupportedArchs:   []string{"amd64", "arm", "arm64"},
-		ImageBuilder: func(repo string, tag *ImageTag) *Image {
+		ImageBuilder: func(repo *ContainerRepo, tag *ImageTag) *Image {
 			return &Image{
 				Repo: repo,
 				Name: name,
@@ -89,14 +89,14 @@ func (p *Product) getBaseImage(arch string, version *ReleaseVersion) *Image {
 
 func (p *Product) GetLocalRegistryImage(arch string, version *ReleaseVersion) *Image {
 	image := p.getBaseImage(arch, version)
-	image.Repo = LocalRegistrySocket
+	image.Repo = NewLocalContainerRepo()
 
 	return image
 }
 
 func (p *Product) GetStagingRegistryImage(arch string, version *ReleaseVersion, stagingRepo *ContainerRepo) *Image {
 	image := p.getBaseImage(arch, version)
-	image.Repo = stagingRepo.RegistryDomain
+	image.Repo = stagingRepo
 
 	return image
 }
@@ -139,7 +139,16 @@ func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, f
 	}
 
 	for _, containerRepo := range getReposToPublishTo(productionRepos, stagingRepo, flags) {
-		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails)...)
+		repoSteps := containerRepo.buildSteps(archBuildStepDetails)
+		// If we're only tagging and pushing then we need to add step dependencies for all the previous steps
+		// to ensure we hit all the right checks (i.e. prerelease check)
+		if !flags.ShouldBuildNewImages && setupStepNames != nil {
+			for i, repoStep := range repoSteps {
+				repoSteps[i].DependsOn = append(repoStep.DependsOn, setupStepNames...)
+			}
+		}
+
+		steps = append(steps, repoSteps...)
 	}
 
 	return steps
