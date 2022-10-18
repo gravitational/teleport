@@ -193,6 +193,7 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
+		Status:        statusFromErrCode(m.ErrCode),
 		DesktopAddr:   desktopAddr,
 		DirectoryName: string(name),
 		DirectoryID:   m.DirectoryID,
@@ -265,6 +266,7 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
+		Status:        statusFromErrCode(m.ErrCode),
 		DesktopAddr:   desktopAddr,
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
@@ -340,6 +342,7 @@ func (s *WindowsService) onSharedDirectoryWriteResponse(
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
+		Status:        statusFromErrCode(m.ErrCode),
 		DesktopAddr:   desktopAddr,
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
@@ -356,3 +359,38 @@ func (s *WindowsService) emit(ctx context.Context, emitter events.Emitter, event
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)
 	}
 }
+
+func statusFromErrCode(errCode uint32) events.Status {
+	success := errCode == tdp.ErrCodeNil
+
+	// early return for most common case
+	if success {
+		return events.Status{
+			Success: success,
+		}
+	}
+
+	msg := unknownErrStatusMsg
+	switch errCode {
+	case tdp.ErrCodeFailed:
+		msg = failedStatusMessage
+	case tdp.ErrCodeDoesNotExist:
+		msg = doesNotExistStatusMessage
+	case tdp.ErrCodeAlreadyExists:
+		msg = alreadyExistsStatusMessage
+	}
+
+	return events.Status{
+		Success:     success,
+		Error:       msg,
+		UserMessage: msg,
+	}
+
+}
+
+const (
+	failedStatusMessage        = "operation failed"
+	doesNotExistStatusMessage  = "item does not exist"
+	alreadyExistsStatusMessage = "item already exists"
+	unknownErrStatusMsg        = "unknown error"
+)
