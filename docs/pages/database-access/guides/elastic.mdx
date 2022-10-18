@@ -72,6 +72,15 @@ $ teleport db start \
 ```
 
 </ScopedBlock>
+
+<Admonition type="note">
+
+The `--auth-server` flag must point to the Teleport cluster's Proxy Service
+endpoint because the Database Service always connects back to the cluster over a
+reverse tunnel.
+
+</Admonition>
+
 </TabItem>
 <TabItem label="Config File">
 Configure `teleport.yaml` using the example below:
@@ -138,14 +147,6 @@ Adjust for your environment, then start or restart Teleport. See the [YAML refer
 
 </TabItem>
 </Tabs>
-
-<Admonition type="note">
-
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
 
 ## Step 2/5. Create a Teleport user
 
