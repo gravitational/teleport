@@ -459,6 +459,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	expires := time.Now().Add(b.cfg.CertificateTTL)
 	params := auth.RegisterParams{
 		Token: token,
 		ID: auth.IdentityID{
@@ -471,6 +472,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		CAPath:             b.cfg.Onboarding.CAPath,
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		Expires:            &expires,
 	}
 	certs, err := auth.Register(params)
 	if err != nil {
@@ -496,7 +498,9 @@ func (b *Bot) renewIdentityViaAuth(
 		joinMethod = b.cfg.Onboarding.JoinMethod
 	}
 	switch joinMethod {
-	case types.JoinMethodIAM:
+	// When using join methods that are repeatable - renew fully rather than
+	// renewing using existing credentials.
+	case types.JoinMethodIAM, types.JoinMethodGitHub:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:

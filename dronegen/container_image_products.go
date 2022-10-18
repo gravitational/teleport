@@ -49,27 +49,27 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 			}
 		},
 		DockerfileArgBuilder: func(arch string) []string {
-			gccPackage := ""
+			buildboxName := fmt.Sprintf("%s/gravitational/teleport-buildbox", ProductionRegistry)
 			compilerName := ""
 			switch arch {
 			case "x86_64", "amd64":
-				gccPackage = "gcc-x86-64-linux-gnu"
 				compilerName = "x86_64-linux-gnu-gcc"
 			case "i686", "i386":
-				gccPackage = "gcc-multilib-i686-linux-gnu"
 				compilerName = "i686-linux-gnu-gcc"
 			case "arm64", "aarch64":
-				gccPackage = "gcc-aarch64-linux-gnu"
+				buildboxName += "-arm"
 				compilerName = "aarch64-linux-gnu-gcc"
 			// We may want to add additional arm ISAs in the future to support devices without hardware FPUs
 			case "armhf":
 			case "arm":
-				gccPackage = "gcc-arm-linux-gnueabihf"
+				buildboxName += "-arm"
 				compilerName = "arm-linux-gnueabihf-gcc"
 			}
 
+			buildboxName += ":teleport11"
+
 			return []string{
-				fmt.Sprintf("COMPILER_PACKAGE=%s", gccPackage),
+				fmt.Sprintf("BUILDBOX=%s", buildboxName),
 				fmt.Sprintf("COMPILER_NAME=%s", compilerName),
 			}
 		},

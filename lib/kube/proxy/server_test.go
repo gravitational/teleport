@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -28,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"testing"
 	"time"
 
@@ -35,7 +37,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -233,4 +238,83 @@ func TestGetServerInfo(t *testing.T) {
 
 		require.Equal(t, "k8s.example.com", kubeServer.GetHostname())
 	})
+}
+
+func TestHeartbeat(t *testing.T) {
+	kubeCluster1 := "kubeCluster1"
+	kubeCluster2 := "kubeCluster2"
+
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := setupTestContext(
+		context.Background(),
+		t,
+		testConfig{
+			clusters: []kubeClusterConfig{{name: kubeCluster1, apiEndpoint: kubeMock.URL}, {name: kubeCluster2, apiEndpoint: kubeMock.URL}},
+		},
+	)
+
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	type args struct {
+		kubeClusterGetter func(auth.ClientI) []string
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "List KubeServices (legacy)",
+			args: args{
+				kubeClusterGetter: func(authClient auth.ClientI) []string {
+					rsp, err := authClient.ListResources(testCtx.ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindKubeService,
+						Limit:        10,
+					})
+					require.NoError(t, err)
+					clusters := []string{}
+					for _, resource := range rsp.Resources {
+						srv, ok := resource.(types.Server)
+						require.Truef(t, ok, "type is %T; expected types.Server", srv)
+						for _, kubeCluster := range srv.GetKubernetesClusters() {
+							clusters = append(clusters, kubeCluster.Name)
+						}
+					}
+					sort.Strings(clusters)
+					return clusters
+				},
+			},
+		},
+		{
+			name: "List KubeServers",
+			args: args{
+				kubeClusterGetter: func(authClient auth.ClientI) []string {
+					rsp, err := authClient.ListResources(testCtx.ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindKubeServer,
+						Limit:        10,
+					})
+					require.NoError(t, err)
+					clusters := []string{}
+					for _, resource := range rsp.Resources {
+						srv, ok := resource.(types.KubeServer)
+						require.Truef(t, ok, "type is %T; expected types.KubeServer", srv)
+						clusters = append(clusters, srv.GetName())
+					}
+					sort.Strings(clusters)
+					return clusters
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			kubeClusters := tt.args.kubeClusterGetter(testCtx.authClient)
+			require.Equal(t, []string{kubeCluster1, kubeCluster2}, kubeClusters)
+		})
+	}
+
 }

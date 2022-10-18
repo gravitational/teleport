@@ -59,6 +59,10 @@ var (
 		Name: "dockersock",
 		Temp: &volumeTemp{},
 	}
+	volumeRefDocker = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run",
+	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
 		Temp: &volumeTemp{Medium: "memory"},
@@ -67,9 +71,13 @@ var (
 		Name: "tmpfs",
 		Path: "/tmpfs",
 	}
-	volumeRefDocker = volumeRef{
-		Name: "dockersock",
-		Path: "/var/run",
+	volumeAwsConfig = volume{
+		Name: "awsconfig",
+		Temp: &volumeTemp{},
+	}
+	volumeRefAwsConfig = volumeRef{
+		Name: "awsconfig",
+		Path: "/root/.aws",
 	}
 )
 
@@ -275,7 +283,7 @@ func waitForDockerStep() step {
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{volumeRefDocker},
 	}
 }
 
