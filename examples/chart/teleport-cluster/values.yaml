@@ -166,7 +166,7 @@ chartMode: standalone
 ######################################################################
 persistence:
   # Enable persistence using a PersistentVolumeClaim
-  enabled: true
+  enabled: false
   # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
   # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
   existingClaimName: ""
@@ -292,7 +292,7 @@ tls:
 ##################################################
 
 # Container image for the cluster.
-image: public.ecr.aws/gravitational/teleport
+image: 709825985650.dkr.ecr.us-east-1.amazonaws.com/teleport/teleport
 # Enterprise version of the image
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent
 # Teleport logging configuration

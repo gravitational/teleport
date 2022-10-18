@@ -301,7 +301,7 @@
                 "enabled": {
                     "$id": "#/properties/persistence/properties/enabled",
                     "type": "boolean",
-                    "default": "true"
+                    "default": "false"
                 },
                 "existingClaimName": {
                     "$id": "#/properties/persistence/properties/existingClaimName",

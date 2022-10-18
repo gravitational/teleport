@@ -63,7 +63,7 @@ data:
   {{- end }}
     auth_service:
       enabled: true
-      cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
+      cluster_name: {{ template "teleport.clusterName" . }}
   {{- if .Values.enterprise }}
       license_file: '/var/lib/license/license.pem'
   {{- end }}
@@ -80,7 +80,7 @@ data:
         second_factor: "{{ $authentication.secondFactor }}"
     {{- if not (or (eq $authentication.secondFactor "off") (eq $authentication.secondFactor "otp")) }}
         webauthn:
-          rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
+          rp_id: {{ template "teleport.clusterName" . }}
       {{- if $authentication.webauthn }}
         {{- if $authentication.webauthn.attestationAllowedCas }}
           attestation_allowed_cas:
@@ -99,27 +99,11 @@ data:
   {{- if eq .Values.proxyListenerMode "multiplex" }}
       proxy_listener_mode: multiplex
   {{- end }}
-    kubernetes_service:
-      enabled: true
-  {{- if eq .Values.proxyListenerMode "multiplex" }}
-      listen_addr: 0.0.0.0:443
-  {{- else if not .Values.proxyListenerMode }}
-      listen_addr: 0.0.0.0:3027
-  {{- end }}
-  {{- if .Values.kubeClusterName }}
-      kube_cluster_name: {{ .Values.kubeClusterName }}
-  {{- else }}
-      kube_cluster_name: {{ .Values.clusterName }}
-  {{- end }}
-  {{- if .Values.labels }}
-      labels:
-    {{- toYaml .Values.labels | nindent 8 }}
-  {{- end }}
     proxy_service:
   {{- if .Values.publicAddr }}
       public_addr: {{- toYaml .Values.publicAddr | nindent 8 }}
   {{- else }}
-      public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
+      public_addr: ['{{ template "teleport.clusterName" . }}:443', '127.0.0.1:3080']
   {{- end }}
   {{- if .Values.sshPublicAddr }}
       ssh_public_addr: {{- toYaml .Values.sshPublicAddr | nindent 8 }}
@@ -141,7 +125,7 @@ data:
       {{- if .Values.postgresPublicAddr }}
       postgres_public_addr: {{- toYaml .Values.postgresPublicAddr | nindent 8 }}
       {{- else }}
-      postgres_public_addr: {{ .Values.clusterName }}:5432
+      postgres_public_addr: {{ template "teleport.clusterName" . }}:5432
       {{- end }}
     {{- end }}
     {{- if .Values.separateMongoListener }}
@@ -149,7 +133,7 @@ data:
       {{- if .Values.mongoPublicAddr }}
       mongo_public_addr: {{- toYaml .Values.mongoPublicAddr | nindent 8 }}
       {{- else }}
-      mongo_public_addr: {{ .Values.clusterName }}:27017
+      mongo_public_addr: {{ template "teleport.clusterName" . }}:27017
       {{- end }}
     {{- end }}
   {{- end }}
