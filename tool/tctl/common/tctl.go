@@ -197,8 +197,6 @@ func Run(commands []CLICommand) {
 		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
-
-	return
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
