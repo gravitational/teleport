@@ -142,7 +142,7 @@ func GetProductionContainerRepos() []*ContainerRepo {
 	}
 }
 
-func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step {
+func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *TriggerFlags) []step {
 	if len(buildStepDetails) == 0 {
 		return nil
 	}
@@ -150,7 +150,7 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 	steps := make([]step, 0)
 
 	// Tag and push, collecting the names of the tag/push steps and the images pushed.
-	imageTags := cr.BuildImageTags(buildStepDetails[0].Version)
+	imageTags := cr.BuildImageTags(buildStepDetails[0].Version, flags)
 	pushedImages := make(map[*ImageTag][]*Image, len(imageTags))
 	pushStepNames := make([]string, 0, len(buildStepDetails))
 	for _, buildStepDetail := range buildStepDetails {
@@ -196,8 +196,8 @@ func (cr *ContainerRepo) BuildImageRepo() string {
 	return fmt.Sprintf("%s/%s/", cr.RegistryDomain, cr.RegistryOrg)
 }
 
-func (cr *ContainerRepo) BuildImageTags(version *ReleaseVersion) []*ImageTag {
-	tags := version.getTagsForVersion()
+func (cr *ContainerRepo) BuildImageTags(version *ReleaseVersion, flags *TriggerFlags) []*ImageTag {
+	tags := version.getTagsForVersion(flags.ShouldOnlyPublishFullSemver)
 
 	if cr.TagBuilder != nil {
 		for i, tag := range tags {

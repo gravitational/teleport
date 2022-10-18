@@ -143,7 +143,7 @@ func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, f
 	}
 
 	for _, containerRepo := range getReposToPublishTo(productionRepos, stagingRepo, flags) {
-		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails)...)
+		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails, flags)...)
 	}
 
 	return steps

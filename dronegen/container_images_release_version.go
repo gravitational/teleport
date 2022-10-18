@@ -82,7 +82,7 @@ func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 		waitForDockerStep(),
 		waitForDockerRegistryStep(),
 		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
-		rv.buildSplitSemverSteps(),
+		rv.buildSplitSemverSteps(flags.ShouldOnlyPublishFullSemver),
 	}
 	for _, setupStep := range setupSteps {
 		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
@@ -102,6 +102,7 @@ type semver struct {
 	FilePath    string // The path under the working dir where the information can be read from
 	FieldCount  int    // The number of significant version fields available in the semver i.e. "v11" -> 1
 	IsImmutable bool
+	IsFull      bool
 }
 
 func (rv *ReleaseVersion) getSemvers() []*semver {
@@ -126,19 +127,28 @@ func (rv *ReleaseVersion) getSemvers() []*semver {
 			//  from overwriting release versions.
 			Name:        "full",
 			FilePath:    path.Join(varDirectory, "full-version"),
-			FieldCount:  0,
 			IsImmutable: true,
+			IsFull:      true,
 		},
 	}
 }
 
-func (rv *ReleaseVersion) buildSplitSemverSteps() step {
+func (rv *ReleaseVersion) buildSplitSemverSteps(onlyBuildFullSemver bool) step {
 	semvers := rv.getSemvers()
 
+	// Build the commands that generate the semvers
 	commands := make([]string, 0, len(semvers))
+	stepNameVersions := make([]string, 0, len(semvers))
 	for _, semver := range semvers {
+		if onlyBuildFullSemver && !semver.IsFull {
+			continue
+		}
+
 		commands = append(commands, fmt.Sprintf("mkdir -pv $(dirname %q)", semver.FilePath))
-		if semver.FieldCount > 0 {
+		if semver.IsFull {
+			// Special case for full semver where only the "v" should be trimmed
+			commands = append(commands, fmt.Sprintf("echo %s | sed 's/v//' > %q", rv.ShellVersion, semver.FilePath))
+		} else {
 			// Trim the semver metadata and some digits
 			// Ex: semver.FieldCount = 3, cutFieldString = "1,2,3"
 			cutFieldStrings := make([]string, 0, semver.FieldCount)
@@ -149,14 +159,31 @@ func (rv *ReleaseVersion) buildSplitSemverSteps() step {
 
 			commands = append(commands, fmt.Sprintf("echo %s | sed 's/v//' | cut -d'.' -f %q > %q",
 				rv.ShellVersion, cutFieldString, semver.FilePath))
+		}
+
+		stepNameVersions = append(stepNameVersions, semver.Name)
+	}
+
+	// Build the formatted, human-readable step name
+	concatStepNameVersions := "Build"
+	for i, stepNameVersion := range stepNameVersions {
+		if i+1 < len(stepNameVersions) {
+			// If not the last version name
+			concatStepNameVersions = fmt.Sprintf("%s %s,", concatStepNameVersions, stepNameVersion)
 		} else {
-			// Special case for full semver where only the "v" should be trimmed
-			commands = append(commands, fmt.Sprintf("echo %s | sed 's/v//' > %q", rv.ShellVersion, semver.FilePath))
+			if len(stepNameVersions) > 1 {
+				concatStepNameVersions = fmt.Sprintf("%s and", concatStepNameVersions)
+			}
+
+			concatStepNameVersions = fmt.Sprintf("%s %s semver", concatStepNameVersions, stepNameVersion)
+			if len(stepNameVersions) > 1 {
+				concatStepNameVersions = fmt.Sprintf("%ss", concatStepNameVersions)
+			}
 		}
 	}
 
 	return step{
-		Name:     "Build major, minor, and full semvers",
+		Name:     concatStepNameVersions,
 		Image:    "alpine",
 		Commands: commands,
 	}
@@ -171,10 +198,14 @@ func (rv *ReleaseVersion) getProducts(clonedRepoPath string) []*Product {
 	return products
 }
 
-func (rv *ReleaseVersion) getTagsForVersion() []*ImageTag {
+func (rv *ReleaseVersion) getTagsForVersion(onlyBuildFullSemver bool) []*ImageTag {
 	semvers := rv.getSemvers()
 	imageTags := make([]*ImageTag, 0, len(semvers))
 	for _, semver := range semvers {
+		if onlyBuildFullSemver && !semver.IsFull {
+			continue
+		}
+
 		imageTags = append(imageTags, &ImageTag{
 			ShellBaseValue:   fmt.Sprintf("$(cat %s)", semver.FilePath),
 			DisplayBaseValue: semver.Name,

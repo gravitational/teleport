@@ -28,11 +28,12 @@ type TriggerInfo struct {
 	SetupSteps        []step
 }
 
-// This is mainly used to make passing these vars around cleaner
+// This type is mainly used to make passing these vars around cleaner
 type TriggerFlags struct {
 	ShouldAffectProductionImages bool
 	ShouldBuildNewImages         bool
 	UseUniqueStagingTag          bool
+	ShouldOnlyPublishFullSemver  bool
 }
 
 func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
@@ -45,6 +46,7 @@ func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
 			ShouldAffectProductionImages: false,
 			ShouldBuildNewImages:         true,
 			UseUniqueStagingTag:          false,
+			ShouldOnlyPublishFullSemver:  true,
 		},
 		SupportedVersions: []*ReleaseVersion{
 			{
@@ -67,6 +69,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 			ShouldAffectProductionImages: true,
 			ShouldBuildNewImages:         false,
 			UseUniqueStagingTag:          false,
+			ShouldOnlyPublishFullSemver:  false,
 		},
 		SupportedVersions: []*ReleaseVersion{
 			{
@@ -115,6 +118,7 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 			ShouldAffectProductionImages: true,
 			ShouldBuildNewImages:         true,
 			UseUniqueStagingTag:          true,
+			ShouldOnlyPublishFullSemver:  false,
 		},
 		SupportedVersions: supportedVersions,
 	}
