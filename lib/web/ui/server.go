@@ -92,7 +92,6 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 		sort.Sort(sortedLabels(uiLabels))
 
 		serverLogins := userRoles.EnumerateServerLogins(server)
-		sshLogins := nonNilSlice(serverLogins.Allowed())
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -101,7 +100,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
-			SSHLogins:   sshLogins,
+			SSHLogins:   serverLogins.Allowed(),
 		})
 	}
 
@@ -149,21 +148,12 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
 			Name:       cluster.GetName(),
 			Labels:     uiLabels,
-			KubeUsers:  nonNilSlice(kubeUsers),
-			KubeGroups: nonNilSlice(kubeGroups),
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
 		})
 	}
 
 	return uiKubeClusters
-}
-
-// nonNilSlice checks if the given slice is nil. If it's the case returns an empty
-// slice, otherwise returns the given slice.
-func nonNilSlice(s1 []string) []string {
-	if s1 == nil {
-		return []string{}
-	}
-	return s1
 }
 
 // ConnectionDiagnostic describes a connection diagnostic.
