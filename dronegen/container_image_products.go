@@ -20,6 +20,10 @@ import (
 	"regexp"
 )
 
+const (
+	localRegistry string = "drone-docker-registry:5000"
+)
+
 // Describes a Gravitational "product", where a "product" is a piece of software
 // that we provide to our customers via container repositories.
 type Product struct {

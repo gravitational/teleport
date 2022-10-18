@@ -68,8 +68,6 @@ const (
 	ProductionRegistryOrg string = "gravitational"
 	PublicEcrRegion       string = "us-east-1"
 	StagingEcrRegion      string = "us-west-2"
-
-	localRegistry string = "drone-docker-registry:5000"
 )
 
 func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
