@@ -67,18 +67,18 @@ func LoadFromPath(path string) (*ServiceFile, error) {
 // The profile goes into a separate section with the name equal to the
 // name of the database that user is logged into and looks like this:
 //
-//   [postgres]
-//   host=proxy.example.com
-//   port=3080
-//   sslmode=verify-full
-//   sslrootcert=/home/user/.tsh/keys/proxy.example.com/certs.pem
-//   sslcert=/home/user/.tsh/keys/proxy.example.com/alice-db/root/aurora-x509.pem
-//   sslkey=/home/user/.tsh/keys/proxy.example.com/user
+//	[postgres]
+//	host=proxy.example.com
+//	port=3080
+//	sslmode=verify-full
+//	sslrootcert=/home/user/.tsh/keys/proxy.example.com/certs.pem
+//	sslcert=/home/user/.tsh/keys/proxy.example.com/alice-db/root/aurora-x509.pem
+//	sslkey=/home/user/.tsh/keys/proxy.example.com/user
 //
 // With the profile like this, a user can refer to it using "service" psql
 // parameter:
 //
-//   $ psql "service=postgres <other parameters>"
+//	$ psql "service=postgres <other parameters>"
 func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 	section := s.iniFile.Section(profile.Name)
 	if section != nil {

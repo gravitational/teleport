@@ -20,9 +20,9 @@ running Teleport on UNIX variants other than Linux \[1].
 
 | Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` User Client | Web UI (via the browser) | `tbot` Daemon |
 | - | - | - | - | - | - |
-| Linux v2.6.23+ \[2] | yes | yes | yes | yes | yes |
-| macOS v10.12+ | yes | yes | yes | yes | yes |
-| Windows \[3] | no | no | yes | yes | no |
+| Linux v2.6.23+ (RHEL/CentOS 7+, Ubuntu 14.04+, and Debian 8+) \[2] | yes | yes | yes | yes | yes |
+| macOS v10.13+  (High Sierra)| yes | yes | yes | yes | yes |
+| Windows 10+ (rev. 1607) \[3] | no | no | yes | yes | no |
 
 \[1] *Teleport is written in Go and it's possible to build it on
 any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
@@ -83,8 +83,8 @@ date.
 
 |Image name|Teleport version|Image automatically updated?|Image base|
 |-|-|-|-|
-|`(=teleport.latest_oss_docker_image=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
-|`public.ecr.aws/gravitational/teleport:(=teleport.version=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`(=teleport.latest_oss_docker_image=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
 
 For testing, we always recommend that you use the latest released version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
@@ -98,7 +98,7 @@ We provide pre-built Docker images for every version of Teleport.
 (!docs/pages/includes/enterprise/docker-images.mdx!)
 
 For instructions on running containers with these images, see
-[Teleport Enterprise using Docker](deploy-a-cluster/teleport-enterprise/getting-started.mdx#run-teleport-enterprise-using-docker).
+[Teleport Enterprise using Docker](./management/guides/docker.mdx).
 
 </TabItem>
 </Tabs>

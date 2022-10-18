@@ -32,7 +32,7 @@ PagerDuty.
 
 ## Prerequisites
 
-(!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - A PagerDuty account with the "Admin", "Global Admin", or "Account Owner"
   roles. These roles are necessary for generating an API token that can list and
@@ -42,13 +42,13 @@ PagerDuty.
   the "Permissions & Teams" tab, and checking the value of the "Base Role"
   field.
 
-- A host where you will run the PagerDuty plugin.
+- Either a Linux host or Kubernetes cluster where you will run the PagerDuty plugin.
 
 <ScopedBlock scope={["enterprise", "oss"]}>
 
 We recommend installing Teleport plugins on the same host as the Teleport Proxy
 Service. This is an ideal location as plugins have a low memory footprint, and
-will require both public internet access and Teleport Auth Service access. 
+will require both public internet access and Teleport Auth Service access.
 
 </ScopedBlock>
 
@@ -83,7 +83,7 @@ quickly.
 
 The Teleport PagerDuty plugin works by receiving Access Request events from the
 Teleport Auth Service and, based on these events, interacting with the PagerDuty
-API. 
+API.
 
 In this section, we will show you how to configure the PagerDuty plugin by
 defining the following RBAC resources:
@@ -104,7 +104,7 @@ defining the following RBAC resources:
   credentials that the PagerDuty plugin can use to authenticate with your
   Teleport cluster.
 
-### `editor-requester` 
+### `editor-requester`
 
 Create a file called `editor-request-rbac.yaml` with the following content,
 which defines a role called `editor-reviewer` that can review requests for the
@@ -138,13 +138,13 @@ spec:
 The Teleport Auth Service *annotates* Access Request events with metadata based
 on the roles of the Teleport user submitting the Access Request. The PagerDuty
 plugin reads these annotations to determine how to respond to a new Access
-Request event. 
+Request event.
 
 Whenever a user with the `editor-requester` role requests the `editor` role, the
 PagerDuty plugin will read the `pagerduty_notify_service` annotation and notify
 PagerDuty to open an incident in the specified service, `Teleport Access Request
 Notifications`, until someone with the `editor-reviewer` role approves or denies
-the request. 
+the request.
 
 Create the roles you defined:
 
@@ -154,7 +154,7 @@ role 'editor-reviewer' has been created
 role 'editor-requester' has been created
 ```
 
-### `demo-role-requester` 
+### `demo-role-requester`
 
 Create a file called `demo-role-requester.yaml` with the following content:
 
@@ -204,7 +204,7 @@ can request the `demo-role` role.
 
 </Admonition>
 
-### `access-plugin` 
+### `access-plugin`
 
 Teleport's Access Request plugins authenticate to your Teleport cluster as a
 user with permissions to list, read, and update Access Requests. This way,
@@ -276,7 +276,7 @@ You can combine functions using the following operators:
 |Operator|Format|Description|
 |---|---|---|
 |`&&`|`function && function`|Evaluates to true if both functions evaluate to true|
-|`\|\|`|`function \|\| function`|Evalutes to true if either one or both functions evaluate to true|
+|`\|\|`|`function \|\| function`|Evaluates to true if either one or both functions evaluate to true|
 |`!`| `!function`|Evaluates to true if the function evaluates to false|
 
 An example of a function is `equals(request.reason, "resolve an incident")`. To
@@ -292,7 +292,7 @@ Create the user and role:
 $ tctl create -f access-plugin.yaml
 ```
 
-### `access-plugin-impersonator` 
+### `access-plugin-impersonator`
 
 As with all Teleport users, the Teleport Auth Service authenticates the
 `access-plugin` user by issuing short-lived TLS credentials. In this case, we
@@ -320,7 +320,7 @@ spec:
       - access-plugin
 ```
 
-Create the `access-plugin-impersonator` role: 
+Create the `access-plugin-impersonator` role:
 
 ```code
 $ tctl create -f access-plugin-impersonator.yaml
@@ -417,7 +417,13 @@ Run `./install` from `teleport-pagerduty`.
 </TabItem>
 <TabItem label="Docker">
   ```code
-  $ docker pull public.ecr.aws/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=) 
+  $ docker pull public.ecr.aws/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=)
+  ```
+</TabItem>
+<TabItem label="Helm Chart">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ helm repo update
   ```
 </TabItem>
 </Tabs>
@@ -446,6 +452,8 @@ to connect to Teleport and the PagerDuty API. You will now configure the
 PagerDuty plugin to use these credentials, plus adjust any settings required for
 your environment.
 
+<Tabs>
+  <TabItem label="Executable">
 Teleport's PagerDuty plugin has its own configuration file in TOML format. On
 the host where you will run the PagerDuty plugin, generate a boilerplate config
 by running the following commands:
@@ -454,6 +462,23 @@ by running the following commands:
 $ teleport-pagerduty configure > teleport-pagerduty.toml
 $ sudo mv teleport-pagerduty.toml /etc
 ```
+  </TabItem>
+  <TabItem label="Helm Chart">
+The Mattermost Helm Chart uses a YAML values file to configure the plugin. On
+the host where you have Helm installed, create a file called
+`teleport-pagerduty-values.yaml` based on the following example:
+
+```yaml
+teleport:
+  address: ""                 # Teleport Auth Server GRPC API address
+  identitySecretName: ""      # Identity file path
+
+pagerduty:
+  apiKey: ""                  # PagerDuty API Key
+  userEmail: ""               # PagerDuty bot user email (Could be admin email)
+```
+  </TabItem>
+</Tabs>
 
 <Details title="Saving the configuration to another location">
 
@@ -462,6 +487,7 @@ The PagerDuty plugin expects the configuration to be in
 flag when you run the plugin binary later in this guide.
 
 </Details>
+
 
 Edit the configuration file in `/etc/teleport-pagerduty.toml` as explained
 below:
@@ -475,8 +501,8 @@ The PagerDuty plugin uses this section to connect to your Teleport cluster:
 The address and credentials you configure depend on whether your plugin can
 access the Auth Service directly:
 
-<Tabs>
-  <TabItem label="Connect to the Proxy Service">
+<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
+  <TabItem label="Connect to the Proxy Service" options="Executable">
 
 Set `addr` to  your Proxy Service address with port `443`.
 
@@ -484,12 +510,12 @@ Set `identity` to the identity file generated earlier:
 
 ```toml
 [teleport]
-addr = "mytenant.teleport.sh:443"
-identity = "/var/lib/teleport/plugins/slack/auth.pem"
+addr = "teleport.example.com:443"
+identity = "/var/lib/teleport/plugins/pagerduty/auth.pem"
 ```
   </TabItem>
-  <TabItem label="Connect to the Auth Service"> 
-    
+  <TabItem label="Connect to the Auth Service" options="Executable">
+
 Set `addr` to the address and port of your Auth Service. This address must be
 reachable from the Teleport PagerDuty plugin.
 
@@ -499,11 +525,26 @@ generated earlier:
 ```toml
 [teleport]
 addr = "localhost:3025"
-client_key = "/var/lib/teleport/plugins/slack/auth.key" # Teleport GRPC client secret key
-client_crt = "/var/lib/teleport/plugins/slack/auth.crt" # Teleport GRPC client certificate
-root_cas = "/var/lib/teleport/plugins/slack/auth.cas"   # Teleport cluster CA certs
+client_key = "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
+client_crt = "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
+root_cas = "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
 ```
 </TabItem>
+  <TabItem label="Connect to your Teleport Cluster" options="Helm Chart">
+
+**`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
+(e.g., `teleport.example.com:443`).
+
+**`identitySecretName`**: Fill in the `identitySecretName` field with the name
+of the Kubernetes secret you created earlier.
+
+```yaml
+teleport:
+  address: "teleport.example.com:443"
+  identitySecretName: teleport-plugin-pagerduty-identity
+```
+
+  </TabItem>
 </Tabs>
 
 </ScopedBlock>
@@ -515,12 +556,12 @@ Set `identity` to the identity file generated earlier:
 
 ```toml
 [teleport]
-addr = "mytenant.teleport.sh:443"
-identity = "/var/lib/teleport/plugins/slack/auth.pem"
+addr = "teleport.example.com:443"
+identity = "/var/lib/teleport/plugins/pagerduty/auth.pem"
 ```
 
 </ScopedBlock>
- 
+
 ### `[pagerduty]`
 
 Assign `api_key` to the PagerDuty API key you generated earlier.
@@ -534,7 +575,7 @@ PagerDuty will display this incident as created by that user.
 This guide has assumed that the Teleport PagerDuty plugin uses
 `pagerduty_notify_service` annotation to determine which services to notify of
 new Access Request events and the `pagerduty_services` annotation to configure
-auto-approval. 
+auto-approval.
 
 If you would like to use a different name for these annotations in your Teleport
 roles, you can assign the `pagerduty.notify_service` and `pagerduty.services`
@@ -544,21 +585,28 @@ fields.
 
 The final configuration should resemble the following:
 
-<Tabs>
-<TabItem label="Connect to the Proxy Service">
+<Tabs dropdownCaption="Environment type" dropDownSelected="Executable">
+<TabItem label="Connect to the Proxy Service" options="Executable">
 ```yaml
 (!examples/resources/plugins/teleport-pagerduty-cloud.toml!)
 ```
 </TabItem>
-<TabItem label="Connect to the Auth Service">
+<TabItem label="Connect to the Auth Service" options="Executable">
 ```yaml
 (!examples/resources/plugins/teleport-pagerduty-self.toml!)
+```
+</TabItem>
+<TabItem label="Connect to your Teleport Cluster" options="Helm Chart">
+```yaml
+(!examples/resources/plugins/teleport-pagerduty-helm-self.yaml!)
 ```
 </TabItem>
 </Tabs>
 
 ## Step 7/8. Test the PagerDuty plugin
 
+<Tabs>
+<TabItem label="Executable" scope={["oss", "enterprise"]}>
 After you configure the PagerDuty plugin, run the following command to start it.
 The `-d` flag will provide debug information to ensure that the plugin can
 connect to PagerDuty and your Teleport cluster:
@@ -575,6 +623,30 @@ $ teleport-pagerduty start -d
 # DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
 # DEBU   Setting up the webhook extensions pagerduty/main.go:178
 ```
+</TabItem>
+<TabItem label="Helm Chart" scope={["oss", "enterprise"]}>
+After modifying your configuration, run the bot with the following command:
+
+```code
+$ helm upgrade --install teleport-plugin-pagerduty teleport/teleport-plugin-pagerduty --values teleport-pagerduty-values.yaml
+```
+
+To inspect the plugin's logs, use the following command:
+
+```code
+$ kubectl logs deploy/teleport-plugin-pagerduty
+```
+
+Debug logs can be enabled by setting `log.severity` to `DEBUG` in
+`teleport-pagerduty-helm.yaml` and executing the `helm upgrade ...` command
+above again. Then you can restart the plugin with the following command:
+
+```code
+$ kubectl rollout restart deployment teleport-plugin-pagerduty
+```
+
+</TabItem>
+</Tabs>
 
 ### Create an Access Request
 
@@ -605,7 +677,7 @@ Request](../../../img/enterprise/plugins/pagerduty/new-access-req-incident.png)
 <Admonition title="Auditing Access Requests">
 
 When the PagerDuty plugin sends a notification, anyone who receives the
-notification can follow the enclosed link to an Access Reqeust URL. While users
+notification can follow the enclosed link to an Access Request URL. While users
 must be authorized via their Teleport roles to review Access Request, you
 should still check the Teleport audit log to ensure that the right users are
 reviewing the right requests.

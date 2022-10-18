@@ -48,6 +48,10 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
+	// Import to register Cassandra engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
+	// Import to register Elasticsearch engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -55,7 +59,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Config is the configuration for an database proxy server.
+// Config is the configuration for a database proxy server.
 type Config struct {
 	// Clock used to control time.
 	Clock clockwork.Clock
@@ -947,16 +951,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

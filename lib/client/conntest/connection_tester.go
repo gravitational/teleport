@@ -18,7 +18,9 @@ package conntest
 
 import (
 	"context"
+	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
@@ -29,12 +31,21 @@ import (
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
 type TestConnectionRequest struct {
+	// ResourceKind describes the type of resource to test.
 	ResourceKind string `json:"resource_kind"`
+	// ResourceName is the identification of the resource's instance to test.
 	ResourceName string `json:"resource_name"`
 
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
+
+	// KubernetesNamespace is the Kubernetes Namespace to List the Pods in.
+	// Specific to KubernetesTester.
+	KubernetesNamespace string `json:"kubernetes_namespace,omitempty"`
+
+	// DialTimeout when trying to connect to the destination host
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // CheckAndSetDefaults validates the Request has the required fields.
@@ -45,6 +56,14 @@ func (r *TestConnectionRequest) CheckAndSetDefaults() error {
 
 	if r.ResourceName == "" {
 		return trace.BadParameter("missing required parameter ResourceName")
+	}
+
+	if r.KubernetesNamespace == "" {
+		r.KubernetesNamespace = "default"
+	}
+
+	if r.DialTimeout <= 0 {
+		r.DialTimeout = defaults.DefaultDialTimeout
 	}
 
 	return nil
@@ -64,12 +83,52 @@ type ConnectionTester interface {
 	TestConnection(context.Context, TestConnectionRequest) (types.ConnectionDiagnostic, error)
 }
 
+// ConnectionTesterConfig contains all the required variables to build a connection test.
+type ConnectionTesterConfig struct {
+	// ResourceKind contains the resource type to test.
+	// You should use the types.Kind<Resource> strings.
+	ResourceKind string
+
+	// UserClient is an auth client that has a User's identity.
+	// This is the user that is running the SSH Connection Test.
+	UserClient auth.ClientI
+
+	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
+	ProxyHostPort string
+
+	// KubernetesPublicProxyAddr is the kubernetes proxy.
+	KubernetesPublicProxyAddr string
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
+}
+
 // ConnectionTesterForKind returns the proper Tester given a resource name.
 // It returns trace.NotImplemented if the resource kind does not have a tester.
-func ConnectionTesterForKind(resourceKind string, client auth.ClientI) (ConnectionTester, error) {
-	switch resourceKind {
+func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, error) {
+	switch cfg.ResourceKind {
 	case types.KindNode:
-		return NewSSHConnectionTester(client), nil
+		tester, err := NewSSHConnectionTester(
+			SSHConnectionTesterConfig{
+				UserClient:        cfg.UserClient,
+				ProxyHostPort:     cfg.ProxyHostPort,
+				TLSRoutingEnabled: cfg.TLSRoutingEnabled,
+			},
+		)
+		return tester, trace.Wrap(err)
+	case types.KindKubernetesCluster:
+		tester, err := NewKubeConnectionTester(
+			KubeConnectionTesterConfig{
+				UserClient:                cfg.UserClient,
+				ProxyHostPort:             cfg.ProxyHostPort,
+				TLSRoutingEnabled:         cfg.TLSRoutingEnabled,
+				KubernetesPublicProxyAddr: cfg.KubernetesPublicProxyAddr,
+			},
+		)
+		return tester, trace.Wrap(err)
+	default:
+		return nil, trace.NotImplemented("resource %q does not have a connection tester", cfg.ResourceKind)
 	}
-	return nil, trace.NotImplemented("resource %q does not have a connection tester", resourceKind)
+
 }

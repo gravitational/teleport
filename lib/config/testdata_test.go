@@ -20,13 +20,12 @@ const StaticConfigString = `
 #
 # Some comments
 #
+version: v3
 teleport:
   nodename: edsger.example.com
   advertise_ip: 10.10.10.1:3022
   pid_file: /var/run/teleport.pid
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
+  auth_server: auth0.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
@@ -84,14 +83,13 @@ ssh_service:
 `
 
 const SmallConfigString = `
+version: v3
 teleport:
   nodename: cat.example.com
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   auth_token: %v
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
+  auth_server: auth0.server.example.org:3024
   log:
     output: stderr
     severity: INFO
@@ -124,9 +122,10 @@ auth_service:
       slot_number: 1
       pin: "example_pin"
   authentication:
-    u2f:
-      app_id: "app-id"
-      device_attestation_cas:
+    second_factor: "optional"
+    webauthn:
+      rp_id: "goteleport.com"
+      attestation_allowed_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
         -----BEGIN CERTIFICATE-----
@@ -181,6 +180,15 @@ db_service:
       regions: ["westus"]
       tags:
         "c": "d"
+
+kubernetes_service:
+    enabled: yes
+    resources:
+      - labels:
+          "*": "*"
+    kubeconfig_file: /tmp/kubeconfig
+    labels:
+      'testKey': 'testValue'
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

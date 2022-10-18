@@ -2,9 +2,9 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "type": "object",
     "required": [
-        "authToken",
         "proxyAddr",
         "roles",
+        "joinParams",
         "kubeClusterName",
         "apps",
         "appResources",
@@ -49,6 +49,24 @@
             "$id": "#/properties/roles",
             "type": "string",
             "default": "kube"
+        },
+        "joinParams": {
+            "$id": "#/properties/joinParams",
+            "type": "object",
+            "required": ["method"],
+            "properties": {
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenName",
+                    "type": "string",
+                    "default": ""
+                },
+                "method": {
+                    "$id": "#/properties/joinParams/method",
+                    "type": "string",
+                    "default": "token"
+                },
+                "additionalProperties": false
+            }
         },
         "kubeClusterName": {
             "$id": "#/properties/kubeClusterName",
