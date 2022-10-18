@@ -838,68 +838,23 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var kubeBackend kubernetesBackend
+	// If running in a Kubernetes Pod we must init the backend storage for `host_uuid` storage/retrieval.
+	if kubernetes.InKubeCluster() {
+		kubeBackend, err = kubernetes.New()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
-	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
+	// readOrGenerateHostID will try to read the `host_uuid` from the Kubernetes Secret. If the
 	// key is empty or if not running in a Kubernetes Cluster, it will read the
 	// `host_uuid` from local data directory.
-	cfg.HostUUID, err = readHostUUIDFromStorages(supervisor.ExitContext(), cfg.DataDir)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			if errors.Is(err, fs.ErrPermission) {
-				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
-			}
-			return nil, trace.Wrap(err)
-		}
-		// if there's no host uuid initialized yet, try to read one from the
-		// one of the identities
-		if len(cfg.Identities) != 0 {
-			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
-		} else {
-			switch cfg.JoinMethod {
-			case types.JoinMethodToken,
-				types.JoinMethodUnspecified,
-				types.JoinMethodIAM,
-				types.JoinMethodGitHub:
-				// Checking error instead of the usual uuid.New() in case uuid generation
-				// fails due to not enough randomness. It's been known to happen happen when
-				// Teleport starts very early in the node initialization cycle and /dev/urandom
-				// isn't ready yet.
-				rawID, err := uuid.NewRandom()
-				if err != nil {
-					return nil, trace.BadParameter("" +
-						"Teleport failed to generate host UUID. " +
-						"This may happen if randomness source is not fully initialized when the node is starting up. " +
-						"Please try restarting Teleport again.")
-				}
-				cfg.HostUUID = rawID.String()
-			case types.JoinMethodEC2:
-				cfg.HostUUID, err = utils.GetEC2NodeID()
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			default:
-				return nil, trace.BadParameter("unknown join method %q", cfg.JoinMethod)
-			}
-			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
-		}
-		// persistHostUUIDToStorages will persist the host_uuid to the local storage
-		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
-		if err := persistHostUUIDToStorages(supervisor.ExitContext(), cfg); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else if kubernetes.InKubeCluster() && utils.HostUUIDExistsLocaly(cfg.DataDir) {
-		// This case is used when loading a Teleport pre-11 agent with storage attached.
-		// In this case, we have to copy the "host_uuid" from the agent to the secret
-		// in case storage is removed later.
-		// loadHostUUIDFromKubeSecret will check if the `host_uuid` is already in the secret.
-		if id, err := loadHostUUIDFromKubeSecret(supervisor.ExitContext()); err != nil || len(id) == 0 {
-			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
-			// This is only required if PV storage is removed later.
-			if err := writeHostUUIDToKubeSecret(supervisor.ExitContext(), cfg.HostUUID); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
+	// If no host id is available, it will generate a new host id and persist it to available storages.
+	if err := readOrGenerateHostID(supervisor.ExitContext(), cfg, kubeBackend); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	_, err = uuid.Parse(cfg.HostUUID)
@@ -4829,27 +4784,110 @@ func isDebugMode() bool {
 	return v
 }
 
-// readHostUUUIDFromStorage tries to read the `host_uuid` value from different storages,
+// readOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
+// If the read operation returns no `host_uuid`, this function tries to pick it from the first static identity provided.
+// If no static identities were defined for the process, a new id is generated depending on the joining process:
+// - types.JoinMethodEC2: we will use the EC2 NodeID: {accountID}-{nodeID}
+// - Any other valid Joining method: a new UUID is generated.
+// Finally, if a new id is generated, this function writes it into local storage and Kubernetes storage (if available).
+// If kubeBackend is nil, the agent is not running in a Kubernetes Cluster.
+func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernetesBackend) (err error) {
+	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
+	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
+	// key is empty or if not running in a Kubernetes Cluster, it will read the
+	// `host_uuid` from local data directory.
+	cfg.HostUUID, err = readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			if errors.Is(err, fs.ErrPermission) {
+				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
+			}
+			return trace.Wrap(err)
+		}
+		// if there's no host uuid initialized yet, try to read one from the
+		// one of the identities
+		if len(cfg.Identities) != 0 {
+			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
+			cfg.Log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
+		} else {
+			switch cfg.JoinMethod {
+			case types.JoinMethodToken,
+				types.JoinMethodUnspecified,
+				types.JoinMethodIAM,
+				types.JoinMethodGitHub:
+				// Checking error instead of the usual uuid.New() in case uuid generation
+				// fails due to not enough randomness. It's been known to happen happen when
+				// Teleport starts very early in the node initialization cycle and /dev/urandom
+				// isn't ready yet.
+				rawID, err := uuid.NewRandom()
+				if err != nil {
+					return trace.BadParameter("" +
+						"Teleport failed to generate host UUID. " +
+						"This may happen if randomness source is not fully initialized when the node is starting up. " +
+						"Please try restarting Teleport again.")
+				}
+				cfg.HostUUID = rawID.String()
+			case types.JoinMethodEC2:
+				cfg.HostUUID, err = utils.GetEC2NodeID()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			default:
+				return trace.BadParameter("unknown join method %q", cfg.JoinMethod)
+			}
+			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
+		}
+		// persistHostUUIDToStorages will persist the host_uuid to the local storage
+		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
+		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if kubeBackend != nil && utils.HostUUIDExistsLocaly(cfg.DataDir) {
+		// This case is used when loading a Teleport pre-11 agent with storage attached.
+		// In this case, we have to copy the "host_uuid" from the agent to the secret
+		// in case storage is removed later.
+		// loadHostIDFromKubeSecret will check if the `host_uuid` is already in the secret.
+		if id, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err != nil || len(id) == 0 {
+			// Forces the copy of the host_uuid into the Kubernetes Secret if PV storage is enabled.
+			// This is only required if PV storage is removed later.
+			if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+// kubernetesBackend interface for kube storage backend.
+type kubernetesBackend interface {
+	// Put puts value into backend (creates if it does not
+	// exists, updates it otherwise)
+	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
+	// Get returns a single item or not found error
+	Get(ctx context.Context, key []byte) (*backend.Item, error)
+}
+
+// readHostIDFromStorages tries to read the `host_uuid` value from different storages,
 // depending on where the process is running.
 // If the process is running in a Kubernetes Cluster, this function will attempt
 // to read the `host_uuid` from the Kubernetes Secret. If it does not exist or
 // if it is not running on a Kubernetes cluster the read is done from the local
 // storage: `dataDir/host_uuid`.
-func readHostUUIDFromStorages(ctx context.Context, dataDir string) (string, error) {
-	if kubernetes.InKubeCluster() {
-		if hostUUID, err := loadHostUUIDFromKubeSecret(ctx); err == nil && len(hostUUID) > 0 {
-			return hostUUID, nil
+func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kubernetesBackend) (string, error) {
+	if kubeBackend != nil {
+		if hostID, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err == nil && len(hostID) > 0 {
+			return hostID, nil
 		}
 	}
 	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
 	// not found in secret.
-	hostUUID, err := utils.ReadHostUUID(dataDir)
-	return hostUUID, trace.Wrap(err)
+	hostID, err := utils.ReadHostUUID(dataDir)
+	return hostID, trace.Wrap(err)
 }
 
-// persistHostUUIDToStorages writes the HostUUID to local data and  and to
+// persistHostIDToStorages writes the cfg.HostUUID to local data and  and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
-func persistHostUUIDToStorages(ctx context.Context, cfg *Config) error {
+func persistHostIDToStorages(ctx context.Context, cfg *Config, kubeBackend kubernetesBackend) error {
 	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
@@ -4860,36 +4898,26 @@ func persistHostUUIDToStorages(ctx context.Context, cfg *Config) error {
 	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
 	// This is required because `host_uuid` is part of the client secret
 	// and Auth connection will fail if we present a different `host_uuid`.
-	if kubernetes.InKubeCluster() {
-		return trace.Wrap(writeHostUUIDToKubeSecret(ctx, cfg.HostUUID))
+	if kubeBackend != nil {
+		return trace.Wrap(writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID))
 	}
 	return nil
 }
 
-// loadHostUUIDFromKubeSecret creates a Kubernetes client and reads the host_uuid
-// from the Kubernetes secret with the expected key: `/host_uuid`.
-func loadHostUUIDFromKubeSecret(ctx context.Context) (string, error) {
-	st, err := kubernetes.New()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	item, err := st.Get(ctx, backend.Key(utils.HostUUIDFile))
+// loadHostIDFromKubeSecret reads the host_uuid from the Kubernetes secret with
+// the expected key: `/host_uuid`.
+func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend) (string, error) {
+	item, err := kubeBackend.Get(ctx, backend.Key(utils.HostUUIDFile))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	return string(item.Value), nil
 }
 
-// writeHostUUIDToKubeSecret creates a Kubernetes client and writes the `host_uuid`
-// into the Kubernetes secret under the key `/host_uuid`.
-func writeHostUUIDToKubeSecret(ctx context.Context, id string) error {
-	st, err := kubernetes.New()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = st.Put(
+// writeHostIDToKubeSecret writes the `host_uuid` into the Kubernetes secret under
+// the key `/host_uuid`.
+func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend, id string) error {
+	_, err := kubeBackend.Put(
 		ctx,
 		backend.Item{
 			Key:   backend.Key(utils.HostUUIDFile),
