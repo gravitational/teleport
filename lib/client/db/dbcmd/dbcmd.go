@@ -59,6 +59,8 @@ const (
 	mssqlBin = "mssql-cli"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
+	// cqlshBin is the Cassandra client program name.
+	cqlshBin = "cqlsh"
 	// curlBin is the program name for `curl`, which is used as Elasticsearch client if other options are unavailable.
 	curlBin = "curl"
 	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
@@ -177,6 +179,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSnowflake:
 		return c.getSnowflakeCommand(), nil
+
+	case defaults.ProtocolCassandra:
+		return c.getCassandraCommand()
 
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchCommand()
@@ -547,6 +552,17 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	return cmd
 }
 
+func (c *CLICommandBuilder) getCassandraCommand() (*exec.Cmd, error) {
+	args := []string{
+		"-u", c.db.Username,
+		c.host, strconv.Itoa(c.port),
+	}
+	if c.options.password != "" {
+		args = append(args, []string{"-p", c.options.password}...)
+	}
+	return exec.Command(cqlshBin, args...), nil
+}
+
 // getElasticsearchCommand returns a command to connect to Elasticsearch. We support `elasticsearch-sql-cli`, but only in non-TLS scenario.
 func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	if c.options.noTLS {
@@ -603,6 +619,7 @@ type connectionCommandOpts struct {
 	tolerateMissingCLIClient bool
 	log                      *logrus.Entry
 	exe                      Execer
+	password                 string
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -630,6 +647,14 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 func WithNoTLS() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.noTLS = true
+	}
+}
+
+// WithPassword is the command option that allows to set the database password
+// that will be used for database CLI.
+func WithPassword(pass string) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.password = pass
 	}
 }
 

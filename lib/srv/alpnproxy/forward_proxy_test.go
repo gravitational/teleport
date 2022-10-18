@@ -26,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -150,7 +151,7 @@ func createForwardProxyWithConfig(t *testing.T, config ForwardProxyConfig) *Forw
 	})
 
 	go func() {
-		require.NoError(t, forwardProxy.Start())
+		assert.NoError(t, forwardProxy.Start())
 	}()
 	return forwardProxy
 }
