@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -122,6 +123,13 @@ type RegisterParams struct {
 	CircuitBreakerConfig breaker.Config
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+	// IDToken is a token retrieved from a workload identity provider for
+	// certain join types e.g GitHub, Google.
+	IDToken string
+	// Expires is an optional field for bots that specifies a time that the
+	// certificates that are returned by registering should expire at.
+	// It should not be specified for non-bot registrations.
+	Expires *time.Time
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -241,6 +249,8 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
+				Expires:              params.Expires,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -287,6 +297,8 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
+				Expires:              params.Expires,
 			})
 	}
 	return certs, trace.Wrap(err)
