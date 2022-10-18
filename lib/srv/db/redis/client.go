@@ -105,9 +105,10 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 	switch connectionOptions.mode {
 	case Standalone:
 		return redis.NewClient(&redis.Options{
-			Addr:      connectionAddr,
-			TLSConfig: tlsConfig,
-			OnConnect: onConnect,
+			Addr:                 connectionAddr,
+			TLSConfig:            tlsConfig,
+			OnConnect:            onConnect,
+			DisableAuthOnConnect: true,
 		}), nil
 	case Cluster:
 		client := &clusterClient{
@@ -115,6 +116,10 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 				Addrs:     []string{connectionAddr},
 				TLSConfig: tlsConfig,
 				OnConnect: onConnect,
+				NewClient: func(opt *redis.Options) *redis.Client {
+					opt.DisableAuthOnConnect = true
+					return redis.NewClient(opt)
+				},
 			}),
 		}
 		// Load cluster information.
