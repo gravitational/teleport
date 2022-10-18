@@ -675,7 +675,10 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	// Is TLS routing enabled?
-	proxyListenerMode := a.config.Auth.NetworkingConfig.GetProxyListenerMode()
+	proxyListenerMode := types.ProxyListenerMode_Separate
+	if a.config != nil && a.config.Auth.NetworkingConfig != nil {
+		proxyListenerMode = a.config.Auth.NetworkingConfig.GetProxyListenerMode()
+	}
 	if networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx); err == nil {
 		proxyListenerMode = networkConfig.GetProxyListenerMode()
 	}
