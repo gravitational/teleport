@@ -68,6 +68,7 @@ export function NavigationMenu() {
       <TopBarButton
         ref={selectorRef}
         isOpened={isPopoverOpened}
+        title="Go To Access Requests"
         onClick={() => setIsPopoverOpened(true)}
       >
         <MoreVert fontSize={6} />
