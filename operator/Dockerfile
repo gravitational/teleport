@@ -26,11 +26,11 @@ COPY operator/namespace.go operator/namespace.go
 
 # Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
 #  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
-ARG COMPILER_NAME
+# TARGETOS and TARGETARCH are provided by Docker/buildx, but must be explicitly listed here
+ARG COMPILER_NAME TARGETOS TARGETARCH
 
 # Build the program
 # CGO is required for github.com/gravitational/teleport/lib/system
-# TARGETOS and TARGETARCH are provided by Docker/buildx
 RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
     CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/operator
