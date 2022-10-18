@@ -185,9 +185,12 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 		return trace.Wrap(err)
 	}
 
-	if err := dest.Write(c.Prefix+sshHostUserCASuffix, []byte(exportedCAs)); err != nil {
+	userCAPath := c.Prefix + sshHostUserCASuffix
+	if err := dest.Write(userCAPath, []byte(exportedCAs)); err != nil {
 		return trace.Wrap(err)
 	}
+
+	files = append(files, userCAPath)
 
 	log.Debugf("Wrote OpenSSH host cert files: %+v", files)
 
