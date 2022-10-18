@@ -62,12 +62,12 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
@@ -82,7 +82,7 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil

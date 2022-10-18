@@ -77,9 +77,9 @@ import (
 )
 
 const (
-	// SSOLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
-	SSOLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
-	metaRedirectHTML   = `
+	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
+	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
+	metaRedirectHTML       = `
 <!DOCTYPE html>
 <html lang="en">
 	<head>
@@ -1265,12 +1265,12 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -1285,7 +1285,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -1369,12 +1369,12 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
@@ -1391,7 +1391,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
-		return nil, trace.AccessDenied(SSOLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
