@@ -75,12 +75,15 @@ CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
+# Do not build RDP client on ARM or 386.
 ifneq ("$(ARCH)","arm")
-# Do not build RDP client on ARM.
+ifneq ("$(ARCH)","386")
 with_rdpclient := yes
 RDPCLIENT_ENT_MESSAGE := "with-Windows-RDP-client"
 RDPCLIENT_TAG := desktop_access_rdp
 endif
+endif
+
 endif
 endif
 

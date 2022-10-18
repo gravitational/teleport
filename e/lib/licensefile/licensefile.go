@@ -28,7 +28,7 @@ func (l *LicenseFile) IsExpired() bool {
 }
 
 func (l *LicenseFile) ExpiresIn() time.Duration {
-	return l.KeyPair.Cert.NotAfter.Sub(time.Now())
+	return time.Until(l.KeyPair.Cert.NotAfter)
 }
 
 // ReadAndActivate reads and activates a license from the file
