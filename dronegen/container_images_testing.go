@@ -55,7 +55,7 @@ package main
 // * `configureForPRTestingOnly` has been set to false, and `make dronegen` has been reran afterwords
 
 const (
-	configureForPRTestingOnly bool   = false
+	configureForPRTestingOnly bool   = true
 	testingSecretPrefix       string = "TEST_"
 	testingQuayRegistryOrg    string = "fred_heinecke"
 	testingECRRegistryOrg     string = "u8j2q1d9"
@@ -71,7 +71,9 @@ const (
 )
 
 func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
-	baseTrigger := NewCronTrigger([]string{testMajorVersion})
+	baseTrigger := NewTagTrigger(testMajorVersion)
+	// baseTrigger := NewPromoteTrigger(testMajorVersion)
+	// baseTrigger := NewCronTrigger([]string{testMajorVersion})
 	baseTrigger.Name = "Test trigger on push"
 	baseTrigger.Trigger = trigger{
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
