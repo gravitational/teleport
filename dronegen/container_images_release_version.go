@@ -160,6 +160,8 @@ func (rv *ReleaseVersion) buildSplitSemverSteps(onlyBuildFullSemver bool) step {
 			commands = append(commands, fmt.Sprintf("echo %s | sed 's/v//' | cut -d'.' -f %q > %q",
 				rv.ShellVersion, cutFieldString, semver.FilePath))
 		}
+		// For debugging
+		commands = append(commands, fmt.Sprintf("cat %q", semver.FilePath))
 
 		stepNameVersions = append(stepNameVersions, semver.Name)
 	}
