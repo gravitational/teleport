@@ -736,11 +736,15 @@ func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCal
 		devs []*deviceWithInfo
 		err  error
 	}
-	devicesC := make(chan devicesResp, 1)
+	// devicesC transport newly-found devices.
+	// Closed on exit by the device poll goroutine below.
+	devicesC := make(chan devicesResp)
 
 	// Poll for new devices until the user selects one (via touch).
 	// Runs until innerCtx is closed.
 	go func() {
+		defer close(devicesC)
+
 		// knownPaths is retained between findDevices calls so only "new" devices
 		// are returned.
 		knownPaths := make(map[string]struct{})
@@ -780,12 +784,10 @@ func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCal
 			selectGoroutines--
 		}
 
-		// Collect device search goroutine, if blocked.
-		for stop := false; !stop; {
-			select {
-			case <-devicesC:
-			default:
-				stop = true
+		// Empty devicesC, if blocked.
+		for {
+			if _, open := <-devicesC; !open {
+				break
 			}
 		}
 	}()
