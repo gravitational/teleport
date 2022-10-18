@@ -154,14 +154,13 @@ Adjust for your environment, then start or restart Teleport. See the [YAML refer
 
 ## Step 3/5. Create a role mapping
 
-Define a role mapping in Elasticsearch to assign your Teleport user or role to an Elasticsearch role.
-The example below maps the Teleport user `alice` to the `superuser` role in Elasticsearch, which
-should **not** be done in production:
+Define a role mapping in Elasticsearch to assign your Teleport user(s) or role(s) to an Elasticsearch role.
+The example below maps the Teleport user `alice` to the `user` role in Elasticsearch.
 
 ```code
 $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.example.com:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
 {
-  "roles": [ "superuser"],
+  "roles": [ "user"],
   "enabled": true,
   "rules": {
     "field" : { "username" : "alice" }
@@ -172,6 +171,27 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 }
 '
 ```
+
+<Details title="Role Mapping with wildcards" opened={false}>
+
+In a scenario where Teleport is using [single sign-on](../../access-controls/sso.mdx) you may want to define a mapping for all users to a role:
+
+```code
+$ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.example.com:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
+{
+  "roles": [ "monitoring"],
+  "enabled": true,
+  "rules": {
+    "field" : { "username" : "*@example.com" }
+  },
+  "metadata" : {
+    "version" : 1
+  }
+}
+'
+```
+
+</Details>
 
 ## Step 4/5. Set up mutual TLS
 
