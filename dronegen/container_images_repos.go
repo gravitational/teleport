@@ -149,6 +149,7 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 
 	steps := make([]step, 0)
 
+	// Tag and push, collecting the names of the tag/push steps and the images pushed.
 	imageTags := cr.BuildImageTags(buildStepDetails[0].Version)
 	pushedImages := make(map[*ImageTag][]*Image, len(imageTags))
 	pushStepNames := make([]string, 0, len(buildStepDetails))
@@ -162,6 +163,7 @@ func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step 
 		steps = append(steps, pushStep)
 	}
 
+	// Create and push a manifest for each tag, referencing multiple architectures in the manifest
 	for _, imageTag := range imageTags {
 		multiarchImageTag := *imageTag
 		multiarchImageTag.Arch = ""
@@ -206,6 +208,30 @@ func (cr *ContainerRepo) BuildImageTags(version *ReleaseVersion) []*ImageTag {
 	return tags
 }
 
+// Pulls an image with authentication pushes it to the local repo.
+// Does not generate additional tags.
+// Returns an *Image struct describing the locally pushed image.
+func (cr *ContainerRepo) pullPushStep(image *Image, dependencySteps []string) (step, *Image) {
+	localRepo := GetLocalContainerRepo()
+	localRepoImage := *image
+	localRepoImage.Repo = localRepo
+
+	commands := image.Repo.buildCommandsWithLogin([]string{fmt.Sprintf("docker pull %q", image.GetShellName())})
+	commands = append(commands,
+		fmt.Sprintf("docker tag %s %s", image.GetShellName(), localRepoImage.GetShellName()),
+		fmt.Sprintf("docker push %s", localRepoImage.GetShellName()),
+	)
+
+	return step{
+		Name:        fmt.Sprintf("Pull %s and push it to %s", image.GetDisplayName(), localRepo.Name),
+		Image:       "docker",
+		Volumes:     dockerVolumeRefs(),
+		Environment: cr.EnvironmentVars,
+		Commands:    commands,
+		DependsOn:   dependencySteps,
+	}, &localRepoImage
+}
+
 func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, imageTags []*ImageTag) (step, map[*ImageTag]*Image) {
 	archImageMap := make(map[*ImageTag]*Image, len(imageTags))
 	for _, imageTag := range imageTags {
@@ -222,21 +248,23 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	archImageKeys := maps.Keys(archImageMap)
 	sort.SliceStable(archImageKeys, func(i, j int) bool { return archImageKeys[i].GetDisplayValue() < archImageKeys[j].GetDisplayValue() })
 
-	commands := buildStepDetails.BuiltImage.Repo.buildCommandsWithLogin(
-		[]string{
-			fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImage.GetShellName()),
-		},
-	)
+	pullCommands := []string{
+		fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImage.GetShellName()),
+	}
 
+	tagAndPushCommands := make([]string, 0)
 	for _, archImageKey := range archImageKeys {
 		archImage := archImageMap[archImageKey]
 
 		// Skip pushing images if the tag or container registry is immutable
-		commands = append(commands, buildImmutableSafeCommands(archImageKey.IsImmutable || cr.IsImmutable, archImage.GetShellName(), []string{
+		tagAndPushCommands = append(tagAndPushCommands, buildImmutableSafeCommands(archImageKey.IsImmutable || cr.IsImmutable, archImage.GetShellName(), []string{
 			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImage.GetShellName(), archImage.GetShellName()),
 			fmt.Sprintf("docker push %q", archImage.GetShellName()),
 		})...)
 	}
+	tagAndPushCommands = cr.buildCommandsWithLogin(tagAndPushCommands)
+
+	commands := append(pullCommands, tagAndPushCommands...)
 
 	dependencySteps := []string{}
 	if buildStepDetails.StepName != "" {
@@ -248,7 +276,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.EnvironmentVars,
-		Commands:    cr.buildCommandsWithLogin(commands),
+		Commands:    commands,
 		DependsOn:   dependencySteps,
 	}
 

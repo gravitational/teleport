@@ -128,10 +128,14 @@ func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, f
 			steps = append(steps, archBuildStep)
 			archBuildStepDetails = append(archBuildStepDetails, archBuildStepDetail)
 		} else {
-			// Generate build details that point to staging images
+			stagingImage := p.GetStagingRegistryImage(supportedArch, version, stagingRepo)
+			pullStagingImageStep, locallyPushedImage := stagingRepo.pullPushStep(stagingImage, setupStepNames)
+			steps = append(steps, pullStagingImageStep)
+
+			// Generate build details that point to the pulled staging images
 			archBuildStepDetails = append(archBuildStepDetails, &buildStepOutput{
-				StepName:   "",
-				BuiltImage: p.GetStagingRegistryImage(supportedArch, version, stagingRepo),
+				StepName:   pullStagingImageStep.Name,
+				BuiltImage: locallyPushedImage,
 				Version:    version,
 				Product:    p,
 			})
@@ -139,16 +143,7 @@ func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, f
 	}
 
 	for _, containerRepo := range getReposToPublishTo(productionRepos, stagingRepo, flags) {
-		repoSteps := containerRepo.buildSteps(archBuildStepDetails)
-		// If we're only tagging and pushing then we need to add step dependencies for all the previous steps
-		// to ensure we hit all the right checks (i.e. prerelease check)
-		if !flags.ShouldBuildNewImages && setupStepNames != nil {
-			for i, repoStep := range repoSteps {
-				repoSteps[i].DependsOn = append(repoStep.DependsOn, setupStepNames...)
-			}
-		}
-
-		steps = append(steps, repoSteps...)
+		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails)...)
 	}
 
 	return steps
