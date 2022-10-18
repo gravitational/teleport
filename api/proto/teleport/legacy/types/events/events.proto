@@ -2963,7 +2963,7 @@ message OneOf {
     events.CassandraRegister CassandraRegister = 103;
     events.CassandraExecute CassandraExecute = 104;
     // DynamoDB audit events.
-    events.AppDynamoDBRequest AppDynamoDBRequest = 105;
+    events.AppSessionDynamoDBRequest AppSessionDynamoDBRequest = 105;
   }
 }
 
@@ -3695,8 +3695,8 @@ message ElasticsearchRequest {
   string Query = 12 [(gogoproto.jsontag) = "query"];
 }
 
-// AppDynamoDBRequest is emitted when a user executes a DynamoDB request via app access.
-message AppDynamoDBRequest {
+// AppSessionDynamoDBRequest is emitted when a user executes a DynamoDB request via app access.
+message AppSessionDynamoDBRequest {
   // OperationPlane specifies DynamoDB request operation plane.
   enum OperationPlane {
     // GENERAL is for otherwise uncategorized operations.
@@ -3743,12 +3743,15 @@ message AppDynamoDBRequest {
   string RawQuery = 7 [(gogoproto.jsontag) = "raw_query"];
   // Method is the request HTTP method, like GET/POST/DELETE/etc.
   string Method = 8 [(gogoproto.jsontag) = "method"];
-  // Body is the request HTTP body.
-  bytes Body = 9 [(gogoproto.jsontag) = "body"];
+  // Body is the HTTP request json body.
+  google.protobuf.Struct Body = 9 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
   // Operation represents the category of operation for an API being accessed in a given request.
   OperationPlane Operation = 10 [(gogoproto.jsontag) = "operation"];
   // App is a common application resource metadata.
-  AppMetadata App = 12 [
+  AppMetadata App = 11 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
