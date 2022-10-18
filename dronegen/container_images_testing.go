@@ -71,8 +71,8 @@ const (
 )
 
 func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
-	baseTrigger := NewTagTrigger(testMajorVersion)
-	// baseTrigger := NewPromoteTrigger(testMajorVersion)
+	// baseTrigger := NewTagTrigger(testMajorVersion)
+	baseTrigger := NewPromoteTrigger(testMajorVersion)
 	// baseTrigger := NewCronTrigger([]string{testMajorVersion})
 	baseTrigger.Name = "Test trigger on push"
 	baseTrigger.Trigger = trigger{
