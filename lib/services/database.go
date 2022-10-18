@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -236,6 +237,37 @@ func NewDatabaseFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, da
 				Redis: types.AzureRedis{
 					ClusteringPolicy: azure.StringVal(database.Properties.ClusteringPolicy),
 				},
+			},
+		})
+}
+
+// NewDatabaseFromAzureSQLServer creates a database resource from an Azure SQL
+// server.
+func NewDatabaseFromAzureSQLServer(server *armsql.Server) (types.Database, error) {
+	if server.Properties == nil {
+		return nil, trace.BadParameter("missing properties")
+	}
+
+	if server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("missing FQDN")
+	}
+
+	labels, err := labelsFromAzureSQLServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(
+		setAzureDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure SQL server in %v", azure.StringVal(server.Location)),
+			Labels:      labels,
+		}, azure.StringVal(server.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      fmt.Sprintf("%v:%d", azure.StringVal(server.Properties.FullyQualifiedDomainName), azureSQLServerDefaultPort),
+			Azure: types.Azure{
+				Name:       azure.StringVal(server.Name),
+				ResourceID: azure.StringVal(server.ID),
 			},
 		})
 }
@@ -658,6 +690,16 @@ func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, databas
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(cluster.ID))
 }
 
+// labelsFromAzureSQLServer creates database labels from the provided Azure SQL
+// server.
+func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) {
+	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = azure.StringVal(server.Location)
+	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
+	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
+}
+
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
 	labels := rdsTagsToLabels(rdsInstance.TagList)
@@ -1053,4 +1095,9 @@ const (
 	labelSubscriptionID = "subscription-id"
 	// labelResourceGroup is the label key for the Azure resource group name.
 	labelResourceGroup = "resource-group"
+)
+
+const (
+	// azureSQLServerDefaultPort is the default port for Azure SQL Server.
+	azureSQLServerDefaultPort = 1433
 )

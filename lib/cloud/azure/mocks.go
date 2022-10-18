@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/gravitational/trace"
 )
@@ -489,4 +490,31 @@ func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcomput
 	return armcompute.VirtualMachinesClientGetResponse{
 		VirtualMachine: m.GetResult,
 	}, m.GetErr
+}
+
+// ARMSQLServerMock mocks armSQLServerClient
+type ARMSQLServerMock struct {
+	NoAuth               bool
+	AllServers           []*armsql.Server
+	ResourceGroupServers []*armsql.Server
+}
+
+func (m *ARMSQLServerMock) NewListPager(options *armsql.ServersClientListOptions) *runtime.Pager[armsql.ServersClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armsql.ServersClientListResponse, error) {
+		return armsql.ServersClientListResponse{
+			ServerListResult: armsql.ServerListResult{
+				Value: m.AllServers,
+			},
+		}, nil
+	})
+}
+
+func (m *ARMSQLServerMock) NewListByResourceGroupPager(resourceGroupName string, options *armsql.ServersClientListByResourceGroupOptions) *runtime.Pager[armsql.ServersClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armsql.ServersClientListByResourceGroupResponse, error) {
+		return armsql.ServersClientListByResourceGroupResponse{
+			ServerListResult: armsql.ServerListResult{
+				Value: m.ResourceGroupServers,
+			},
+		}, nil
+	})
 }
