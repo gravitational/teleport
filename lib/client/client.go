@@ -1390,7 +1390,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	)
 	defer span.End()
 
-	log.Debugf("Client %v is connecting to auth server on cluster %q.", proxy.clientAddr, clusterName)
+	log.Debugf("Client %v is connecting to auth server (%v) on cluster %q.", proxy.clientAddr, proxy.proxyAddress, clusterName)
 
 	address := "@" + clusterName
 
