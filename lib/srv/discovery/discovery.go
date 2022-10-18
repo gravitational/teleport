@@ -248,7 +248,7 @@ func genEC2InstancesLogStr(instances []*ec2.Instance) string {
 
 func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
 	return genInstancesLogStr(instances, func(i *armcompute.VirtualMachine) string {
-		return aws.StringValue(i.ID)
+		return aws.StringValue(i.Name)
 	})
 }
 

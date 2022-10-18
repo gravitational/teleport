@@ -24,7 +24,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
@@ -126,6 +125,7 @@ func NewClients() Clients {
 			azureRedisClients:           azure.NewClientMap(azure.NewRedisClient),
 			azureRedisEnterpriseClients: azure.NewClientMap(azure.NewRedisEnterpriseClient),
 			azureKubernetesClient:       make(map[string]azure.AKSClient),
+			azureVirtualMachinesClients: azure.NewClientMap(azure.NewVirtualMachinesClient),
 		},
 	}
 }
@@ -161,7 +161,7 @@ type azureClients struct {
 	// azureRedisEnterpriseClients contains the cached Azure Redis Enterprise clients.
 	azureRedisEnterpriseClients azure.ClientMap[azure.RedisEnterpriseClient]
 	// azureVirtualMachinesClients is the cached Azure virtual machines clients.
-	azureVirtualMachinesClients map[string]*azure.VirtualMachinesClient
+	azureVirtualMachinesClients azure.ClientMap[*azure.VirtualMachinesClient]
 	// azureKubernetesClient is the cached Azure Kubernetes client.
 	azureKubernetesClient map[string]azure.AKSClient
 }
@@ -335,13 +335,7 @@ func (c *cloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, 
 
 // GetAzureVirtualMachinesClient returns and Azure virtual machines client for the given subscription.
 func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (*azure.VirtualMachinesClient, error) {
-	c.mtx.RLock()
-	if client, ok := c.azureVirtualMachinesClients[subscription]; ok {
-		defer c.mtx.RUnlock()
-		return client, nil
-	}
-	c.mtx.RUnlock()
-	return c.initAzureVirtualMachinesClient(subscription)
+	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureRedisClient returns an Azure Redis client for the given subscription.
@@ -511,29 +505,6 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 	}
 	client := azure.NewSubscriptionClient(armClient)
 	c.azureSubscriptionsClient = client
-	return client, nil
-}
-
-func (c *cloudClients) initAzureVirtualMachinesClient(subscription string) (*azure.VirtualMachinesClient, error) {
-	cred, err := c.GetAzureCredential()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	if client, ok := c.azureVirtualMachinesClients[subscription]; ok {
-		return client, nil
-	}
-	logrus.Debug("Initializing Azure virtual machines")
-	opts := &arm.ClientOptions{}
-	armClient, err := armcompute.NewVirtualMachinesClient(subscription, cred, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	client := azure.NewVirtualMachinesClient(armClient)
-	c.azureVirtualMachinesClients[subscription] = client
 	return client, nil
 }
 

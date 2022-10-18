@@ -19,6 +19,8 @@ package azure
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/gravitational/trace"
@@ -35,8 +37,17 @@ type VirtualMachinesClient struct {
 	api ARMVirtualMachines
 }
 
-// NewVirtualMachinesClient returns a VirtualMachinesClient.
-func NewVirtualMachinesClient(api ARMVirtualMachines) *VirtualMachinesClient {
+// NewVirtualMachinesClient creates a new Azure virtual machines client by subscription and credentials.
+func NewVirtualMachinesClient(subscription string, cred azcore.TokenCredential, opts *arm.ClientOptions) (*VirtualMachinesClient, error) {
+	armClient, err := armcompute.NewVirtualMachinesClient(subscription, cred, opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewVirtualMachinesClientByAPI(armClient), nil
+}
+
+// NewVirtualMachinesClientByAPI creates anAzure virtual machines client with an existing ARM API client.
+func NewVirtualMachinesClientByAPI(api ARMVirtualMachines) *VirtualMachinesClient {
 	return &VirtualMachinesClient{api: api}
 }
 

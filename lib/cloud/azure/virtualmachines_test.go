@@ -58,7 +58,7 @@ func TestListVirtualMachines(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := NewVirtualMachinesClient(mockAPI)
+			client := NewVirtualMachinesClientByAPI(mockAPI)
 
 			vms, err := client.ListVirtualMachines(context.Background(), tc.resourceGroup)
 			require.NoError(t, err)

@@ -336,30 +336,28 @@ func (f *azureInstanceFetcher) GetAzureVMs(ctx context.Context) ([]AzureInstance
 	}
 
 	for _, vm := range vms {
-		if _, ok := instancesByRegion[*vm.Location]; !ok {
+		location := aws.StringValue(vm.Location)
+		if _, ok := instancesByRegion[location]; !ok {
 			continue
 		}
 		vmTags := make(map[string]string, len(vm.Tags))
 		for key, value := range vm.Tags {
-			if value == nil {
-				vmTags[key] = ""
-			} else {
-				vmTags[key] = *value
-			}
+			vmTags[key] = aws.StringValue(value)
 		}
 		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
 			continue
 		}
-		instancesByRegion[*vm.Location] = append(instancesByRegion[*vm.Location], vm)
+		instancesByRegion[location] = append(instancesByRegion[location], vm)
 	}
 
 	var instances []AzureInstances
 	for region, vms := range instancesByRegion {
 		if len(vms) > 0 {
 			instances = append(instances, AzureInstances{
-				Region:        region,
-				ResourceGroup: f.ResourceGroup,
-				Instances:     vms,
+				SubscriptionID: f.Subscription,
+				Region:         region,
+				ResourceGroup:  f.ResourceGroup,
+				Instances:      vms,
 			})
 		}
 	}
