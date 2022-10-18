@@ -20,10 +20,14 @@ package joinserver
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/peer"
 )
 
 type joinServiceClient interface {
@@ -52,12 +56,40 @@ func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceG
 // sts:GetCallerIdentity request with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
-	ctx := srv.Context()
+	// Enforce a 1 minute timeout on the entire RPC so that misbehaving clients
+	// cannot hold connections open indefinitely.
+	ctx, cancel := context.WithTimeout(srv.Context(), time.Minute)
+	defer cancel()
 
-	// call RegisterUsingIAMMethod with a callback to get the challenge response
-	// from the gRPC client
+	// The only way to cancel a blocked Send or Recv on the server side without
+	// adding an interceptor to the entire gRPC service is to return from the
+	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.registerUsingIAMMethod(ctx, srv)
+	}()
+	select {
+	case err := <-errCh:
+		// Completed before the deadline, return the error (may be nil).
+		return trace.Wrap(err)
+	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			nodeAddr := ""
+			if peerInfo, ok := peer.FromContext(ctx); ok {
+				nodeAddr = peerInfo.Addr.String()
+			}
+			logrus.Warnf("RegisterUsingIAMMethod timed out, node at (%s) may not have closed the connection after encountering an error. Terminating the stream on the server.", nodeAddr)
+		}
+		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv proto.JoinService_RegisterUsingIAMMethodServer) error {
+	// Call RegisterUsingIAMMethod with a callback to get the challenge response
+	// from the gRPC client.
 	certs, err := s.joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-		// first forward challenge from to the client
+		// First, forward the challenge from Auth to the client.
 		err := srv.Send(&proto.RegisterUsingIAMMethodResponse{
 			Challenge: challenge,
 		})
@@ -65,7 +97,7 @@ func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_Reg
 			return nil, trace.Wrap(err)
 		}
 
-		// then get the response from the client and return it
+		// Then get the response from the client and return it.
 		req, err := srv.Recv()
 		return req, trace.Wrap(err)
 	})
