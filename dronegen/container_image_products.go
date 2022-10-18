@@ -20,10 +20,6 @@ import (
 	"regexp"
 )
 
-const (
-	localRegistry string = "drone-docker-registry:5000"
-)
-
 // Describes a Gravitational "product", where a "product" is a piece of software
 // that we provide to our customers via container repositories.
 type Product struct {
@@ -93,7 +89,7 @@ func (p *Product) getBaseImage(arch string, version *ReleaseVersion) *Image {
 
 func (p *Product) GetLocalRegistryImage(arch string, version *ReleaseVersion) *Image {
 	image := p.getBaseImage(arch, version)
-	image.Repo = localRegistry
+	image.Repo = LocalRegistrySocket
 
 	return image
 }
@@ -218,7 +214,7 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			fmt.Sprintf("mkdir -pv %q", buildxConfigFileDir),
-			fmt.Sprintf("echo '[registry.%q]' > %q", localRegistry, buildxConfigFilePath),
+			fmt.Sprintf("echo '[registry.%q]' > %q", LocalRegistrySocket, buildxConfigFilePath),
 			fmt.Sprintf("echo '  http = true' >> %q", buildxConfigFilePath),
 			buildxCreateCommand,
 			buildCommand,
