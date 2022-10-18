@@ -720,7 +720,6 @@ func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinA
 
 func waitForTouch(dev FIDODevice) error {
 	// TODO(codingllama): What we really want here is fido_dev_get_touch_begin.
-	//  Another option is to put the authenticator into U2F mode.
 	const rpID = "7f364cc0-958c-4177-b3ea-b2d8d7f15d4a" // arbitrary, unlikely to collide with a real RP
 	const cdh = "00000000000000000000000000000000"      // "random", size 32
 	_, err := dev.Assertion(rpID, []byte(cdh), nil /* credentials */, "", &libfido2.AssertionOpts{
@@ -739,8 +738,11 @@ func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCal
 	}
 	devicesC := make(chan devicesResp, 1)
 
-	// Device search goroutine, runs until innerCtx is closed.
+	// Poll for new devices until the user selects one (via touch).
+	// Runs until innerCtx is closed.
 	go func() {
+		// knownPaths is retained between findDevices calls so only "new" devices
+		// are returned.
 		knownPaths := make(map[string]struct{})
 
 		ticker := time.NewTicker(FIDO2PollInterval)
