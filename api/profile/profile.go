@@ -95,6 +95,10 @@ type Profile struct {
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// MFAMode ("auto", "platform", "cross-platform").
+	// Equivalent to the --mfa-mode tsh flag.
+	MFAMode string `yaml:"mfa_mode,omitempty"`
 }
 
 // Name returns the name of the profile.
