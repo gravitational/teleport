@@ -1,5 +1,6 @@
 ARG BUILDBOX
-FROM $BUILDBOX as builder
+# BUILDPLATFORM is provided by Docker/buildx
+FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
 
 WORKDIR /go/src/github.com/gravitational/teleport
 
@@ -23,11 +24,19 @@ COPY operator/sidecar/ operator/sidecar/
 COPY operator/main.go operator/main.go
 COPY operator/namespace.go operator/namespace.go
 
-# Build
-RUN GOOS=linux GOARCH=amd64 go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/operator
+# Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
+#  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
+ARG COMPILER_NAME
+
+# Build the program
+# CGO is required for github.com/gravitational/teleport/lib/system
+# TARGETOS and TARGETARCH are provided by Docker/buildx
+RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
+    CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM
-# FROM gcr.io/distroless/cc
+# TARGETPLATFORM is provided by Docker/buildx
 FROM --platform=$TARGETPLATFORM gcr.io/distroless/cc
 WORKDIR /
 COPY --from=builder /go/bin/teleport-operator .
