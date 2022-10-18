@@ -1943,7 +1943,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2129,7 +2129,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2320,7 +2320,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2512,7 +2512,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2693,7 +2693,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2954,7 +2954,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3218,7 +3218,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3465,7 +3465,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3711,7 +3711,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3892,7 +3892,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -4153,7 +4153,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5024,7 +5024,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5207,7 +5207,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5388,7 +5388,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5635,7 +5635,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5882,7 +5882,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -6143,7 +6143,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -6406,7 +6406,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v10.3.2)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.1)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -8787,7 +8787,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v10.3.2)"
+  - git checkout -qf "$(echo v1.2.3-fred.1)"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8795,11 +8795,11 @@ steps:
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - mkdir -pv $(dirname "/go/var/canonical-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8815,7 +8815,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
-    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
     "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -8842,7 +8842,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
-    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm"
+    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
@@ -8869,7 +8869,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
-    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -8891,22 +8891,22 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-amd64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-amd64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-amd64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-amd64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-amd64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-amd64")
@@ -8927,21 +8927,21 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm"
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm")
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8961,22 +8961,22 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm64")
@@ -9160,7 +9160,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v10.3.2)"
+  - git checkout -qf "$(echo v1.2.3-fred.1)"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -9170,11 +9170,11 @@ steps:
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - mkdir -pv $(dirname "/go/var/canonical-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -9185,15 +9185,15 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-amd64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker logout "quay.io"
@@ -9209,15 +9209,15 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker logout "quay.io"
@@ -9233,15 +9233,15 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     && docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/canonical-version)-arm64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker logout "quay.io"
@@ -9327,15 +9327,15 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-amd64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
   - docker logout "public.ecr.aws"
@@ -9353,15 +9353,15 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
   - docker logout "public.ecr.aws"
@@ -9379,15 +9379,15 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64"
     && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/canonical-version)-arm64")
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker tag "278576220453.dkr.ecr.us-east-2.amazonaws.com/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
   - docker logout "public.ecr.aws"
@@ -11604,7 +11604,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v10.3.2)"
+  - git checkout -qf "$(echo v1.2.3-fred.1)"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -11612,11 +11612,11 @@ steps:
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - mkdir -pv $(dirname "/go/var/canonical-version")
-  - echo $(echo v10.3.2) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
+  - echo $(echo v1.2.3-fred.1) | sed 's/v//' | cut -d'.' -f "1,2,3" > "/go/var/canonical-version"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -11632,7 +11632,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
-    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
     "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -11659,7 +11659,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
-    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm"
+    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
@@ -11686,7 +11686,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
-    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -11708,22 +11708,22 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-amd64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-amd64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-amd64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-amd64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-amd64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-amd64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-amd64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-amd64")
@@ -11744,21 +11744,21 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm"
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm"
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm")
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11778,22 +11778,22 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/canonical-version)-arm64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/major-version)-arm64")
   - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm64" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v10.3.2)-arm64"
+    skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.1)-arm64"
     "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
     /go/var/minor-version)-arm64")
@@ -11905,6 +11905,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 59363424f45b54f04f30cd8c753fd0651127fed3562ad9b1e368a197d8e0b926
+hmac: 21a78c7cabe76e810a2034ae564c1c4edec671ad827daec04951d11e6c3514d2
 
 ...
