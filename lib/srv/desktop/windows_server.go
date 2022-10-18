@@ -838,7 +838,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
-	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	rdpc, err := rdpclient.New(rdpclient.Config{
@@ -944,7 +944,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 }
 
 func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message) {
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
@@ -973,7 +973,7 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 			// it to the remote desktop
 			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
 		case tdp.SharedDirectoryAnnounce:
-			s.onSharedDirectoryAnnounce(sessionID, m.(tdp.SharedDirectoryAnnounce))
+			s.onSharedDirectoryAnnounce(ctx, emitter, id, sessionID, desktopAddr, m.(tdp.SharedDirectoryAnnounce), tdpConn)
 		case tdp.SharedDirectoryReadResponse:
 			s.onSharedDirectoryReadResponse(ctx, emitter, id, sessionID, desktopAddr, msg)
 		case tdp.SharedDirectoryWriteResponse:

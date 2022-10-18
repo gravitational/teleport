@@ -150,8 +150,54 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.
 }
 
 // onSharedDirectoryAnnounce adds the shared directory's name to the auditCache.
-func (s *WindowsService) onSharedDirectoryAnnounce(sid string, m tdp.SharedDirectoryAnnounce) {
-	s.auditCache.SetName(sessionID(sid), directoryID(m.DirectoryID), directoryName(m.Name))
+func (s *WindowsService) onSharedDirectoryAnnounce(
+	ctx context.Context,
+	emitter events.Emitter,
+	id *tlsca.Identity,
+	sid string,
+	desktopAddr string,
+	m tdp.SharedDirectoryAnnounce,
+	tdpConn *tdp.Conn,
+) {
+	if err := s.auditCache.SetName(sessionID(sid), directoryID(m.DirectoryID), directoryName(m.Name)); err != nil {
+		// An error means the audit cache entry for this sid exceeded its maximum allowable size.
+		errMsg := err.Error()
+
+		// Close the connection as a security precaution.
+		if err := tdpConn.Close(); err != nil {
+			s.cfg.Log.Errorf("Failed to terminate sessionID(%v) on audit cache maximum size violation: %v", sid, err)
+			return
+		}
+
+		event := &events.DesktopSharedDirectoryStart{
+			Metadata: events.Metadata{
+				Type:        libevents.DesktopSharedDirectoryStartEvent,
+				Code:        libevents.DesktopSharedDirectoryStartFailureCode,
+				ClusterName: s.clusterName,
+				Time:        s.cfg.Clock.Now().UTC(),
+			},
+			UserMetadata: id.GetUserMetadata(),
+			SessionMetadata: events.SessionMetadata{
+				SessionID: sid,
+				WithMFA:   id.MFAVerified,
+			},
+			ConnectionMetadata: events.ConnectionMetadata{
+				LocalAddr:  id.ClientIP,
+				RemoteAddr: desktopAddr,
+				Protocol:   libevents.EventProtocolTDP,
+			},
+			Status: events.Status{
+				Success:     false,
+				Error:       errMsg,
+				UserMessage: "Teleport terminated the directory sharing session as a security precaution",
+			},
+			DesktopAddr:   desktopAddr,
+			DirectoryName: m.Name,
+			DirectoryID:   m.DirectoryID,
+		}
+
+		s.emit(ctx, emitter, event)
+	}
 }
 
 // onSharedDirectoryAcknowledge emits a DesktopSharedDirectoryStart on a successful receipt of a

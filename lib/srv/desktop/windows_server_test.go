@@ -267,7 +267,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPReceiveHandler(context.Background(), emitter, delay,
-		nil, "session-1", "windows.example.com")
+		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	msg := tdp.MouseButton{
 		Button: tdp.LeftMouseButton,
@@ -288,7 +288,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	s, id, emitter := setup()
 	handler := s.makeTDPReceiveHandler(context.Background(),
 		emitter, func() int64 { return 0 },
-		id, "session-0", "windows.example.com")
+		id, "session-0", "windows.example.com", &tdp.Conn{})
 
 	fakeClipboardData := make([]byte, 1024)
 	rand.Read(fakeClipboardData)
@@ -349,7 +349,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	var length uint32 = 1000
 	recvHandler := s.makeTDPReceiveHandler(context.Background(),
 		emitter, func() int64 { return 0 },
-		id, sid, desktopAddr)
+		id, sid, desktopAddr, &tdp.Conn{})
 	sendHandler := s.makeTDPSendHandler(context.Background(),
 		emitter, func() int64 { return 0 },
 		id, sid, desktopAddr)
@@ -371,6 +371,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 
 	// Confirm that audit cache entry for sid
 	// is in the expected state.
+	require.Equal(t, uint32(1), entry.totalItems)
 	name, ok := s.auditCache.GetName(sessionID(sid), directoryID(did))
 	require.True(t, ok)
 	require.Equal(t, directoryName(testDirName), name)
@@ -390,6 +391,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	encoded, err := readReq.Encode()
 	require.NoError(t, err)
 	sendHandler(readReq, encoded)
+	require.Equal(t, uint32(2), entry.totalItems)
 
 	// A SharedDirectoryWriteRequest should add a corresponding entry in the writeRequestCache.
 	writeReq := tdp.SharedDirectoryWriteRequest{
@@ -402,6 +404,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	encoded, err = writeReq.Encode()
 	require.NoError(t, err)
 	sendHandler(writeReq, encoded)
+	require.Equal(t, uint32(3), entry.totalItems)
 
 	// Check that the readRequestCache was properly filled out.
 	_, ok = entry.readRequestCache[completionID(cid)]
@@ -419,6 +422,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 		ReadData:       []byte{}, // irrelevant in this context
 	}
 	recvHandler(readRes)
+	require.Equal(t, uint32(2), entry.totalItems)
 
 	// SharedDirectoryWriteResponse should cause the entry in the writeRequestCache to be cleaned up.
 	writeRes := tdp.SharedDirectoryWriteResponse{
@@ -427,6 +431,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 		BytesWritten: length,
 	}
 	recvHandler(writeRes)
+	require.Equal(t, uint32(1), entry.totalItems)
 
 	// Check that the readRequestCache was properly cleaned up.
 	_, ok = entry.readRequestCache[completionID(cid)]

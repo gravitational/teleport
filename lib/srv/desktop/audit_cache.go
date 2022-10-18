@@ -16,7 +16,11 @@ limitations under the License.
 
 package desktop
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/gravitational/trace"
+)
 
 type sessionID string
 type directoryID uint32
@@ -31,30 +35,47 @@ type readRequestInfo struct {
 
 type writeRequestInfo readRequestInfo
 
+const (
+	// entryMaxItems is the maximum number of items we want
+	// to allow in a single sharedDirectoryAuditCacheEntry.
+	//
+	// It's not a precise value, just one that should give us
+	// substantial wiggle room under normal operating conditions,
+	// but will thwart a hostile client attempting a memory DOS attack.
+	// https://github.com/gravitational/teleport/pull/17410#discussion_r997691681
+	entryMaxItems = 2000
+)
+
 type sharedDirectoryAuditCacheEntry struct {
 	nameCache         map[directoryID]directoryName
 	readRequestCache  map[completionID]readRequestInfo
 	writeRequestCache map[completionID]writeRequestInfo
+	// totalItems tracks the total number of items held in
+	// the entry between the nameCache, readRequestCache, and
+	// writeRequestCache.
+	totalItems uint32
 }
 
-func (e *sharedDirectoryAuditCacheEntry) init() {
-	e.nameCache = make(map[directoryID]directoryName)
-	e.readRequestCache = make(map[completionID]readRequestInfo)
-	e.writeRequestCache = make(map[completionID]writeRequestInfo)
-
+func newSharedDirectoryAuditCacheEntry() *sharedDirectoryAuditCacheEntry {
+	return &sharedDirectoryAuditCacheEntry{
+		nameCache:         make(map[directoryID]directoryName),
+		readRequestCache:  make(map[completionID]readRequestInfo),
+		writeRequestCache: make(map[completionID]writeRequestInfo),
+		totalItems:        0,
+	}
 }
 
 // sharedDirectoryAuditCache is a data structure for caching information
 // from shared directory TDP messages so that it can be used later for
 // creating shared directory audit events.
 type sharedDirectoryAuditCache struct {
-	m map[sessionID]sharedDirectoryAuditCacheEntry
+	m map[sessionID]*sharedDirectoryAuditCacheEntry
 	sync.Mutex
 }
 
 func newSharedDirectoryAuditCache() sharedDirectoryAuditCache {
 	return sharedDirectoryAuditCache{
-		m: make(map[sessionID]sharedDirectoryAuditCacheEntry),
+		m: make(map[sessionID]*sharedDirectoryAuditCacheEntry),
 	}
 }
 
@@ -67,42 +88,66 @@ func newSharedDirectoryAuditCache() sharedDirectoryAuditCache {
 // It is the responsibility of the caller to ensure that it has obtained the Lock before calling
 // getInitialized, and that it calls Unlock once the entry returned by getInitialized is no longer going to
 // be modified or otherwise used.
-func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry sharedDirectoryAuditCacheEntry) {
+func (c *sharedDirectoryAuditCache) getInitialized(sid sessionID) (entry *sharedDirectoryAuditCacheEntry) {
 	entry, ok := c.m[sid]
 
 	if !ok {
-		entry.init()
+		entry = newSharedDirectoryAuditCacheEntry()
 		c.m[sid] = entry
 	}
 
 	return entry
 }
 
-func (c *sharedDirectoryAuditCache) SetName(sid sessionID, did directoryID, name directoryName) {
+// SetName returns a non-nil error if the audit cache entry for sid exceeds its maximum size.
+// It is the responsiblity of the caller to terminate the session if a non-nil error is returned.
+func (c *sharedDirectoryAuditCache) SetName(sid sessionID, did directoryID, name directoryName) error {
 	c.Lock()
 	defer c.Unlock()
 
 	entry := c.getInitialized(sid)
+	if entry.totalItems >= entryMaxItems {
+		return trace.LimitExceeded("audit cache for sessionID(%v) exceeded maximum size", sid)
+	}
 
 	entry.nameCache[did] = name
+	entry.totalItems++
+
+	return nil
 }
 
-func (c *sharedDirectoryAuditCache) SetReadRequestInfo(sid sessionID, cid completionID, info readRequestInfo) {
+// SetReadRequestInfo returns a non-nil error if the audit cache entry for sid exceeds its maximum size.
+// It is the responsiblity of the caller to terminate the session if a non-nil error is returned.
+func (c *sharedDirectoryAuditCache) SetReadRequestInfo(sid sessionID, cid completionID, info readRequestInfo) error {
 	c.Lock()
 	defer c.Unlock()
 
 	entry := c.getInitialized(sid)
+	if entry.totalItems >= entryMaxItems {
+		return trace.LimitExceeded("audit cache for sessionID(%v) exceeded maximum size", sid)
+	}
 
 	entry.readRequestCache[cid] = info
+	entry.totalItems++
+
+	return nil
 }
 
-func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(sid sessionID, cid completionID, info writeRequestInfo) {
+// SetWriteRequestInfo returns a non-nil error if the audit cache entry for sid exceeds its maximum size.
+// It is the responsiblity of the caller to terminate the session if a non-nil error is returned.
+func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(sid sessionID, cid completionID, info writeRequestInfo) error {
 	c.Lock()
 	defer c.Unlock()
 
 	entry := c.getInitialized(sid)
+	if entry.totalItems >= entryMaxItems {
+		return trace.LimitExceeded("audit cache for sessionID(%v) exceeded maximum size", sid)
+	}
 
 	entry.writeRequestCache[cid] = info
+	entry.totalItems++
+
+	return nil
 }
 
 func (c *sharedDirectoryAuditCache) GetName(sid sessionID, did directoryID) (name directoryName, ok bool) {
@@ -130,7 +175,10 @@ func (c *sharedDirectoryAuditCache) TakeReadRequestInfo(sid sessionID, cid compl
 	}
 
 	info, ok = entry.readRequestCache[cid]
-	delete(entry.readRequestCache, cid)
+	if ok {
+		delete(entry.readRequestCache, cid)
+		entry.totalItems--
+	}
 	return
 }
 
@@ -146,7 +194,10 @@ func (c *sharedDirectoryAuditCache) TakeWriteRequestInfo(sid sessionID, cid comp
 	}
 
 	info, ok = entry.writeRequestCache[cid]
-	delete(entry.writeRequestCache, cid)
+	if ok {
+		delete(entry.writeRequestCache, cid)
+		entry.totalItems--
+	}
 	return
 }
 

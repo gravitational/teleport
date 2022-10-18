@@ -17,7 +17,9 @@ limitations under the License.
 package desktop
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -270,7 +272,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			s, id, emitter := setup()
 			recvHandler := s.makeTDPReceiveHandler(context.Background(),
 				emitter, func() int64 { return 0 },
-				id, sid, desktopAddr)
+				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
 				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr)
@@ -430,7 +432,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			s, id, emitter := setup()
 			recvHandler := s.makeTDPReceiveHandler(context.Background(),
 				emitter, func() int64 { return 0 },
-				id, sid, desktopAddr)
+				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
 				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr)
@@ -604,7 +606,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			s, id, emitter := setup()
 			recvHandler := s.makeTDPReceiveHandler(context.Background(),
 				emitter, func() int64 { return 0 },
-				id, sid, desktopAddr)
+				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
 				emitter, func() int64 { return 0 },
 				id, sid, desktopAddr)
@@ -674,4 +676,79 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.expected(baseEvent), writeEvent))
 		})
 	}
+}
+
+func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
+	sid := "session-0"
+	desktopAddr := "windows.example.com"
+	testDirName := "test-dir"
+	var did uint32 = 2
+
+	s, id, emitter := setup()
+	testConn := &testConn{}
+	tdpConn := tdp.NewConn(testConn)
+	recvHandler := s.makeTDPReceiveHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sid, desktopAddr, tdpConn)
+
+	// Set the audit cache entry to the maximum allowable size
+	entry := newSharedDirectoryAuditCacheEntry()
+	entry.totalItems = entryMaxItems
+	s.auditCache.m[sessionID(sid)] = entry
+
+	// Send a SharedDirectoryAnnounce
+	sda := tdp.SharedDirectoryAnnounce{
+		DirectoryID: did,
+		Name:        testDirName,
+	}
+	recvHandler(sda)
+
+	// Expect the audit cache to emit a failed DesktopSharedDirectoryStart
+	// with a status detailing the security problem.
+	event := emitter.LastEvent()
+	require.NotNil(t, event)
+	startEvent, ok := event.(*events.DesktopSharedDirectoryStart)
+	require.True(t, ok)
+
+	expected := &events.DesktopSharedDirectoryStart{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopSharedDirectoryStartEvent,
+			Code:        libevents.DesktopSharedDirectoryStartFailureCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sid,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		Status: events.Status{
+			Success:     false,
+			Error:       fmt.Sprintf("audit cache for sessionID(%v) exceeded maximum size", sid),
+			UserMessage: "Teleport terminated the directory sharing session as a security precaution",
+		},
+		DesktopAddr:   desktopAddr,
+		DirectoryName: testDirName,
+		DirectoryID:   did,
+	}
+
+	require.Empty(t, cmp.Diff(expected, startEvent))
+
+	// Check that Close was called on the TDP connection
+	require.True(t, testConn.closeCalled)
+}
+
+type testConn struct {
+	*bytes.Buffer
+	closeCalled bool
+}
+
+func (t *testConn) Close() error {
+	t.closeCalled = true
+	return nil
 }
