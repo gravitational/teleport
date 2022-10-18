@@ -5,7 +5,9 @@ does not generate a config for clusterrole.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -41,7 +43,9 @@ does not generate a config for pdb.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -77,7 +81,9 @@ matches snapshot and tests for annotations.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -116,7 +122,9 @@ matches snapshot and tests for extra-labels.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -155,7 +163,9 @@ matches snapshot for affinity.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -191,7 +201,9 @@ matches snapshot for all-v6.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -243,7 +255,9 @@ matches snapshot for aws-databases.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -291,7 +305,9 @@ matches snapshot for backwards-compatibility.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -327,7 +343,9 @@ matches snapshot for ca-pin.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           ca_pin:
             - sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
@@ -365,7 +383,9 @@ matches snapshot for db.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -406,7 +426,9 @@ matches snapshot for dynamic-app.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -444,7 +466,9 @@ matches snapshot for dynamic-db.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -482,7 +506,9 @@ matches snapshot for imagepullsecrets.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -518,7 +544,9 @@ matches snapshot for initcontainers.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -547,6 +575,82 @@ matches snapshot for initcontainers.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for join-params-iam.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        version: v3
+        teleport:
+          join_params:
+            method: "iam"
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-kube-cluster-name
+
+        app_service:
+          enabled: false
+
+        db_service:
+          enabled: false
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for join-params-token.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        version: v3
+        teleport:
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
+          proxy_server: proxy.example.com:3080
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-kube-cluster-name
+
+        app_service:
+          enabled: false
+
+        db_service:
+          enabled: false
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-basic.yaml:
   1: |
     apiVersion: v1
@@ -554,7 +658,9 @@ matches snapshot for log-basic.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -590,7 +696,9 @@ matches snapshot for log-extra.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: DEBUG
@@ -626,7 +734,9 @@ matches snapshot for log-legacy.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: DEBUG
@@ -662,7 +772,9 @@ matches snapshot for node-selector.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -698,7 +810,9 @@ matches snapshot for pdb.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: DEBUG
@@ -734,7 +848,9 @@ matches snapshot for resources.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -770,7 +886,9 @@ matches snapshot for stateful.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -806,7 +924,9 @@ matches snapshot for tolerations.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
@@ -842,7 +962,9 @@ matches snapshot for volumes.yaml:
       teleport.yaml: |
         version: v3
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           proxy_server: proxy.example.com:3080
           log:
             severity: INFO
