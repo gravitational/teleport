@@ -44,21 +44,34 @@ as well as an upgrade of the previous version of Teleport.
     With every user combination, try to login and signup with invalid second
     factor, invalid password to see how the system reacts.
 
-    WebAuthn in the release `tsh` binary is implemented using libfido2. Ask for
-    a statically built pre-release binary for realistic tests. (`tsh fido2 diag`
-    should work in our binary.)
+    WebAuthn in the release `tsh` binary is implemented using libfido2 for
+    linux/macOS. Ask for a statically built pre-release binary for realistic
+    tests. (`tsh fido2 diag` should work in our binary.) Webauthn in Windows
+    build is implemented using `webauthn.dll`. (`tsh webauthn diag` with
+    security key selected in dialog should work.)
 
     Touch ID requires a signed `tsh`, ask for a signed pre-release binary so you
     may run the tests.
 
+    Windows Webauthn requires Windows 10 19H1 and device capable of Windows
+    Hello.
+
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users WebAuthn
-  - [ ] Adding Users Touch ID
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] Adding Users via platform authenticator
+    - [ ] Touch ID
+    - [ ] Windows Hello
   - [ ] Managing MFA devices
     - [ ] Add an OTP device with `tsh mfa add`
     - [ ] Add a WebAuthn device with `tsh mfa add`
-    - [ ] Add a Touch ID device with `tsh mfa add`
+      - [ ] macOS/Linux
+      - [ ] Windows
+    - [ ] Add platform authenticator device with `tsh mfa add`
+      - [ ] Touch ID
+      - [ ] Windows Hello
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
@@ -67,10 +80,14 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
   - [ ] Login with MFA
-    - [ ] Add an OTP, a WebAuthn and a Touch ID device with `tsh mfa add`
+    - [ ] Add an OTP, a WebAuthn and a Touch ID/Windows Hello device with `tsh mfa add`
     - [ ] Login via OTP
     - [ ] Login via WebAuthn
-    - [ ] Login via Touch ID
+      - [ ] macOS/Linux
+      - [ ] Windows
+    - [ ] Login via platform authenticator
+      - [ ] Touch ID
+      - [ ] Windows Hello
     - [ ] Login via WebAuthn using an U2F device
 
     U2F devices must be registered in a previous version of Teleport.
@@ -373,27 +390,44 @@ instance has label `azure/foo=bar`.
 
 This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-v10.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
-This sections complements "Users -> Managing MFA devices". Ideally both macOS
-and Linux `tsh` binaries are tested for FIDO2 items.
+This sections complements "Users -> Managing MFA devices". `tsh` binaries for
+each operating system (Linux, macOS and Windows) must be tested separately for
+FIDO2 items.
 
 - [ ] Diagnostics
 
-    Both commands should pass all tests.
+    Commands should pass all tests.
 
-  - [ ] `tsh fido2 diag`
-  - [ ] `tsh touchid diag`
+  - [ ] `tsh fido2 diag` (macOS/Linux)
+  - [ ] `tsh touchid diag` (macOS only)
+  - [ ] `tsh webauthnwin diag` (Windows only)
 
 - [ ] Registration
   - [ ] Register a passworldess FIDO2 key (`tsh mfa add`, choose WEBAUTHN and
         passwordless)
-  - [ ] Register a Touch ID credential (`tsh mfa add`, choose TOUCHID)
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] Register a platform authenticator
+    - [ ] Touch ID credential (`tsh mfa add`, choose TOUCHID)
+    - [ ] Windows hello credential (`tsh mfa add`, choose WEBAUTHN and
+          passwordless)
 
 - [ ] Login
   - [ ] Passwordless login using FIDO2 (`tsh login --auth=passwordless`)
-  - [ ] Passwordless login using Touch ID (`tsh login --auth=passwordless`)
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] Passwordless login using platform authenticator (`tsh login --auth=passwordless`)
+    - [ ] Touch ID
+    - [ ] Windows Hello
   - [ ] `tsh login --auth=passwordless --mfa-mode=cross-platform` uses FIDO2
-  - [ ] `tsh login --auth=passwordless --mfa-mode=platform` uses Touch ID
-  - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers Touch ID
+    - [ ] macOS/Linux
+    - [ ] Windows
+  - [ ] `tsh login --auth=passwordless --mfa-mode=platform` uses platform authenticator
+    - [ ] Touch ID
+    - [ ] Windows Hello
+  - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers platform authenticator
+    - [ ] Touch ID
+    - [ ] Windows Hello
   - [ ] Passwordless disable switch works
         (`auth_service.authentication.passwordless = false`)
   - [ ] Cluster in passwordless mode defaults to passwordless
@@ -710,7 +744,7 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 ## Terminal
 - [ ] Verify that top nav has a user menu (Main and Logout)
-- [ ] Verify that switching between tabs works on alt+[1...9]
+- [ ] Verify that switching between tabs works with `ctrl+[1...9]` (alt on linux/windows)
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
