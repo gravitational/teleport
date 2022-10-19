@@ -200,6 +200,7 @@ func (p *TerminalParams) Winsize() *term.Winsize {
 }
 
 // UpdateRequest is a session update request
+// DELETE IN 12.0.0
 type UpdateRequest struct {
 	ID             ID              `json:"id"`
 	Namespace      string          `json:"namespace"`
@@ -233,6 +234,7 @@ const MaxSessionSliceLength = 1000
 
 // Service is a realtime SSH session service that has information about
 // sessions that are in-flight in the cluster at the moment.
+// DELETE IN 12.0.0
 type Service interface {
 	// GetSessions returns a list of currently active sessions matching
 	// the given condition.
@@ -253,6 +255,7 @@ type Service interface {
 	DeleteSession(ctx context.Context, namespace string, id ID) error
 }
 
+// DELETE IN 12.0.0
 type server struct {
 	bk               backend.Backend
 	activeSessionTTL time.Duration
@@ -451,12 +454,14 @@ func (s *server) DeleteSession(ctx context.Context, namespace string, id ID) err
 }
 
 // discardSessionServer discards all information about sessions given to it.
+// DELETE IN 12.0.0
 type discardSessionServer struct {
 }
 
 // NewDiscardSessionServer returns a new discarding session server. It's used
 // with the recording proxy so that nodes don't register active sessions to
 // the backend.
+// DELETE IN 12.0.0
 func NewDiscardSessionServer() Service {
 	return &discardSessionServer{}
 }

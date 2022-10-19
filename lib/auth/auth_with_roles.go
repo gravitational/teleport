@@ -189,6 +189,7 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 // actionForKindSSHSession is a special checker that grants access to active SSH
 // sessions.  It can allow access to a specific session based on the `where`
 // section of the user's access rule for kind `ssh_session`.
+// DELETE IN 12.0.0
 func (a *ServerWithRoles) actionForKindSSHSession(ctx context.Context, namespace, verb string, sid session.ID) error {
 	extendContext := func(serviceContext *services.Context) error {
 		session, err := a.sessions.GetSession(ctx, namespace, sid)
@@ -505,6 +506,7 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 	return a.authServer.AuthenticateSSHUser(ctx, req)
 }
 
+// DELETE IN 12.0.0
 func (a *ServerWithRoles) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
 	cond, err := a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
 	if err != nil {
@@ -532,6 +534,7 @@ func (a *ServerWithRoles) GetSessions(ctx context.Context, namespace string) ([]
 	return filteredSessions, nil
 }
 
+// DELETE IN 12.0.0
 func (a *ServerWithRoles) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
 	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbRead, id); err != nil {
 		return nil, trace.Wrap(err)
@@ -539,6 +542,7 @@ func (a *ServerWithRoles) GetSession(ctx context.Context, namespace string, id s
 	return a.sessions.GetSession(ctx, namespace, id)
 }
 
+// DELETE IN 12.0.0
 func (a *ServerWithRoles) CreateSession(ctx context.Context, s session.Session) error {
 	if err := a.action(s.Namespace, types.KindSSHSession, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -546,6 +550,7 @@ func (a *ServerWithRoles) CreateSession(ctx context.Context, s session.Session) 
 	return a.sessions.CreateSession(ctx, s)
 }
 
+// DELETE IN 12.0.0
 func (a *ServerWithRoles) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
 	if err := a.actionForKindSSHSession(ctx, req.Namespace, types.VerbUpdate, req.ID); err != nil {
 		return trace.Wrap(err)
@@ -554,6 +559,7 @@ func (a *ServerWithRoles) UpdateSession(ctx context.Context, req session.UpdateR
 }
 
 // DeleteSession removes an active session from the backend.
+// DELETE IN 12.0.0
 func (a *ServerWithRoles) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
 	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbDelete, id); err != nil {
 		return trace.Wrap(err)

@@ -293,6 +293,7 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 
 // GetSessions returns a list of active sessions in the cluster as reported by
 // the auth server.
+// DELETE IN 12.0.0
 func (c *Client) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
@@ -309,6 +310,7 @@ func (c *Client) GetSessions(ctx context.Context, namespace string) ([]session.S
 }
 
 // GetSession returns a session by ID
+// DELETE IN 12.0.0
 func (c *Client) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
@@ -329,6 +331,7 @@ func (c *Client) GetSession(ctx context.Context, namespace string, id session.ID
 }
 
 // DeleteSession removes an active session from the backend.
+// DELETE IN 12.0.0
 func (c *Client) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
 	if namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
@@ -338,6 +341,7 @@ func (c *Client) DeleteSession(ctx context.Context, namespace string, id session
 }
 
 // CreateSession creates new session
+// DELETE IN 12.0.0
 func (c *Client) CreateSession(ctx context.Context, sess session.Session) error {
 	if sess.Namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
@@ -347,6 +351,7 @@ func (c *Client) CreateSession(ctx context.Context, sess session.Session) error 
 }
 
 // UpdateSession updates existing session
+// DELETE IN 12.0.0
 func (c *Client) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
