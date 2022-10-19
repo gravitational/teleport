@@ -266,7 +266,7 @@ func TestProxySSH(t *testing.T) {
 // TestProxySSHJumpHost verifies "tsh proxy ssh -J" functionality.
 func TestProxySSHJumpHost(t *testing.T) {
 	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	createAgent(t)
 
