@@ -203,9 +203,16 @@ func (rv *ReleaseVersion) buildSplitSemverSteps(onlyBuildFullSemver bool) step {
 }
 
 func (rv *ReleaseVersion) getProducts(clonedRepoPath string) []*Product {
+	teleportProducts := []*Product{
+		NewTeleportProduct(false, false, rv), // OSS
+		NewTeleportProduct(true, false, rv),  // Enterprise
+		NewTeleportProduct(true, true, rv),   // Enterprise/FIPS
+	}
+
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
-	products := make([]*Product, 0, 1)
+	products := make([]*Product, 0, len(teleportProducts)+1)
+	products = append(products, teleportProducts...)
 	products = append(products, teleportOperatorProduct)
 
 	return products
