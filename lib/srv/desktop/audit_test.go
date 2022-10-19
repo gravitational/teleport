@@ -275,7 +275,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
 				emitter, func() int64 { return 0 },
-				id, sid, desktopAddr)
+				id, sid, desktopAddr, &tdp.Conn{})
 
 			if test.sendsSda {
 				// SharedDirectoryAnnounce initializes the nameCache.
@@ -435,7 +435,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
 				emitter, func() int64 { return 0 },
-				id, sid, desktopAddr)
+				id, sid, desktopAddr, &tdp.Conn{})
 			if test.sendsSda {
 				// SharedDirectoryAnnounce initializes the nameCache.
 				sda := tdp.SharedDirectoryAnnounce{
@@ -609,7 +609,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 				id, sid, desktopAddr, &tdp.Conn{})
 			sendHandler := s.makeTDPSendHandler(context.Background(),
 				emitter, func() int64 { return 0 },
-				id, sid, desktopAddr)
+				id, sid, desktopAddr, &tdp.Conn{})
 			if test.sendsSda {
 				// SharedDirectoryAnnounce initializes the nameCache.
 				sda := tdp.SharedDirectoryAnnounce{
@@ -678,6 +678,10 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 	}
 }
 
+// TestDesktopSharedDirectoryStartEventAuditCacheMax tests that a
+// failed DesktopSharedDirectoryStart is emitted and the tdpConn is
+// closed when we receive a SharedDirectoryAnnounce whose corresponding
+// sharedDirectoryAuditCacheEntry is full.
 func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 	sid := "session-0"
 	desktopAddr := "windows.example.com"
@@ -738,6 +742,97 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 	}
 
 	require.Empty(t, cmp.Diff(expected, startEvent))
+
+	// Check that Close was called on the TDP connection
+	require.True(t, testConn.closeCalled)
+}
+
+// TestDesktopSharedDirectoryReadEventAuditCacheMax tests that a
+// failed DesktopSharedDirectoryRead is emitted and the tdpConn is
+// closed when we receive a SharedDirectoryReadRequest whose corresponding
+// sharedDirectoryAuditCacheEntry is full.
+func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
+	sid := "session-0"
+	desktopAddr := "windows.example.com"
+	testDirName := "test-dir"
+	path := "test/path/test-file.txt"
+	var did uint32 = 2
+	var cid uint32 = 999
+	var offset uint64 = 500
+	var length uint32 = 1000
+
+	s, id, emitter := setup()
+	testConn := &testConn{}
+	tdpConn := tdp.NewConn(testConn)
+	recvHandler := s.makeTDPReceiveHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sid, desktopAddr, tdpConn)
+	sendHandler := s.makeTDPSendHandler(context.Background(),
+		emitter, func() int64 { return 0 },
+		id, sid, desktopAddr, tdpConn)
+
+	// Send a SharedDirectoryAnnounce
+	sda := tdp.SharedDirectoryAnnounce{
+		DirectoryID: did,
+		Name:        testDirName,
+	}
+	recvHandler(sda)
+
+	// Set the audit cache entry to the maximum allowable size
+	entry, ok := s.auditCache.m[sessionID(sid)]
+	require.True(t, ok)
+	entry.totalItems = entryMaxItems
+
+	// SharedDirectoryReadRequest should cause a failed audit event.
+	req := tdp.SharedDirectoryReadRequest{
+		CompletionID: cid,
+		DirectoryID:  did,
+		Path:         path,
+		Offset:       offset,
+		Length:       length,
+	}
+	encoded, err := req.Encode()
+	require.NoError(t, err)
+	sendHandler(req, encoded)
+
+	// Expect the audit cache to emit a failed DesktopSharedDirectoryRead
+	// with a status detailing the security problem.
+	event := emitter.LastEvent()
+	require.NotNil(t, event)
+	readEvent, ok := event.(*events.DesktopSharedDirectoryRead)
+	require.True(t, ok)
+
+	expected := &events.DesktopSharedDirectoryRead{
+		Metadata: events.Metadata{
+			Type:        libevents.DesktopSharedDirectoryReadEvent,
+			Code:        libevents.DesktopSharedDirectoryReadFailureCode,
+			ClusterName: s.clusterName,
+			Time:        s.cfg.Clock.Now().UTC(),
+		},
+		UserMetadata: id.GetUserMetadata(),
+		SessionMetadata: events.SessionMetadata{
+			SessionID: sid,
+			WithMFA:   id.MFAVerified,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  id.ClientIP,
+			RemoteAddr: desktopAddr,
+			Protocol:   libevents.EventProtocolTDP,
+		},
+		Status: events.Status{
+			Success:     false,
+			Error:       fmt.Sprintf("audit cache for sessionID(%v) exceeded maximum size", sid),
+			UserMessage: "Teleport terminated the directory sharing session as a security precaution",
+		},
+		DesktopAddr:   desktopAddr,
+		DirectoryName: testDirName,
+		DirectoryID:   did,
+		Path:          path,
+		Length:        length,
+		Offset:        offset,
+	}
+
+	require.Empty(t, cmp.Diff(expected, readEvent))
 
 	// Check that Close was called on the TDP connection
 	require.True(t, testConn.closeCalled)

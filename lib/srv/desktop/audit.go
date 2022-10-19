@@ -249,12 +249,70 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(
 }
 
 // onSharedDirectoryReadRequest adds ReadRequestInfo to the auditCache.
-func (s *WindowsService) onSharedDirectoryReadRequest(sid string, m tdp.SharedDirectoryReadRequest) {
-	s.auditCache.SetReadRequestInfo(sessionID(sid), completionID(m.CompletionID), readRequestInfo{
-		directoryID: directoryID(m.DirectoryID),
-		path:        m.Path,
-		offset:      m.Offset,
-	})
+func (s *WindowsService) onSharedDirectoryReadRequest(ctx context.Context,
+	emitter events.Emitter,
+	id *tlsca.Identity,
+	sid string,
+	desktopAddr string,
+	m tdp.SharedDirectoryReadRequest,
+	tdpConn *tdp.Conn,
+) {
+	did := directoryID(m.DirectoryID)
+	path := m.Path
+	offset := m.Offset
+
+	if err := s.auditCache.SetReadRequestInfo(sessionID(sid), completionID(m.CompletionID), readRequestInfo{
+		directoryID: did,
+		path:        path,
+		offset:      offset,
+	}); err != nil {
+		// An error means the audit cache entry for this sid exceeded its maximum allowable size.
+		errMsg := err.Error()
+
+		// Close the connection as a security precaution.
+		if err := tdpConn.Close(); err != nil {
+			s.cfg.Log.Errorf("Failed to terminate sessionID(%v) on audit cache maximum size violation: %v", sid, err)
+			return
+		}
+
+		name, ok := s.auditCache.GetName(sessionID(sid), did)
+		if !ok {
+			name = "unknown"
+			s.cfg.Log.Warnf("failed to find a directory name corresponding to sessionID(%v), directoryID(%v)", sid, did)
+		}
+
+		event := &events.DesktopSharedDirectoryRead{
+			Metadata: events.Metadata{
+				Type:        libevents.DesktopSharedDirectoryReadEvent,
+				Code:        libevents.DesktopSharedDirectoryReadFailureCode,
+				ClusterName: s.clusterName,
+				Time:        s.cfg.Clock.Now().UTC(),
+			},
+			UserMetadata: id.GetUserMetadata(),
+			SessionMetadata: events.SessionMetadata{
+				SessionID: sid,
+				WithMFA:   id.MFAVerified,
+			},
+			ConnectionMetadata: events.ConnectionMetadata{
+				LocalAddr:  id.ClientIP,
+				RemoteAddr: desktopAddr,
+				Protocol:   libevents.EventProtocolTDP,
+			},
+			Status: events.Status{
+				Success:     false,
+				Error:       errMsg,
+				UserMessage: "Teleport terminated the directory sharing session as a security precaution",
+			},
+			DesktopAddr:   desktopAddr,
+			DirectoryName: string(name),
+			DirectoryID:   uint32(did),
+			Path:          path,
+			Length:        m.Length,
+			Offset:        offset,
+		}
+
+		s.emit(ctx, emitter, event)
+	}
 }
 
 // onSharedDirectoryReadResponse emits a DesktopSharedDirectoryRead audit event.

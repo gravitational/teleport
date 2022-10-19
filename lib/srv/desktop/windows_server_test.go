@@ -215,7 +215,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
-		nil, "session-1", "windows.example.com")
+		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	// the handler accepts both the message structure and its encoded form,
 	// but our logic only depends on the encoded form, so pass a nil message
@@ -246,7 +246,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitter, delay,
-		nil, "session-1", "windows.example.com")
+		nil, "session-1", "windows.example.com", &tdp.Conn{})
 
 	// the handler accepts both the message structure and its encoded form,
 	// but our logic only depends on the encoded form, so pass a nil message
@@ -312,7 +312,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	s, id, emitter := setup()
 	handler := s.makeTDPSendHandler(context.Background(),
 		emitter, func() int64 { return 0 },
-		id, "session-0", "windows.example.com")
+		id, "session-0", "windows.example.com", &tdp.Conn{})
 
 	fakeClipboardData := make([]byte, 512)
 	rand.Read(fakeClipboardData)
@@ -352,7 +352,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 		id, sid, desktopAddr, &tdp.Conn{})
 	sendHandler := s.makeTDPSendHandler(context.Background(),
 		emitter, func() int64 { return 0 },
-		id, sid, desktopAddr)
+		id, sid, desktopAddr, &tdp.Conn{})
 
 	// SharedDirectoryAnnounce initializes the nameCache.
 	msg := tdp.SharedDirectoryAnnounce{

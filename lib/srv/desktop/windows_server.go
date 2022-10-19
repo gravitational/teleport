@@ -837,7 +837,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}()
 
 	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
@@ -898,7 +898,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 }
 
 func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError):
@@ -933,7 +933,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 			}
 		case byte(tdp.TypeSharedDirectoryReadRequest):
 			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
-				s.onSharedDirectoryReadRequest(sessionID, message)
+				s.onSharedDirectoryReadRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
 			}
 		case byte(tdp.TypeSharedDirectoryWriteRequest):
 			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
