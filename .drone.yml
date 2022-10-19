@@ -294,7 +294,7 @@ steps:
   - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
     else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
@@ -830,7 +830,7 @@ steps:
 - name: Check if commit is tagged
   image: alpine
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -1943,7 +1943,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2129,7 +2129,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2320,7 +2320,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2512,7 +2512,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2693,7 +2693,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2735,7 +2735,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
@@ -2954,7 +2954,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2996,7 +2996,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
     /go/artifacts/
@@ -3218,7 +3218,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3260,7 +3260,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
     /go/artifacts/
@@ -3465,7 +3465,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3507,7 +3507,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
     /go/artifacts/
@@ -3711,7 +3711,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3892,7 +3892,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3934,7 +3934,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
@@ -4153,7 +4153,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -4195,7 +4195,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
@@ -5024,7 +5024,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5207,7 +5207,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5388,7 +5388,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5430,7 +5430,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
@@ -5635,7 +5635,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5677,7 +5677,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
@@ -5882,7 +5882,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5924,7 +5924,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
@@ -6143,7 +6143,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -6185,7 +6185,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
@@ -6406,7 +6406,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -7287,7 +7287,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check if tag is prerelease
   image: golang:1.18-alpine
@@ -7298,10 +7298,10 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
+  - git checkout -qf "$(echo v1.2.3-fred.4)"
   - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  - go run ./cmd/check -tag $(echo v1.2.3-fred.4) -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for $(echo v1.2.3-fred.4)' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -7310,7 +7310,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
+  - git checkout -qf "$(echo v1.2.3-fred.4)"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7339,7 +7339,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
+- name: Download artifacts for "$(echo v1.2.3-fred.4)"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
@@ -7385,7 +7385,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
-- name: Publish debs to APT repos for "${DRONE_TAG}"
+- name: Publish debs to APT repos for "$(echo v1.2.3-fred.4)"
   image: golang:1.18-bullseye
   commands:
   - apt update
@@ -7394,7 +7394,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
+  - export VERSION="$(echo v1.2.3-fred.4)"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -7418,7 +7418,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Download artifacts for "$(echo v1.2.3-fred.4)"
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -7488,7 +7488,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check if tag is prerelease
   image: golang:1.18-alpine
@@ -7499,10 +7499,10 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
+  - git checkout -qf "$(echo v1.2.3-fred.4)"
   - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  - go run ./cmd/check -tag $(echo v1.2.3-fred.4) -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for $(echo v1.2.3-fred.4)' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -7511,7 +7511,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
+  - git checkout -qf "$(echo v1.2.3-fred.4)"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7540,7 +7540,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
+- name: Download artifacts for "$(echo v1.2.3-fred.4)"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
@@ -7586,7 +7586,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
-- name: Publish rpms to YUM repos for "${DRONE_TAG}"
+- name: Publish rpms to YUM repos for "$(echo v1.2.3-fred.4)"
   image: golang:1.18-bullseye
   commands:
   - apt update
@@ -7596,7 +7596,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
+  - export VERSION="$(echo v1.2.3-fred.4)"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -7620,7 +7620,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Download artifacts for "$(echo v1.2.3-fred.4)"
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -7664,7 +7664,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -7770,7 +7770,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -8409,7 +8409,7 @@ steps:
 - name: Check if commit is tagged
   image: alpine
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -8789,7 +8789,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$DRONE_TAG"
+  - git checkout -qf "$(echo v1.2.3-fred.4)"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8797,7 +8797,7 @@ steps:
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
+  - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Wait for docker
@@ -9029,7 +9029,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check if tag is prerelease
   image: golang:1.18-alpine
@@ -9040,10 +9040,10 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
+  - git checkout -qf "$(echo v1.2.3-fred.4)"
   - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  - go run ./cmd/check -tag $(echo v1.2.3-fred.4) -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for $(echo v1.2.3-fred.4)' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -9072,7 +9072,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$DRONE_TAG"
+  - git checkout -qf "$(echo v1.2.3-fred.4)"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -9082,13 +9082,13 @@ steps:
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
+  - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
@@ -11567,7 +11567,7 @@ volumes:
 
 kind: pipeline
 type: kubernetes
-name: teleport-container-images-branch-Test trigger on push
+name: teleport-container-images-current-version-Test trigger on push
 environment:
   DEBIAN_FRONTEND: noninteractive
 trigger:
@@ -11585,24 +11585,20 @@ workspace:
 clone:
   disable: true
 steps:
-- name: Verify build is tagged
-  image: alpine:latest
+- name: Find the latest available semver for v11
+  image: golang:1.18
   commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
+  - mkdir -pv "/tmp/teleport"
+  - cd "/tmp/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  - git checkout -qf "branch/v11"
+  - mkdir -pv "/go/vars/full-version"
+  - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
+  - go run . "v11" > "/go/vars/full-version/v11"
+  - echo Found full semver "$(cat "/go/vars/full-version/v11")" for major version
+    "v11"
 - name: Wait for docker
   image: docker
   commands:
@@ -11611,8 +11607,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
+  - Find the latest available semver for v11
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -11620,8 +11615,7 @@ steps:
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
     != "200" ]; do sleep 1; done'
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
+  - Find the latest available semver for v11
   - Wait for docker
 - name: Check out code
   image: alpine/git:latest
@@ -11631,43 +11625,139 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$DRONE_TAG"
+  - git checkout -qf "$(cat '/go/vars/full-version/v11')"
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
+  - Find the latest available semver for v11
   - Wait for docker
   - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
+  - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
+  - Find the latest available semver for v11
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Pull teleport-operator:v11-amd64 and push it to Local Registry
+- name: Build teleport-operator image "teleport-operator:v11-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v11-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
+    "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
+    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
+    "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v11-amd64-builder"
+  - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Find the latest available semver for v11
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Build teleport-operator image "teleport-operator:v11-arm"
+  image: docker
+  commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v11-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
+    "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
+    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
+    "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v11-arm-builder"
+  - rm -rf "/tmp/teleport-operator-v11-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Find the latest available semver for v11
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Build teleport-operator image "teleport-operator:v11-arm64"
+  image: docker
+  commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v11-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
+    "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
+    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
+    "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v11-arm64-builder"
+  - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Find the latest available semver for v11
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
+  image: docker
+  commands:
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-amd64
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport-operator:$(cat
-    "/go/var/full-version")-amd64
-  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11677,25 +11767,34 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-- name: Pull teleport-operator:v11-arm and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-amd64"
+- name: Tag and push image "teleport-operator:v11-arm" to ECR - staging
   image: docker
   commands:
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm drone-docker-registry:5000/teleport-operator:$(cat
-    "/go/var/full-version")-arm
-  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11705,25 +11804,34 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-- name: Pull teleport-operator:v11-arm64 and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-arm"
+- name: Tag and push image "teleport-operator:v11-arm64" to ECR - staging
   image: docker
   commands:
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm64
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    "/go/var/full-version")-arm64 drone-docker-registry:5000/teleport-operator:$(cat
-    "/go/var/full-version")-arm64
-  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11733,12 +11841,91 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Build teleport-operator image "teleport-operator:v11-arm64"
+- name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v11-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v11-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:minor-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v11-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v11-arm64" to ECR - staging
+- name: Create manifest and push "teleport-operator:full-$TIMESTAMP" to ECR - staging
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+  depends_on:
+  - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-operator:v11-arm" to ECR - staging
+  - Tag and push image "teleport-operator:v11-arm64" to ECR - staging
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
@@ -11764,7 +11951,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v11-amd64 and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
   image: docker
   commands:
@@ -11790,7 +11977,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v11-arm and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
   image: docker
   commands:
@@ -11816,7 +12003,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v11-arm64 and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major" to Quay
   image: docker
   commands:
@@ -11913,7 +12100,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v11-amd64 and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
@@ -11941,7 +12128,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v11-arm and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
@@ -11970,7 +12157,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v11-arm64 and push it to Local Registry
+  - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major" to ECR - production
   image: docker
   commands:
@@ -12061,6 +12248,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: d4230f09b00e94dd3eb8527f7d858ad1332a5866042c76f1d13b89c679653b24
+hmac: 985c37ba2fe739920d7ef025fb210d3d474aeaed6b94b36c148887a295feb6c6
 
 ...
