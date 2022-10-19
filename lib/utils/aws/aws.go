@@ -54,6 +54,10 @@ const (
 	credentialAuthHeaderElem   = "Credential"
 	signedHeaderAuthHeaderElem = "SignedHeaders"
 	signatureAuthHeaderElem    = "Signature"
+	// TargetHeader is a header containing the API target.
+	// Format: target_version.operation
+	// Example: DynamoDB_20120810.Scan
+	TargetHeader = "X-Amz-Target"
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
