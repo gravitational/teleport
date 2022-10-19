@@ -11596,7 +11596,7 @@ steps:
   - git checkout -qf "branch/v11"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
-  - go run . "v1.2.3-fred.4" > "/go/vars/full-version/v11"
+  - echo "v1.2.3-fred.4" > "/go/vars/full-version/v11"
   - echo Found full semver "$(cat "/go/vars/full-version/v11")" for major version
     "v11"
 - name: Wait for docker
@@ -12248,6 +12248,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: ec6a1f233e30b05e2c45184daf28df5d54ab606385718bf6d0b689d640ff12fc
+hmac: 8eb380508ffefd8d8027ec62ea1a7120a1d24ccc07087578efbd3310dcdf59e3
 
 ...
