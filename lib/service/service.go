@@ -858,7 +858,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 
 	_, err = uuid.Parse(cfg.HostUUID)
-	if err != nil {
+	if err != nil && !utils.IsEC2NodeID(cfg.HostUUID) {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 
@@ -4842,7 +4842,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
 			return trace.Wrap(err)
 		}
-	} else if kubeBackend != nil && utils.HostUUIDExistsLocaly(cfg.DataDir) {
+	} else if kubeBackend != nil && utils.HostUUIDExistsLocally(cfg.DataDir) {
 		// This case is used when loading a Teleport pre-11 agent with storage attached.
 		// In this case, we have to copy the "host_uuid" from the agent to the secret
 		// in case storage is removed later.
@@ -4885,7 +4885,7 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kub
 	return hostID, trace.Wrap(err)
 }
 
-// persistHostIDToStorages writes the cfg.HostUUID to local data and  and to
+// persistHostIDToStorages writes the cfg.HostUUID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
 func persistHostIDToStorages(ctx context.Context, cfg *Config, kubeBackend kubernetesBackend) error {
 	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
