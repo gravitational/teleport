@@ -18,6 +18,7 @@ package config
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,8 +85,15 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	err = template.Render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
-	certBytes, err := memory.Read(template.Prefix + "-cert.pub")
+	// Make sure a cert is written. We just use a dummy cert (the CA fixture)
+	certBytes, err := memory.Read(template.Prefix + sshHostCertSuffix)
 	require.NoError(t, err)
 
 	require.Equal(t, fixtures.SSHCAPublicKey, string(certBytes))
+
+	// Make sure a CA is written.
+	caBytes, err := memory.Read(template.Prefix + sshHostUserCASuffix)
+	require.NoError(t, err)
+
+	require.True(t, strings.HasPrefix(string(caBytes), fixtures.SSHCAPublicKey))
 }
