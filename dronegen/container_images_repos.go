@@ -216,7 +216,7 @@ func (cr *ContainerRepo) pullPushStep(image *Image, dependencySteps []string) (s
 	localRepoImage := *image
 	localRepoImage.Repo = localRepo
 
-	commands := image.Repo.buildCommandsWithLogin([]string{fmt.Sprintf("docker pull %q", image.GetShellName())})
+	commands := image.Repo.buildCommandsWithLogin([]string{fmt.Sprintf("docker pull %s", image.GetShellName())})
 	commands = append(commands,
 		fmt.Sprintf("docker tag %s %s", image.GetShellName(), localRepoImage.GetShellName()),
 		fmt.Sprintf("docker push %s", localRepoImage.GetShellName()),
@@ -249,7 +249,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	sort.SliceStable(archImageKeys, func(i, j int) bool { return archImageKeys[i].GetDisplayValue() < archImageKeys[j].GetDisplayValue() })
 
 	pullCommands := []string{
-		fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImage.GetShellName()),
+		fmt.Sprintf("docker pull %s", buildStepDetails.BuiltImage.GetShellName()),
 	}
 
 	tagAndPushCommands := make([]string, 0)
@@ -258,8 +258,8 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 
 		// Skip pushing images if the tag or container registry is immutable
 		tagAndPushCommands = append(tagAndPushCommands, buildImmutableSafeCommands(archImageKey.IsImmutable || cr.IsImmutable, archImage.GetShellName(), []string{
-			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImage.GetShellName(), archImage.GetShellName()),
-			fmt.Sprintf("docker push %q", archImage.GetShellName()),
+			fmt.Sprintf("docker tag %s %s", buildStepDetails.BuiltImage.GetShellName(), archImage.GetShellName()),
+			fmt.Sprintf("docker push %s", archImage.GetShellName()),
 		})...)
 	}
 	tagAndPushCommands = cr.buildCommandsWithLogin(tagAndPushCommands)
@@ -290,13 +290,13 @@ func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushSte
 
 	manifestCommandArgs := make([]string, 0, len(pushedImages))
 	for _, pushedImage := range pushedImages {
-		manifestCommandArgs = append(manifestCommandArgs, fmt.Sprintf("--amend %q", pushedImage.GetShellName()))
+		manifestCommandArgs = append(manifestCommandArgs, fmt.Sprintf("--amend %s", pushedImage.GetShellName()))
 	}
 
 	// Skip pushing manifest if the tag or container registry is immutable
 	commands := buildImmutableSafeCommands(manifestImage.Tag.IsImmutable || cr.IsImmutable, manifestImage.GetShellName(), []string{
-		fmt.Sprintf("docker manifest create %q %s", manifestImage.GetShellName(), strings.Join(manifestCommandArgs, " ")),
-		fmt.Sprintf("docker manifest push %q", manifestImage.GetShellName()),
+		fmt.Sprintf("docker manifest create %s %s", manifestImage.GetShellName(), strings.Join(manifestCommandArgs, " ")),
+		fmt.Sprintf("docker manifest push %s", manifestImage.GetShellName()),
 	})
 
 	return step{
@@ -314,7 +314,7 @@ func buildImmutableSafeCommands(isImmutable bool, imageToCheck string, commandsT
 		return commandsToRun
 	}
 
-	conditionalCommand := fmt.Sprintf("docker manifest inspect %q > /dev/null 2>&1", imageToCheck)
+	conditionalCommand := fmt.Sprintf("docker manifest inspect %s > /dev/null 2>&1", imageToCheck)
 	commandToRun := strings.Join(commandsToRun, " && ")
 	return []string{fmt.Sprintf("%s && echo 'Found existing image, skipping' || (%s)", conditionalCommand, commandToRun)}
 }

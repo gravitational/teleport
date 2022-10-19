@@ -21,6 +21,10 @@ import (
 	"strings"
 )
 
+const (
+	varDirectory = "/go/var"
+)
+
 // Describes a Teleport/repo release version. All product releases are tied to Teleport's release cycle
 // via this struct.
 type ReleaseVersion struct {
@@ -97,7 +101,7 @@ func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 	return steps
 }
 
-type semver struct {
+type Semver struct {
 	Name        string // Human-readable name for the information contained in the semver, i.e. "major"
 	FilePath    string // The path under the working dir where the information can be read from
 	FieldCount  int    // The number of significant version fields available in the semver i.e. "v11" -> 1
@@ -105,9 +109,8 @@ type semver struct {
 	IsFull      bool
 }
 
-func (rv *ReleaseVersion) getSemvers() []*semver {
-	varDirectory := "/go/var"
-	return []*semver{
+func (rv *ReleaseVersion) GetSemvers() []*Semver {
+	return []*Semver{
 		{
 			Name:        "major",
 			FilePath:    path.Join(varDirectory, "major-version"),
@@ -120,21 +123,29 @@ func (rv *ReleaseVersion) getSemvers() []*semver {
 			FieldCount:  2,
 			IsImmutable: false,
 		},
-		{
-			// For releases this is the "canonical" semver.
-			// For prereleases this is canonical + metadata.
-			// This is done to keep prereleases pushed to staging
-			//  from overwriting release versions.
-			Name:        "full",
-			FilePath:    path.Join(varDirectory, "full-version"),
-			IsImmutable: true,
-			IsFull:      true,
-		},
+		rv.GetFullSemver(),
 	}
 }
 
+func (rv *ReleaseVersion) GetFullSemver() *Semver {
+	return &Semver{
+		// For releases this is the "canonical" semver.
+		// For prereleases this is canonical + metadata.
+		// This is done to keep prereleases pushed to staging
+		//  from overwriting release versions.
+		Name:        "full",
+		FilePath:    path.Join(varDirectory, "full-version"),
+		IsImmutable: true,
+		IsFull:      true,
+	}
+}
+
+func (s *Semver) GetSemverValue() string {
+	return fmt.Sprintf("$(cat %q)", s.FilePath)
+}
+
 func (rv *ReleaseVersion) buildSplitSemverSteps(onlyBuildFullSemver bool) step {
-	semvers := rv.getSemvers()
+	semvers := rv.GetSemvers()
 
 	// Build the commands that generate the semvers
 	commands := make([]string, 0, len(semvers))
@@ -161,7 +172,7 @@ func (rv *ReleaseVersion) buildSplitSemverSteps(onlyBuildFullSemver bool) step {
 				rv.ShellVersion, cutFieldString, semver.FilePath))
 		}
 		// For debugging
-		commands = append(commands, fmt.Sprintf("cat %q", semver.FilePath))
+		commands = append(commands, fmt.Sprintf("echo %s", semver.GetSemverValue()))
 
 		stepNameVersions = append(stepNameVersions, semver.Name)
 	}
@@ -201,7 +212,7 @@ func (rv *ReleaseVersion) getProducts(clonedRepoPath string) []*Product {
 }
 
 func (rv *ReleaseVersion) getTagsForVersion(onlyBuildFullSemver bool) []*ImageTag {
-	semvers := rv.getSemvers()
+	semvers := rv.GetSemvers()
 	imageTags := make([]*ImageTag, 0, len(semvers))
 	for _, semver := range semvers {
 		if onlyBuildFullSemver && !semver.IsFull {
@@ -209,7 +220,7 @@ func (rv *ReleaseVersion) getTagsForVersion(onlyBuildFullSemver bool) []*ImageTa
 		}
 
 		imageTags = append(imageTags, &ImageTag{
-			ShellBaseValue:   fmt.Sprintf("$(cat %s)", semver.FilePath),
+			ShellBaseValue:   semver.GetSemverValue(),
 			DisplayBaseValue: semver.Name,
 			IsImmutable:      semver.IsImmutable,
 		})

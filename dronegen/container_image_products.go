@@ -80,7 +80,7 @@ func (p *Product) getBaseImage(arch string, version *ReleaseVersion) *Image {
 	return &Image{
 		Name: p.Name,
 		Tag: &ImageTag{
-			ShellBaseValue:   version.ShellVersion,
+			ShellBaseValue:   version.GetFullSemver().GetSemverValue(),
 			DisplayBaseValue: version.MajorVersion,
 			Arch:             arch,
 		},
@@ -196,7 +196,7 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 		buildCommand += fmt.Sprintf(" --target %q", p.DockerfileTarget)
 	}
 	buildCommand += fmt.Sprintf(" --platform %q", "linux/"+arch)
-	buildCommand += fmt.Sprintf(" --tag %q", localRegistryImage.GetShellName())
+	buildCommand += fmt.Sprintf(" --tag %s", localRegistryImage.GetShellName())
 	buildCommand += fmt.Sprintf(" --file %q", p.DockerfilePath)
 	if p.DockerfileArgBuilder != nil {
 		for _, buildArg := range p.DockerfileArgBuilder(arch) {

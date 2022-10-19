@@ -8764,7 +8764,7 @@ steps:
   commands:
   - mkdir -pv $(dirname "/go/var/full-version")
   - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
-  - cat "/go/var/full-version"
+  - echo $(cat "/go/var/full-version")
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8780,7 +8780,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
-    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+    "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
     "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -8807,7 +8807,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
-    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+    "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
@@ -8834,7 +8834,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
-    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+    "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -8853,16 +8853,16 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8877,15 +8877,16 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm > /dev/null 2>&1 && echo 'Found existing image, skipping'
+    || (docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8900,16 +8901,16 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
-    "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8927,14 +8928,14 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)" > /dev/null 2>&1 && echo 'Found existing image, skipping'
-    || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version") > /dev/null 2>&1 && echo 'Found existing image, skipping'
+    || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version") --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version"))
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9032,13 +9033,13 @@ steps:
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
-  - cat "/go/var/major-version"
+  - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
-  - cat "/go/var/minor-version"
+  - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
   - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
-  - cat "/go/var/full-version"
+  - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
   - Wait for docker
@@ -9050,11 +9051,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-amd64
-    drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64
-  - docker push drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9075,11 +9078,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm
-    drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm
-  - docker push drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9100,11 +9105,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm64
-    drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64
-  - docker push drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9122,18 +9129,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64" &&
-    docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/major-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/minor-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9148,18 +9155,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm" && docker
-    push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/major-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/minor-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9174,18 +9181,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64" &&
-    docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/major-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/minor-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9201,11 +9208,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9223,11 +9230,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9245,13 +9252,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64" &&
-    docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)")
+    create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version") --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64 &&
+    docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9268,20 +9275,21 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9296,20 +9304,20 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm" &&
-    docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9324,20 +9332,21 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9355,11 +9364,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9379,11 +9388,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9403,13 +9412,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    && docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)")
+    create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9512,13 +9521,13 @@ steps:
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
-  - cat "/go/var/major-version"
+  - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
-  - cat "/go/var/minor-version"
+  - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
   - echo $(cat '/go/vars/full-version/v11') | sed 's/v//' > "/go/var/full-version"
-  - cat "/go/var/full-version"
+  - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -9535,7 +9544,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
-    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
+    "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
     "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -9563,7 +9572,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
-    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
+    "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
@@ -9591,7 +9600,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
-    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
+    "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -9611,29 +9620,29 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9648,29 +9657,29 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9685,29 +9694,29 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9726,14 +9735,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9754,14 +9763,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9782,14 +9791,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9806,19 +9815,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-amd64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-amd64" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9833,19 +9841,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9860,19 +9867,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9888,11 +9894,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9910,11 +9916,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9932,13 +9938,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64" &&
-    docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)")
+    create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version") --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64 &&
+    docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9955,21 +9961,21 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9984,21 +9990,20 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10013,21 +10018,21 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v11')-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v11')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10045,11 +10050,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10069,11 +10074,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10093,13 +10098,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    && docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)")
+    create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10202,13 +10207,13 @@ steps:
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
-  - cat "/go/var/major-version"
+  - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
-  - cat "/go/var/minor-version"
+  - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
   - echo $(cat '/go/vars/full-version/v10') | sed 's/v//' > "/go/var/full-version"
-  - cat "/go/var/full-version"
+  - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -10225,7 +10230,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-amd64-builder" --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
-    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
+    "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
     "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -10253,7 +10258,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-arm-builder" --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
-    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+    "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
@@ -10281,7 +10286,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-arm64-builder" --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
-    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
+    "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -10301,29 +10306,29 @@ steps:
 - name: Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10338,29 +10343,29 @@ steps:
 - name: Tag and push image "teleport-operator:v10-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10375,29 +10380,29 @@ steps:
 - name: Tag and push image "teleport-operator:v10-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10416,14 +10421,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10444,14 +10449,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10472,14 +10477,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10496,19 +10501,18 @@ steps:
 - name: Tag and push image "teleport-operator:v10-amd64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-amd64" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10523,19 +10527,18 @@ steps:
 - name: Tag and push image "teleport-operator:v10-arm" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10550,19 +10553,18 @@ steps:
 - name: Tag and push image "teleport-operator:v10-arm64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10578,11 +10580,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10600,11 +10602,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10622,13 +10624,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64" &&
-    docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)")
+    create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version") --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64 &&
+    docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -10645,21 +10647,21 @@ steps:
 - name: Tag and push image "teleport-operator:v10-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10674,21 +10676,20 @@ steps:
 - name: Tag and push image "teleport-operator:v10-arm" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10703,21 +10704,21 @@ steps:
 - name: Tag and push image "teleport-operator:v10-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v10')-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v10')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10735,11 +10736,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10759,11 +10760,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10783,13 +10784,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    && docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)")
+    create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -10891,13 +10892,13 @@ steps:
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
-  - cat "/go/var/major-version"
+  - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
-  - cat "/go/var/minor-version"
+  - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
   - echo $(cat '/go/vars/full-version/v9') | sed 's/v//' > "/go/var/full-version"
-  - cat "/go/var/full-version"
+  - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -10914,7 +10915,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-amd64-builder" --config "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v9-amd64-builder" --platform
-    "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
+    "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
     "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -10942,7 +10943,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-arm-builder" --config "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v9-arm-builder" --platform
-    "linux/arm" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
+    "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
@@ -10970,7 +10971,7 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-arm64-builder" --config "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v9-arm64-builder" --platform
-    "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
+    "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
     "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
@@ -10990,29 +10991,29 @@ steps:
 - name: Tag and push image "teleport-operator:v9-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11027,29 +11028,29 @@ steps:
 - name: Tag and push image "teleport-operator:v9-arm" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11064,29 +11065,29 @@ steps:
 - name: Tag and push image "teleport-operator:v9-arm64" to ECR - staging
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64")
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" > /dev/null 2>&1 && echo 'Found existing
-    image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64)
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 > /dev/null 2>&1 && echo 'Found existing
+    image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11105,14 +11106,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/major-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11133,14 +11134,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/minor-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11161,14 +11162,14 @@ steps:
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - docker manifest inspect "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP" > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-amd64" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm" --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP-arm64" && docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-$TIMESTAMP")
+  - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP > /dev/null 2>&1 && echo 'Found existing image,
+    skipping' || (docker manifest create 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-amd64 --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm --amend 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP-arm64 && docker manifest push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-$TIMESTAMP)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11185,19 +11186,18 @@ steps:
 - name: Tag and push image "teleport-operator:v9-amd64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-amd64" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11212,19 +11212,18 @@ steps:
 - name: Tag and push image "teleport-operator:v9-arm" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11239,19 +11238,18 @@ steps:
 - name: Tag and push image "teleport-operator:v9-arm64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker push "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11267,11 +11265,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11289,11 +11287,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11311,13 +11309,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64" &&
-    docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)")
+    create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version") --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64 &&
+    docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11334,21 +11332,21 @@ steps:
 - name: Tag and push image "teleport-operator:v9-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11363,21 +11361,20 @@ steps:
 - name: Tag and push image "teleport-operator:v9-arm" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11392,21 +11389,21 @@ steps:
 - name: Tag and push image "teleport-operator:v9-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(cat
-    '/go/vars/full-version/v9')-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64" && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(cat '/go/vars/full-version/v9')-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11424,11 +11421,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11448,11 +11445,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11472,13 +11469,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    && docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)")
+    create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11575,13 +11572,13 @@ steps:
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
   - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
-  - cat "/go/var/major-version"
+  - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
   - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
-  - cat "/go/var/minor-version"
+  - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
   - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
-  - cat "/go/var/full-version"
+  - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
   - Wait for docker
@@ -11593,11 +11590,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-amd64
-    drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64
-  - docker push drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11618,11 +11617,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm
-    drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm
-  - docker push drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11643,11 +11644,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(echo v1.2.3-fred.4)-arm64
-    drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64
-  - docker push drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64
+  - docker push drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11665,18 +11668,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64" &&
-    docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/major-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/minor-version)-amd64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11691,18 +11694,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm" && docker
-    push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/major-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/minor-version)-arm"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11717,18 +11720,18 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64" &&
-    docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/major-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "quay.io/fred_heinecke/teleport-operator:$(cat
-    /go/var/minor-version)-arm64"
-  - docker push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11744,11 +11747,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11766,11 +11769,11 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11788,13 +11791,13 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest inspect "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-amd64" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm" --amend
-    "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)-arm64" &&
-    docker manifest push "quay.io/fred_heinecke/teleport-operator:$(cat /go/var/full-version)")
+    create quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version") --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-amd64 --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm --amend
+    quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version")-arm64 &&
+    docker manifest push quay.io/fred_heinecke/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -11811,20 +11814,21 @@ steps:
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-amd64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-amd64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11839,20 +11843,20 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm" &&
-    docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-arm"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11867,20 +11871,21 @@ steps:
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
   image: docker
   commands:
-  - docker pull "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
+  - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64"
-    "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    && docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64")
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/major-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker tag "drone-docker-registry:5000/teleport-operator:$(echo v1.2.3-fred.4)-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
-    /go/var/minor-version)-arm64"
-  - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64 && docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat
+    "/go/var/full-version")-arm64)
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
+    public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11898,11 +11903,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/major-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11922,11 +11927,11 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)-arm64"
-  - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/minor-version)"
+  - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")-arm64
+  - docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11946,13 +11951,13 @@ steps:
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest inspect "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
+  - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
     > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker manifest
-    create "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-amd64"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm"
-    --amend "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)-arm64"
-    && docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:$(cat /go/var/full-version)")
+    create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
+    --amend public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
+    && docker manifest push public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version"))
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -11982,6 +11987,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4ea1ffe6886c01c236073c619bb60796f8369b4878e10d3d0773cf2779a19d38
+hmac: eaf15cd781a645d2a797db1b896154590f39057d76d0c68b3a5114de36d5b6f5
 
 ...
