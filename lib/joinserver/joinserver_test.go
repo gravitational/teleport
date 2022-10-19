@@ -249,7 +249,7 @@ func TestTimeout(t *testing.T) {
 			}, 10*time.Second, 1*time.Millisecond)
 			// ^ This timeout is absurdly large but I really don't want this to
 			// be flaky in CI. This test is still pretty fast most of the time and
-			// still tests what what it is meant to - if the connections never
+			// still tests what it is meant to - if the connections never
 			// close this would still fail.
 		})
 	}
@@ -294,7 +294,7 @@ func TestTimeout(t *testing.T) {
 			}, 10*time.Second, 1*time.Millisecond)
 			// ^ This timeout is absurdly large but I really don't want this to
 			// be flaky in CI. This test is still pretty fast most of the time and
-			// still tests what what it is meant to - if the connections never
+			// still tests what it is meant to - if the connections never
 			// close this would still fail.
 		})
 	}
