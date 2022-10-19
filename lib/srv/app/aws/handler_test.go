@@ -276,7 +276,7 @@ func createSuite(t *testing.T, handler http.HandlerFunc, app types.Application) 
 
 	svc, err := NewSigningService(SigningServiceConfig{
 		getSigningCredentials: staticAWSCredentials,
-		Transport: &http.Transport{
+		RoundTripper: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
