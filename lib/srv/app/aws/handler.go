@@ -72,8 +72,8 @@ type SigningService struct {
 
 // SigningServiceConfig is the SigningService configuration.
 type SigningServiceConfig struct {
-	// Transport is an http.RoundTripper instance used for requests.
-	Transport http.RoundTripper
+	// RoundTripper is an http.RoundTripper instance used for requests.
+	RoundTripper http.RoundTripper
 	// Log is the Logger.
 	Log logrus.FieldLogger
 	// Session is AWS session.
@@ -88,12 +88,12 @@ type SigningServiceConfig struct {
 
 // CheckAndSetDefaults validates the SigningServiceConfig config.
 func (s *SigningServiceConfig) CheckAndSetDefaults() error {
-	if s.Transport == nil {
+	if s.RoundTripper == nil {
 		tr, err := defaults.Transport()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.Transport = tr
+		s.RoundTripper = tr
 	}
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
@@ -150,7 +150,7 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := s.Transport.RoundTrip(signedReq)
+	resp, err := s.RoundTripper.RoundTrip(signedReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
