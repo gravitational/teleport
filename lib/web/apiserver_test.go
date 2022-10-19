@@ -437,7 +437,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		HostUUID:                        proxyID,
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
-		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
+		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
 		SessionControl:                  proxySessionController,
 		Router:                          router,
@@ -4839,33 +4839,33 @@ func TestParseSSORequestParams(t *testing.T) {
 	tests := []struct {
 		name, url string
 		wantErr   bool
-		expected  *ssoRequestParams
+		expected  *SSORequestParams
 	}{
 		{
 			name: "preserve redirect's query params (escaped)",
 			url:  "https://localhost/login?connector_id=oidc&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fnodes%3Fsearch=tunnel&sort=hostname:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-				connectorID:       "oidc",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				ConnectorID:       "oidc",
+				CSRFToken:         token,
 			},
 		},
 		{
 			name: "preserve redirect's query params (unescaped)",
 			url:  "https://localhost/login?connector_id=github&redirect_url=https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-				connectorID:       "github",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				ConnectorID:       "github",
+				CSRFToken:         token,
 			},
 		},
 		{
 			name: "preserve various encoded chars",
 			url:  "https://localhost/login?connector_id=saml&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fapps%3Fquery=search(%2522watermelon%2522%252C%2520%2522this%2522)%2520%2526%2526%2520labels%255B%2522unique-id%2522%255D%2520%253D%253D%2520%2522hi%2522&sort=name:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
-				connectorID:       "saml",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
+				ConnectorID:       "saml",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -4886,7 +4886,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			require.NoError(t, err)
 			addCSRFCookieToReq(req, token)
 
-			params, err := parseSSORequestParams(req)
+			params, err := ParseSSORequestParams(req)
 
 			switch {
 			case tc.wantErr:
