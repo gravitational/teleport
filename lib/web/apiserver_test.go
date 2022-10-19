@@ -54,6 +54,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
@@ -93,7 +95,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -250,7 +251,6 @@ func newWebSuite(t *testing.T) *WebSuite {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
@@ -335,7 +335,6 @@ func newWebSuite(t *testing.T) *WebSuite {
 		s.proxyClient,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, s.proxyClient),
-		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -4873,7 +4872,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
@@ -4989,7 +4987,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, client),
-		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
