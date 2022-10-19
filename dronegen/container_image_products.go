@@ -115,10 +115,10 @@ func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, f
 
 	archBuildStepDetails := make([]*buildStepOutput, 0, len(p.SupportedArchs))
 
-	for _, supportedArch := range p.SupportedArchs {
+	for i, supportedArch := range p.SupportedArchs {
 		// Include steps for building images from scratch
 		if flags.ShouldBuildNewImages {
-			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version)
+			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version, i)
 
 			archBuildStep.DependsOn = append(archBuildStep.DependsOn, setupStepNames...)
 			if p.GetRequiredStepNames != nil {
@@ -166,8 +166,8 @@ func getReposToPublishTo(productionRepos []*ContainerRepo, stagingRepo *Containe
 }
 
 func (p *Product) GetBuildStepName(arch string, version *ReleaseVersion) string {
-	telportImageName := p.GetLocalRegistryImage(arch, version)
-	return fmt.Sprintf("Build %s image %q", p.Name, telportImageName.GetDisplayName())
+	localImageName := p.GetLocalRegistryImage(arch, version)
+	return fmt.Sprintf("Build %s image %q", p.Name, localImageName.GetDisplayName())
 }
 
 func cleanBuilderName(builderName string) string {
@@ -175,7 +175,7 @@ func cleanBuilderName(builderName string) string {
 	return invalidBuildxCharExpression.ReplaceAllString(builderName, "-")
 }
 
-func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *buildStepOutput) {
+func (p *Product) createBuildStep(arch string, version *ReleaseVersion, delay int) (step, *buildStepOutput) {
 	localRegistryImage := p.GetLocalRegistryImage(arch, version)
 	builderName := cleanBuilderName(fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName()))
 
@@ -205,6 +205,8 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 	}
 	buildCommand += " " + p.WorkingDirectory
 
+	delayTime := delay * 5
+
 	step := step{
 		Name:    p.GetBuildStepName(arch, version),
 		Image:   "docker",
@@ -215,6 +217,9 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 			},
 		},
 		Commands: []string{
+			// Without a delay buildx can occasionally try to pull base images faster than container registries will allow,
+			// triggering a rate limit.
+			fmt.Sprintf("echo 'Sleeping %ds to avoid registry pull rate limits' && sleep %d", delayTime, delayTime),
 			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			fmt.Sprintf("mkdir -pv %q", buildxConfigFileDir),
