@@ -61,6 +61,8 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
+	// TODO(gavin): doc
+	IsDynamoDB() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// GetProtocol returns the application protocol.
@@ -232,6 +234,21 @@ func (a *AppV3) IsAWSConsole() bool {
 		}
 	}
 	return false
+}
+
+// TODO(gavin): doc
+func (a *AppV3) IsDynamoDB() bool {
+	if !a.IsAWSConsole() {
+		return false
+	}
+	// example uri that should match: https://console.aws.amazon.com/dynamdodbv2/home
+	// parts = ["https:", "", "console.aws.amazon.com", "dynamodbv2", "home"]
+	// relevant string is in the 4th part.
+	parts := strings.Split(a.Spec.URI, "/")
+	if len(parts) < 4 {
+		return false
+	}
+	return strings.Contains(strings.ToLower(parts[3]), "dynamodb")
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
