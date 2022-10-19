@@ -4499,17 +4499,9 @@ steps:
     AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64/credentials
 - name: Upload to S3
   commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /tmp/build-darwin-amd64/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
+  - set -u
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
   environment:
     AWS_REGION: us-west-2
     AWS_S3_BUCKET:
@@ -6627,31 +6619,6 @@ steps:
       - name: awsconfig
         path: /root/.aws
 
-  - name: Assume AWS Role
-    image: amazon/aws-cli
-    commands:
-    - aws sts get-caller-identity
-    - |-
-      printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-        $(aws sts assume-role \
-          --role-arn "$AWS_ROLE" \
-          --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-          --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-          --output text) \
-        > /root/.aws/credentials
-    - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    - aws sts get-caller-identity --profile default
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_ROLE:
-        from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-    volumes:
-      - name: awsconfig
-        path: /root/.aws
-
   - name: Build/push OSS/Enterprise Docker images
     image: docker
     environment:
@@ -7372,34 +7339,6 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
-- name: Assume Download AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check out code
-  - Check if tag is prerelease
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -7601,34 +7540,6 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
-- name: Assume Download AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check out code
-  - Check if tag is prerelease
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
