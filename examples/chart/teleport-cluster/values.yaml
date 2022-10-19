@@ -352,6 +352,12 @@ serviceAccount:
   name: ""
   # To set annotations on the service account, use the annotations.serviceAccount value.
 
+# Kubernetes ClusterRole and ClusterRoleBinding to create.
+rbac:
+  # Specifies wheather a ClusterRole and ClusterRoleBindigs should be created.
+  # Set to false if your cluster level resources are managed separately.
+  create: true
+
 # Options for the Teleport service
 service:
   type: LoadBalancer

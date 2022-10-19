@@ -698,7 +698,19 @@
                 "create": {
                     "$id": "#properties/service/create",
                     "type": "boolean",
-                    "default": true 
+                    "default": true
+                }
+            }
+        },
+        "clusterRole": {
+            "$id": "#/properties/clusterRole",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "create": {
+                    "$id": "#properties/service/create",
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
