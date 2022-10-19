@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
 
@@ -811,18 +812,6 @@ func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context,
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for app servers not available, provide fallback.
-		// Fallback does not support filters, so if users
-		// provide them, it does nothing.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := authClient.GetApplicationServers(ctx, req.Namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return servers, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -960,18 +949,6 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 
 	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
 	if err != nil {
-		// ListResources for db servers not available, provide fallback.
-		// Fallback does not support filters, so if users
-		// provide them, it does nothing.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := authClient.GetDatabaseServers(ctx, req.Namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return servers, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -1593,7 +1570,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.ExtendedAgent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1699,7 +1676,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.ExtendedAgent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1926,6 +1903,18 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		err = nil
 	}
 	return trace.Wrap(err)
+}
+
+// TransferFiles transfers files over SFTP.
+func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/TransferFiles",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	return trace.Wrap(cfg.TransferFiles(ctx, c.Client.Client))
 }
 
 type netDialer interface {

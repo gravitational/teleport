@@ -70,7 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -97,7 +97,7 @@ const (
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
 
-	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || name == "%[1]s"`
+	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || resource.metadata.name == "%[1]s"`
 )
 
 // CLIConf stores command line arguments and flags:
@@ -703,7 +703,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Secure file copy")
+	scp := app.Command("scp", "Transfer files to a remote Node")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -831,6 +831,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// touchid subcommands.
 	tid := newTouchIDCommand(app)
 
+	webauthnwin := newWebauthnwinCommand(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -889,9 +891,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
-	cf.command = command
 	// Did we initially get the Username from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
+
+	cf.command = command
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -1070,6 +1073,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onFIDO2Diag(&cf)
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
+	case webauthnwin.diag.FullCommand():
+		err = webauthnwin.diag.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1387,11 +1392,12 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
-				return trace.Wrap(err)
-			}
 
-			return trace.Wrap(onStatus(cf))
+			// Try updating kube config. If it fails, then we may have
+			// switched to an inactive profile. Continue to normal login.
+			if err := updateKubeConfig(cf, tc, ""); err == nil {
+				return trace.Wrap(onStatus(cf))
+			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
@@ -1487,6 +1493,7 @@ func onLogin(cf *CLIConf) error {
 			Format:               cf.IdentityFormat,
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
+			KubeStoreAllCAs:      tc.LoadAllCAs,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1504,6 +1511,11 @@ func onLogin(cf *CLIConf) error {
 		if err := updateKubeConfig(cf, tc, ""); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	pingResp, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Regular login without -i flag.
@@ -1573,33 +1585,18 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Display any license compliance warnings
-	resp, err := tc.Ping(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, warning := range resp.LicenseWarnings {
+	for _, warning := range pingResp.LicenseWarnings {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
-	// get any "on login" alerts
-	alerts, err := tc.GetClusterAlerts(cf.Context, types.GetClusterAlertsRequest{
-		Labels: map[string]string{
-			types.AlertOnLogin: "yes",
-		},
-	})
-	if err != nil && !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
+	// Show on-login alerts, all high severity alerts are shown by onStatus
+	// so can be excluded here.
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
+		types.AlertOnLogin: "yes",
+	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
-	types.SortClusterAlerts(alerts)
-
-	for _, alert := range alerts {
-		if err := alert.CheckMessage(); err != nil {
-			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
-		}
-		fmt.Fprintf(os.Stderr, "%s\n\n", alert.Spec.Message)
-	}
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
@@ -2780,21 +2777,25 @@ func onSCP(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	flags := scp.Flags{
+
+	// allow the file transfer to be gracefully stopped if the user wishes
+	ctx, cancel := signal.NotifyContext(cf.Context, os.Interrupt)
+	cf.Context = ctx
+	defer cancel()
+
+	opts := sftp.Options{
 		Recursive:     cf.RecursiveCopy,
 		PreserveAttrs: cf.PreserveAttrs,
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SCP(cf.Context, cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
+		return tc.SFTP(cf.Context, cf.CopySpec, int(cf.NodePort), opts, cf.Quiet)
 	})
-	if err == nil {
+	// don't print context canceled errors to the user
+	if err == nil || (err != nil && errors.Is(err, context.Canceled)) {
 		return nil
 	}
-	// exit with the same exit status as the failed command:
-	if tc.ExitStatus != 0 {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&common.ExitCodeError{Code: tc.ExitStatus})
-	}
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+
 	return trace.Wrap(err)
 }
 
@@ -2887,6 +2888,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.JumpHosts = hosts
 	}
 
+	var key *client.Key
+
 	// Look if a user identity was given via -i flag
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
@@ -2896,7 +2899,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.UseKeyPrincipals = hostLogin == ""
 
 		var (
-			key          *client.Key
 			expiryDate   time.Time
 			hostAuthFunc ssh.HostKeyCallback
 		)
@@ -3114,7 +3116,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
-			log.WithError(err).Debugf("Could not load key for %s into the local agent.", profileSiteName)
+			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
 			if !trace.IsNotImplemented(err) && !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -3128,8 +3130,28 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// addresses from the proxy (this is what Ping does).
 	if cf.IdentityFileIn != "" {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-		if _, err := tc.Ping(cf.Context); err != nil {
+		_, err := tc.Ping(cf.Context)
+		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// If, after pinging the proxy, we've determined that the client should load
+		// all CAs, update the host key callback and TLS config.
+		if tc.LoadAllCAs {
+			sites, err := key.GetClusterNames()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tc.Config.HostKeyCallback, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, sites)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(key.TLSCert) > 0 {
+				tc.Config.TLS, err = key.TeleportClientTLSConfig(nil, sites)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 	}
 
@@ -3396,6 +3418,17 @@ func onStatus(cf *CLIConf) error {
 	duration := time.Until(profile.ValidUntil)
 	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
 		return trace.NotFound("Active profile expired.")
+	}
+
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
+		return nil
+	}
+
+	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
 	return nil

@@ -77,9 +77,9 @@ import (
 )
 
 const (
-	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
-	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
-	metaRedirectHTML   = `
+	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
+	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
+	metaRedirectHTML       = `
 <!DOCTYPE html>
 <html lang="en">
 	<head>
@@ -154,6 +154,8 @@ type Config struct {
 	ProxyClient auth.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
 	ProxySSHAddr utils.NetAddr
+	// ProxyKubeAddr points to the Kube address of the proxy
+	ProxyKubeAddr utils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
@@ -182,10 +184,10 @@ type Config struct {
 	// Enables web UI if set.
 	StaticFS http.FileSystem
 
-	// cachedSessionLingeringThreshold specifies the time the session will linger
+	// CachedSessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired.
 	// Defaults to cachedSessionLingeringThreshold if unspecified.
-	cachedSessionLingeringThreshold *time.Duration
+	CachedSessionLingeringThreshold *time.Duration
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
@@ -264,8 +266,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
-	if cfg.cachedSessionLingeringThreshold != nil {
-		sessionLingeringThreshold = *cfg.cachedSessionLingeringThreshold
+	if cfg.CachedSessionLingeringThreshold != nil {
+		sessionLingeringThreshold = *cfg.CachedSessionLingeringThreshold
 	}
 
 	auth, err := newSessionCache(sessionCacheOptions{
@@ -756,6 +758,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 		AllowPasswordless: cap.GetAllowPasswordless(),
 		Local:             &webclient.LocalSettings{},
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -794,6 +797,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -807,6 +811,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -820,6 +825,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		// Local fallback / MFA.
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 }
 
@@ -897,6 +903,11 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	}
 
 	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
+	pingResp, err := authClient.Ping(ctx)
+	if err != nil {
+		return webclient.AuthenticationSettings{}, trace.Wrap(err)
+	}
+	as.LoadAllCAs = pingResp.LoadAllCAs
 
 	return as, nil
 }
@@ -950,6 +961,12 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	pingResp, err := authClient.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	loadAllCAs := pingResp.LoadAllCAs
+
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -967,6 +984,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			return nil, trace.Wrap(err)
 		}
 		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+		response.Auth.LoadAllCAs = loadAllCAs
 		response.Auth.Local.Name = connectorName // echo connector queried by caller
 		return response, nil
 	}
@@ -983,6 +1001,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = oidcSettings(oidcConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
 			}
 		}
@@ -996,6 +1015,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = samlSettings(samlConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
 			}
 		}
@@ -1009,6 +1029,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = githubSettings(githubConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
 			}
 		}
@@ -1190,17 +1211,17 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	logger := h.log.WithField("auth", "oidc")
 	logger.Debug("Web login start.")
 
-	req, err := parseSSORequestParams(r)
+	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
 		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		CSRFToken:         req.csrfToken,
-		ConnectorID:       req.connectorID,
+		CSRFToken:         req.CSRFToken,
+		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
-		ClientRedirectURL: req.clientRedirectURL,
+		ClientRedirectURL: req.ClientRedirectURL,
 		CheckUser:         true,
 		ProxyAddress:      r.Host,
 	})
@@ -1216,17 +1237,17 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	logger := h.log.WithField("auth", "github")
 	logger.Debug("Web login start.")
 
-	req, err := parseSSORequestParams(r)
+	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
 		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		CSRFToken:         req.csrfToken,
-		ConnectorID:       req.connectorID,
+		CSRFToken:         req.CSRFToken,
+		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
-		ClientRedirectURL: req.clientRedirectURL,
+		ClientRedirectURL: req.ClientRedirectURL,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -1244,26 +1265,27 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		ClientRedirectURL: req.RedirectURL,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
+		ConnectorID:          req.ConnectorID,
+		PublicKey:            req.PublicKey,
+		CertTTL:              req.CertTTL,
+		ClientRedirectURL:    req.RedirectURL,
+		Compatibility:        req.Compatibility,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		AttestationStatement: req.AttestationStatement.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -1285,7 +1307,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
 		if requestID := r.URL.Query().Get("state"); requestID != "" {
 			if request, errGet := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
-				if redURL, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
+				if redURL, errEnc := RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return redURL.String()
 				}
 			}
@@ -1301,19 +1323,19 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	if response.Req.CreateWebSession {
 		logger.Infof("Redirecting to web browser.")
 
-		res := &ssoCallbackResponse{
-			csrfToken:         response.Req.CSRFToken,
-			username:          response.Username,
-			sessionName:       response.Session.GetName(),
-			clientRedirectURL: response.Req.ClientRedirectURL,
+		res := &SSOCallbackResponse{
+			CSRFToken:         response.Req.CSRFToken,
+			Username:          response.Username,
+			SessionName:       response.Session.GetName(),
+			ClientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
+		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}
 
-		return res.clientRedirectURL
+		return res.ClientRedirectURL
 	}
 
 	logger.Infof("Callback is redirecting to console login.")
@@ -1347,28 +1369,29 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		ClientRedirectURL: req.RedirectURL,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		CheckUser:         true,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
-		ProxyAddress:      r.Host,
+		ConnectorID:          req.ConnectorID,
+		ClientRedirectURL:    req.RedirectURL,
+		PublicKey:            req.PublicKey,
+		CertTTL:              req.CertTTL,
+		CheckUser:            true,
+		Compatibility:        req.Compatibility,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		ProxyAddress:         r.Host,
+		AttestationStatement: req.AttestationStatement.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -1390,7 +1413,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
 		if requestID := r.URL.Query().Get("state"); requestID != "" {
 			if request, errGet := h.cfg.ProxyClient.GetOIDCAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
-				if redURL, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
+				if redURL, errEnc := RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return redURL.String()
 				}
 			}
@@ -1407,19 +1430,19 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	if response.Req.CreateWebSession {
 		logger.Info("Redirecting to web browser.")
 
-		res := &ssoCallbackResponse{
-			csrfToken:         response.Req.CSRFToken,
-			username:          response.Username,
-			sessionName:       response.Session.GetName(),
-			clientRedirectURL: response.Req.ClientRedirectURL,
+		res := &SSOCallbackResponse{
+			CSRFToken:         response.Req.CSRFToken,
+			Username:          response.Username,
+			SessionName:       response.Session.GetName(),
+			ClientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
+		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}
 
-		return res.clientRedirectURL
+		return res.ClientRedirectURL
 	}
 
 	logger.Info("Callback redirecting to console login.")
@@ -1570,7 +1593,11 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	return u, nil
 }
 
-func redirectURLWithError(clientRedirectURL string, errReply error) (*url.URL, error) {
+// RedirectURLWithError adds an err query parameter to the given redirect URL with the
+// given errReply message and returns the new URL. If the given URL cannot be parsed,
+// an error is returned with a nil URL. It is used to return an error back to the
+// original URL in an SSO callback when validation fails.
+func RedirectURLWithError(clientRedirectURL string, errReply error) (*url.URL, error) {
 	u, err := url.Parse(clientRedirectURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2709,7 +2736,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.CreateSSHCertReq
+	var req client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2726,9 +2753,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), *req, clientMeta)
+		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), req, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		cert, err = h.auth.GetCertificateWithOTP(r.Context(), *req, clientMeta)
+		cert, err = h.auth.GetCertificateWithOTP(r.Context(), req, clientMeta)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
@@ -3063,21 +3090,30 @@ func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, err
 // ProxyHostPort returns the address of the proxy server using --proxy
 // notation, i.e. "localhost:8030,8023"
 func (h *Handler) ProxyHostPort() string {
-	// Proxy web address can be set in the config with unspecified host, like
-	// 0.0.0.0:3080 or :443.
-	//
-	// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
-	// localhost in Go) but the SSH host certificate will not validate since
-	// 0.0.0.0 is never a valid principal (auth server explicitly removes it
-	// when issuing host certs).
-	//
-	// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
-	// all interfaces and localhost is always included in the valid principal
-	// set.
-	if h.cfg.ProxyWebAddr.IsHostUnspecified() {
-		return fmt.Sprintf("localhost:%v,%s", h.cfg.ProxyWebAddr.Port(defaults.HTTPListenPort), h.sshPort)
+	hp := createHostPort(h.cfg.ProxyWebAddr, defaults.HTTPListenPort)
+	return fmt.Sprintf("%s,%s", hp, h.sshPort)
+}
+
+func (h *Handler) kubeProxyHostPort() string {
+	return createHostPort(h.cfg.ProxyKubeAddr, defaults.KubeListenPort)
+}
+
+// Address can be set in the config with unspecified host, like
+// 0.0.0.0:3080 or :443.
+//
+// In this case, the dial will succeed (dialing 0.0.0.0 is same a dialing
+// localhost in Go) but the host certificate will not validate since
+// 0.0.0.0 is never a valid principal (auth server explicitly removes it
+// when issuing host certs).
+//
+// As such, replace 0.0.0.0 with localhost in this case: proxy listens on
+// all interfaces and localhost is always included in the valid principal
+// set.
+func createHostPort(netAddr utils.NetAddr, port int) string {
+	if netAddr.IsHostUnspecified() {
+		return fmt.Sprintf("localhost:%v", netAddr.Port(port))
 	}
-	return fmt.Sprintf("%s,%s", h.cfg.ProxyWebAddr.String(), h.sshPort)
+	return netAddr.String()
 }
 
 func message(msg string) interface{} {
@@ -3135,13 +3171,23 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 	return config, nil
 }
 
-type ssoRequestParams struct {
-	clientRedirectURL string
-	connectorID       string
-	csrfToken         string
+// SSORequestParams holds parameters parsed out of a HTTP request initiating an
+// SSO login. See ParseSSORequestParams().
+type SSORequestParams struct {
+	// ClientRedirectURL is the URL specified in the query parameter
+	// redirect_url, which will be unescaped here.
+	ClientRedirectURL string
+	// ConnectorID identifies the SSO connector to use to log in, from
+	// the connector_id query parameter.
+	ConnectorID string
+	// CSRFToken is the token in the CSRF cookie header.
+	CSRFToken string
 }
 
-func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
+// ParseSSORequestParams extracts the SSO request parameters from an http.Request,
+// returning them in an SSORequestParams struct. If any fields are not present,
+// an error is returned.
+func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 	// Manually grab the value from query param "redirect_url".
 	//
 	// The "redirect_url" param can contain its own query params such as in
@@ -3173,37 +3219,52 @@ func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &ssoRequestParams{
-		clientRedirectURL: clientRedirectURL,
-		connectorID:       connectorID,
-		csrfToken:         csrfToken,
+	return &SSORequestParams{
+		ClientRedirectURL: clientRedirectURL,
+		ConnectorID:       connectorID,
+		CSRFToken:         csrfToken,
 	}, nil
 }
 
-type ssoCallbackResponse struct {
-	csrfToken         string
-	username          string
-	sessionName       string
-	clientRedirectURL string
+// SSOCallbackResponse holds the parameters for validating and executing an SSO
+// callback URL. See SSOSetWebSessionAndRedirectURL().
+type SSOCallbackResponse struct {
+	// CSRFToken is the token provided in the originating SSO login request
+	// to be validated against.
+	CSRFToken string
+	// Username is the authenticated teleport username of the user that has
+	// logged in, provided by the SSO provider.
+	Username string
+	// SessionName is the name of the session generated by auth server if
+	// requested in the SSO request.
+	SessionName string
+	// ClientRedirectURL is the URL to redirect back to on completion of
+	// the SSO login process.
+	ClientRedirectURL string
 }
 
-func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *ssoCallbackResponse, verifyCSRF bool) error {
+// SSOSetWebSessionAndRedirectURL validates the CSRF token in the response
+// against that in the request, validates that the callback URL in the response
+// can be parsed, and sets a session cookie with the username and session name
+// from the response. On success, nil is returned. If the validation fails, an
+// error is returned.
+func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *SSOCallbackResponse, verifyCSRF bool) error {
 	if verifyCSRF {
-		if err := csrf.VerifyToken(response.csrfToken, r); err != nil {
+		if err := csrf.VerifyToken(response.CSRFToken, r); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if err := SetSessionCookie(w, response.username, response.sessionName); err != nil {
+	if err := SetSessionCookie(w, response.Username, response.SessionName); err != nil {
 		return trace.Wrap(err)
 	}
 
-	parsedURL, err := url.Parse(response.clientRedirectURL)
+	parsedURL, err := url.Parse(response.ClientRedirectURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	response.clientRedirectURL = parsedURL.RequestURI()
+	response.ClientRedirectURL = parsedURL.RequestURI()
 
 	return nil
 }

@@ -66,10 +66,11 @@ Teleport's certificate.
 
 ## Step 2/6. Run a simple web service
 
-Create a directory on your Linux machine called `demo-app` and run the following
-command:
+Run the following commands to create a directory on your Linux machine
+called `demo-app` and add a simple HTML file to serve to clients:
 
 ```code
+$ mkdir demo-app
 $ cat<<EOF>>demo-app/index.html
 <!DOCTYPE html>
 <html><head><title>Welcome!</title><head>
@@ -110,34 +111,7 @@ Take a look at the [Installation Guide](../installation.mdx) for more options.
 Generate a configuration file for Teleport using the `teleport configure` command.
 This command requires information about a TLS certificate and private key.
 
-If you are running Teleport on the internet, we recommend using Let's Encrypt to
-receive your key and certificate automatically. For private networks or custom
-deployments, use your own private key and certificate.
-
-<Tabs>
-  <TabItem label="Public internet deployment with Let's Encrypt">
-  (!docs/pages/includes/acme.mdx!)
-
-  </TabItem>
-
-  <TabItem label="Private network deployment">
-  On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
-  and `/var/lib/teleport/fullchain.pem` respectively.
-
-  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
-
-  Configure Teleport, changing the values of the `--cluster-name` and `--public-addr` flags to match the domain name of your Teleport host.
-
-  ```code
-  $ sudo teleport configure -o file \
-      --cluster-name=tele.example.com \
-      --public-addr=tele.example.com:443 \
-      --cert-file=/var/lib/teleport/fullchain.pem \
-      --key-file=/var/lib/teleport/privkey.pem
-  ```
-  </TabItem>
-
-</Tabs>
+(!docs/pages/includes/tls-certificate-setup.mdx!)
 
 Next, configure Teleport to provide secure access to your web service. Edit your
 Teleport configuration file (`/etc/teleport.yaml`) to include the following,
@@ -219,8 +193,9 @@ Visit the provided URL in order to create your Teleport user.
   `ec2-user` in our examples) must exist on your Linux machine. Otherwise, you
   will get authentication errors later in this tutorial.
 
-  If a user does not already exist, you can create it with `adduser <login>`.
-
+  If a user does not already exist, you can create it with `adduser <login>` or 
+  use [Host user creation](../server-access/guides/host-user-creation.mdx)
+  
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
   authenticate as the user that you have currently logged in as.

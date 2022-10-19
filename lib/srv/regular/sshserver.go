@@ -37,6 +37,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -269,25 +270,14 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// OpenBPFSession will start monitoring all events within a session and
-// emitting them to the Audit Log.
-func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
-	return s.ebpf.OpenSession(ctx)
+// GetBPF returns the BPF service used by enhanced session recording.
+func (s *Server) GetBPF() bpf.BPF {
+	return s.ebpf
 }
 
-// CloseBPFSession will stop monitoring events for a particular session.
-func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
-	return s.ebpf.CloseSession(ctx)
-}
-
-// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
-func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.OpenSession(ctx, cgroupID)
-}
-
-// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
-func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.CloseSession(ctx, cgroupID)
+// GetRestrictedSessionManager returns the manager for restricting user activity.
+func (s *Server) GetRestrictedSessionManager() restricted.Manager {
+	return s.restrictedMgr
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -794,6 +784,7 @@ func New(addr utils.NetAddr,
 		sshutils.SetKEXAlgorithms(s.kexAlgorithms),
 		sshutils.SetMACAlgorithms(s.macAlgorithms),
 		sshutils.SetFIPS(s.fips),
+		sshutils.SetClock(s.clock),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1106,6 +1097,14 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 			s.Logger.WithError(err).Warn("Failed to emit session reject event.")
 		}
 		return ctx, trace.Wrap(lockErr)
+	}
+
+	// Check that the required private key policy, defined by roles and auth pref,
+	// is met by this Identity's ssh certificate.
+	identityPolicy := identityContext.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
+	requiredPolicy := identityContext.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Don't apply the following checks in non-node contexts.
@@ -2072,6 +2071,8 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySubsys(r.Name, s, ctx)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	case r.Name == teleport.GetHomeDirSubsystem:
+		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:
 		if err := ctx.CheckFileCopyingAllowed(); err != nil {
 			// Add an extra newline here to separate this error message

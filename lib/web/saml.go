@@ -35,17 +35,17 @@ func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 	logger := h.log.WithField("auth", "saml")
 	logger.Debug("Web login start.")
 
-	req, err := parseSSORequestParams(r)
+	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
 		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
-		ConnectorID:       req.connectorID,
-		CSRFToken:         req.csrfToken,
+		ConnectorID:       req.ConnectorID,
+		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  true,
-		ClientRedirectURL: req.clientRedirectURL,
+		ClientRedirectURL: req.ClientRedirectURL,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -62,26 +62,27 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		ClientRedirectURL: req.RedirectURL,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
+		ConnectorID:          req.ConnectorID,
+		ClientRedirectURL:    req.RedirectURL,
+		PublicKey:            req.PublicKey,
+		CertTTL:              req.CertTTL,
+		Compatibility:        req.Compatibility,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		AttestationStatement: req.AttestationStatement.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
@@ -108,7 +109,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
 		if requestID, errParse := auth.ParseSAMLInResponseTo(samlResponse); errParse == nil {
 			if request, errGet := h.cfg.ProxyClient.GetSAMLAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
-				if url, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
+				if url, errEnc := RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return url.String()
 				}
 			}
@@ -130,19 +131,19 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 			redirect = "/web/"
 		}
 
-		res := &ssoCallbackResponse{
-			csrfToken:         response.Req.CSRFToken,
-			username:          response.Username,
-			sessionName:       response.Session.GetName(),
-			clientRedirectURL: redirect,
+		res := &SSOCallbackResponse{
+			CSRFToken:         response.Req.CSRFToken,
+			Username:          response.Username,
+			SessionName:       response.Session.GetName(),
+			ClientRedirectURL: redirect,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res, response.Req.CSRFToken != ""); err != nil {
+		if err := SSOSetWebSessionAndRedirectURL(w, r, res, response.Req.CSRFToken != ""); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}
 
-		return res.clientRedirectURL
+		return res.ClientRedirectURL
 	}
 
 	logger.Debug("Callback redirecting to console login.")

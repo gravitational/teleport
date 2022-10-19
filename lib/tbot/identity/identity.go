@@ -306,7 +306,7 @@ func ReadTLSIdentityFromKeyPair(identity *Identity, keyBytes, certBytes []byte, 
 
 	clusterName := cert.Issuer.Organization[0]
 	if clusterName == "" {
-		return trace.BadParameter("misssing cluster name")
+		return trace.BadParameter("missing cluster name")
 	}
 
 	identity.ClusterName = clusterName
