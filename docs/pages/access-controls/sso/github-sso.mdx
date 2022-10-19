@@ -10,7 +10,8 @@ Teleport.
 
 ## Prerequisites
 
-- A GitHub organization with at least one team.
+- A GitHub organization with at least one team. <ScopedBlock scope="oss">This organization must not have external SSO set up, or Teleport
+will refuse to create the GitHub authentication connector.</ScopedBlock>
 - Teleport role with access to maintaining `github` resources for using `tctl` from the Desktop. This is available in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -119,7 +120,7 @@ $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
 
-<Details scope={["enterprise", "oss"]} scopeOnly={true} opened title="Static configuration file">
+<Details scope={["enterprise", "oss"]} scopeOnly={false} opened title="Static configuration file">
 
 You can also edit your Teleport configuration file to include the following:
 

@@ -59,15 +59,15 @@ func (l *loginWithDevices) GetMFADevices(_ context.Context, _ string, _ bool) ([
 //
 // The login flow consists of:
 //
-// 1. Client requests a CredentialAssertion (containing, among other info, a
-//    challenge to be signed)
-// 2. Server runs Begin(), generates a credential assertion.
-// 3. Client validates the assertion, performs a user presence test (usually by
-//    asking the user to touch a secure token), and replies with
-//    CredentialAssertionResponse (containing the signed challenge)
-// 4. Server runs Finish()
-// 5. If all server-side checks are successful, then login/authentication is
-//    complete.
+//  1. Client requests a CredentialAssertion (containing, among other info, a
+//     challenge to be signed)
+//  2. Server runs Begin(), generates a credential assertion.
+//  3. Client validates the assertion, performs a user presence test (usually by
+//     asking the user to touch a secure token), and replies with
+//     CredentialAssertionResponse (containing the signed challenge)
+//  4. Server runs Finish()
+//  5. If all server-side checks are successful, then login/authentication is
+//     complete.
 type LoginFlow struct {
 	U2F      *types.U2F
 	Webauthn *types.Webauthn

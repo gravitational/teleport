@@ -77,9 +77,17 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	// Reset functions after tests.
 	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+	oldHasPlatformSupport := *client.HasPlatformSupport
+	*client.HasPlatformSupport = func() bool {
+		return true
+	}
+	oldHasCredentials := *client.HasTouchIDCredentials
+
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
 		*client.PromptWebauthn = oldWebauthn
+		*client.HasPlatformSupport = oldHasPlatformSupport
+		*client.HasTouchIDCredentials = oldHasCredentials
 	})
 
 	waitForCancelFn := func(ctx context.Context) (string, error) {
@@ -138,13 +146,15 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name             string
-		secondFactor     constants.SecondFactorType
-		inputReader      *prompt.FakeReader
-		solveWebauthn    func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-		authConnector    string
-		allowStdinHijack bool
-		preferOTP        bool
+		name                    string
+		secondFactor            constants.SecondFactorType
+		inputReader             *prompt.FakeReader
+		solveWebauthn           func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		authConnector           string
+		allowStdinHijack        bool
+		preferOTP               bool
+		hasTouchIDCredentials   bool
+		authenticatorAttachment wancli.AuthenticatorAttachment
 	}{
 		{
 			name:             "OTP device login with hijack",
@@ -193,6 +203,27 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			solveWebauthn: solvePwdless,
 			authConnector: constants.PasswordlessConnector,
 		},
+		{
+			name:                  "default to passwordless if registered",
+			secondFactor:          constants.SecondFactorOptional,
+			inputReader:           prompt.NewFakeReader(), // no inputs
+			solveWebauthn:         solvePwdless,
+			authConnector:         constants.LocalConnector,
+			hasTouchIDCredentials: true,
+		},
+		{
+			name:         "cross-platform attachment doesn't default to passwordless",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader: prompt.NewFakeReader().
+				AddString(password).
+				AddReply(func(ctx context.Context) (string, error) {
+					panic("this should not be called")
+				}),
+			solveWebauthn:           solveWebauthn,
+			authConnector:           constants.LocalConnector,
+			hasTouchIDCredentials:   true,
+			authenticatorAttachment: wancli.AttachmentCrossPlatform,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -208,6 +239,9 @@ func TestTeleportClient_Login_local(t *testing.T) {
 				return resp, "", err
 			}
 
+			*client.HasTouchIDCredentials = func(rpid, user string) bool {
+				return test.hasTouchIDCredentials
+			}
 			authServer := sa.Auth.GetAuthServer()
 			pref, err := authServer.GetAuthPreference(ctx)
 			require.NoError(t, err)
@@ -221,6 +255,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.AllowStdinHijack = test.allowStdinHijack
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
+			tc.AuthenticatorAttachment = test.authenticatorAttachment
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
@@ -264,6 +299,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	customizedOpts := &client.PromptMFAChallengeOpts{
+		HintBeforePrompt:        "some hint explaining the imminent prompt",
 		PromptDevicePrefix:      "llama",
 		Quiet:                   true,
 		AllowStdinHijack:        true,
@@ -341,7 +377,8 @@ type standaloneBundle struct {
 }
 
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
-//  function and reusing in other places.
+//
+//	function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
@@ -369,7 +406,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{randomAddr} // must be present
+	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -452,7 +489,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.WebAddr = randomAddr

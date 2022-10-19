@@ -38,14 +38,12 @@ var databaseAgentConfigurationTemplate = template.Must(template.New("").Funcs(da
 # Teleport database agent configuration file.
 # Configuration reference: https://goteleport.com/docs/database-access/reference/configuration/
 #
+version: v3
 teleport:
   nodename: {{ .NodeName }}
   data_dir: {{ .DataDir }}
+  proxy_server: {{ .ProxyServer }}
   auth_token: {{ .AuthToken }}
-  auth_servers:
-  {{- range .AuthServersAddr }}
-  - {{ . }}
-  {{- end }}
   {{- if .CAPins }}
   ca_pin:
   {{- range .CAPins }}
@@ -115,20 +113,28 @@ db_service:
     tags:
       "*": "*"
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions }}
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions}}
   # Matchers for registering Azure-hosted databases.
   azure:
   {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
   # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
-  - subscriptions: ["*"]
-    resource_groups: ["*"]
-    types: ["mysql"]
+  - types: ["mysql"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - "{{ . }}"
+    {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzureMySQLDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
@@ -137,13 +143,44 @@ db_service:
   {{- if or .AzurePostgresDiscoveryRegions }}
   # Azure Postgres databases auto-discovery.
   # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
-  - subscriptions: ["*"]
-    resource_groups: ["*"]
-    types: ["postgres"]
+  - types: ["postgres"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - "{{ . }}"
+    {{- end }}
     # Azure regions to register databases from.
     regions:
     {{- range .AzurePostgresDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if or .AzureRedisDiscoveryRegions }}
+  # Azure Cache For Redis databases auto-discovery.
+  # For more information about Azure Cache for Redis auto-discovery: https://goteleport.com/docs/database-access/guides/azure-redis/
+  - types: ["redis"]
+    # Azure subscription IDs to match.
+    subscriptions:
+    {{- range .DatabaseAzureSubscriptions }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure resource groups to match.
+    resource_groups:
+    {{- range .DatabaseAzureResourceGroups }}
+    - "{{ . }}"
+    {{- end }}
+    # Azure regions to register databases from.
+    regions:
+    {{- range .AzureRedisDiscoveryRegions }}
+    - "{{ . }}"
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
@@ -312,7 +349,7 @@ type DatabaseSampleFlags struct {
 	// the user.
 	StaticDatabaseStaticLabels map[string]string
 	// StaticDatabaseDynamicLabels list of database dynamic labels provided by
-	// the user.
+	// the user.`
 	StaticDatabaseDynamicLabels services.CommandLabels
 	// StaticDatabaseRawLabels "raw" list of database labels provided by the
 	// user.
@@ -321,9 +358,8 @@ type DatabaseSampleFlags struct {
 	NodeName string
 	// DataDir `data_dir` configuration.
 	DataDir string
-	// ProxyServerAddr is a list of addresses of the auth servers placed on
-	// the configuration.
-	AuthServersAddr []string
+	// ProxyServer is the address of the proxy servers
+	ProxyServer string
 	// AuthToken auth server token.
 	AuthToken string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -334,6 +370,9 @@ type DatabaseSampleFlags struct {
 	// AzurePostgresDiscoveryRegions is a list of regions Azure auto-discovery is
 	// configured to discover Postgres servers in.
 	AzurePostgresDiscoveryRegions []string
+	// AzureRedisDiscoveryRegions is a list of regions Azure auto-discovery is
+	// configured to discover Azure Cache for Redis servers in.
+	AzureRedisDiscoveryRegions []string
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
@@ -364,6 +403,10 @@ type DatabaseSampleFlags struct {
 	DatabaseGCPInstanceID string
 	// DatabaseCACertFile is the database CA cert path.
 	DatabaseCACertFile string
+	// DatabaseAzureSubscriptions is a list of Azure subscriptions.
+	DatabaseAzureSubscriptions []string
+	// DatabaseAzureResourceGroups is a list of Azure resource groups.
+	DatabaseAzureResourceGroups []string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
