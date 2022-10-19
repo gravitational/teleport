@@ -267,7 +267,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s.httpServer = s.newHTTPServer()
 
 	// TCP server will handle TCP applications.
-	s.tcpServer = s.newTCPServer()
+	tcpServer, err := s.newTCPServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.tcpServer = tcpServer
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -844,12 +848,18 @@ func (s *Server) newHTTPServer() *http.Server {
 }
 
 // newTCPServer creates a server that proxies TCP applications.
-func (s *Server) newTCPServer() *tcpServer {
-	return &tcpServer{
-		authClient: s.c.AuthClient,
-		hostID:     s.c.HostID,
-		log:        s.log,
+func (s *Server) newTCPServer() (*tcpServer, error) {
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: s.c.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &tcpServer{
+		audit:  audit,
+		hostID: s.c.HostID,
+		log:    s.log,
+	}, nil
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.
