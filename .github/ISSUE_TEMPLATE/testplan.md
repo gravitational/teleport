@@ -1518,6 +1518,20 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 
+## EC2 Discovery
+
+[EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)
+
+- Verify EC2 instance discovery
+  - [ ]  Only EC2 instances matching given AWS tags have the installer executed on them
+  - [ ]  Only the IAM permissions mentioned in the discovery docs are required for operation
+  - [ ]  Custom scripts specified in different matchers are executed
+  - [ ] Custom SSM documents specified in different matchers are executed
+  - [ ] New EC2 instances with matching AWS tags are discovered and added to the teleport cluster
+    - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
+  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+
+
 ## Resources
 
 [Quick GitHub/SAML/OIDC Setup Tips]
