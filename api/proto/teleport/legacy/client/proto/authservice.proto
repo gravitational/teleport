@@ -1661,6 +1661,9 @@ message ListResourcesRequest {
   // UseSearchAsRoles indicates that the response should include all resources
   // the caller is able to request access to using search_as_roles
   bool UseSearchAsRoles = 11 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
+  // UsePreviewAsRoles indicates that the response should include all resources
+  // the caller would be able to access with their preview_as_roles
+  bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
 }
 
 // ListResourceResponse response of ListResources.
