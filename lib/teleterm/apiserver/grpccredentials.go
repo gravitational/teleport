@@ -65,22 +65,32 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath strin
 }
 
 func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
-	// File is first saved using under tempPath and then renamed to targetPath.
-	// This prevents other processes from reading a half written file.
-	tempPath := targetPath + ".tmp"
+	// The cert is first saved under a temp path and then renamed to targetPath. This prevents other
+	// processes from reading a half-written file.
+	tempFile, err := os.CreateTemp(filepath.Dir(targetPath), filepath.Base(targetPath))
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	defer os.Remove(tempFile.Name())
 
 	cert, err := utils.GenerateSelfSignedCert([]string{"localhost"})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}
 
-	err = os.WriteFile(tempPath, cert.Cert, 0600)
-	if err != nil {
+	if err = tempFile.Chmod(0600); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	err = os.Rename(tempPath, targetPath)
-	if err != nil {
+	if _, err = tempFile.Write(cert.Cert); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	if err = tempFile.Close(); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	if err = os.Rename(tempFile.Name(), targetPath); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
