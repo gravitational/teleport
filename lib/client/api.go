@@ -4281,13 +4281,23 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
 
-	rootCluster, err := tlsKey.RootClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusters := []string{rootCluster}
-	if tc.SiteName != "" && rootCluster != tc.SiteName {
-		clusters = append(clusters, tc.SiteName)
+	var clusters []string
+	if tc.LoadAllCAs {
+		clusters, err = tc.localAgent.GetClusterNames()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		rootCluster, err := tlsKey.RootClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusters = []string{rootCluster}
+		if tc.SiteName != "" && rootCluster != tc.SiteName {
+			// In case of establishing connection to leaf cluster the client validate
+			// ssh cert against root cluster proxy cert and leaf cluster cert.
+			clusters = append(clusters, tc.SiteName)
+		}
 	}
 
 	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
