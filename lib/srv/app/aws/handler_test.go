@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -43,39 +44,78 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
+type makeRequest func(url string, provider client.ConfigProvider) error
+
+func s3Request(url string, provider client.ConfigProvider) error {
+	s3Client := s3.New(provider, &aws.Config{
+		Endpoint: &url,
+	})
+	_, err := s3Client.ListBuckets(&s3.ListBucketsInput{})
+	return err
+}
+
+func dynamoRequest(url string, provider client.ConfigProvider) error {
+	dynamoClient := dynamodb.New(provider, &aws.Config{
+		Endpoint: &url,
+	})
+	_, err := dynamoClient.ListTables(&dynamodb.ListTablesInput{})
+	return err
+}
+
+type check func(t *testing.T, err error)
+
+func checks(chs ...check) []check { return chs }
+
+func hasNoErr() check {
+	return func(t *testing.T, err error) {
+		require.NoError(t, err)
+	}
+}
+
+func hasStatusCode(wantStatusCode int) check {
+	return func(t *testing.T, err error) {
+		require.Error(t, err)
+		apiErr, ok := err.(awserr.RequestFailure)
+		if !ok {
+			t.Errorf("invalid error type: %T", err)
+		}
+		require.Equal(t, wantStatusCode, apiErr.StatusCode())
+	}
+}
+
 // TestAWSSignerHandler test the AWS SigningService APP handler logic with mocked STS signing credentials.
 func TestAWSSignerHandler(t *testing.T) {
-	type check func(t *testing.T, resp *s3.ListBucketsOutput, err error)
-	checks := func(chs ...check) []check { return chs }
+	consoleApp, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "test.local",
+	})
+	require.NoError(t, err)
 
-	hasNoErr := func() check {
-		return func(t *testing.T, resp *s3.ListBucketsOutput, err error) {
-			require.NoError(t, err)
-		}
-	}
-
-	hasStatusCode := func(wantStatusCode int) check {
-		return func(t *testing.T, resp *s3.ListBucketsOutput, err error) {
-			require.Error(t, err)
-			apiErr, ok := err.(awserr.RequestFailure)
-			if !ok {
-				t.Errorf("invalid error type: %T", err)
-			}
-			require.Equal(t, wantStatusCode, apiErr.StatusCode())
-		}
-	}
+	dynamoApp, err := types.NewAppV3(types.Metadata{
+		Name: "dynamo",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL + "/dynamodb",
+		PublicAddr: "test.local",
+	})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name                string
+		app                 types.Application
 		awsClientSession    *session.Session
+		request             makeRequest
 		wantHost            string
 		wantAuthCredService string
 		wantAuthCredRegion  string
 		wantAuthCredKeyID   string
+		wantEventType       events.AuditEvent
 		checks              []check
 	}{
 		{
 			name: "s3 access",
+			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
 					AccessKeyID:     "fakeClientKeyID",
@@ -83,16 +123,19 @@ func TestAWSSignerHandler(t *testing.T) {
 				}}),
 				Region: aws.String("us-west-2"),
 			})),
+			request:             s3Request,
 			wantHost:            "s3.us-west-2.amazonaws.com",
 			wantAuthCredKeyID:   "AKIDl",
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-2",
+			wantEventType:       &events.AppSessionRequest{},
 			checks: checks(
 				hasNoErr(),
 			),
 		},
 		{
 			name: "s3 access with different region",
+			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
 					AccessKeyID:     "fakeClientKeyID",
@@ -100,20 +143,76 @@ func TestAWSSignerHandler(t *testing.T) {
 				}}),
 				Region: aws.String("us-west-1"),
 			})),
+			request:             s3Request,
 			wantHost:            "s3.us-west-1.amazonaws.com",
 			wantAuthCredKeyID:   "AKIDl",
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-1",
+			wantEventType:       &events.AppSessionRequest{},
 			checks: checks(
 				hasNoErr(),
 			),
 		},
 		{
 			name: "s3 access missing credentials",
+			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.AnonymousCredentials,
 				Region:      aws.String("us-west-1"),
 			})),
+			request: s3Request,
+			checks: checks(
+				hasStatusCode(http.StatusBadRequest),
+			),
+		},
+		{
+			name: "DynamoDB access",
+			app:  dynamoApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
+					AccessKeyID:     "fakeClientKeyID",
+					SecretAccessKey: "fakeClientSecret",
+				}}),
+				Region: aws.String("us-east-1"),
+			})),
+			request:             dynamoRequest,
+			wantHost:            "dynamodb.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredService: "dynamodb",
+			wantAuthCredRegion:  "us-east-1",
+			wantEventType:       &events.AppSessionDynamoDBRequest{},
+			checks: checks(
+				hasNoErr(),
+			),
+		},
+		{
+			name: "DynamoDB access with different region",
+			app:  dynamoApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
+					AccessKeyID:     "fakeClientKeyID",
+					SecretAccessKey: "fakeClientSecret",
+				}}),
+				Region: aws.String("us-west-1"),
+			})),
+			request:             dynamoRequest,
+			wantHost:            "dynamodb.us-west-1.amazonaws.com",
+			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredService: "dynamodb",
+			wantAuthCredRegion:  "us-west-1",
+			wantEventType:       &events.AppSessionDynamoDBRequest{},
+			checks: checks(
+				hasNoErr(),
+			),
+		},
+		{
+			name: "DynamoDB access missing credentials",
+			app:  dynamoApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: credentials.AnonymousCredentials,
+				Region:      aws.String("us-west-1"),
+			})),
+			request: dynamoRequest,
 			checks: checks(
 				hasStatusCode(http.StatusBadRequest),
 			),
@@ -130,14 +229,11 @@ func TestAWSSignerHandler(t *testing.T) {
 				require.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
 			}
 
-			suite := createSuite(t, handler)
+			suite := createSuite(t, handler, tc.app)
 
-			s3Client := s3.New(tc.awsClientSession, &aws.Config{
-				Endpoint: &suite.URL,
-			})
-			resp, err := s3Client.ListBuckets(&s3.ListBucketsInput{})
+			err := tc.request(suite.URL, tc.awsClientSession)
 			for _, check := range tc.checks {
-				check(t, resp, err)
+				check(t, err)
 			}
 
 			// Validate audit event.
@@ -145,11 +241,22 @@ func TestAWSSignerHandler(t *testing.T) {
 				require.Len(t, suite.emitter.C(), 1)
 
 				event := <-suite.emitter.C()
-				appSessionEvent, ok := event.(*events.AppSessionRequest)
-				require.True(t, ok)
-				require.Equal(t, tc.wantHost, appSessionEvent.AWSHost)
-				require.Equal(t, tc.wantAuthCredService, appSessionEvent.AWSService)
-				require.Equal(t, tc.wantAuthCredRegion, appSessionEvent.AWSRegion)
+				switch appSessionEvent := event.(type) {
+				case *events.AppSessionDynamoDBRequest:
+					_, ok := tc.wantEventType.(*events.AppSessionDynamoDBRequest)
+					require.True(t, ok, "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
+					require.Equal(t, tc.wantHost, appSessionEvent.AWSHost)
+					require.Equal(t, tc.wantAuthCredService, appSessionEvent.AWSService)
+					require.Equal(t, tc.wantAuthCredRegion, appSessionEvent.AWSRegion)
+				case *events.AppSessionRequest:
+					_, ok := tc.wantEventType.(*events.AppSessionRequest)
+					require.True(t, ok, "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
+					require.Equal(t, tc.wantHost, appSessionEvent.AWSHost)
+					require.Equal(t, tc.wantAuthCredService, appSessionEvent.AWSService)
+					require.Equal(t, tc.wantAuthCredRegion, appSessionEvent.AWSRegion)
+				default:
+					require.FailNow(t, "wrong event type", "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
+				}
 			} else {
 				require.Len(t, suite.emitter.C(), 0)
 			}
@@ -168,16 +275,9 @@ type suite struct {
 	emitter  *eventstest.ChannelEmitter
 }
 
-func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
+func createSuite(t *testing.T, handler http.HandlerFunc, app types.Application) *suite {
 	emitter := eventstest.NewChannelEmitter(1)
 	user := auth.LocalUser{Username: "user"}
-	app, err := types.NewAppV3(types.Metadata{
-		Name: "awsconsole",
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "test.local",
-	})
-	require.NoError(t, err)
 
 	awsAPIMock := httptest.NewUnstartedServer(handler)
 	awsAPIMock.StartTLS()
@@ -199,12 +299,17 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
 	})
 	require.NoError(t, err)
 
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter: emitter,
+	})
+	require.NoError(t, err)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		request = common.WithSessionContext(request, &common.SessionContext{
 			Identity: &user.Identity,
 			App:      app,
-			Emitter:  emitter,
+			Audit:    audit,
 		})
 
 		svc.ServeHTTP(writer, request)
