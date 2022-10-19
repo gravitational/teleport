@@ -16,7 +16,6 @@ VERSION=11.0.1
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
 DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
-DOCKER_IMAGE_OPERATOR_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator
 
 
 GOPATH ?= $(shell go env GOPATH)
@@ -1055,23 +1054,6 @@ publish-ci: image-ci
 	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
-# Docker image build for Teleport Operator
-.PHONY: image-operator-ci
-image-operator-ci:
-	make -C operator docker-build IMG="$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)"
-
-# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
-# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
-# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently.
-# This can cause issues when drone tagging pipelines must be re-run due to failures.
-# Currently the work around for this is to not attempt to push to the image when it already exists.
-.PHONY: publish-operator-ci
-publish-operator-ci: image-operator-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)" >/dev/null 2>&1; then \
-		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";                                                         \
-	else                                                                                                                             \
-		docker push "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)";                                                                   \
-	fi
 
 .PHONY: print-version
 print-version:
