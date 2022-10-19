@@ -136,8 +136,8 @@ func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil || req.Body == http.NoBody {
 		return []byte{}, nil
 	}
-	// req.Body is closed during drainBody call.
-	payload, err := drainBody(req.Body)
+	// req.Body is closed during tryDrainBody call.
+	payload, err := tryDrainBody(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,13 +147,16 @@ func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
 	return payload, nil
 }
 
-// drainBody drains the body, close the reader and returns the read bytes.
-func drainBody(b io.ReadCloser) ([]byte, error) {
-	payload, err := utils.ReadAtMost(b, teleport.MaxHTTPRequestSize)
+// tryDrainBody tries to drain and close the body, returning the read bytes.
+// It may fail to completely drain the body if the size of the body exceeds MaxHTTPRequestSize.
+func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
+	defer func() {
+		if closeErr := b.Close(); closeErr != nil {
+			err = trace.NewAggregate(err, closeErr)
+		}
+	}()
+	payload, err = utils.ReadAtMost(b, teleport.MaxHTTPRequestSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = b.Close(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return payload, nil
