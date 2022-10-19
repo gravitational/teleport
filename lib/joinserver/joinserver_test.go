@@ -20,13 +20,13 @@ import (
 	"context"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/utils"
-	"go.uber.org/atomic"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -54,7 +54,7 @@ func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, chal
 func ConnectionCountingStreamInterceptor(count *atomic.Int32) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		count.Add(1)
-		defer count.Sub(1)
+		defer count.Add(-1)
 		return handler(srv, ss)
 	}
 }
@@ -94,7 +94,7 @@ func newTestPack(t *testing.T) *testPack {
 	// create a mock auth server which implements RegisterUsingIAMMethod
 	mockAuthServer := &mockJoinServiceClient{}
 
-	streamConnectionCount := atomic.NewInt32(0)
+	streamConnectionCount := &atomic.Int32{}
 
 	// create the first instance of JoinServiceGRPCServer wrapping the mock auth
 	// server, to imitate the JoinServiceGRPCServer which runs on Auth
