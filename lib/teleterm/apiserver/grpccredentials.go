@@ -38,7 +38,8 @@ const (
 )
 
 // createServerCredentials creates mTLS credentials for a gRPC server. The client cert file is read
-// only on an incoming connection, not upfront.
+// only on an incoming connection, not upfront. Otherwise we'd need to wait for the client cert file
+// to exist before booting up the server.
 func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath string) (grpc.ServerOption, error) {
 	config := &tls.Config{
 		GetConfigForClient: func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
