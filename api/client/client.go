@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -2866,5 +2867,26 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 	_, err := c.grpc.UpsertClusterAlert(ctx, &proto.UpsertClusterAlertRequest{
 		Alert: alert,
 	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// AcknowledgeAlert marks a cluster alert as acknowledged.
+func (c *Client) AcknowledgeAlert(ctx context.Context, ack types.AlertAcknowledgement) error {
+	_, err := c.grpc.AcknowledgeAlert(ctx, &ack, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetAlertAcks gets active alert ackowledgements.
+func (c *Client) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
+	rsp, err := c.grpc.GetAlertAcks(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp.Acks, nil
+}
+
+// ClearAlertAcks clears alert acknowledgments.
+func (c *Client) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
+	_, err := c.grpc.ClearAlertAcks(ctx, &req, c.callOpts...)
 	return trail.FromGRPC(err)
 }

@@ -588,6 +588,48 @@ func (g *GRPCServer) UpsertClusterAlert(ctx context.Context, req *proto.UpsertCl
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) AcknowledgeAlert(ctx context.Context, ack *types.AlertAcknowledgement) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.AcknowledgeAlert(ctx, *ack); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetAlertAcks(ctx context.Context, _ *emptypb.Empty) (*proto.GetAlertAcksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	acks, err := auth.GetAlertAcks(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GetAlertAcksResponse{
+		Acks: acks,
+	}, nil
+}
+
+func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *proto.ClearAlertAcksRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.ClearAlertAcks(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
