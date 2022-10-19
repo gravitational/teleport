@@ -34,6 +34,8 @@ message Cluster {
   // User is the cluster access control list of the logged-in user
   LoggedInUser logged_in_user = 7;
   // features describes the auth servers features
+  // Only present in situations where detailed
+  // information is queried from the auth server.
   Features features = 8;
 }
 

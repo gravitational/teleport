@@ -52,6 +52,8 @@ type Cluster struct {
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
 	// Auth server features
+	// only present where the auth client can be queried
+	// and set with GetClusterFeatures
 	Features *proto.Features
 }
 

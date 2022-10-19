@@ -99,7 +99,9 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	return nil
 }
 
-// ResolveCluster resolves a cluster by URI
+// ResolveCluster resolves a cluster by URI and returns
+// information stored in the profile along with a TeleportClient.
+// It will not include detailed information returned from the web/auth servers
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
