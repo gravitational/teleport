@@ -157,9 +157,10 @@ func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
 	}()
 	payload, err = utils.ReadAtMost(b, teleport.MaxHTTPRequestSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		err = trace.Wrap(err)
+		return
 	}
-	return payload, nil
+	return
 }
 
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
