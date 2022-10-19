@@ -937,7 +937,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 			}
 		case byte(tdp.TypeSharedDirectoryWriteRequest):
 			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
-				s.onSharedDirectoryWriteRequest(sessionID, message)
+				s.onSharedDirectoryWriteRequest(ctx, emitter, id, sessionID, desktopAddr, message, tdpConn)
 			}
 		}
 	}
