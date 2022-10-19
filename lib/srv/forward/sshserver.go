@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -139,6 +140,7 @@ type Server struct {
 	authClient      auth.ClientI
 	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
+	sessionServer   session.Service
 	dataDir         string
 
 	clock clockwork.Clock
@@ -298,6 +300,7 @@ func New(c ServerConfig) (*Server, error) {
 		address:         c.Address,
 		authClient:      c.AuthClient,
 		authService:     c.AuthClient,
+		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
 		hostUUID:        c.HostUUID,
@@ -409,6 +412,11 @@ func (s *Server) PermitUserEnvironment() bool {
 // GetAccessPoint returns a srv.AccessPoint for this cluster.
 func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
+}
+
+// GetSessionServer returns a session server.
+func (s *Server) GetSessionServer() session.Service {
+	return s.sessionServer
 }
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding

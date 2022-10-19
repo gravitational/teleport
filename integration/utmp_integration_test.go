@@ -268,6 +268,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
+		regular.SetSessionServer(s.nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},

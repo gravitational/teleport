@@ -1677,6 +1677,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}
@@ -2253,6 +2254,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 
 			s := &ServerWithRoles{
 				authServer: srv.AuthServer,
+				sessions:   srv.SessionServer,
 				alog:       srv.AuditLog,
 				context:    *authContext,
 			}
@@ -2446,6 +2448,7 @@ func TestKindClusterConfig(t *testing.T) {
 		require.NoError(t, err, trace.DebugReport(err))
 		s := &ServerWithRoles{
 			authServer: srv.AuthServer,
+			sessions:   srv.SessionServer,
 			alog:       srv.AuditLog,
 			context:    *authContext,
 		}
@@ -3047,6 +3050,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	s := &ServerWithRoles{
 		authServer: srv.AuthServer,
+		sessions:   srv.SessionServer,
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}

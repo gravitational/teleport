@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func extractPort(svr *httptest.Server) (int, error) {
 	return n, nil
 }
 
-func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]types.SessionTracker, error) {
+func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]session.Session, error) {
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -59,7 +60,7 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 			return nil, ctx.Err()
 
 		case <-ticker.C:
-			ss, err := site.GetActiveSessionTrackers(ctx)
+			ss, err := site.GetSessions(ctx, namespace)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
