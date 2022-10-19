@@ -418,6 +418,16 @@ func (r *Rotation) Matches(rotation Rotation) bool {
 	return r.CurrentID == rotation.CurrentID && r.State == rotation.State && r.Phase == rotation.Phase
 }
 
+// IsZero checks if this is the zero value of Rotation. Works on nil and non-nil rotation
+// values.
+func (r *Rotation) IsZero() bool {
+	if r == nil {
+		return true
+	}
+
+	return r.Matches(Rotation{})
+}
+
 // LastRotatedDescription returns human friendly description.
 func (r *Rotation) LastRotatedDescription() string {
 	if r.LastRotated.IsZero() {
