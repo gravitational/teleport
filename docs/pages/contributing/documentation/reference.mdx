@@ -190,8 +190,156 @@ To insert a tabs block like the one above, use this syntax:
 </Tabs>
 ```
 
-`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes). Selecting a scope via the dropdown menu at the top of the page switches the `Tabs` component to the tab associated with that scope.
+### Tabs scopes
 
+`scope` is an optional property that specifies the component's
+[scope](./reference.mdx#scopes). Selecting a scope via the menu at the top of
+the page switches the `Tabs` component to the tab associated with that scope. 
+
+For example, a page will display the "Teleport Cloud" label in this `Tabs`
+component if the user selects the appropriate scope:
+
+```jsx
+<Tabs>
+  <TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
+
+  Here are instructions for users of open source Teleport and Teleport
+  Enterprise.
+
+  </TabItem>
+  <TabItem label="Teleport Cloud" scope="cloud">
+
+  Here are instructions for Teleport Cloud users.
+
+  </TabItem>
+</Tabs>
+```
+
+Here is the result:
+
+<Tabs>
+  <TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
+
+  Here are instructions for users of open source Teleport and Teleport
+  Enterprise.
+
+  </TabItem>
+  <TabItem label="Teleport Cloud" scope="cloud">
+
+  Here are instructions for Teleport Cloud users.
+
+  </TabItem>
+</Tabs>
+
+### Two-dimensional Tabs components
+
+You can add a second dimension of categories to a `Tabs` component by including
+the `dropdownCaption` and `dropdownSelected` options, as shown below:
+
+```jsx
+<Tabs dropdownCaption="Choose an environment" dropdownSelected="Helm">
+  <TabItem options="Helm" label="From Source">
+    Instructions for building from source using a Helm chart.
+  </TabItem>
+  <TabItem options="Executable" label="From Source">
+    Instructions for building from source using shell commands.
+  </TabItem>
+  <TabItem options="Helm" label="Latest Release">
+    Instructions for installing the latest release using a Helm chart.
+  </TabItem>
+  <TabItem options="Executable" label="Latest Release">
+    Instructions for installing the latest release using shell commands.
+  </TabItem>
+</Tabs>
+```
+
+Here is the result:
+
+<Tabs dropdownCaption="Choose an environment" dropdownSelected="Helm">
+  <TabItem options="Helm" label="From Source">
+    Instructions for building from source using a Helm chart.
+  </TabItem>
+  <TabItem options="Executable" label="From Source ">
+    Instructions for building from source using shell commands.
+  </TabItem>
+  <TabItem options="Helm" label="Latest Release ">
+    Instructions for installing the latest release using a Helm chart.
+  </TabItem>
+  <TabItem options="Executable" label="Latest Release">
+    Instructions for installing the latest release using shell commands.
+  </TabItem>
+</Tabs>
+
+The `options` attribute indicates which dropdown menu option will render a
+`TabItem` visible.
+
+### Dropdown-only Tabs components
+
+For `Tabs` components with long lists of tabs, it often makes sense to display
+all tabs via a single dropdown menu. You can do this using the `dropdownView`
+option of the `Tabs` component:
+
+```jsx
+<Tabs dropdownView dropdownCaption="Teleport Component">
+  <TabItem label="Database Service">
+  More information about the Database Service.
+  </TabItem>
+  <TabItem label="Application Service">
+  More information about the Application Service.
+  </TabItem>
+  <TabItem label="Desktop Service">
+  More information about the Desktop Service.
+  </TabItem>
+  <TabItem label="SSH Service">
+  More information about the SSH Service.
+  </TabItem>
+  <TabItem label="Kubernetes Service">
+  More information about the Kubernetes Service.
+  </TabItem>
+  <TabItem label="Machine ID">
+  More information about the Machine ID.
+  </TabItem>
+  <TabItem label="Auth Service">
+  More information about the Auth Service.
+  </TabItem>
+  <TabItem label="Proxy Service">
+  More information about the Proxy Service.
+  </TabItem>
+</Tabs>
+```
+
+Here is the result:
+
+<Tabs dropdownView dropdownCaption="Teleport Component" >
+  <TabItem label="Database Service" >
+  More information about the Database Service.
+  </TabItem>
+  <TabItem label="Application Service" >
+  More information about the Application Service.
+  </TabItem>
+  <TabItem label="Desktop Service" >
+  More information about the Desktop Service.
+  </TabItem>
+  <TabItem label="SSH Service" >
+  More information about the SSH Service.
+  </TabItem>
+  <TabItem label="Kubernetes Service" >
+  More information about the Kubernetes Service.
+  </TabItem>
+  <TabItem label="Machine ID" >
+  More information about the Machine ID.
+  </TabItem>
+  <TabItem label="Auth Service" >
+  More information about the Auth Service.
+  </TabItem>
+  <TabItem label="Proxy Service" >
+  More information about the Proxy Service.
+  </TabItem>
+</Tabs>
+
+When defining a `Tabs` component with the `dropdownView` option enabled, you
+must declare dropdown options using the `label` attribute of `TabItem`, not the
+`options` attribute. 
 
 ## Details
 

@@ -19,15 +19,14 @@ package srv
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckFileCopyingAllowed(t *testing.T) {
-	srv := NewMockServer(t)
-	ctx := NewTestServerContext(t, srv, nil)
+	srv := newMockServer(t)
+	ctx := newTestServerContext(t, srv, nil)
 
 	tests := []struct {
 		name                 string

@@ -207,6 +207,10 @@ func (y *YubiKeyPrivateKey) GetAttestationStatement() (*AttestationStatement, er
 		return nil, trace.Wrap(err)
 	}
 
+	if _, err = piv.Verify(attCert, slotCert); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &AttestationStatement{
 		AttestationStatement: &attestation.AttestationStatement_YubikeyAttestationStatement{
 			YubikeyAttestationStatement: &attestation.YubiKeyAttestationStatement{

@@ -140,6 +140,9 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		// Append `bot-` to the bot name to derive its username.
 		botResourceName := BotResourceName(botName)
 		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
+		if req.Expires != nil {
+			expires = *req.Expires
+		}
 
 		joinMethod := provisionToken.GetJoinMethod()
 
@@ -177,6 +180,9 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 
 		log.Infof("Bot %q has joined the cluster.", botName)
 		return certs, nil
+	}
+	if req.Expires != nil {
+		return nil, trace.BadParameter("'expires' cannot be set on join for non-bot certificates")
 	}
 
 	// instance certs include an additional field that specifies the list of
