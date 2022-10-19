@@ -43,7 +43,7 @@ type JoinServiceGRPCServer struct {
 	requestTimeout    time.Duration
 }
 
-// NewJoinGRPCServer returns a new JoinServiceGRPCServer.
+// NewJoinServiceGRPCServer returns a new JoinServiceGRPCServer.
 func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
