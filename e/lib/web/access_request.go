@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -160,6 +161,11 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
 	}
 
+	withExtraRoles := func(req *proto.ListResourcesRequest) {
+		req.UseSearchAsRoles = true
+		req.UsePreviewAsRoles = true
+	}
+
 	resourceDetails := make(map[string]ui.ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
 		clt, err := cfg.clusterClientProvider.UserClientForCluster(clusterName)
@@ -167,7 +173,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 			return nil, trace.Wrap(err)
 		}
 
-		resources, err := services.GetResourcesByResourceIDs(ctx, clt, resourceIDs)
+		resources, err := services.GetResourcesByResourceIDs(ctx, clt, resourceIDs, withExtraRoles)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
