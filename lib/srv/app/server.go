@@ -62,6 +62,9 @@ type Config struct {
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *auth.Client
 
+	// Emitter is used to emit audit events.
+	Emitter apievents.Emitter
+
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.AppsAccessPoint
 

@@ -337,7 +337,7 @@ func (s *Server) newStreamer(ctx context.Context, chunkID string, recConfig type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return fileStreamer, nil
+	return events.NewTeeStreamer(fileStreamer, s.c.Emitter), nil
 }
 
 // createTracker creates a new session tracker for the session chunk.
