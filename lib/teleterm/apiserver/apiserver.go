@@ -15,7 +15,6 @@
 package apiserver
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -43,29 +42,28 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var tshdKeyPair tls.Certificate
-	tshdCreds := grpc.Creds(nil)
+	serverOptions := []grpc.ServerOption{grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log))}
 	rendererCertPath := filepath.Join(cfg.CertsDir, rendererCertFileName)
 	tshdCertPath := filepath.Join(cfg.CertsDir, tshdCertFileName)
 	shouldUseMTLS := strings.HasPrefix(cfg.HostAddr, "tcp://")
 
 	if shouldUseMTLS {
-		tshdKeyPair, err = generateAndSaveCert(tshdCertPath)
+		tshdKeyPair, err := generateAndSaveCert(tshdCertPath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// rendererCertPath will be read on an incoming client connection so we can assume that at this
 		// point the renderer process has saved its public key under that path.
-		tshdCreds, err = createServerCredentials(tshdKeyPair, rendererCertPath)
+		withTshdCreds, err := createServerCredentials(tshdKeyPair, rendererCertPath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		serverOptions = append(serverOptions, withTshdCreds)
 	}
 
-	grpcServer := grpc.NewServer(tshdCreds, grpc.ChainUnaryInterceptor(
-		withErrorHandling(cfg.Log),
-	))
+	grpcServer := grpc.NewServer(serverOptions...)
 
 	// Create Terminal service.
 
