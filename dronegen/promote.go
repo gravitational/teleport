@@ -39,7 +39,7 @@ func buildDockerPromotionPipelineECR() pipeline {
 		volumeAwsConfig,
 	}
 
-	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
+	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedStep())
 	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
 
 	// Pull/Push Steps
@@ -103,7 +103,7 @@ func buildDockerPromotionPipelineQuay() pipeline {
 		volumeAwsConfig,
 	}
 
-	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
+	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedStep())
 	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
 
 	// Pull/Push Steps
