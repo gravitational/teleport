@@ -452,8 +452,8 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
-// HostUUIDExistsLocaly checks if dataDir/host_uuid file exists in local storage.
-func HostUUIDExistsLocaly(dataDir string) bool {
+// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
+func HostUUIDExistsLocally(dataDir string) bool {
 	_, err := ReadHostUUID(dataDir)
 	return err == nil
 }
