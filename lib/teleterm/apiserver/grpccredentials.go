@@ -64,11 +64,10 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath strin
 	return grpc.Creds(credentials.NewTLS(config)), nil
 }
 
-func generateAndSaveCert(path string) (tls.Certificate, error) {
-	// File is first saved using under tempPath and then renamed to fullPath.
+func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
+	// File is first saved using under tempPath and then renamed to targetPath.
 	// This prevents other processes from reading a half written file.
-	fullPath := filepath.Join(path)
-	tempPath := fullPath + ".tmp"
+	tempPath := targetPath + ".tmp"
 
 	cert, err := utils.GenerateSelfSignedCert([]string{"localhost"})
 	if err != nil {
@@ -80,7 +79,7 @@ func generateAndSaveCert(path string) (tls.Certificate, error) {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	err = os.Rename(tempPath, fullPath)
+	err = os.Rename(tempPath, targetPath)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
