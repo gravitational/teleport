@@ -37,11 +37,11 @@ import (
 type Audit interface {
 	// TODO(gavin): move app session start/end event emitting out of tcpServer and into this interface as OnSessionStart/End
 	// OnSessionChunk is called when a new session chunk is created.
-	OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string)
-	// OnRequest is called when an app request is sent during the session.
-	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint)
+	OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string) error
+	// OnRequest is called when an app request is sent during the session and a response is received.
+	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error
 	// EmitEvent emits the provided audit event.
-	EmitEvent(ctx context.Context, event apievents.AuditEvent)
+	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
 
 // AuditConfig is the audit events emitter configuration.
@@ -78,7 +78,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 }
 
 // OnSessionChunk is called when a new session chunk is created.
-func (a *audit) OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string) {
+func (a *audit) OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string) error {
 	event := &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
@@ -101,14 +101,13 @@ func (a *audit) OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, 
 		},
 		SessionChunkID: sessionCtx.ChunkID,
 	}
-	a.EmitEvent(ctx, event)
+	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
-// OnRequest is called when an app request is sent during the session.
-func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) {
+// OnRequest is called when an app request is sent during the session and a response is received.
+func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
 	if sessionCtx.App.IsDynamoDB() {
-		a.onDynamoDBRequest(ctx, sessionCtx, req, res, re)
-		return
+		return trace.Wrap(a.onDynamoDBRequest(ctx, sessionCtx, req, res, re))
 	}
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
@@ -122,19 +121,23 @@ func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *
 		StatusCode:         uint32(res.StatusCode),
 		AWSRequestMetadata: *MakeAWSRequestMetadata(req, re),
 	}
-	a.EmitEvent(ctx, event)
+	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // onDynamoDBRequest is called when a DynamoDB app request is sent during the session.
-func (a *audit) onDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) {
-	jsonBody, err := io.ReadAll(req.Body)
-	if err != nil {
+func (a *audit) onDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
+	// Try to read the body and JSON unmarshal it.
+	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
+	var body *apievents.Struct
+	if jsonBody, err := io.ReadAll(req.Body); err != nil {
 		a.log.WithError(err).Warn("Failed to read DynamoDB request body.")
-	}
-	body := &apievents.Struct{}
-	err = body.UnmarshalJSON(jsonBody)
-	if err != nil {
-		a.log.WithError(err).Warn("Failed to decode DynamoDB request JSON body.")
+	} else {
+		s := &apievents.Struct{}
+		if err := s.UnmarshalJSON(jsonBody); err != nil {
+			a.log.WithError(err).Warn("Failed to decode DynamoDB request JSON body.")
+		} else {
+			body = s
+		}
 	}
 	// get the API target from the request header, according to the API request format documentation:
 	// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html#Programming.LowLevelAPI.RequestFormat
@@ -155,14 +158,12 @@ func (a *audit) onDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 		Target:             target,
 		Body:               body,
 	}
-	a.EmitEvent(ctx, event)
+	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // EmitEvent emits the provided audit event.
-func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) {
-	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
-		a.log.WithError(err).Errorf("Failed to emit audit event: %v.", event)
-	}
+func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return trace.Wrap(a.cfg.Emitter.EmitAuditEvent(ctx, event))
 }
 
 // MakeAppMetadata returns common server metadata for database session.

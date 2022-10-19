@@ -147,7 +147,9 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	}
 
 	// only emit a session chunk if we didnt get an error making the new session chunk
-	sess.sessionCtx.Audit.OnSessionChunk(ctx, sess.sessionCtx, s.c.HostID)
+	if err := sess.sessionCtx.Audit.OnSessionChunk(ctx, sess.sessionCtx, s.c.HostID); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return sess, nil
 }
 

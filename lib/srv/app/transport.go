@@ -145,6 +145,11 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	sessionCtx, err := common.GetSessionContext(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Forward the request to the target application and emit an audit event.
 	resp, err := t.tr.RoundTrip(r)
 	if err != nil {
@@ -152,11 +157,9 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// Emit the event to the audit log.
-	sessionCtx, err := common.GetSessionContext(r)
-	if err != nil {
+	if err := t.c.audit.OnRequest(t.closeContext, sessionCtx, r, resp, nil /*aws endpoint*/); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	t.c.audit.OnRequest(t.closeContext, sessionCtx, r, resp, nil /*aws endpoint*/)
 
 	// Perform any response rewriting needed before returning the request.
 	if err := t.rewriteResponse(resp); err != nil {
