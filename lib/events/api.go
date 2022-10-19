@@ -570,6 +570,9 @@ const (
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
 
+	// DeviceEvent is the catch-all event for Device Trust events.
+	DeviceEvent = "device"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
