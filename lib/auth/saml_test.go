@@ -227,6 +227,11 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
+	role, err := types.NewRole("admin", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
 	connector, err := types.NewSAMLConnector("ping", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://proxy.example.com:3080/v1/webapi/saml/acs",
 		Provider:                 "ping",
@@ -480,6 +485,11 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 		Organization: []string{"Teleport OSS"},
 		CommonName:   "teleport.localhost.localdomain",
 	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	role, err = types.NewRole("baz", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	conn, err := types.NewSAMLConnector("saml-test-conn", types.SAMLConnectorSpecV2{

@@ -1104,6 +1104,11 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	role, err := types.NewRole("dummy", types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = s.a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
 	// test saml create
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
