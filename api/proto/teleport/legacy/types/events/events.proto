@@ -3723,8 +3723,14 @@ message AppSessionDynamoDBRequest {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // App is a common application resource metadata.
+  AppMetadata App = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
   // AWS contains extra AWS metadata of the request.
-  AWSRequestMetadata AWS = 3 [
+  AWSRequestMetadata AWS = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -3734,28 +3740,24 @@ message AppSessionDynamoDBRequest {
   // This is more appropriate to include than the app session id, since it is the chunk
   // id that is needed to play back the session chunk with tsh. The session chunk event
   // already includes the app session id.
-  string SessionChunkID = 4 [(gogoproto.jsontag) = "session_chunk_id"];
+  string SessionChunkID = 5 [(gogoproto.jsontag) = "session_chunk_id"];
   // StatusCode the HTTP response code for the request.
-  uint32 StatusCode = 5 [(gogoproto.jsontag) = "status_code"];
+  uint32 StatusCode = 6 [(gogoproto.jsontag) = "status_code"];
   // Path is relative path in the URL.
-  string Path = 6 [(gogoproto.jsontag) = "path"];
+  string Path = 7 [(gogoproto.jsontag) = "path"];
   // RawQuery are the encoded query values.
-  string RawQuery = 7 [(gogoproto.jsontag) = "raw_query"];
+  string RawQuery = 8 [(gogoproto.jsontag) = "raw_query"];
   // Method is the request HTTP method, like GET/POST/DELETE/etc.
-  string Method = 8 [(gogoproto.jsontag) = "method"];
+  string Method = 9 [(gogoproto.jsontag) = "method"];
   // Body is the HTTP request json body.
-  google.protobuf.Struct Body = 9 [
+  google.protobuf.Struct Body = 10 [
     (gogoproto.jsontag) = "body,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+  // Target is the API target in the X-Amz-Target header.
+  string Target = 11 [(gogoproto.jsontag) = "target"];
   // Operation represents the category of operation for an API being accessed in a given request.
-  OperationPlane Operation = 10 [(gogoproto.jsontag) = "operation"];
-  // App is a common application resource metadata.
-  AppMetadata App = 11 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
+  OperationPlane Operation = 12 [(gogoproto.jsontag) = "operation"];
 }
 
 // UpgradeWindowStartMetadata contains common upgrade window information.
