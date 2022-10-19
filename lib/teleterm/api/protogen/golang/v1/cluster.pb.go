@@ -54,6 +54,8 @@ type Cluster struct {
 	// User is the cluster access control list of the logged-in user
 	LoggedInUser *LoggedInUser `protobuf:"bytes,7,opt,name=logged_in_user,json=loggedInUser,proto3" json:"logged_in_user,omitempty"`
 	// features describes the auth servers features
+	// Only present in situations where detailed
+	// information is queried from the auth server.
 	Features *Features `protobuf:"bytes,8,opt,name=features,proto3" json:"features,omitempty"`
 }
 

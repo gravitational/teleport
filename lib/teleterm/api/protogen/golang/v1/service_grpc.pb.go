@@ -23,8 +23,10 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TerminalServiceClient interface {
 	// ListRootClusters lists root clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListRootClusters(ctx context.Context, in *ListClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
 	// GetAllDatabases lists all databases without pagination
 	GetAllDatabases(ctx context.Context, in *GetAllDatabasesRequest, opts ...grpc.CallOption) (*GetAllDatabasesResponse, error)
@@ -444,8 +446,10 @@ func (x *terminalServiceTransferFileClient) Recv() (*FileTransferProgress, error
 // for forward compatibility
 type TerminalServiceServer interface {
 	// ListRootClusters lists root clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListRootClusters(context.Context, *ListClustersRequest) (*ListClustersResponse, error)
 	// ListLeafClusters lists leaf clusters
+	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
 	// GetAllDatabases lists all databases without pagination
 	GetAllDatabases(context.Context, *GetAllDatabasesRequest) (*GetAllDatabasesResponse, error)
