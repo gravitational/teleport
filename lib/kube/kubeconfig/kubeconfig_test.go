@@ -220,52 +220,88 @@ func TestUpdateWithExec(t *testing.T) {
 	kubeconfigPath, initialConfig := setup(t)
 	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
-	err = Update(kubeconfigPath, Values{
-		TeleportClusterName: clusterName,
-		ClusterAddr:         clusterAddr,
-		Credentials:         creds,
-		Exec: &ExecValues{
-			TshBinaryPath: tshPath,
-			KubeClusters:  []string{kubeCluster},
-			Env: map[string]string{
-				homeEnvVar: home,
-			},
-		},
-	}, false)
-	require.NoError(t, err)
 
-	wantConfig := initialConfig.DeepCopy()
-	contextName := ContextName(clusterName, kubeCluster)
-	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
-		Server:                   clusterAddr,
-		CertificateAuthorityData: caCertPEM,
-		LocationOfOrigin:         kubeconfigPath,
-		Extensions:               map[string]runtime.Object{},
-	}
-	wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
-		LocationOfOrigin: kubeconfigPath,
-		Extensions:       map[string]runtime.Object{},
-		Exec: &clientcmdapi.ExecConfig{
-			APIVersion: "client.authentication.k8s.io/v1beta1",
-			Command:    tshPath,
-			Args: []string{"kube", "credentials",
-				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
-				fmt.Sprintf("--teleport-cluster=%s", clusterName),
-			},
-			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
-			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
+	tests := []struct {
+		name               string
+		impersonatedUser   string
+		impersonatedGroups []string
+	}{
+		{
+			name:               "config without impersonation",
+			impersonatedUser:   "",
+			impersonatedGroups: nil,
+		},
+		{
+			name:               "config with user impersonation",
+			impersonatedUser:   "user1",
+			impersonatedGroups: nil,
+		},
+		{
+			name:               "config with group impersonation",
+			impersonatedUser:   "",
+			impersonatedGroups: []string{"group1", "group2"},
+		},
+		{
+			name:               "config with user and group impersonation",
+			impersonatedUser:   "user",
+			impersonatedGroups: []string{"group1", "group2"},
 		},
 	}
-	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
-		Cluster:          clusterName,
-		AuthInfo:         contextName,
-		LocationOfOrigin: kubeconfigPath,
-		Extensions:       map[string]runtime.Object{},
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err = Update(kubeconfigPath, Values{
+				TeleportClusterName: clusterName,
+				ClusterAddr:         clusterAddr,
+				Credentials:         creds,
+				Exec: &ExecValues{
+					Impersonate:       tt.impersonatedUser,
+					ImpersonateGroups: tt.impersonatedGroups,
+					TshBinaryPath:     tshPath,
+					KubeClusters:      []string{kubeCluster},
+					Env: map[string]string{
+						homeEnvVar: home,
+					},
+				},
+			}, false)
+			require.NoError(t, err)
 
-	config, err := Load(kubeconfigPath)
-	require.NoError(t, err)
-	require.Equal(t, wantConfig, config)
+			wantConfig := initialConfig.DeepCopy()
+			contextName := ContextName(clusterName, kubeCluster)
+			wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
+				Server:                   clusterAddr,
+				CertificateAuthorityData: caCertPEM,
+				LocationOfOrigin:         kubeconfigPath,
+				Extensions:               map[string]runtime.Object{},
+			}
+			wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
+				LocationOfOrigin:  kubeconfigPath,
+				Extensions:        map[string]runtime.Object{},
+				Impersonate:       tt.impersonatedUser,
+				ImpersonateGroups: tt.impersonatedGroups,
+				Exec: &clientcmdapi.ExecConfig{
+					APIVersion: "client.authentication.k8s.io/v1beta1",
+					Command:    tshPath,
+					Args: []string{"kube", "credentials",
+						fmt.Sprintf("--kube-cluster=%s", kubeCluster),
+						fmt.Sprintf("--teleport-cluster=%s", clusterName),
+					},
+					Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+					InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
+				},
+			}
+			wantConfig.Contexts[contextName] = &clientcmdapi.Context{
+				Cluster:          clusterName,
+				AuthInfo:         contextName,
+				LocationOfOrigin: kubeconfigPath,
+				Extensions:       map[string]runtime.Object{},
+			}
+
+			config, err := Load(kubeconfigPath)
+			require.NoError(t, err)
+			require.Equal(t, wantConfig, config)
+		},
+		)
+	}
 }
 func TestUpdateWithExecAndProxy(t *testing.T) {
 	const (

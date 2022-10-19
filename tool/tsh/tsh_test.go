@@ -1870,9 +1870,51 @@ func TestKubeConfigUpdate(t *testing.T) {
 				TeleportClusterName: "a.example.com",
 				Exec: &kubeconfig.ExecValues{
 					TshBinaryPath: "/bin/tsh",
-					KubeClusters:  []string{"dev", "prod"},
+					KubeClusters:  []string{"dev"},
 					SelectCluster: "dev",
 					Env:           make(map[string]string),
+				},
+			},
+		},
+		{
+			desc: "selected cluster with impersonation",
+			cf: &CLIConf{
+				executablePath:    "/bin/tsh",
+				KubernetesCluster: "dev",
+				kubernetesImpersonationConfig: impersonationConfig{
+					kubernetesUser:   "user1",
+					kubernetesGroups: []string{"group1", "group2"},
+				},
+			},
+			kubeStatus: &kubernetesStatus{
+				clusterAddr:         "https://a.example.com:3026",
+				teleportClusterName: "a.example.com",
+				kubeClusters: []types.KubeCluster{
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "dev",
+						},
+					},
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "prod",
+						},
+					},
+				},
+				credentials: creds,
+			},
+			errorAssertion: require.NoError,
+			expectedValues: &kubeconfig.Values{
+				Credentials:         creds,
+				ClusterAddr:         "https://a.example.com:3026",
+				TeleportClusterName: "a.example.com",
+				Exec: &kubeconfig.ExecValues{
+					Impersonate:       "user1",
+					ImpersonateGroups: []string{"group1", "group2"},
+					TshBinaryPath:     "/bin/tsh",
+					KubeClusters:      []string{"dev"},
+					SelectCluster:     "dev",
+					Env:               make(map[string]string),
 				},
 			},
 		},

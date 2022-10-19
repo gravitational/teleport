@@ -886,6 +886,7 @@ type kubeLoginCommand struct {
 	siteName          string
 	impersonateUser   string
 	impersonateGroups []string
+	all               bool
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
@@ -894,8 +895,9 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
-	c.Flag("as", clusterHelp).StringVar(&c.impersonateUser)
-	c.Flag("as-groups", clusterHelp).StringsVar(&c.impersonateGroups)
+	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
+	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
+	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
 	return c
 }
 
@@ -907,6 +909,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		kubernetesUser:   c.impersonateUser,
 		kubernetesGroups: c.impersonateGroups,
 	}
+	cf.ListAll = c.all
 
 	tc, err := makeClient(cf, true)
 	if err != nil {
@@ -1037,11 +1040,12 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 
 	clusterNames := kubeClustersToStrings(kubeStatus.kubeClusters)
 
-	// if cf.KubernetesCluster is set we will just add a single entry to kubeconfig.
-	if cf.KubernetesCluster != "" {
-		if !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
-			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
-		}
+	// Validate if cf.KubernetesCluster is part of the returned list of clusters
+	if cf.KubernetesCluster != "" && !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
+		return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
+	}
+	// If ListAll is not enabled, update only cf.KubernetesCluster cluster.
+	if cf.KubernetesCluster != "" && !cf.ListAll {
 		clusterNames = []string{cf.KubernetesCluster}
 	}
 
@@ -1065,7 +1069,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 
 // impersonationConfig allows to configure custom kubernetes impersonation values.
 type impersonationConfig struct {
-	// kubernetesUser specifies the kubernetes users to impersonate request as.
+	// kubernetesUser specifies the kubernetes user to impersonate request as.
 	kubernetesUser string
 	// kubernetesGroups specifies the kubernetes groups to impersonate request as.
 	kubernetesGroups []string

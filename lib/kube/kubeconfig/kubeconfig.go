@@ -79,7 +79,7 @@ type ExecValues struct {
 	// Env is a map of environment variables to forward.
 	Env map[string]string
 	// Impersonate allows to define the default impersonated user.
-	// Must be a subset of kubernetes_users or if they are empty the Teleport username
+	// Must be a subset of kubernetes_users or the Teleport username
 	// otherwise Teleport will deny the request.
 	Impersonate string
 	// ImpersonateGroups allows to define the default values for impersonated groups.
@@ -331,8 +331,7 @@ func SelectContext(teleportCluster, kubeCluster string) error {
 	}
 
 	kubeContext := ContextName(teleportCluster, kubeCluster)
-	_, ok := kc.Contexts[kubeContext]
-	if !ok {
+	if _, ok := kc.Contexts[kubeContext]; !ok {
 		return trace.NotFound("kubeconfig context %q not found", kubeContext)
 	}
 	kc.CurrentContext = kubeContext
