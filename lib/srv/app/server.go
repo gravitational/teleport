@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -708,15 +709,8 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 	defer session.release()
 
-	// Create session context.
-	sessionCtx := &common.SessionContext{
-		Identity: identity,
-		App:      app,
-		Emitter:  session.streamWriter,
-	}
-
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	session.fwd.ServeHTTP(w, common.WithSessionContext(r, session.sessionCtx))
 	return nil
 }
 

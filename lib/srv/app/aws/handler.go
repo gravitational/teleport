@@ -18,8 +18,8 @@ package aws
 
 import (
 	"bytes"
-	"context"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -29,14 +29,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/oxy/forward"
-	"github.com/gravitational/oxy/utils"
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -52,7 +50,7 @@ func NewSigningService(config SigningServiceConfig) (*SigningService, error) {
 
 	fwd, err := forward.New(
 		forward.RoundTripper(svc),
-		forward.ErrorHandler(utils.ErrorHandlerFunc(svc.formatForwardResponseError)),
+		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
 		forward.PassHostHeader(true),
 	)
 	if err != nil {
@@ -135,6 +133,7 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 //	 5. Sign HTTP request.
 //	 6. Forward the signed HTTP request to the AWS API.
 func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
+	defer req.Body.Close()
 	sessionCtx, err := common.GetSessionContext(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -143,7 +142,11 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signedReq, err := s.prepareSignedRequest(req, resolvedEndpoint, sessionCtx)
+	payload, err := awsutils.GetAndReplaceReqBody(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signedReq, err := s.prepareSignedRequest(req, payload, resolvedEndpoint, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,36 +154,10 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := s.emitAuditEvent(req.Context(), signedReq, resp, sessionCtx, resolvedEndpoint); err != nil {
-		s.Log.WithError(err).Warn("Failed to emit audit event.")
-	}
+	// restore signedReq body since the transport closed it.
+	signedReq.Body = io.NopCloser(bytes.NewReader(payload))
+	sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
 	return resp, nil
-}
-
-// emitAuditEvent writes details of the AWS request to audit stream.
-func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, sessionCtx *common.SessionContext, endpoint *endpoints.ResolvedEndpoint) error {
-	event := &apievents.AppSessionRequest{
-		Metadata: apievents.Metadata{
-			Type: events.AppSessionRequestEvent,
-			Code: events.AppSessionRequestCode,
-		},
-		Method:     req.Method,
-		Path:       req.URL.Path,
-		RawQuery:   req.URL.RawQuery,
-		StatusCode: uint32(resp.StatusCode),
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        sessionCtx.App.GetURI(),
-			AppPublicAddr: sessionCtx.App.GetPublicAddr(),
-			AppName:       sessionCtx.App.GetName(),
-		},
-		AWSRequestMetadata: apievents.AWSRequestMetadata{
-			AWSRegion:  endpoint.SigningRegion,
-			AWSService: endpoint.SigningName,
-			AWSHost:    req.Host,
-		},
-	}
-	return trace.Wrap(sessionCtx.Emitter.EmitAuditEvent(ctx, event))
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
@@ -199,11 +176,7 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 
 // prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
-func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, sessionCtx *common.SessionContext) (*http.Request, error) {
-	payload, err := awsutils.GetAndReplaceReqBody(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (s *SigningService) prepareSignedRequest(r *http.Request, payload []byte, re *endpoints.ResolvedEndpoint, sessionCtx *common.SessionContext) (*http.Request, error) {
 	url := fmt.Sprintf("%s%s", re.URL, r.URL.Opaque)
 	reqCopy, err := http.NewRequest(r.Method, url, bytes.NewReader(payload))
 	if err != nil {
