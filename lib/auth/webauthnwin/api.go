@@ -91,7 +91,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	promptPlatform()
+	promptPlatformLogin()
 	resp, err := native.GetAssertion(origin, &getAssertionRequest{
 		rpID:                  rpid,
 		clientData:            cd,
@@ -141,7 +141,7 @@ func Register(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	promptPlatform()
+	promptPlatformRegister()
 	resp, err := native.MakeCredential(origin, &makeCredentialRequest{
 		rp:                    rp,
 		user:                  u,
@@ -162,15 +162,25 @@ func Register(
 }
 
 var (
-	// PromptPlatformMessage is the message shown before Touch ID prompts.
-	PromptPlatformMessage = "Using platform authenticator, follow the OS dialogs"
+	// PromptPlatformRegisterMessage is the message shown before windows dialog prompts.
+	PromptPlatformRegisterMessage = "Using platform authenticator, follow the OS dialogs" +
+		" and select *new* device"
+	// PromptPlatformLoginMessage is the message shown before windows dialog prompts.
+	PromptPlatformLoginMessage = "Using platform authenticator, follow the OS dialogs" +
+		" and select *registered* device"
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
 )
 
-func promptPlatform() {
-	if PromptPlatformMessage != "" {
-		fmt.Fprintln(PromptWriter, PromptPlatformMessage)
+func promptPlatformRegister() {
+	if PromptPlatformRegisterMessage != "" {
+		fmt.Fprintln(PromptWriter, PromptPlatformRegisterMessage)
+	}
+}
+
+func promptPlatformLogin() {
+	if PromptPlatformLoginMessage != "" {
+		fmt.Fprintln(PromptWriter, PromptPlatformLoginMessage)
 	}
 }
 
