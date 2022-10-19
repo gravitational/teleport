@@ -62,24 +62,13 @@ func dynamoRequest(url string, provider client.ConfigProvider) error {
 	return err
 }
 
-type check func(t *testing.T, err error)
+func checks(chs ...require.ErrorAssertionFunc) []require.ErrorAssertionFunc { return chs }
 
-func checks(chs ...check) []check { return chs }
-
-func hasNoErr() check {
-	return func(t *testing.T, err error) {
-		require.NoError(t, err)
-	}
-}
-
-func hasStatusCode(wantStatusCode int) check {
-	return func(t *testing.T, err error) {
-		require.Error(t, err)
-		apiErr, ok := err.(awserr.RequestFailure)
-		if !ok {
-			t.Errorf("invalid error type: %T", err)
-		}
-		require.Equal(t, wantStatusCode, apiErr.StatusCode())
+func hasStatusCode(wantStatusCode int) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		var apiErr awserr.RequestFailure
+		require.ErrorAs(t, err, &apiErr, msgAndArgs...)
+		require.Equal(t, wantStatusCode, apiErr.StatusCode(), msgAndArgs...)
 	}
 }
 
@@ -111,7 +100,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		wantAuthCredRegion  string
 		wantAuthCredKeyID   string
 		wantEventType       events.AuditEvent
-		checks              []check
+		errAssertionFns     []require.ErrorAssertionFunc
 	}{
 		{
 			name: "s3 access",
@@ -129,9 +118,9 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-2",
 			wantEventType:       &events.AppSessionRequest{},
-			checks: checks(
-				hasNoErr(),
-			),
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
 		},
 		{
 			name: "s3 access with different region",
@@ -149,9 +138,9 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-1",
 			wantEventType:       &events.AppSessionRequest{},
-			checks: checks(
-				hasNoErr(),
-			),
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
 		},
 		{
 			name: "s3 access missing credentials",
@@ -161,9 +150,9 @@ func TestAWSSignerHandler(t *testing.T) {
 				Region:      aws.String("us-west-1"),
 			})),
 			request: s3Request,
-			checks: checks(
+			errAssertionFns: []require.ErrorAssertionFunc{
 				hasStatusCode(http.StatusBadRequest),
-			),
+			},
 		},
 		{
 			name: "DynamoDB access",
@@ -181,9 +170,9 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantAuthCredService: "dynamodb",
 			wantAuthCredRegion:  "us-east-1",
 			wantEventType:       &events.AppSessionDynamoDBRequest{},
-			checks: checks(
-				hasNoErr(),
-			),
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
 		},
 		{
 			name: "DynamoDB access with different region",
@@ -201,9 +190,9 @@ func TestAWSSignerHandler(t *testing.T) {
 			wantAuthCredService: "dynamodb",
 			wantAuthCredRegion:  "us-west-1",
 			wantEventType:       &events.AppSessionDynamoDBRequest{},
-			checks: checks(
-				hasNoErr(),
-			),
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
 		},
 		{
 			name: "DynamoDB access missing credentials",
@@ -213,9 +202,9 @@ func TestAWSSignerHandler(t *testing.T) {
 				Region:      aws.String("us-west-1"),
 			})),
 			request: dynamoRequest,
-			checks: checks(
+			errAssertionFns: []require.ErrorAssertionFunc{
 				hasStatusCode(http.StatusBadRequest),
-			),
+			},
 		},
 	}
 	for _, tc := range tests {
@@ -232,8 +221,8 @@ func TestAWSSignerHandler(t *testing.T) {
 			suite := createSuite(t, handler, tc.app)
 
 			err := tc.request(suite.URL, tc.awsClientSession)
-			for _, check := range tc.checks {
-				check(t, err)
+			for _, assertFn := range tc.errAssertionFns {
+				assertFn(t, err)
 			}
 
 			// Validate audit event.
