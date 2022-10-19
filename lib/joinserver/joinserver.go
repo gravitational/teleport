@@ -20,17 +20,18 @@ package joinserver
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 )
 
-const defaultRequestTimeout = time.Minute
+const iamJoinRequestTimeout = time.Minute
 
 type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
@@ -40,14 +41,14 @@ type joinServiceClient interface {
 // to run on both the Teleport Proxy and Auth servers.
 type JoinServiceGRPCServer struct {
 	joinServiceClient joinServiceClient
-	requestTimeout    time.Duration
+	clock             clockwork.Clock
 }
 
 // NewJoinServiceGRPCServer returns a new JoinServiceGRPCServer.
 func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
-		requestTimeout:    defaultRequestTimeout,
+		clock:             clockwork.NewRealClock(),
 	}
 }
 
@@ -60,10 +61,11 @@ func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceG
 // sts:GetCallerIdentity request with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
+	ctx := srv.Context()
+
 	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
 	// hold connections open indefinitely.
-	ctx, cancel := context.WithTimeout(srv.Context(), s.requestTimeout)
-	defer cancel()
+	timeout := s.clock.After(iamJoinRequestTimeout)
 
 	// The only way to cancel a blocked Send or Recv on the server side without
 	// adding an interceptor to the entire gRPC service is to return from the
@@ -76,15 +78,15 @@ func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_Reg
 	case err := <-errCh:
 		// Completed before the deadline, return the error (may be nil).
 		return trace.Wrap(err)
-	case <-ctx.Done():
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			nodeAddr := ""
-			if peerInfo, ok := peer.FromContext(ctx); ok {
-				nodeAddr = peerInfo.Addr.String()
-			}
-			logrus.Warnf("RegisterUsingIAMMethod timed out, node at (%s) may not have closed the connection after encountering an error. Terminating the stream on the server.", nodeAddr)
+	case <-timeout:
+		nodeAddr := ""
+		if peerInfo, ok := peer.FromContext(ctx); ok {
+			nodeAddr = peerInfo.Addr.String()
 		}
+		logrus.Warnf("IAM join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
 		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.LimitExceeded("RegisterUsingIAMMethod timed out after %s, terminating the stream on the server", iamJoinRequestTimeout)
+	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	}
 }
