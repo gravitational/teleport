@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -223,6 +224,10 @@ func TestTimeout(t *testing.T) {
 
 	testPack := newTestPack(t)
 
+	fakeClock := clockwork.NewFakeClock()
+	testPack.authServer.clock = fakeClock
+	testPack.proxyServer.clock = fakeClock
+
 	for _, tc := range []struct {
 		desc string
 		clt  *client.JoinServiceClient
@@ -249,15 +254,10 @@ func TestTimeout(t *testing.T) {
 			}, 10*time.Second, 1*time.Millisecond)
 			// ^ This timeout is absurdly large but I really don't want this to
 			// be flaky in CI. This test is still pretty fast most of the time and
-			// still tests what it is meant to - if the connections never
-			// close this would still fail.
+			// still tests what it is meant to - if the connections never close
+			// this would still fail.
 		})
 	}
-
-	// Override the default timeout with something much quicker for the test.
-	requestTimeout := 10 * time.Millisecond
-	testPack.authServer.requestTimeout = requestTimeout
-	testPack.proxyServer.requestTimeout = requestTimeout
 
 	for _, tc := range []struct {
 		desc string
@@ -288,14 +288,14 @@ func TestTimeout(t *testing.T) {
 			//
 			// Make sure the request is automatically timed out on the server and all
 			// connections are closed shortly after the timeout.
-			time.Sleep(requestTimeout)
+			fakeClock.Advance(iamJoinRequestTimeout)
 			require.Eventually(t, func() bool {
 				return testPack.streamConnectionCount.Load() == 0
 			}, 10*time.Second, 1*time.Millisecond)
 			// ^ This timeout is absurdly large but I really don't want this to
 			// be flaky in CI. This test is still pretty fast most of the time and
-			// still tests what it is meant to - if the connections never
-			// close this would still fail.
+			// still tests what it is meant to - if the connections never close
+			// this would still fail.
 		})
 	}
 }
