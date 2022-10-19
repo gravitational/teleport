@@ -294,7 +294,7 @@ steps:
   - git submodule update --init --recursive webassets || true
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
+  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
     else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
@@ -830,7 +830,7 @@ steps:
 - name: Check if commit is tagged
   image: alpine
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -1943,7 +1943,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2129,7 +2129,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2320,7 +2320,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2512,7 +2512,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2693,7 +2693,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2735,7 +2735,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
@@ -2954,7 +2954,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -2996,7 +2996,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
     /go/artifacts/
@@ -3218,7 +3218,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3260,7 +3260,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
     /go/artifacts/
@@ -3465,7 +3465,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3507,7 +3507,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
     /go/artifacts/
@@ -3711,7 +3711,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3892,7 +3892,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -3934,7 +3934,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
@@ -4153,7 +4153,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -4195,7 +4195,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz
     /go/artifacts/
@@ -5024,7 +5024,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5207,7 +5207,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5388,7 +5388,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5430,7 +5430,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
@@ -5635,7 +5635,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5677,7 +5677,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
@@ -5882,7 +5882,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -5924,7 +5924,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm64-bin.tar.gz
     /go/artifacts/
@@ -6143,7 +6143,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -6185,7 +6185,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - export VERSION=$(cat /go/.version.txt)
-  - if [[ "$(echo v1.2.3-fred.4)" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
+  - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
   - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-arm-bin.tar.gz
     /go/artifacts/
@@ -6406,7 +6406,7 @@ steps:
   - |-
     VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
     if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
-      echo "Mismatch between Makefile version: $$VERSION and git tag: $(echo v1.2.3-fred.4)"
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
@@ -7287,8 +7287,21 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -7297,7 +7310,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.4)"
+  - git checkout -qf "${DRONE_TAG}"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7324,8 +7337,9 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
-- name: Download artifacts for "$(echo v1.2.3-fred.4)"
+- name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
@@ -7341,6 +7355,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
@@ -7368,8 +7383,9 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
-- name: Publish debs to APT repos for "$(echo v1.2.3-fred.4)"
+- name: Publish debs to APT repos for "${DRONE_TAG}"
   image: golang:1.18-bullseye
   commands:
   - apt update
@@ -7378,7 +7394,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="$(echo v1.2.3-fred.4)"
+  - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -7402,8 +7418,9 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "$(echo v1.2.3-fred.4)"
+  - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
 volumes:
 - name: apt-persistence
@@ -7471,8 +7488,21 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -7481,7 +7511,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.4)"
+  - git checkout -qf "${DRONE_TAG}"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7508,8 +7538,9 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
-- name: Download artifacts for "$(echo v1.2.3-fred.4)"
+- name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
@@ -7525,6 +7556,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
@@ -7552,8 +7584,9 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
-- name: Publish rpms to YUM repos for "$(echo v1.2.3-fred.4)"
+- name: Publish rpms to YUM repos for "${DRONE_TAG}"
   image: golang:1.18-bullseye
   commands:
   - apt update
@@ -7563,7 +7596,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="$(echo v1.2.3-fred.4)"
+  - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -7587,8 +7620,9 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "$(echo v1.2.3-fred.4)"
+  - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
+  - Check if tag is prerelease
   - Check out code
 volumes:
 - name: yum-persistence
@@ -7630,7 +7664,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -7736,7 +7770,7 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -8375,7 +8409,7 @@ steps:
 - name: Check if commit is tagged
   image: alpine
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Wait for docker
   image: docker
@@ -8755,7 +8789,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.4)"
+  - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8763,7 +8797,7 @@ steps:
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
+  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Wait for docker
@@ -8995,8 +9029,21 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -9006,6 +9053,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -9014,6 +9062,7 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
 - name: Check out code
   image: alpine/git:latest
@@ -9023,25 +9072,27 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.4)"
+  - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
+  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9068,6 +9119,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9095,6 +9147,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9122,6 +9175,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -11534,8 +11588,21 @@ steps:
 - name: Verify build is tagged
   image: alpine:latest
   commands:
-  - '[ -n $(echo v1.2.3-fred.4) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -11545,6 +11612,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -11553,6 +11621,7 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
 - name: Check out code
   image: alpine/git:latest
@@ -11562,25 +11631,27 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.4)"
+  - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/major-version")
-  - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
+  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1" > "/go/var/major-version"
   - echo $(cat "/go/var/major-version")
   - mkdir -pv $(dirname "/go/var/minor-version")
-  - echo $(echo v1.2.3-fred.4) | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
+  - echo $DRONE_TAG | sed 's/v//' | cut -d'.' -f "1,2" > "/go/var/minor-version"
   - echo $(cat "/go/var/minor-version")
   - mkdir -pv $(dirname "/go/var/full-version")
-  - echo $(echo v1.2.3-fred.4) | sed 's/v//' > "/go/var/full-version"
+  - echo $DRONE_TAG | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -11607,6 +11678,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -11634,6 +11706,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -11661,6 +11734,7 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
+  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -11987,6 +12061,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: eaf15cd781a645d2a797db1b896154590f39057d76d0c68b3a5114de36d5b6f5
+hmac: d4230f09b00e94dd3eb8527f7d858ad1332a5866042c76f1d13b89c679653b24
 
 ...
