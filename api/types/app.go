@@ -61,7 +61,7 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
-	// TODO(gavin): doc
+	// IsDynamoDB returns true if this app is a DynamoDB app.
 	IsDynamoDB() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
@@ -236,7 +236,7 @@ func (a *AppV3) IsAWSConsole() bool {
 	return false
 }
 
-// TODO(gavin): doc
+// IsDynamoDB returns true if this app is a DynamoDB app.
 func (a *AppV3) IsDynamoDB() bool {
 	if !a.IsAWSConsole() {
 		return false

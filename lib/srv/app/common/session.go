@@ -34,7 +34,7 @@ type SessionContext struct {
 	App types.Application
 	// ChunkID is the session chunk's uuid.
 	ChunkID string
-	// TODO(gavin): doc
+	// Audit is used to emit audit events for the session.
 	Audit Audit
 }
 

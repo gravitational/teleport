@@ -67,7 +67,7 @@ type sessionChunk struct {
 	fwd *forward.Forwarder
 	// streamCloser closes the session chunk stream.
 	streamCloser utils.WriteContextCloser
-	// TODO(gavin): doc
+	// sessionCtx contains common context parameters for an App session.
 	sessionCtx *common.SessionContext
 
 	// inflightCond protects and signals change of inflight

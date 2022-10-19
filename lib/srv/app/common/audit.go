@@ -33,10 +33,12 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// TODO(gavin): doc
+// Audit defines an interface for app access audit events logger.
 type Audit interface {
 	// TODO(gavin): move app session start/end event emitting out of tcpServer and into this interface as OnSessionStart/End
+	// OnSessionChunk is called when a new session chunk is created.
 	OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string)
+	// OnRequest is called when an app request is sent during the session.
 	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint)
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent)
@@ -56,7 +58,7 @@ func (c *AuditConfig) Check() error {
 	return nil
 }
 
-// TODO(gavin): doc
+// audit provides methods for emitting app access audit events.
 type audit struct {
 	// cfg is the audit events emitter configuration.
 	cfg AuditConfig
@@ -75,7 +77,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}, nil
 }
 
-// TODO(gavin): doc
+// OnSessionChunk is called when a new session chunk is created.
 func (a *audit) OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string) {
 	event := &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
@@ -102,7 +104,7 @@ func (a *audit) OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, 
 	a.EmitEvent(ctx, event)
 }
 
-// TODO(gavin): doc
+// OnRequest is called when an app request is sent during the session.
 func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) {
 	if sessionCtx.App.IsDynamoDB() {
 		a.onDynamoDBRequest(ctx, sessionCtx, req, res, re)
@@ -123,7 +125,7 @@ func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *
 	a.EmitEvent(ctx, event)
 }
 
-// TODO(gavin): doc
+// onDynamoDBRequest is called when a DynamoDB app request is sent during the session.
 func (a *audit) onDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) {
 	jsonBody, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -156,7 +158,7 @@ func (a *audit) onDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 	a.EmitEvent(ctx, event)
 }
 
-// TODO(gavin): doc
+// EmitEvent emits the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) {
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %v.", event)
@@ -172,14 +174,15 @@ func MakeAppMetadata(app types.Application) *apievents.AppMetadata {
 	}
 }
 
-// TODO(gavin): doc
-func MakeAWSRequestMetadata(req *http.Request, endpoint *endpoints.ResolvedEndpoint) *apievents.AWSRequestMetadata {
-	if endpoint == nil {
+// MakeAWSRequestMetadata is a helper to build AWSRequestMetadata from the provided request and endpoint.
+// If the aws endpoint is nil, returns an empty request metadata.
+func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *endpoints.ResolvedEndpoint) *apievents.AWSRequestMetadata {
+	if awsEndpoint == nil {
 		return &apievents.AWSRequestMetadata{}
 	}
 	return &apievents.AWSRequestMetadata{
-		AWSRegion:  endpoint.SigningRegion,
-		AWSService: endpoint.SigningName,
+		AWSRegion:  awsEndpoint.SigningRegion,
+		AWSService: awsEndpoint.SigningName,
 		AWSHost:    req.Host,
 	}
 }
