@@ -30,6 +30,8 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
+const defaultRequestTimeout = time.Minute
+
 type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
 }
@@ -38,12 +40,14 @@ type joinServiceClient interface {
 // to run on both the Teleport Proxy and Auth servers.
 type JoinServiceGRPCServer struct {
 	joinServiceClient joinServiceClient
+	requestTimeout    time.Duration
 }
 
 // NewJoinGRPCServer returns a new JoinServiceGRPCServer.
 func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
+		requestTimeout:    defaultRequestTimeout,
 	}
 }
 
@@ -56,9 +60,9 @@ func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceG
 // sts:GetCallerIdentity request with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
-	// Enforce a 1 minute timeout on the entire RPC so that misbehaving clients
-	// cannot hold connections open indefinitely.
-	ctx, cancel := context.WithTimeout(srv.Context(), time.Minute)
+	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
+	// hold connections open indefinitely.
+	ctx, cancel := context.WithTimeout(srv.Context(), s.requestTimeout)
 	defer cancel()
 
 	// The only way to cancel a blocked Send or Recv on the server side without
