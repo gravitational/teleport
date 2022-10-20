@@ -72,7 +72,7 @@ Let's take a look at how each protocol Teleport supports implements TLS routing.
 ## SSH
 
 Teleport client `tsh`, when connecting to an SSH node, first dials Teleport
-proxy over TLS and requests `teleport-ssh-proxy` ALPN protocol.
+proxy over TLS and requests `teleport-proxy-ssh` ALPN protocol.
 
 No local proxy is started in this case as `tsh` uses this TLS connection as a
 transport to establish the SSH connection.
@@ -83,7 +83,7 @@ To support standard OpenSSH client, Teleport provides a `tsh proxy ssh` command
 which can be used as a `ProxyCommand`.
 
 Similarly to `tsh ssh`, `tsh proxy ssh` establishes a TLS tunnel to Teleport
-proxy with `teleport-ssh-proxy` ALPN protocol, which `ssh` then connects over.
+proxy with `teleport-proxy-ssh` ALPN protocol, which `ssh` then connects over.
 
 See the [OpenSSH client](../server-access/guides/openssh.mdx) guide for details on
 how it's configured.

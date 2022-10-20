@@ -41,6 +41,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -154,7 +155,7 @@ func (s *testSetup) startKubernetesOperator(t *testing.T) {
 
 	go func() {
 		err := s.operator.Start(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 }
 
