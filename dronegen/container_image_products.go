@@ -175,7 +175,7 @@ func getTeleportArchSetupStep(arch, workingDirectory string, version *ReleaseVer
 // Returns the commands as well as the path where the deb will be downloaded to.
 func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory string) ([]string, string) {
 	bucketPath := fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", trimmedTag)
-	checkCommand := fmt.Sprintf("[ aws s3 ls %s | tr -s ' ' | cut -d' ' -f 4 | grep -x %q ]", bucketPath, debName)
+	checkCommand := fmt.Sprintf("[ aws s3 ls %s | tr -s ' ' | cut -d' ' -f 4 | grep -x %s ]", bucketPath, debName)
 
 	remotePath := fmt.Sprintf("%s/%s", bucketPath, debName)
 	downloadPath := path.Join(workingDirectory, debName)
@@ -404,7 +404,7 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion, delay in
 	}
 	buildCommand += " " + p.WorkingDirectory
 
-	delayTime := delay * 5
+	delayTime := delay * 30
 
 	step := step{
 		Name:    p.GetBuildStepName(arch, version),
