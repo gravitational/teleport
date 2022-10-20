@@ -156,6 +156,16 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 			return nil, nil, nil, trace.BadParameter(
 				"expected tls connection, got %T", clientConn)
 		}
+	case *pgproto3.GSSEncRequest:
+		// Send 'N' back to make the client connect without GSS encryption.
+		_, err := clientConn.Write([]byte("N"))
+		if err != nil {
+			return nil, nil, nil, trace.Wrap(err)
+		}
+		// The client may then choose to either close the connection or issue
+		// an SSLRequest to try to use SSL encryption instead.
+		// We handle either case by calling this function again.
+		return p.handleStartup(ctx, clientConn)
 	}
 	return nil, nil, nil, trace.BadParameter(
 		"unsupported startup message: %#v", startupMessage)
