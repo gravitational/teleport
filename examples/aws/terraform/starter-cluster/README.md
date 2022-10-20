@@ -6,7 +6,7 @@ Do not use this in production! This example should be used for demo, proof-of-co
 
 ## How does this work?
 
-Teleport AMIs are built so you only need to specify environment variables to bring a fully configured instance online. See `data.tpl` or our [documentation](https://gravitational.com/teleport/docs/aws_oss_guide/#single-oss-teleport-amis-manual-gui-setup) to learn more about supported environment variables.
+Teleport AMIs are built so you only need to specify environment variables to bring a fully configured instance online. See `data.tpl` or our [documentation](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-terraform/#set-up-variables) to learn more about supported environment variables.
 
 A series of systemd [units](https://github.com/gravitational/teleport/tree/master/assets/aws/files/system) bootstrap the instance, via several bash [scripts](https://github.com/gravitational/teleport/tree/master/assets/aws/files/bin).
 
