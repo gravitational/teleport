@@ -72,7 +72,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   async logout(clusterUri: string) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
-    await this.syncClusterInfo(clusterUri);
     this.removeResources(clusterUri);
     await this.removeCluster(clusterUri);
     await this.removeClusterKubeConfigs(clusterUri);
@@ -705,8 +704,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return useStore(this).state;
   }
 
-  // Note: client.getCluster ultimately reads data from the disk, so syncClusterInfo will not fail
-  // with a retryable error in case the certs have expired.
   private async syncClusterInfo(clusterUri: string) {
     const cluster = await this.client.getCluster(clusterUri);
     const assumedRequests = cluster.loggedInUser

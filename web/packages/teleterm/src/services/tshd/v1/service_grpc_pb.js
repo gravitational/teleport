@@ -603,6 +603,7 @@ function deserialize_teleport_terminal_v1_SetGatewayTargetSubresourceNameRequest
 // TerminalService describes Teleterm service
 var TerminalServiceService = exports.TerminalServiceService = {
   // ListRootClusters lists root clusters
+// Does not include detailed cluster information that would require a network request.
 listRootClusters: {
     path: '/teleport.terminal.v1.TerminalService/ListRootClusters',
     requestStream: false,
@@ -615,6 +616,7 @@ listRootClusters: {
     responseDeserialize: deserialize_teleport_terminal_v1_ListClustersResponse,
   },
   // ListLeafClusters lists leaf clusters
+// Does not include detailed cluster information that would require a network request.
 listLeafClusters: {
     path: '/teleport.terminal.v1.TerminalService/ListLeafClusters',
     requestStream: false,
