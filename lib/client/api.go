@@ -53,6 +53,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3324,6 +3325,16 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 			return nil, trace.Wrap(err)
 		}
 		username = response.Username
+	case authType == constants.Local && tc.canDefaultToPasswordless(pr):
+		log.Debug("Trying passwordless login because credentials were found")
+		// if passwordless is enabled and there are passwordless credentials
+		// registered, we can try to go with passwordless login even though
+		// auth=local was selected.
+		response, err = tc.pwdlessLogin(ctx, key.MarshalSSHPublicKey())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		username = response.Username
 	case authType == constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.MarshalSSHPublicKey())
 		if err != nil {
@@ -3383,6 +3394,30 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	return key, nil
+}
+
+// hasTouchIDCredentials provides indirection for tests.
+var hasTouchIDCredentials = touchid.HasCredentials
+
+// canDefaultToPasswordless checks without user interaction
+// if there is any registered passwordless login.
+func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
+	if !pr.Auth.AllowPasswordless {
+		return false
+	}
+	if tc.Config.AuthenticatorAttachment == wancli.AttachmentCrossPlatform {
+		return false
+	}
+	if pr.Auth.Webauthn == nil {
+		return false
+	}
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
