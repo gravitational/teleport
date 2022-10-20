@@ -1064,7 +1064,7 @@ oss-deb:
 
 # build .deb
 .PHONY: deb
-deb:
+deb: oss-deb
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
 # check binary compatibility with different OSes
