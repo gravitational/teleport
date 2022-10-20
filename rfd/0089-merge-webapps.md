@@ -53,14 +53,18 @@ the webapps folder is an elegant way of approaching this issue
 ### Backports
 
 To avoid having different proceses and build systems depending on the version
-of teleport, all branch versions (v9, v10, v11) will have their respective
-versions of the webapps repository.
+of teleport, all supported release branches (v9, v10, v11) will have their
+respective versions of the webapps repository.
 
 ### Build process
 
 The Teleport build process will need to be expanded to include nodejs and yarn
 in order to be able to build the webapp assets and include into the final
-teleport binaries.
+teleport binaries. We will no longer be committing a compiled version of the
+webassets into the teleport repository, the UI will need to be compiled from
+source on the initial build of teleport. A make target will be provided to
+perform a dockerized build of the webassets for those who don't wish to install
+node and yarn on their workstation.
 
 ## Process
 
@@ -85,6 +89,7 @@ The git histories of each branch will be maintained while merging. [Merging repo
   - [ ] Close those that are no longer relevant.
   - [ ] Merge remaining PRs.
   - [ ] Apply the necessary backports.
+- [ ] Update [the default path to tsh in dev mode](https://github.com/gravitational/webapps/blob/27c615b3ff6f317a85fac4aa28b8e73fa4aa0d28/packages/teleterm/src/mainProcess/runtimeSettings.ts#L18-L23) for Connect.
 
 ### Webapps.e repository
 
@@ -108,12 +113,14 @@ The git histories of each branch will be maintained while merging. [Merging repo
 #### Actions
 
 - [ ] Remove `/webassets` submodule
-  - This submodule is no longer required as the web UI will be built on demand.
+  - This submodule is no longer required as the web UI will be built on-demand.
+  - The folder will remain as the output location of the on-demand build but
+    will not be committed.
 - [ ] Clone the [Webapps repository](https://github.com/gravitational/webapps) into
       the Teleport root. [Maintaining their respective git histories](https://stackoverflow.com/questions/13040958/merge-two-git-repositories-without-breaking-file-history)
   - [ ] This will need to be done for every respective version branch (v9, v10, v11)
 - [ ] Update targets that use the `packages/webapps.e` submodule to point points to
-      the correct version in the `teleport.e/webapps` folder.
+      the correct version in the `teleport.e/web` folder.
 - [ ] Only require teleport build processes to run on teleport paths and the webapp
       ones to run on the webapp paths
 -
@@ -127,16 +134,16 @@ The git histories of each branch will be maintained while merging. [Merging repo
 - **Teleport-DocTest (ci-account)**
 - **Teleport-Lint (ci-account)**
 - **Teleport-OsCompatibility (ci-account)**
-  - Disable for changes exclusively made in the `/webapp` path.
+  - Disable for changes exclusively made in the `/web` path.
 - **Assign / Auto Request Review**
   - Create a list of full stack engineers and have it pick from this list for
-    changes made to the `/webapp` path.
+    changes made to the `/web` path.
 - **Check / Checking reviewers**
-  - Continue to require 2 reviewers for changes in the `webapp` projects.
+  - Continue to require 2 reviewers for changes in the `web` projects.
 - **Label / Label Pull Request (pull_request_target)**
-  - Add label for UI to changes made in the `/webapp` path.
+  - Add label for UI to changes made in the `/web` path.
 - **CodeQL / Analyze (javascript) (pull_request)**
-  - Ensure that it's running for changes in `/webapp` path.
+  - Ensure that it's running for changes in `/web` path.
 - **Code scanning results / CodeQL**
   - No changes
 - **webapps-build**
@@ -144,7 +151,7 @@ The git histories of each branch will be maintained while merging. [Merging repo
     that it can be built.
 - **webapps-test**
   - Migrate from the webapps repository to the teleport repository
-  - Only run for changes in the `/webapp` path.
+  - Only run for changes in the `/web` path.
   - Add to all versioned branches
 
 ### Teleport.e repository
@@ -166,14 +173,14 @@ The git histories of each branch will be maintained while merging. [Merging repo
 - **Teleport-E-Lint (ci-account)**
 - **Teleport-E-IntegrationTest**
 - **Teleport-E-Test-Linux (ci-account)**
-  - Disable for changes exclusively made in the `/webapp` path.
+  - Disable for changes exclusively made in the `/web` path.
 - **Assign / Auto Request Review**
   - Create a list of full stack engineers and have it pick from this list for
-    changes made to the `/webapp` path.
+    changes made to the `/web` path.
 - **Check / Checking reviewers**
-  - Continue to require 2 reviewers for changes in the `webapp` projects.
+  - Continue to require 2 reviewers for changes in the `web` projects.
 - **CodeQL / Analyze (javascript) (pull_request)**
-  - Ensure that it's running for changes in `/webapp` path.
+  - Ensure that it's running for changes in `/web` path.
 - **Code scanning results / CodeQL**
   - No changes
 - **webapps-build**
@@ -181,5 +188,5 @@ The git histories of each branch will be maintained while merging. [Merging repo
     that it can be built.
 - **webapps-test**
   - Migrate from the webapps repository to the teleport repository
-  - Only run for changes in the `/webapp` path.
+  - Only run for changes in the `/web` path.
   - Add to all versioned branches
