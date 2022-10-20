@@ -188,10 +188,10 @@ type Server struct {
 	heartbeats    map[string]*srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
 
+	connAuthMu sync.Mutex
 	// connAuth is used to map an initial failure of authorization to a connection.
 	// This will force the HTTP server to serve an error and close the connection.
-	connAuthMu sync.Mutex
-	connAuth   map[net.Conn]error
+	connAuth map[net.Conn]error
 
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
@@ -677,8 +677,7 @@ func (s *Server) handleConnection(conn net.Conn) (net.Conn, error) {
 }
 
 // monitorConn takes a TrackingReadConn and starts a connection monitor. The tracking connection will be
-// auto-terminated if disconnect_expired_cert or idle timeout is configured, and unmodified client connection
-// otherwise.
+// auto-terminated if disconnect_expired_cert or idle timeout is configured.
 func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, authCtx *auth.Context) error {
 	authPref, err := s.c.AuthClient.GetAuthPreference(ctx)
 	if err != nil {

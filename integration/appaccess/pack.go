@@ -281,7 +281,8 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) st
 	return casResp.CookieValue
 }
 
-func (p *Pack) Lock(t *testing.T) {
+// LockUser will lock the configured user for this pack.
+func (p *Pack) LockUser(t *testing.T) {
 	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
 		Spec: types.LockSpecV2{
 			Target: types.LockTarget{
