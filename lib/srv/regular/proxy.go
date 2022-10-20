@@ -318,8 +318,7 @@ func (t *proxySubsys) proxyToSite(
 
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
-func (t *proxySubsys) proxyToHost(
-	ctx context.Context, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+func (t *proxySubsys) proxyToHost(ctx context.Context, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
 	//
 	// first, lets fetch a list of servers at the given site. this allows us to
 	// match the given "host name" against node configuration (their 'nodename' setting)
@@ -329,7 +328,7 @@ func (t *proxySubsys) proxyToHost(
 	//
 	var (
 		strategy    types.RoutingStrategy
-		nodeWatcher *services.NodeWatcher
+		nodeWatcher NodesGetter
 		err         error
 	)
 	localCluster, _ := t.srv.proxyAccessPoint.GetClusterName()

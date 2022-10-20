@@ -2578,14 +2578,11 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// after removing the remote cluster, the connection will start failing
 	err = main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux)
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd, false)
-		if err != nil {
-			break
-		}
-	}
-	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
+	require.Eventually(t, func() bool {
+		_, err = tc.ListNodesWithFilters(ctx)
+		return err != nil
+	}, 500*time.Millisecond, time.Millisecond*50, "expected tunnel to close and SSH client to start failing")
+	require.NoError(t, tc.SSH(ctx, cmd, false))
 
 	// remove trusted cluster from aux cluster side, and recreate right after
 	// this should re-establish connection
@@ -2607,14 +2604,11 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// connection and client should recover and work again
 	output = &bytes.Buffer{}
 	tc.Stdout = output
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd, false)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		_, err = tc.ListNodesWithFilters(ctx)
+		return err == nil
+	}, 500*time.Millisecond, time.Millisecond*50, "expected SSH client to work after recovering")
+	require.NoError(t, tc.SSH(ctx, cmd, false))
 	require.Equal(t, "hello world\n", output.String())
 
 	// stop clusters and remaining nodes

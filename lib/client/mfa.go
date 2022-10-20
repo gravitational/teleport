@@ -24,6 +24,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -83,9 +85,18 @@ var hasPlatformSupport = wancli.HasPlatformSupport
 // challenges.
 // If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
 // See client.PromptMFAChallenge.
-func (tc *TeleportClient) PromptMFAChallenge(
-	ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge,
-	applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+func (tc *TeleportClient) PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/PromptMFAChallenge",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", tc.SiteName),
+			attribute.Bool("prefer_otp", tc.PreferOTP),
+		),
+	)
+	defer span.End()
+
 	addr := proxyAddr
 	if addr == "" {
 		addr = tc.WebProxyAddr

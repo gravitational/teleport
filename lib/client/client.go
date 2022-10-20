@@ -488,7 +488,13 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 		return nil, trace.Wrap(err)
 	}
-	defer stream.CloseSend()
+	defer func() {
+		// CloseSend closes the client side of the stream
+		stream.CloseSend()
+		// Recv to wait for the server side of the stream to end, this needs to
+		// be called to ensure the spans are finished properly
+		stream.Recv()
+	}()
 
 	initReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
@@ -1498,7 +1504,7 @@ func requestSubsystem(ctx context.Context, session *tracessh.Session, name strin
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDetails, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDetails, user string, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/ConnectToNode",
@@ -1513,12 +1519,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 
 	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
 	if len(proxy.teleportClient.JumpHosts) > 0 {
-		return proxy.PortForwardToNode(ctx, nodeAddress, user)
-	}
-
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return proxy.PortForwardToNode(ctx, nodeAddress, user, authMethods)
 	}
 
 	// parse destination first:
@@ -1641,7 +1642,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 
 // PortForwardToNode connects to the ssh server via Proxy
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeDetails, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeDetails, user string, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/PortForwardToNode",
@@ -1655,11 +1656,6 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	defer span.End()
 
 	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
-
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
