@@ -170,10 +170,25 @@ correct Google Workspace plan.
 
 ### Create an OAuth client ID
 
-In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient) page of the GCP console, select "Web application" as the Application type, pick a name, then add the following as an authorized redirect URI.
+#### Determine your callback URL
+
+You'll need a callback URL in order to complete the creation of an OAuth client ID with Google. For most deployments, this URL is your ```public_addr``` value. This consists of a domain name and port number. 
+
+You can lookup the ```public_addr``` of your Teleport proxy using the following command:
+
+```
+curl https://example.teleport.com/webapi/ping | jq '.proxy'
+```
+
+Within the output of that command look for ```"public_addr": "example.teleport.com:443"```. Some cluster may specify a different port. Use the port you find in the output of the previous command for the next steps.
+
+#### Configure the OAuth Client ID
+In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient) page of the GCP console, select "Web application" as the Application type, pick a name, then add the callback URL you gathered in the [Determine your callback URL](#determine-your-callback-url) section in the Callback URI field.
+
+The following is an example of an entry in the Callback URI field:
 
 ```txt
-https://<address of proxy server>:3080/v1/webapi/oidc/callback
+https://example.teleport.com:443/v1/webapi/oidc/callback
 ```
 
     ![OAuth client ID creation](../../../img/googleoidc/clientid-creation.png)
