@@ -157,7 +157,7 @@ func getTeleportArchsSetupSteps(supportedArchs []string, workingDirectory string
 func getTeleportArchSetupStep(arch, workingDirectory string, version *ReleaseVersion, isEnterprise, isFips bool) (step, string) {
 	shellDebName := buildTeleportDebName(version, arch, isEnterprise, isFips, false)
 	humanDebName := buildTeleportDebName(version, arch, isEnterprise, isFips, true)
-	commands, debPath := generateDownloadCommandsForArch(shellDebName, version.GetFullSemver().GetSemverValue(), workingDirectory)
+	commands := generateDownloadCommandsForArch(shellDebName, version.GetFullSemver().GetSemverValue(), workingDirectory)
 
 	return step{
 		Name:  fmt.Sprintf("Download %q artifacts from S3", humanDebName),
@@ -168,12 +168,12 @@ func getTeleportArchSetupStep(arch, workingDirectory string, version *ReleaseVer
 		},
 		Commands: commands,
 		Volumes:  []volumeRef{volumeRefAwsConfig},
-	}, debPath
+	}, shellDebName
 }
 
-// Generates the commands to download `debName` from s3.
+// Generates the commands to download `debName` from s3 to `workingDirectory`.
 // Returns the commands as well as the path where the deb will be downloaded to.
-func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory string) ([]string, string) {
+func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory string) []string {
 	bucketPath := fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", trimmedTag)
 	checkCommands := []string{
 		"SUCCESS=true",
@@ -190,7 +190,7 @@ func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory strin
 	commands = append(commands, fmt.Sprintf("mkdir -pv %q", workingDirectory))
 	commands = append(commands, fmt.Sprintf("aws s3 cp %s %s", remotePath, downloadPath))
 
-	return commands, downloadPath
+	return commands
 }
 
 // Returns either a human-readable or shell-evaluable Teleport deb name.
