@@ -217,7 +217,7 @@ associated with Teleport identity.
 
 ## Step 2/2. Configure Teleport to discover AKS clusters
 
-The Teleport Kubernetes Discovery requires a valid auth token for the `discovery` and `kube` roles 
+The Teleport Kubernetes Discovery requires a valid auth token for the `discovery` and `kube` services 
 to connect to the cluster. Generate one by running the following command against
 your Teleport Auth Service and save it in `/tmp/token` on the Node
 that will run the Kubernetes Discovery:
@@ -227,7 +227,7 @@ $ tctl tokens add --type=discovery,kube
 ```
 
 To enable AKS cluster discovery the, `discovery_service.azure` section must
-include at least one entry and must specify the `aks` type. On the other hand, it 
+include at least one entry and must specify the `aks` type. It 
 is also required to configure the `kubernetes_service.resources.tags` to use the same
 labels configured at `discovery_service.azure[:].tags` or a subset of them 
 in order to make `kubernetes_service` listen to the dynamic resources created by 
