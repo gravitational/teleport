@@ -34,6 +34,8 @@ import (
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -81,6 +83,8 @@ type Clients interface {
 	GetAWSEC2Client(region string) (ec2iface.EC2API, error)
 	// GetAWSSSMClient returns AWS SSM client for the specified region.
 	GetAWSSSMClient(region string) (ssmiface.SSMAPI, error)
+	// GetAWSEKSClient returns AWS EKS client for the specified region.
+	GetAWSEKSClient(region string) (eksiface.EKSAPI, error)
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
@@ -247,6 +251,15 @@ func (c *cloudClients) GetAWSSSMClient(region string) (ssmiface.SSMAPI, error) {
 		return nil, trace.Wrap(err)
 	}
 	return ssm.New(session), nil
+}
+
+// GetAWSEKSClient returns AWS EKS client for the specified region.
+func (c *cloudClients) GetAWSEKSClient(region string) (eksiface.EKSAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return eks.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -529,6 +542,7 @@ type TestCloudClients struct {
 	GCPSQL                  GCPSQLAdminClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
+	EKS                     eksiface.EKSAPI
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -611,6 +625,11 @@ func (c *TestCloudClients) GetAzureMySQLClient(subscription string) (azure.DBSer
 		return c.AzureMySQLPerSub[subscription], nil
 	}
 	return c.AzureMySQL, nil
+}
+
+// GetAWSEKSClient returns AWS EKS client for the specified region.
+func (c *TestCloudClients) GetAWSEKSClient(region string) (eksiface.EKSAPI, error) {
+	return c.EKS, nil
 }
 
 // GetAzurePostgresClient returns an AzurePostgresClient for the specified subscription

@@ -71,7 +71,7 @@ Teleport will handle its own SSL on top of that with its own certificates.
 </Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](../reference/metrics.mdx) on machines running Teleport. This endpoint
+`/readyz` [diagnostics endpoint](../management/diagnostics/monitoring.mdx) on machines running Teleport. This endpoint
 must be enabled by using the `--diag-addr` flag to teleport start: `teleport start --diag-addr=127.0.0.1:3000`
 The [http://127.0.0.1:3000/readyz](http://127.0.0.1:3000/readyz) endpoint will reply `{"status":"ok"}` if the Teleport service
 is running without problems.
@@ -439,7 +439,7 @@ teleport:
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
 
-    # By default, Teleport stores stores audit events with an AWS TTL of 1 year.
+    # By default, Teleport stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
     audit_retention_period: 365d
 ```
