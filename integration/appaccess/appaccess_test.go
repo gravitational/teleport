@@ -585,16 +585,16 @@ func TestTCPLock(t *testing.T) {
 	require.Equal(t, pack.rootTCPTwoWayMessage, resp)
 
 	// Lock the user and try to write
-	pack.Lock(t)
-	time.Sleep(1 * time.Second)
+	pack.LockUser(t)
+	require.Eventually(t, func() bool {
+		_, err := conn.Write(msg)
+		if err != nil {
+			return false
+		}
 
-	_, err = conn.Write(msg)
-	require.NoError(t, err)
-
-	// This read should fail.
-	_, err = conn.Read(buf)
-	require.Error(t, err, buf)
-
+		_, err = conn.Read(buf)
+		return err != nil
+	}, time.Duration(5*time.Second), time.Duration(100*time.Millisecond))
 	// Close and re-open the connection
 	require.NoError(t, conn.Close())
 
