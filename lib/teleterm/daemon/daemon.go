@@ -34,9 +34,13 @@ func New(cfg Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeContext, cancel := context.WithCancel(context.Background())
+
 	return &Service{
-		cfg:      &cfg,
-		gateways: make(map[string]*gateway.Gateway),
+		cfg:          &cfg,
+		closeContext: closeContext,
+		cancel:       cancel,
+		gateways:     make(map[string]*gateway.Gateway),
 	}, nil
 }
 
@@ -534,9 +538,16 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	s.cfg.Log.Info("Stopping")
+
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
+
+	// s.closeContext is used for the tshd events client which might make requests as long as any of
+	// the resources managed by daemon.Service are up and running. So let's cancel the context only
+	// after closing those resources.
+	s.cancel()
 }
 
 // UpdateTshdEventsServerAddress allows the Electron app to provide the tshd events server address.
@@ -577,6 +588,10 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 type Service struct {
 	cfg *Config
 	mu  sync.RWMutex
+	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
+	// to the tshd events gRPC client.
+	closeContext context.Context
+	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
