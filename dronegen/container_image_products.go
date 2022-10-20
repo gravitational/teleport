@@ -181,7 +181,7 @@ func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory strin
 	}
 	successCommand := "[ \"$SUCCESS\" = \"true\" ]"
 
-	remotePath := fmt.Sprintf("%s/%s", bucketPath, debName)
+	remotePath := fmt.Sprintf("%s%s", bucketPath, debName)
 	downloadPath := path.Join(workingDirectory, debName)
 
 	commands := make([]string, 0)
