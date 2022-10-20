@@ -51,7 +51,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
-	setupSteps, dockerfilePath := getTeleportSetupSteps(workingDirectory, downloadURL)
+	setupSteps, dockerfilePath := getTeleportSetupSteps(workingDirectory, downloadURL, name)
 	archSetupSteps, debPaths := getTeleportArchsSetupSteps(supportedArches, workingDirectory, version, isEnterprise, isFips)
 
 	return &Product{
@@ -128,8 +128,8 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	}
 }
 
-func getTeleportSetupSteps(workingPath, downloadURL string) ([]step, string) {
-	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(workingPath, downloadURL)
+func getTeleportSetupSteps(productName, workingPath, downloadURL string) ([]step, string) {
+	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(productName, workingPath, downloadURL)
 	getCredentialsStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: awsRoleSettings{
 			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
@@ -254,11 +254,11 @@ func wrapCommandsInTimeout(commands []string, successCommand string, timeoutSeco
 
 // Generates a step that downloads the Teleport Dockerfile
 // Returns the generated step and the path to the downloaded Dockerfile
-func downloadTeleportDockerfileStep(workingPath, downloadURL string) (step, string) {
+func downloadTeleportDockerfileStep(productName, workingPath, downloadURL string) (step, string) {
 	dockerfilePath := path.Join(workingPath, "Dockerfile")
 
 	return step{
-		Name:  fmt.Sprintf("Download Teleport Dockerfile to %q", dockerfilePath),
+		Name:  fmt.Sprintf("Download Teleport Dockerfile to %q for %s", dockerfilePath, productName),
 		Image: "alpine",
 		Commands: []string{
 			"apk add curl",

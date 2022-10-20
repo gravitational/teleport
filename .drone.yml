@@ -8224,12 +8224,14 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8291,7 +8293,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
@@ -8306,7 +8309,8 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -8344,7 +8348,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
@@ -8359,7 +8364,8 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -8397,7 +8403,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
@@ -8412,7 +8419,8 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -8522,12 +8530,14 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
   - Tag and push image "teleport:v11-arm64" to ECR - staging
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8589,7 +8599,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
@@ -8604,8 +8615,9 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -8642,7 +8654,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
@@ -8657,8 +8670,9 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -8695,7 +8709,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
@@ -8710,8 +8725,9 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -8820,12 +8836,14 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm64" to ECR - staging
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent-fips"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8887,7 +8905,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
@@ -8902,8 +8921,9 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -9256,12 +9276,14 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -9321,7 +9343,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Pull teleport:v11-arm and push it to Local Registry
   image: docker
@@ -9344,7 +9367,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Pull teleport:v11-arm64 and push it to Local Registry
   image: docker
@@ -9367,7 +9391,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Tag and push image "teleport:v11-amd64" to Quay
   image: docker
@@ -9671,12 +9696,14 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
   - Tag and push image "teleport:v11-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -9736,7 +9763,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Pull teleport-ent:v11-arm and push it to Local Registry
   image: docker
@@ -9759,7 +9787,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Pull teleport-ent:v11-arm64 and push it to Local Registry
   image: docker
@@ -9782,7 +9811,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Tag and push image "teleport-ent:v11-amd64" to Quay
   image: docker
@@ -10088,12 +10118,14 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
   - Tag and push image "teleport-ent:v11-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent-fips"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -10154,7 +10186,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to Quay
   image: docker
@@ -10819,12 +10852,14 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -10888,7 +10923,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
@@ -10903,7 +10939,8 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -10941,7 +10978,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
@@ -10956,7 +10994,8 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -10994,7 +11033,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
@@ -11009,7 +11049,8 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -11517,12 +11558,14 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
   - Tag and push image "teleport:v11-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11586,7 +11629,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
@@ -11601,8 +11645,9 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -11639,7 +11684,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
@@ -11654,8 +11700,9 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -11692,7 +11739,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
@@ -11707,8 +11755,9 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -12217,12 +12266,14 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
   - Tag and push image "teleport-ent:v11-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -12286,7 +12337,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
@@ -12301,8 +12353,9 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -13282,12 +13335,14 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -13351,7 +13406,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v10-amd64"
   image: docker
@@ -13366,7 +13422,8 @@ steps:
     "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   - rm -rf "/tmp/teleport-v10-amd64-builder"
@@ -13404,7 +13461,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v10-arm"
   image: docker
@@ -13419,7 +13477,8 @@ steps:
     "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   - rm -rf "/tmp/teleport-v10-arm-builder"
@@ -13457,7 +13516,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v10-arm64"
   image: docker
@@ -13472,7 +13532,8 @@ steps:
     "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   - rm -rf "/tmp/teleport-v10-arm64-builder"
@@ -13980,12 +14041,14 @@ steps:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
   - Tag and push image "teleport:v10-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14049,7 +14112,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-amd64"
   image: docker
@@ -14064,8 +14128,9 @@ steps:
     "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
@@ -14102,7 +14167,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-arm"
   image: docker
@@ -14117,8 +14183,9 @@ steps:
     "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
@@ -14155,7 +14222,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-arm64"
   image: docker
@@ -14170,8 +14238,9 @@ steps:
     "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
@@ -14680,12 +14749,14 @@ steps:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
   - Tag and push image "teleport-ent:v10-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14749,7 +14820,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
   image: docker
@@ -14764,8 +14836,9 @@ steps:
     "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
@@ -15744,12 +15817,14 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -15813,7 +15888,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v9-amd64"
   image: docker
@@ -15828,7 +15904,8 @@ steps:
     "teleport-v9-amd64-builder" --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
     /go/build
   - docker buildx rm "teleport-v9-amd64-builder"
   - rm -rf "/tmp/teleport-v9-amd64-builder"
@@ -15866,7 +15943,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v9-arm"
   image: docker
@@ -15881,7 +15959,8 @@ steps:
     "teleport-v9-arm-builder" --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
     /go/build
   - docker buildx rm "teleport-v9-arm-builder"
   - rm -rf "/tmp/teleport-v9-arm-builder"
@@ -15919,7 +15998,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v9-arm64"
   image: docker
@@ -15934,7 +16014,8 @@ steps:
     "teleport-v9-arm64-builder" --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
     /go/build
   - docker buildx rm "teleport-v9-arm64-builder"
   - rm -rf "/tmp/teleport-v9-arm64-builder"
@@ -16442,12 +16523,14 @@ steps:
   - Tag and push image "teleport:v9-amd64" to ECR - production
   - Tag and push image "teleport:v9-arm" to ECR - production
   - Tag and push image "teleport:v9-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -16511,7 +16594,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-amd64"
   image: docker
@@ -16526,8 +16610,9 @@ steps:
     "teleport-ent-v9-amd64-builder" --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v9-amd64-builder"
   environment:
@@ -16564,7 +16649,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-arm"
   image: docker
@@ -16579,8 +16665,9 @@ steps:
     "teleport-ent-v9-arm-builder" --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v9-arm-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm-builder"
   environment:
@@ -16617,7 +16704,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-arm64"
   image: docker
@@ -16632,8 +16720,9 @@ steps:
     "teleport-ent-v9-arm64-builder" --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm64-builder"
   environment:
@@ -17142,12 +17231,14 @@ steps:
   - Tag and push image "teleport-ent:v9-amd64" to ECR - production
   - Tag and push image "teleport-ent:v9-arm" to ECR - production
   - Tag and push image "teleport-ent:v9-arm64" to ECR - production
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent-fips"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17211,7 +17302,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
   image: docker
@@ -17226,8 +17318,9 @@ steps:
     "teleport-ent-fips-v9-amd64-builder" --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v9-amd64-builder"
   environment:
@@ -18185,12 +18278,14 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -18252,7 +18347,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
@@ -18267,7 +18363,8 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -18305,7 +18402,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
@@ -18320,7 +18418,8 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -18358,7 +18457,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
@@ -18373,7 +18473,8 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -18483,12 +18584,14 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
   - Tag and push image "teleport:v11-arm64" to ECR - staging
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -18550,7 +18653,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
@@ -18565,8 +18669,9 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -18603,7 +18708,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
@@ -18618,8 +18724,9 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -18656,7 +18763,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
@@ -18671,8 +18779,9 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -18781,12 +18890,14 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm64" to ECR - staging
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+- name: Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile")
+  - curl -Ls -o "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    "teleport-ent-fips"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -18848,7 +18959,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Download Teleport Dockerfile to "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    for /go/build
   - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
@@ -18863,8 +18975,9 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "https:/raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile/Dockerfile"
+    --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -19120,6 +19233,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 06853310d912f0dad4dfb6fd48a7ebc6867ddbc05da31f13b6222e5cbd4cd261
+hmac: 46200fb2a5eee8c245dfa341f630a62200a0aa937aec13976393937abb0c4c3f
 
 ...
