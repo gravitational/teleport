@@ -16,7 +16,6 @@ limitations under the License.
 package keys
 
 import (
-	"context"
 	"crypto"
 	"errors"
 
