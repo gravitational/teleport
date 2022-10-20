@@ -8304,22 +8304,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8363,22 +8361,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8422,22 +8418,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8592,22 +8586,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8651,22 +8643,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8710,22 +8700,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_arm64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8880,22 +8868,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8958,23 +8944,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8994,23 +8978,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9030,23 +9012,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10853,22 +10833,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10912,22 +10890,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10971,22 +10947,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11540,22 +11514,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11599,22 +11571,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11658,22 +11628,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_arm64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12229,22 +12197,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12541,23 +12507,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12578,23 +12542,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12615,23 +12577,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13327,22 +13287,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v10-amd64-builder"
   - rm -rf "/tmp/teleport-v10-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13386,22 +13344,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v10-arm-builder"
   - rm -rf "/tmp/teleport-v10-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13445,22 +13401,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v10-arm64-builder"
   - rm -rf "/tmp/teleport-v10-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14014,22 +13968,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14073,22 +14025,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v10-arm-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14132,22 +14082,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_arm64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14703,22 +14651,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15015,23 +14961,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-amd64-builder" --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15052,23 +14996,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-arm-builder" --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15089,23 +15031,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-arm64-builder" --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15800,22 +15740,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v9-amd64-builder" --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v9-amd64-builder"
   - rm -rf "/tmp/teleport-v9-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15859,22 +15797,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v9-arm-builder" --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v9-arm-builder"
   - rm -rf "/tmp/teleport-v9-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15918,22 +15854,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v9-arm64-builder" --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v9-arm64-builder"
   - rm -rf "/tmp/teleport-v9-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16487,22 +16421,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v9-amd64-builder" --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v9-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16546,22 +16478,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v9-arm-builder" --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v9-arm-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16605,22 +16535,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v9-arm64-builder" --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_arm64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17176,22 +17104,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-fips-v9-amd64-builder" --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v9-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17488,23 +17414,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-amd64-builder" --config "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v9-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v9-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v9-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17525,23 +17449,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-arm-builder" --config "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v9-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v9-arm-builder"
   - rm -rf "/tmp/teleport-operator-v9-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17562,23 +17484,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-arm64-builder" --config "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v9-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v9-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v9-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18250,22 +18170,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18309,22 +18227,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18368,22 +18284,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18538,22 +18452,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18597,22 +18509,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
     --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
     /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18656,22 +18566,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
     "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")_arm64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18826,22 +18734,20 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
     "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18904,23 +18810,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
     COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18940,23 +18844,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18976,23 +18878,21 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
     BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
     COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
+  - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19118,6 +19018,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 1493165a8dccf28a3fd3d64d7128bdd695b4dfb0aef78c31172d358e27f2bc41
+hmac: e9ec5e85a5cd4bbbe6aa4bc94a466051045ed4ee2457b42b7722194cde569123
 
 ...

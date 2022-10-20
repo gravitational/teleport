@@ -37,11 +37,9 @@ type ContainerRepo struct {
 func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isProduction, isImmutable, guaranteeUnique bool) *ContainerRepo {
 	nameSuffix := "staging"
 	ecrRegion := StagingEcrRegion
-	loginSubcommand := "ecr"
 	if isProduction {
 		nameSuffix = "production"
 		ecrRegion = PublicEcrRegion
-		loginSubcommand = "ecr-public"
 	}
 
 	registryOrg := ProductionRegistryOrg
@@ -56,10 +54,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		}
 	}
 
-	loginCommands := []string{
-		"apk add --no-cache aws-cli",
-		fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
-	}
+	loginCommands := GetEcrLoginCommands(ecrRegion, domain)
 
 	if guaranteeUnique {
 		loginCommands = append(loginCommands, "TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')")
@@ -139,6 +134,21 @@ func GetProductionContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
 		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, true, false, false),
+	}
+}
+
+func GetEcrLoginCommands(ecrRegion, domain string) []string {
+	var loginSubcommand string
+	if domain == ProductionRegistry {
+		// Special case where public registry uses a separate command
+		loginSubcommand = "ecr-public"
+	} else {
+		loginSubcommand = "ecr"
+	}
+
+	return []string{
+		"apk add --no-cache aws-cli",
+		fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 	}
 }
 
