@@ -237,11 +237,19 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 
 	if options.leafCluster || options.leafConfigFunc != nil {
 		s.setupLeafCluster(t, options)
-		require.Eventually(t, func() bool {
-			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
-			require.NoError(t, err)
-			return len(rt) == 1
-		}, time.Second*10, time.Second)
+		// Wait for root/leaf to find each other.
+		if s.root.Config.Auth.NetworkingConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			require.Eventually(t, func() bool {
+				rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
+				require.NoError(t, err)
+				return len(rt) == 1
+			}, time.Second*10, time.Second)
+		} else {
+			require.Eventually(t, func() bool {
+				_, err := s.leaf.GetAuthServer().GetReverseTunnel(s.root.Config.Auth.ClusterName.GetClusterName())
+				return err == nil
+			}, time.Second*10, time.Second)
+		}
 	}
 
 	if options.validationFunc != nil {

@@ -3900,29 +3900,6 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 	return nil
 }
 
-// UpdateKnownHosts updates ~/.tsh/known_hosts with trusted host certificate
-// authorities for the specified proxy and cluster.
-func (tc *TeleportClient) UpdateKnownHosts(ctx context.Context, proxyHost, clusterName string) error {
-	trustedCAs, err := tc.GetTrustedCA(ctx, clusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, ca := range auth.AuthoritiesToTrustedCerts(trustedCAs) {
-		if ca.ClusterName != clusterName {
-			continue
-		}
-		hostCerts, err := ca.SSHCertPublicKeys()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = tc.localAgent.keyStore.AddKnownHostKeys(clusterName, proxyHost, hostCerts)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
 func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]types.CertAuthority, error) {
