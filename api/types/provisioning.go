@@ -431,5 +431,18 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodCircleCI)
 	}
+	if a.OrganizationID == "" {
+		return trace.BadParameter("the %q join method requires 'organization_id' to be set", JoinMethodCircleCI)
+	}
+	for _, rule := range a.Allow {
+		projectSet := rule.ProjectID != ""
+		contextSet := rule.ContextID != ""
+		if !(projectSet || contextSet) {
+			return trace.BadParameter(
+				`allow rule for %q must include at least "project_id" or "context_id"`,
+				JoinMethodCircleCI,
+			)
+		}
+	}
 	return fmt.Errorf("unimplemented")
 }
