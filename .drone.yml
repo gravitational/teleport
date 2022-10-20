@@ -6926,19 +6926,6 @@ steps:
   commands:
   - '[ -n $(echo v1.2.3-fred.10) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.10)"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag $(echo v1.2.3-fred.10) -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for $(echo v1.2.3-fred.10)' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -6974,7 +6961,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Download artifacts for "$(echo v1.2.3-fred.10)"
   image: amazon/aws-cli
@@ -6992,7 +6978,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
@@ -7020,7 +7005,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Publish debs to APT repos for "$(echo v1.2.3-fred.10)"
   image: golang:1.18-bullseye
@@ -7057,7 +7041,6 @@ steps:
   depends_on:
   - Download artifacts for "$(echo v1.2.3-fred.10)"
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 volumes:
 - name: apt-persistence
@@ -7127,19 +7110,6 @@ steps:
   commands:
   - '[ -n $(echo v1.2.3-fred.10) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.10)"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag $(echo v1.2.3-fred.10) -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for $(echo v1.2.3-fred.10)' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -7175,7 +7145,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Download artifacts for "$(echo v1.2.3-fred.10)"
   image: amazon/aws-cli
@@ -7193,7 +7162,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
@@ -7221,7 +7189,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Publish rpms to YUM repos for "$(echo v1.2.3-fred.10)"
   image: golang:1.18-bullseye
@@ -7259,7 +7226,6 @@ steps:
   depends_on:
   - Download artifacts for "$(echo v1.2.3-fred.10)"
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 volumes:
 - name: yum-persistence
@@ -9204,19 +9170,6 @@ steps:
   commands:
   - '[ -n $(echo v1.2.3-fred.10) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.10)"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag $(echo v1.2.3-fred.10) -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for $(echo v1.2.3-fred.10)' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -9226,7 +9179,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -9235,7 +9187,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
 - name: Check out code
   image: alpine/git:latest
@@ -9248,7 +9199,6 @@ steps:
   - git checkout -qf "$(echo v1.2.3-fred.10)"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
 - name: Build major, minor, and full semvers
@@ -9265,7 +9215,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9295,7 +9244,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9308,7 +9256,6 @@ steps:
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -9690,7 +9637,6 @@ steps:
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10074,7 +10020,6 @@ steps:
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10298,7 +10243,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10327,7 +10271,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -10356,7 +10299,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -18138,19 +18080,6 @@ steps:
   commands:
   - '[ -n $(echo v1.2.3-fred.10) ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "$(echo v1.2.3-fred.10)"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag $(echo v1.2.3-fred.10) -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for $(echo v1.2.3-fred.10)' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -18160,7 +18089,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
 - name: Wait for docker registry
   image: alpine
   commands:
@@ -18169,7 +18097,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
 - name: Check out code
   image: alpine/git:latest
@@ -18182,7 +18109,6 @@ steps:
   - git checkout -qf "$(echo v1.2.3-fred.10)"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
 - name: Build major, minor, and full semvers
@@ -18199,7 +18125,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -18229,7 +18154,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -18242,7 +18166,6 @@ steps:
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -18624,7 +18547,6 @@ steps:
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -19008,7 +18930,6 @@ steps:
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -19232,7 +19153,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -19261,7 +19181,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -19290,7 +19209,6 @@ steps:
     path: /var/run
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Wait for docker
   - Wait for docker registry
   - Check out code
@@ -19620,6 +19538,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 96069be2923fb9a071b72282b6ed9fbc9aeb0c2b651d327324c0d95f42fdd269
+hmac: daffe09f86cae850267bc46c265f30eecb07bc5f54258728c7b266187c9fd4d6
 
 ...
