@@ -1022,7 +1022,7 @@ func (d *Database) CheckAndSetDefaults() error {
 	// (https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication).
 	// The second method requires additional information, validated by
 	// DatabaseAD.
-	if d.Protocol == defaults.ProtocolSQLServer && (!d.AD.IsEmpty() || !strings.Contains(d.URI, azureutils.MSSQLEndpointSuffix)) {
+	if d.Protocol == defaults.ProtocolSQLServer && (d.AD.Domain != "" || !strings.Contains(d.URI, azureutils.MSSQLEndpointSuffix)) {
 		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
 			return trace.Wrap(err)
 		}

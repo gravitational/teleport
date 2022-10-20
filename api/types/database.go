@@ -341,11 +341,6 @@ func (d *DatabaseV3) GetAD() AD {
 	return d.Spec.AD
 }
 
-// IsEmpty returns true if database AD is empty.
-func (a AD) IsEmpty() bool {
-	return cmp.Equal(a, AD{})
-}
-
 // IsRDS returns true if this is an AWS RDS/Aurora instance.
 func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS

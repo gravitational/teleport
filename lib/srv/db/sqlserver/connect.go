@@ -76,7 +76,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 	}
 
 	var connector *mssql.Connector
-	if sessionCtx.Database.IsAzure() && sessionCtx.Database.GetAD().IsEmpty() {
+	if sessionCtx.Database.IsAzure() && sessionCtx.Database.GetAD().Domain == "" {
 		// If the client is connecting to Azure SQL, and no AD configuration is
 		// provided, authenticate using the Azure AD Integrated authentication
 		// method.

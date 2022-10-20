@@ -63,10 +63,8 @@ func TestConnectorSelection(t *testing.T) {
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "name.database.windows.net:1443",
 				AD: types.AD{
-					KeytabFile: "/path/to/keytab",
-					Krb5File:   "",
-					Domain:     "",
-					SPN:        "",
+					// Domain is required for AD authentication.
+					Domain: "EXAMPLE.COM",
 				},
 			},
 			// When using a Azure database with AD configuration, the connector
