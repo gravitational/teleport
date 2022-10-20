@@ -51,7 +51,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
-	setupSteps, dockerfilePath := getTeleportSetupSteps(workingDirectory, downloadURL, name)
+	setupSteps, dockerfilePath := getTeleportSetupSteps(name, workingDirectory, downloadURL)
 	archSetupSteps, debPaths := getTeleportArchsSetupSteps(supportedArches, workingDirectory, version, isEnterprise, isFips)
 
 	return &Product{
