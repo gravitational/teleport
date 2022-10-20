@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+
+	"golang.org/x/exp/maps"
 )
 
 // Describes a Gravitational "product", where a "product" is a piece of software
@@ -412,9 +414,8 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 	// Note that this has an important side effect: it increases the `docker pull` rate limit
 	// from one layer per second to ten. When running `docker buildx build` in parallel
 	// this is important to prevent AWS from throwing 429 errors due to parallel pulls.
-	authenticatedBuildCommands := GetEcrLoginCommands(PublicEcrRegion, ProductionRegistry)
-	authenticatedBuildCommands = append(authenticatedBuildCommands, buildCommand)
-	authenticatedBuildCommands = append(authenticatedBuildCommands, fmt.Sprintf("docker logout %q", ProductionRegistry))
+	publicEcrRegistry := GetProductionEcrRepo()
+	authenticatedBuildCommands := publicEcrRegistry.buildCommandsWithLogin([]string{buildCommand})
 
 	commands := []string{
 		"docker run --privileged --rm tonistiigi/binfmt --install all",
@@ -430,16 +431,17 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 		fmt.Sprintf("rm -rf %q", buildxConfigFileDir),
 	)
 
+	envVars := maps.Clone(publicEcrRegistry.EnvironmentVars)
+	envVars["DOCKER_BUILDKIT"] = value{
+		raw: "1",
+	}
+
 	step := step{
-		Name:    p.GetBuildStepName(arch, version),
-		Image:   "docker",
-		Volumes: dockerVolumeRefs(volumeRefAwsConfig),
-		Environment: map[string]value{
-			"DOCKER_BUILDKIT": {
-				raw: "1",
-			},
-		},
-		Commands: commands,
+		Name:        p.GetBuildStepName(arch, version),
+		Image:       "docker",
+		Volumes:     dockerVolumeRefs(),
+		Environment: envVars,
+		Commands:    commands,
 	}
 
 	return step, &buildStepOutput{

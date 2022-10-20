@@ -8314,10 +8314,12 @@ steps:
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8371,10 +8373,12 @@ steps:
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8428,10 +8432,12 @@ steps:
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8596,10 +8602,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8653,10 +8661,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8710,10 +8720,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8878,10 +8890,12 @@ steps:
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8955,10 +8969,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8989,10 +9005,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9023,10 +9041,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10843,10 +10863,12 @@ steps:
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10900,10 +10922,12 @@ steps:
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10957,10 +10981,12 @@ steps:
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11524,10 +11550,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11581,10 +11609,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11638,10 +11668,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12207,10 +12239,12 @@ steps:
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12518,10 +12552,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12553,10 +12589,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12588,10 +12626,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13297,10 +13337,12 @@ steps:
   - docker buildx rm "teleport-v10-amd64-builder"
   - rm -rf "/tmp/teleport-v10-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13354,10 +13396,12 @@ steps:
   - docker buildx rm "teleport-v10-arm-builder"
   - rm -rf "/tmp/teleport-v10-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13411,10 +13455,12 @@ steps:
   - docker buildx rm "teleport-v10-arm64-builder"
   - rm -rf "/tmp/teleport-v10-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13978,10 +14024,12 @@ steps:
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14035,10 +14083,12 @@ steps:
   - docker buildx rm "teleport-ent-v10-arm-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14092,10 +14142,12 @@ steps:
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14661,10 +14713,12 @@ steps:
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14972,10 +15026,12 @@ steps:
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15007,10 +15063,12 @@ steps:
   - docker buildx rm "teleport-operator-v10-arm-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15042,10 +15100,12 @@ steps:
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15750,10 +15810,12 @@ steps:
   - docker buildx rm "teleport-v9-amd64-builder"
   - rm -rf "/tmp/teleport-v9-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15807,10 +15869,12 @@ steps:
   - docker buildx rm "teleport-v9-arm-builder"
   - rm -rf "/tmp/teleport-v9-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15864,10 +15928,12 @@ steps:
   - docker buildx rm "teleport-v9-arm64-builder"
   - rm -rf "/tmp/teleport-v9-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16431,10 +16497,12 @@ steps:
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v9-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16488,10 +16556,12 @@ steps:
   - docker buildx rm "teleport-ent-v9-arm-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16545,10 +16615,12 @@ steps:
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17114,10 +17186,12 @@ steps:
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v9-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17425,10 +17499,12 @@ steps:
   - docker buildx rm "teleport-operator-v9-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v9-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17460,10 +17536,12 @@ steps:
   - docker buildx rm "teleport-operator-v9-arm-builder"
   - rm -rf "/tmp/teleport-operator-v9-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17495,10 +17573,12 @@ steps:
   - docker buildx rm "teleport-operator-v9-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v9-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18180,10 +18260,12 @@ steps:
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18237,10 +18319,12 @@ steps:
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18294,10 +18378,12 @@ steps:
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18462,10 +18548,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18519,10 +18607,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18576,10 +18666,12 @@ steps:
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18744,10 +18836,12 @@ steps:
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18821,10 +18915,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18855,10 +18951,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18889,10 +18987,12 @@ steps:
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     DOCKER_BUILDKIT: "1"
   volumes:
-  - name: awsconfig
-    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19018,6 +19118,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: e9ec5e85a5cd4bbbe6aa4bc94a466051045ed4ee2457b42b7722194cde569123
+hmac: 2a915680223232ddcced712b0dc111da20b6431db2caea610fa9e0f67a695d6b
 
 ...
