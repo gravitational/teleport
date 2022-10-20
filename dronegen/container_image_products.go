@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"path"
 	"regexp"
-	"strings"
 )
 
 // Describes a Gravitational "product", where a "product" is a piece of software
@@ -29,10 +28,10 @@ type Product struct {
 	WorkingDirectory     string                                          // Working directory to use for "docker build".
 	DockerfileTarget     string                                          // Optional. Defines a dockerfile target to stop at on build.
 	SupportedArchs       []string                                        // ISAs that the builder should produce
-	SetupSteps           []step                                          // Product-specific steps that must be ran before building an image.
+	SetupSteps           []step                                          // Product-specific, arch agnostic steps that must be ran before building an image.
+	ArchSetupSteps       map[string][]step                               // Product and arch specific steps that must be ran before building an image.
 	DockerfileArgBuilder func(arch string) []string                      // Generator that returns "docker build --arg" strings
 	ImageBuilder         func(repo *ContainerRepo, tag *ImageTag) *Image // Generator that returns an Image struct that defines what "docker build" should produce
-	GetRequiredStepNames func(arch string) []string                      // Generator that returns the name of the steps that "docker build" should wait for
 }
 
 func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Product {
@@ -52,7 +51,8 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
-	setupStep, debPaths, dockerfilePath := teleportSetupStep(version.ShellVersion, name, workingDirectory, downloadURL, supportedArches)
+	setupSteps, dockerfilePath := getTeleportSetupSteps(workingDirectory, downloadURL)
+	archSetupSteps, debPaths := getTeleportArchsSetupSteps(supportedArches, workingDirectory, version, isEnterprise, isFips)
 
 	return &Product{
 		Name:             name,
@@ -60,7 +60,8 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 		WorkingDirectory: workingDirectory,
 		DockerfileTarget: dockerfileTarget,
 		SupportedArchs:   supportedArches,
-		SetupSteps:       []step{setupStep},
+		SetupSteps:       setupSteps,
+		ArchSetupSteps:   archSetupSteps,
 		DockerfileArgBuilder: func(arch string) []string {
 			return []string{
 				fmt.Sprintf("DEB_PATH=%s", debPaths[arch]),
@@ -127,100 +128,144 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	}
 }
 
-func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL string, archs []string) (step, map[string]string, string) {
-	keyPath := "/usr/share/keyrings/teleport-archive-keyring.asc"
-	downloadDirectory := "/tmp/apt-download"
-	timeout := 30 * 60 // 30 minutes in seconds
-	sleepTime := 15    // 15 seconds
-	dockerfilePath := path.Join(workingPath, "Dockerfile")
+func getTeleportSetupSteps(workingPath, downloadURL string) ([]step, string) {
+	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(workingPath, downloadURL)
+	getCredentialsStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+	})
 
-	commands := []string{
-		// Setup the environment
-		fmt.Sprintf("PACKAGE_NAME=%q", packageName),
-		fmt.Sprintf("PACKAGE_VERSION=%q", shellVersion),
-		"apt update",
-		"apt install --no-install-recommends -y ca-certificates curl",
-		"update-ca-certificates",
-		// Download the dockerfile
-		fmt.Sprintf("mkdir -pv $(dirname %q)", dockerfilePath),
-		fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
-		// Add the Teleport APT repo
-		fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
-		". /etc/os-release",
-		// Per https://docs.drone.io/pipeline/environment/syntax/#common-problems I'm using '$$' here to ensure
-		// That the shell variable is not expanded until runtime, preventing drone from erroring on the
-		// drone-unsupported '?'
-		"MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)",
-		fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/$${ID?} $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}\""+
-			" > /etc/apt/sources.list.d/teleport.list", keyPath),
-		fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeout),
-		"TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)",
-		"TIMED_OUT=true",
-		// Poll APT until the timeout is reached or the package becomes available
-		"while [ $(date +%s) -lt $${END_TIME?} ]; do",
-		"echo 'Running apt update...'",
-		// This will error on new major versions where the "stable/$${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
-		"apt update > /dev/null || true",
-		"[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge 1 ] && TIMED_OUT=false && break;",
-		fmt.Sprintf("echo 'Package not found yet, waiting another %d seconds...'", sleepTime),
-		fmt.Sprintf("sleep %d", sleepTime),
-		"done",
-		// Log success or failure and record full version string
-		"[ $${TIMED_OUT?} = true ] && echo \"Timed out while looking for APT package \\\"$${PACKAGE_NAME}\\\" matching \\\"$${TRIMMED_VERSION}\\\"\" && exit 1",
-		"FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
-		fmt.Sprintf("echo \"Found APT package, downloading \\\"$${PACKAGE_NAME}=$${FULL_VERSION}\\\" for %q...\"", strings.Join(archs, "\", \"")),
-		fmt.Sprintf("mkdir -pv %q", downloadDirectory),
-		fmt.Sprintf("cd %q", downloadDirectory),
+	return []step{
+		downloadDockerfileStep,
+		getCredentialsStep,
+	}, dockerfilePath
+}
+
+// Generates steps that download a deb for each supported arch to the working directory.
+// Returns maps keyed by the supported arches, with the generated setup steps and deb paths.
+func getTeleportArchsSetupSteps(supportedArchs []string, workingDirectory string, version *ReleaseVersion,
+	isEnterprise, isFips bool) (map[string][]step, map[string]string) {
+
+	archSetupSteps := make(map[string][]step, len(supportedArchs))
+	debPaths := make(map[string]string, len(supportedArchs))
+
+	for _, supportedArch := range supportedArchs {
+		archSetupStep, debPath := getTeleportArchSetupStep(supportedArch, workingDirectory, version, isEnterprise, isFips)
+		archSetupSteps[supportedArch] = []step{archSetupStep}
+		debPaths[supportedArch] = debPath
 	}
 
-	for _, arch := range archs {
-		// Our built debs are listed as ISA "armhf" not "arm", so we account for that here
-		if arch == "arm" {
-			arch = "armhf"
-		}
+	return archSetupSteps, debPaths
+}
 
-		commands = append(commands, []string{
-			// This will allow APT to download other architectures
-			fmt.Sprintf("dpkg --add-architecture %q", arch),
-		}...)
-	}
-
-	// This will error due to Ubuntu's APT repo structure but it doesn't matter here
-	commands = append(commands, "apt update &> /dev/null || true")
-
-	archDestFileMap := make(map[string]string, len(archs))
-	for _, arch := range archs {
-		relArchDir := path.Join(".", "/artifacts/deb/", packageName, arch)
-		archDir := path.Join(workingPath, relArchDir)
-		// Example: `./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
-		relDestPath := path.Join(relArchDir, fmt.Sprintf("%s.deb", shellVersion))
-		// Example: `/go/./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
-		destPath := path.Join(workingPath, relDestPath)
-
-		archDestFileMap[arch] = relDestPath
-
-		// Our built debs are listed as ISA "armhf" not "arm", so we account for that here
-		if arch == "arm" {
-			arch = "armhf"
-		}
-
-		// This could probably be parallelized to slightly reduce runtime
-		fullPackageName := fmt.Sprintf("%s:%s=$${FULL_VERSION}", packageName, arch)
-		commands = append(commands, []string{
-			fmt.Sprintf("mkdir -pv %q", archDir),
-			fmt.Sprintf("apt download %q", fullPackageName),
-			"FILENAME=$(ls)", // This will only return the download file as it is the only file in that directory
-			"echo \"Downloaded file \\\"$${FILENAME}\\\"\"",
-			fmt.Sprintf("mv \"$${FILENAME}\" %q", path.Join(archDir, "$${PACKAGE_VERSION}.deb")),
-			fmt.Sprintf("echo Downloaded %q to %q", fullPackageName, destPath),
-		}...)
-	}
+// Generates steps that download a deb for each supported arch to the working directory.
+// Returns the generated step, and the path to the downloaded deb.
+func getTeleportArchSetupStep(arch, workingDirectory string, version *ReleaseVersion, isEnterprise, isFips bool) (step, string) {
+	shellDebName := buildTeleportDebName(version, arch, isEnterprise, isFips, false)
+	humanDebName := buildTeleportDebName(version, arch, isEnterprise, isFips, true)
+	commands, debPath := generateDownloadCommandsForArch(shellDebName, version.GetFullSemver().GetSemverValue(), workingDirectory)
 
 	return step{
-		Name:     fmt.Sprintf("Download %q Dockerfile and DEB artifacts from APT", packageName),
-		Image:    "ubuntu:22.04",
+		Name:  fmt.Sprintf("Download %q artifacts from S3", humanDebName),
+		Image: "amazon/aws-cli",
+		Environment: map[string]value{
+			"AWS_REGION":    {raw: "us-west-2"},
+			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
+		},
 		Commands: commands,
-	}, archDestFileMap, dockerfilePath
+		Volumes:  []volumeRef{volumeRefAwsConfig},
+	}, debPath
+}
+
+// Generates the commands to download `debName` from s3.
+// Returns the commands as well as the path where the deb will be downloaded to.
+func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory string) ([]string, string) {
+	bucketPath := fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", trimmedTag)
+	checkCommand := fmt.Sprintf("[ aws s3 ls %s | tr -s ' ' | cut -d' ' -f 4 | grep -x %q ]", bucketPath, debName)
+
+	remotePath := fmt.Sprintf("%s/%s", bucketPath, debName)
+	downloadPath := path.Join(workingDirectory, debName)
+
+	commands := make([]string, 0)
+	// Wait up to an hour for debs to be build and published to s3 by other pipelines
+	commands = append(commands, wrapCommandsInTimeout([]string{}, checkCommand, 60*60, 60)...)
+	commands = append(commands, fmt.Sprintf("mkdir -pv %q", workingDirectory))
+	commands = append(commands, fmt.Sprintf("aws s3 cp %q %q", remotePath, downloadPath))
+
+	return commands, downloadPath
+}
+
+// Returns either a human-readable or shell-evaluable Teleport deb name.
+func buildTeleportDebName(version *ReleaseVersion, arch string, isEnterprise, isFips, humanReadable bool) string {
+	var versionString string
+	if humanReadable {
+		versionString = fmt.Sprintf("<%s-tag>", version.GetFullSemver().Name)
+	} else {
+		versionString = version.GetFullSemver().GetSemverValue()
+	}
+
+	debName := "teleport"
+	if isEnterprise {
+		debName = fmt.Sprintf("%s-ent", debName)
+	}
+	debName = fmt.Sprintf("%s_%s", debName, versionString)
+	if isFips {
+		debName = fmt.Sprintf("%s-fips", debName)
+	}
+	debName = fmt.Sprintf("%s_%s.deb", debName, arch)
+
+	return debName
+}
+
+// Creates a shell loop with a timeout
+// commands: commands to run in a loop
+// successCommand: should evaluate to shell true (i.e. `[ true ]`) when the loop has succeeded
+// timeoutSeconds: how long in seconds to wait before the loop fails
+// sleepTimeSeconds: how long to wait after every iteration before running again
+func wrapCommandsInTimeout(commands []string, successCommand string, timeoutSeconds int, sleepTimeSeconds int) []string {
+	setupCommands := []string{
+		fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeoutSeconds),
+		"TIMED_OUT=true",
+		"while [ $(date +%s) -lt $${END_TIME?} ]; do",
+	}
+
+	finalizeCommands := []string{
+		// Evaluate the condition
+		fmt.Sprintf("%s && TIMED_OUT=false && break;", successCommand),
+		// Sleep if not met
+		fmt.Sprintf("echo 'Condition not met yet, waiting another %d seconds...'", sleepTimeSeconds),
+		fmt.Sprintf("sleep %d", sleepTimeSeconds),
+		"done",
+		// Conditionally log timeout failure and exit
+		fmt.Sprintf("[ $${TIMED_OUT?} = true ] && echo 'Timed out while waiting for condition: %s' && exit 1", successCommand),
+	}
+
+	loopCommands := make([]string, 0)
+	loopCommands = append(loopCommands, setupCommands...)
+	loopCommands = append(loopCommands, commands...)
+	loopCommands = append(loopCommands, finalizeCommands...)
+
+	return loopCommands
+}
+
+// Generates a step that downloads the Teleport Dockerfile
+// Returns the generated step and the path to the downloaded Dockerfile
+func downloadTeleportDockerfileStep(workingPath, downloadURL string) (step, string) {
+	dockerfilePath := path.Join(workingPath, "Dockerfile")
+
+	return step{
+		Name:  fmt.Sprintf("Download Teleport Dockerfile to %q", dockerfilePath),
+		Image: "alpine",
+		Commands: []string{
+			"apk add curl",
+			fmt.Sprintf("mkdir -pv $(dirname %q)", dockerfilePath),
+			fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
+		},
+	}, dockerfilePath
 }
 
 func (p *Product) getBaseImage(arch string, version *ReleaseVersion) *Image {
@@ -248,16 +293,23 @@ func (p *Product) GetStagingRegistryImage(arch string, version *ReleaseVersion, 
 	return image
 }
 
-func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, flags *TriggerFlags) []step {
+func (p *Product) buildSteps(version *ReleaseVersion, parentStepNames []string, flags *TriggerFlags) []step {
 	steps := make([]step, 0)
 
 	stagingRepo := GetStagingContainerRepo(flags.UseUniqueStagingTag)
 	productionRepos := GetProductionContainerRepos()
 
+	// Collect the name of the steps that are required before build
+	productSetupStepNames := make([]string, 0)
 	for _, setupStep := range p.SetupSteps {
-		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
+		// Wait for the parent steps before starting on the product setup steps
+		setupStep.DependsOn = append(setupStep.DependsOn, parentStepNames...)
 		steps = append(steps, setupStep)
-		setupStepNames = append(setupStepNames, setupStep.Name)
+		productSetupStepNames = append(productSetupStepNames, setupStep.Name)
+	}
+	if len(productSetupStepNames) == 0 {
+		// Cover the case where there are no product setup steps
+		productSetupStepNames = parentStepNames
 	}
 
 	archBuildStepDetails := make([]*buildStepOutput, 0, len(p.SupportedArchs))
@@ -267,16 +319,25 @@ func (p *Product) buildSteps(version *ReleaseVersion, setupStepNames []string, f
 		if flags.ShouldBuildNewImages {
 			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version, i)
 
-			archBuildStep.DependsOn = append(archBuildStep.DependsOn, setupStepNames...)
-			if p.GetRequiredStepNames != nil {
-				archBuildStep.DependsOn = append(archBuildStep.DependsOn, p.GetRequiredStepNames(supportedArch)...)
+			// Collect the name of steps that are required before build, taking into account arch-specific steps
+			setupStepNames := make([]string, 0)
+			for _, archSetupStep := range p.ArchSetupSteps[supportedArch] {
+				archSetupStep.DependsOn = append(archSetupStep.DependsOn, productSetupStepNames...)
+				steps = append(steps, archSetupStep)
+				setupStepNames = append(setupStepNames, archSetupStep.Name)
 			}
+			if len(setupStepNames) == 0 {
+				// Cover the case where there are no arch specific steps
+				setupStepNames = productSetupStepNames
+			}
+
+			archBuildStep.DependsOn = append(archBuildStep.DependsOn, setupStepNames...)
 
 			steps = append(steps, archBuildStep)
 			archBuildStepDetails = append(archBuildStepDetails, archBuildStepDetail)
 		} else {
 			stagingImage := p.GetStagingRegistryImage(supportedArch, version, stagingRepo)
-			pullStagingImageStep, locallyPushedImage := stagingRepo.pullPushStep(stagingImage, setupStepNames)
+			pullStagingImageStep, locallyPushedImage := stagingRepo.pullPushStep(stagingImage, productSetupStepNames)
 			steps = append(steps, pullStagingImageStep)
 
 			// Generate build details that point to the pulled staging images

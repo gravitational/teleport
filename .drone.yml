@@ -8224,67 +8224,75 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download "teleport" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport/amd64"
-  - apt download "teleport:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
-  - apt download "teleport:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
-  - apt download "teleport:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(echo v1.2.3-fred.5).deb"
   depends_on:
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -8298,7 +8306,7 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(echo v1.2.3-fred.5).deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -8308,11 +8316,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -8326,7 +8359,7 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(echo v1.2.3-fred.5).deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -8336,11 +8369,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -8354,7 +8412,7 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(echo v1.2.3-fred.5).deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -8364,11 +8422,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -8468,67 +8522,75 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
   - Tag and push image "teleport:v11-arm64" to ECR - staging
-- name: Download "teleport-ent" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/amd64"
-  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
-  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(echo v1.2.3-fred.5).deb"
   depends_on:
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -8542,8 +8604,8 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -8552,11 +8614,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -8570,8 +8657,8 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -8580,11 +8667,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -8598,8 +8710,8 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -8608,11 +8720,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -8712,53 +8820,75 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm64" to ECR - staging
-- name: Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent-fips"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent-fips/amd64"
-  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(echo v1.2.3-fred.5).deb"
   depends_on:
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
   commands:
@@ -8772,8 +8902,8 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -8782,11 +8912,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -9130,62 +9256,43 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download "teleport" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport/amd64"
-  - apt download "teleport:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
-  - apt download "teleport:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
-  - apt download "teleport:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(echo v1.2.3-fred.5).deb"
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -9214,13 +9321,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Pull teleport:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -9242,13 +9344,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Pull teleport:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -9270,13 +9367,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Tag and push image "teleport:v11-amd64" to Quay
   image: docker
   commands:
@@ -9579,62 +9671,43 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
   - Tag and push image "teleport:v11-arm64" to ECR - production
-- name: Download "teleport-ent" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/amd64"
-  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
-  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(echo v1.2.3-fred.5).deb"
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -9663,13 +9736,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Pull teleport-ent:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -9691,13 +9759,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Pull teleport-ent:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -9719,13 +9782,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Tag and push image "teleport-ent:v11-amd64" to Quay
   image: docker
   commands:
@@ -10030,48 +10088,43 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
   - Tag and push image "teleport-ent:v11-arm64" to ECR - production
-- name: Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent-fips"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent-fips/amd64"
-  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(echo v1.2.3-fred.5).deb"
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -10101,13 +10154,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to Quay
   image: docker
   commands:
@@ -10771,71 +10819,77 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download "teleport" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v11')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport/amd64"
-  - apt download "teleport:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v11').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
-  - apt download "teleport:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v11').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
-  - apt download "teleport:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v11').deb"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v11
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -10849,8 +10903,8 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v11').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
   environment:
@@ -10859,12 +10913,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -10878,8 +10956,8 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v11').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
   environment:
@@ -10888,12 +10966,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -10907,8 +11009,8 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v11').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
   environment:
@@ -10917,12 +11019,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -11420,71 +11517,77 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
   - Tag and push image "teleport:v11-arm64" to ECR - production
-- name: Download "teleport-ent" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v11')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/amd64"
-  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v11').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v11').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
-  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v11').deb"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v11
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -11498,8 +11601,8 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v11').deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -11508,12 +11611,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -11527,8 +11654,8 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v11').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -11537,12 +11664,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -11556,8 +11707,8 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v11').deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -11566,12 +11717,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -12071,55 +12217,77 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
   - Tag and push image "teleport-ent:v11-arm64" to ECR - production
-- name: Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent-fips"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v11')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent-fips/amd64"
-  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v11').deb"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v11
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
   commands:
@@ -12133,8 +12301,8 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v11').deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -12143,12 +12311,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -13119,71 +13282,77 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download "teleport" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport/amd64"
-  - apt download "teleport:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v10').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
-  - apt download "teleport:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v10').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
-  - apt download "teleport:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v10
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v10-amd64"
   image: docker
   commands:
@@ -13197,8 +13366,8 @@ steps:
     "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   - rm -rf "/tmp/teleport-v10-amd64-builder"
   environment:
@@ -13207,12 +13376,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v10-arm"
   image: docker
   commands:
@@ -13226,8 +13419,8 @@ steps:
     "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   - rm -rf "/tmp/teleport-v10-arm-builder"
   environment:
@@ -13236,12 +13429,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v10-arm64"
   image: docker
   commands:
@@ -13255,8 +13472,8 @@ steps:
     "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   - rm -rf "/tmp/teleport-v10-arm64-builder"
   environment:
@@ -13265,12 +13482,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -13768,71 +13980,77 @@ steps:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
   - Tag and push image "teleport:v10-arm64" to ECR - production
-- name: Download "teleport-ent" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/amd64"
-  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v10').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v10').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
-  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v10
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-amd64"
   image: docker
   commands:
@@ -13846,8 +14064,8 @@ steps:
     "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
@@ -13856,12 +14074,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-arm"
   image: docker
   commands:
@@ -13875,8 +14117,8 @@ steps:
     "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
@@ -13885,12 +14127,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-arm64"
   image: docker
   commands:
@@ -13904,8 +14170,8 @@ steps:
     "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
@@ -13914,12 +14180,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -14419,55 +14680,77 @@ steps:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
   - Tag and push image "teleport-ent:v10-arm64" to ECR - production
-- name: Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent-fips"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent-fips/amd64"
-  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v10
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
   image: docker
   commands:
@@ -14481,8 +14764,8 @@ steps:
     "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
@@ -14491,12 +14774,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -15466,71 +15744,77 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download "teleport" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport/amd64"
-  - apt download "teleport:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v9').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
-  - apt download "teleport:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v9').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
-  - apt download "teleport:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v9
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v9-amd64"
   image: docker
   commands:
@@ -15544,8 +15828,8 @@ steps:
     "teleport-v9-amd64-builder" --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    /go/build
   - docker buildx rm "teleport-v9-amd64-builder"
   - rm -rf "/tmp/teleport-v9-amd64-builder"
   environment:
@@ -15554,12 +15838,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v9-arm"
   image: docker
   commands:
@@ -15573,8 +15881,8 @@ steps:
     "teleport-v9-arm-builder" --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    /go/build
   - docker buildx rm "teleport-v9-arm-builder"
   - rm -rf "/tmp/teleport-v9-arm-builder"
   environment:
@@ -15583,12 +15891,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v9-arm64"
   image: docker
   commands:
@@ -15602,8 +15934,8 @@ steps:
     "teleport-v9-arm64-builder" --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    /go/build
   - docker buildx rm "teleport-v9-arm64-builder"
   - rm -rf "/tmp/teleport-v9-arm64-builder"
   environment:
@@ -15612,12 +15944,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -16115,71 +16442,77 @@ steps:
   - Tag and push image "teleport:v9-amd64" to ECR - production
   - Tag and push image "teleport:v9-arm" to ECR - production
   - Tag and push image "teleport:v9-arm64" to ECR - production
-- name: Download "teleport-ent" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/amd64"
-  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v9').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v9').deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
-  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v9
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-amd64"
   image: docker
   commands:
@@ -16193,8 +16526,8 @@ steps:
     "teleport-ent-v9-amd64-builder" --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v9-amd64-builder"
   environment:
@@ -16203,12 +16536,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-arm"
   image: docker
   commands:
@@ -16222,8 +16579,8 @@ steps:
     "teleport-ent-v9-arm-builder" --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" /go/build
   - docker buildx rm "teleport-ent-v9-arm-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm-builder"
   environment:
@@ -16232,12 +16589,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-arm64"
   image: docker
   commands:
@@ -16251,8 +16632,8 @@ steps:
     "teleport-ent-v9-arm64-builder" --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" /go/build
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm64-builder"
   environment:
@@ -16261,12 +16642,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -16766,55 +17142,77 @@ steps:
   - Tag and push image "teleport-ent:v9-amd64" to ECR - production
   - Tag and push image "teleport-ent:v9-arm" to ECR - production
   - Tag and push image "teleport-ent:v9-arm64" to ECR - production
-- name: Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent-fips"
-  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent-fips/amd64"
-  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Find the latest available semver for v9
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
   image: docker
   commands:
@@ -16828,8 +17226,8 @@ steps:
     "teleport-ent-fips-v9-amd64-builder" --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v9-amd64-builder"
   environment:
@@ -16838,12 +17236,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -17792,67 +18185,75 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download "teleport" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport/amd64"
-  - apt download "teleport:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
-  - apt download "teleport:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
-  - apt download "teleport:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(echo v1.2.3-fred.5).deb"
   depends_on:
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -17866,7 +18267,7 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(echo v1.2.3-fred.5).deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -17876,11 +18277,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -17894,7 +18320,7 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(echo v1.2.3-fred.5).deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -17904,11 +18330,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -17922,7 +18373,7 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(echo v1.2.3-fred.5).deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -17932,11 +18383,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport" Dockerfile and DEB artifacts from APT
+  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -18036,67 +18483,75 @@ steps:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
   - Tag and push image "teleport:v11-arm64" to ECR - staging
-- name: Download "teleport-ent" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64\", \"arm\", \"arm64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "armhf"
-  - dpkg --add-architecture "arm64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/amd64"
-  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(echo v1.2.3-fred.5).deb"
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
-  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(echo v1.2.3-fred.5).deb"
   depends_on:
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -18110,8 +18565,8 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -18120,11 +18575,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -18138,8 +18618,8 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm.deb" /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -18148,11 +18628,36 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -18166,8 +18671,8 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")_arm64.deb" /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -18176,11 +18681,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -18280,53 +18781,75 @@ steps:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm64" to ECR - staging
-- name: Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
-  image: ubuntu:22.04
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile"
+  image: alpine
   commands:
-  - PACKAGE_NAME="teleport-ent-fips"
-  - PACKAGE_VERSION="$(echo v1.2.3-fred.5)"
-  - apt update
-  - apt install --no-install-recommends -y ca-certificates curl
-  - update-ca-certificates
+  - apk add curl
   - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
-  - . /etc/os-release
-  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
-    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
-  - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
-  - TIMED_OUT=true
-  - while [ $(date +%s) -lt $${END_TIME?} ]; do
-  - echo 'Running apt update...'
-  - apt update > /dev/null || true
-  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
-    1 ] && TIMED_OUT=false && break;'
-  - echo 'Package not found yet, waiting another 15 seconds...'
-  - sleep 15
-  - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
-    matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
-    cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
-    "amd64"..."
-  - mkdir -pv "/tmp/apt-download"
-  - cd "/tmp/apt-download"
-  - dpkg --add-architecture "amd64"
-  - apt update &> /dev/null || true
-  - mkdir -pv "/go/build/artifacts/deb/teleport-ent-fips/amd64"
-  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
-  - FILENAME=$(ls)
-  - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(echo v1.2.3-fred.5).deb"
   depends_on:
   - Wait for docker
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Assume AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      > /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile default
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_ROLE:
+      from_secret: AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  image: amazon/aws-cli
+  commands:
+  - END_TIME=$(( $(date +%s) + 3600 ))
+  - TIMED_OUT=true
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
+  - '[ aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ |
+    tr -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ] && TIMED_OUT=false && break;'
+  - echo 'Condition not met yet, waiting another 60 seconds...'
+  - sleep 60
+  - done
+  - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
+    aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
+    -s '' '' | cut -d'' '' -f 4 | grep -x "teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+    ]'' && exit 1'
+  - mkdir -pv "/go/build"
+  - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
+  environment:
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Download Teleport Dockerfile to "/go/build/Dockerfile"
+  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
   commands:
@@ -18340,8 +18863,8 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(echo v1.2.3-fred.5).deb"
-    /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
+    \"/go/var/full-version\")-fips_amd64.deb" /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -18350,11 +18873,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
-  - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
+  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -18601,6 +19120,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c593ea95423e237a18c67230ecd7ff680518f10f1aae142a968ced4829e59e4a
+hmac: 06853310d912f0dad4dfb6fd48a7ebc6867ddbc05da31f13b6222e5cbd4cd261
 
 ...
