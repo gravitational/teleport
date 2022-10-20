@@ -7354,6 +7354,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume Download AWS Role
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -7382,6 +7383,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -7418,7 +7420,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Assume Upload AWS Role
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -7555,6 +7557,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume Download AWS Role
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -7583,6 +7586,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -7620,7 +7624,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Assume Upload AWS Role
   - Verify build is tagged
   - Check if tag is prerelease
   - Check out code
@@ -11575,6 +11579,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 47934b14a6ca045c0beb0357b731373852ce4d490bd3d248db2d45f30025e1e8
+hmac: 14604baa2d8e374b8c2ae4323aadf1e0ff93c54098dbfd3c1196ef5aa6426d84
 
 ...
