@@ -20,6 +20,13 @@ import (
 	"strings"
 )
 
+func buildOsRepoPipelines() []pipeline {
+	pipelines := promoteBuildOsRepoPipelines()
+	pipelines = append(pipelines, artifactMigrationPipeline()...)
+
+	return pipelines
+}
+
 func promoteBuildOsRepoPipelines() []pipeline {
 	aptPipeline := promoteAptPipeline()
 	yumPipeline := promoteYumPipeline()
@@ -183,13 +190,15 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	pipelineName := fmt.Sprintf("publish-%s", optpb.pipelineNameSuffix)
 	checkoutPath := "/go/src/github.com/gravitational/teleport"
 	commitName := "${DRONE_TAG}"
-	checkoutStepName := "Check out code"
 
-	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commitName)
+	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutPath, commitName)
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	setupSteps := verifyValidPromoteRunSteps(checkoutPath, commitName, true)
+	setupSteps := append(
+		verifyValidPromoteRunSteps(),
+		cloneRepoStep(checkoutPath, commitName),
+	)
 
 	setupStepNames := make([]string, 0, len(setupSteps))
 	for _, setupStep := range setupSteps {
@@ -218,14 +227,13 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 	// DRONE_TAG is not available outside of promotion pipelines and will cause drone to fail with a
 	// "migrate-apt-new-repos: bad substitution" error if used here
 	commitName := "${DRONE_COMMIT}"
-	checkoutStepName := "Check out code"
 
 	// If migrations are not configured then don't run
 	if triggerBranch == "" || len(migrationVersions) == 0 {
 		return buildNeverTriggerPipeline(pipelineName)
 	}
 
-	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commitName)
+	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutPath, commitName)
 	p.Trigger = trigger{
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
 		Event:  triggerRef{Include: []string{"push"}},
@@ -268,7 +276,7 @@ func buildNeverTriggerPipeline(pipelineName string) pipeline {
 // Functions that use this method should add at least:
 // * a Trigger
 // * Steps for checkout
-func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commit string) pipeline {
+func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineName, checkoutPath, commit string) pipeline {
 	p := newKubePipeline(pipelineName)
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
@@ -281,13 +289,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 		volumeTmpfs,
 		volumeAwsConfig,
 	}
-	p.Steps = []step{
-		{
-			Name:     checkoutStepName,
-			Image:    "alpine/git:latest",
-			Commands: toolCheckoutCommands(checkoutPath, commit),
-		},
-	}
+	p.Steps = []step{cloneRepoStep(checkoutPath, commit)}
 	setStepResourceLimits(p.Steps)
 
 	return p
@@ -308,17 +310,6 @@ func setStepResourceLimits(steps []step) {
 	// 	step.Resources.Requests.Cpu = 100
 	// 	step.Resources.Requests.Memory = (*resourceQuantity)(resource.NewQuantity(100*1024*1024, resource.BinarySI))
 	// }
-}
-
-// Note that tags are also valid here as a tag refers to a specific commit
-func toolCheckoutCommands(checkoutPath, commit string) []string {
-	commands := []string{
-		fmt.Sprintf("mkdir -p %q", checkoutPath),
-		fmt.Sprintf("cd %q", checkoutPath),
-		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
-		fmt.Sprintf("git checkout %q", commit),
-	}
-	return commands
 }
 
 func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath string) []step {
@@ -365,14 +356,14 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			role:               value{fromSecret: "AWS_ROLE"},
 		},
 		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
 	})
-	assumeDownloadRoleStep.Name = "Assume Download AWS Role" // multiple steps cannot have the same name
 
 	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
 		awsRoleSettings: optpb.bucketSecrets.awsRoleSettings,
 		configVolume:    volumeRefAwsConfig,
+		name:            "Assume Upload AWS Role",
 	})
-	assumeUploadRoleStep.Name = "Assume Upload AWS Role" // multiple steps cannot have the same name
 
 	return []step{
 		assumeDownloadRoleStep,
@@ -391,7 +382,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			Commands: []string{
 				"mkdir -pv \"$ARTIFACT_PATH\"",
 				// Clear out old versions from previous steps
-				"rm -rf \"${ARTIFACT_PATH}/*\"",
+				"rm -rf \"$ARTIFACT_PATH/*\"",
 				strings.Join(
 					[]string{
 						"aws s3 sync",
@@ -409,7 +400,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 		assumeUploadRoleStep,
 		{
 			Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
-			Image:       "golang:1.18.4-bullseye",
+			Image:       fmt.Sprintf("golang:%s-bullseye", GoVersion),
 			Environment: optpb.environmentVars,
 			Commands: append(
 				toolSetupCommands,

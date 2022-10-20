@@ -270,25 +270,14 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// OpenBPFSession will start monitoring all events within a session and
-// emitting them to the Audit Log.
-func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
-	return s.ebpf.OpenSession(ctx)
+// GetBPF returns the BPF service used by enhanced session recording.
+func (s *Server) GetBPF() bpf.BPF {
+	return s.ebpf
 }
 
-// CloseBPFSession will stop monitoring events for a particular session.
-func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
-	return s.ebpf.CloseSession(ctx)
-}
-
-// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
-func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.OpenSession(ctx, cgroupID)
-}
-
-// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
-func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
-	s.restrictedMgr.CloseSession(ctx, cgroupID)
+// GetRestrictedSessionManager returns the manager for restricting user activity.
+func (s *Server) GetRestrictedSessionManager() restricted.Manager {
+	return s.restrictedMgr
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -1676,10 +1665,16 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case tracessh.TracingRequest:
 		return nil
 	case sshutils.ExecRequest:
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			return trace.Wrap(err)
+		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
@@ -1700,6 +1695,10 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
+		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+			s.Logger.Warn(err)
+			return nil
+		}
 
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue

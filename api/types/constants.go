@@ -485,6 +485,9 @@ const (
 	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
 	// one of the "permit" labels if you need to restrict viewership of an alert.
 	AlertSupersedes = "teleport.internal/alert-supersedes"
+
+	// AlertLicenseExpired is an internal label that indicates that the license has expired.
+	AlertLicenseExpired = "teleport.internal/license-expired-warning"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
