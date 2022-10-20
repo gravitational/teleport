@@ -18,6 +18,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -431,6 +432,18 @@ func TestAttachPolicyBoundary(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestSliceOrString(t *testing.T) {
+	var single SliceOrString
+	err := json.Unmarshal([]byte(`"single"`), &single)
+	require.NoError(t, err)
+	require.Equal(t, SliceOrString{"single"}, single)
+
+	var slice SliceOrString
+	err = json.Unmarshal([]byte(`["e1", "e2"]`), &slice)
+	require.NoError(t, err)
+	require.Equal(t, SliceOrString{"e1", "e2"}, slice)
 }
 
 // userIdentity helper function to generate an user `Identity` .

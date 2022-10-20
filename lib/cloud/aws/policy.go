@@ -65,14 +65,48 @@ type PolicyDocument struct {
 	Statements []*Statement `json:"Statement"`
 }
 
+// SliceOrString defines a type that can be unmarshalled from either a single
+// string or a slice.
+//
+// For example, these types can be either a single string or a slice:
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_action.html
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
+//
+// Note that currently only json.Unmarshaller is implemented. When marshalling,
+// the slice format is always used.
+type SliceOrString []string
+
+// UnmarshalJSON implements json.Unmarshaller.
+func (s *SliceOrString) UnmarshalJSON(bytes []byte) error {
+	var slice []string
+	sliceErr := json.Unmarshal(bytes, &slice)
+
+	// Check if input is a slice of strings.
+	if sliceErr == nil {
+		*s = slice
+		return nil
+	}
+
+	// Check if input is a single string.
+	var str string
+	strErr := json.Unmarshal(bytes, &str)
+	if strErr == nil {
+		*s = []string{str}
+		return nil
+	}
+
+	// Failed both format.
+	return trace.NewAggregate(sliceErr, strErr)
+}
+
 // Statement is a single AWS IAM policy statement.
 type Statement struct {
 	// Effect is the statement effect such as Allow or Deny.
 	Effect string `json:"Effect"`
 	// Actions is a list of actions.
-	Actions []string `json:"Action"`
+	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
-	Resources []string `json:"Resource"`
+	Resources SliceOrString `json:"Resource"`
 }
 
 // ParsePolicyDocument returns parsed AWS IAM policy document.

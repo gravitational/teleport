@@ -555,6 +555,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+	h.GET("/webapi/sites/:site/database/:db/iam/policy", h.WithClusterAuth(h.databaseGetIAMPolicy))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
