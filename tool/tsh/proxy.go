@@ -372,7 +372,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}
 
 	addr := "localhost:0"
+	randomPort := true
 	if cf.LocalProxyPort != "" {
+		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
 	listener, err := net.Listen("tcp", addr)
@@ -431,10 +433,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		// shared template arguments
 		templateArgs := map[string]any{
-			"database": routeToDatabase.ServiceName,
-			"type":     defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
-			"cluster":  client.SiteName,
-			"address":  listener.Addr().String(),
+			"database":   routeToDatabase.ServiceName,
+			"type":       defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
+			"cluster":    client.SiteName,
+			"address":    listener.Addr().String(),
+			"randomPort": randomPort,
 		}
 
 		tmpl := chooseProxyCommandTemplate(templateArgs, commands)
@@ -727,7 +730,8 @@ Use following credentials to connect to the {{.database}} proxy:
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use the following command to connect to the database:
   $ {{.command}}
 `))
@@ -735,7 +739,8 @@ Use the following command to connect to the database:
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.
 var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use one of the following commands to connect to the database:
 {{range $item := .commands}}
   * {{$item.Description}}: 
