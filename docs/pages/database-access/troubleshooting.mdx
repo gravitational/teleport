@@ -55,7 +55,7 @@ this is referring to database names or schemas within a particular database inst
 Once your database instance is configured, Teleport RBAC must be configured to allow access.
 Assign the Teleport user a role that **allows** `db_users`, `db_names`, and `db_labels` matching the 
 database user, database name, and Teleport static or dynamic labels for the database. Additionally, check that 
-the user does not have role(s) which **deny** the corresponding `db_users`, `db_names`, or `db_labels`.
+the user does not have role(s) that **deny** the corresponding `db_users`, `db_names`, or `db_labels`.
 
 <Admonition type="warning">
   Database names are only enforced for PostgreSQL and MongoDB databases.
