@@ -135,7 +135,7 @@ teleport:
     # Teleport provides HTTP endpoints for monitoring purposes. They are
     # disabled by default but you can enable them using the diagnosis address.
     # See the Teleport metrics reference:
-    # https://goteleport.com/docs/setup/reference/metrics/
+    # https://goteleport.com/docs/setup/diagnostics/metrics
     diag_addr: "127.0.0.1:3000"
 
 
@@ -565,7 +565,7 @@ ssh_service:
 
     # Disables automatic creation of host users on this SSH node.
     # Set to false by default.
-    disable_create_host_users: true
+    disable_create_host_user: true
 
     # Enhanced Session Recording
     # see https://goteleport.com/docs/features/enhanced-session-recording/
