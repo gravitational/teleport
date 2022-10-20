@@ -1377,7 +1377,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	baseRole, err := clt.GetRole(ctx, baseRoleName)
 	require.NoError(t, err)
-	baseRole.SetSearchAsRoles([]string{resourceRequestRoleName})
+	baseRole.SetSearchAsRoles(types.Allow, []string{resourceRequestRoleName})
 	err = clt.UpsertRole(ctx, baseRole)
 	require.NoError(t, err)
 
