@@ -176,9 +176,10 @@ func getTeleportArchSetupStep(arch, workingDirectory string, version *ReleaseVer
 func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory string) ([]string, string) {
 	bucketPath := fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", trimmedTag)
 	checkCommands := []string{
-		fmt.Sprintf("aws s3 ls %s | tr -s ' ' | cut -d' ' -f 4 | grep -x %s; EXIT_CODE=$?", bucketPath, debName),
+		"SUCCESS=true",
+		fmt.Sprintf("aws s3 ls %s | tr -s ' ' | cut -d' ' -f 4 | grep -x %s || SUCCESS=false", bucketPath, debName),
 	}
-	successCommand := "[ \"$EXIT_CODE\" -eq 0 ]"
+	successCommand := "[ \"$SUCCESS\" = \"true\" ]"
 
 	remotePath := fmt.Sprintf("%s/%s", bucketPath, debName)
 	downloadPath := path.Join(workingDirectory, debName)
