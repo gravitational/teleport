@@ -188,7 +188,7 @@ func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory strin
 	// Wait up to an hour for debs to be build and published to s3 by other pipelines
 	commands = append(commands, wrapCommandsInTimeout(checkCommands, successCommand, 60*60, 60)...)
 	commands = append(commands, fmt.Sprintf("mkdir -pv %q", workingDirectory))
-	commands = append(commands, fmt.Sprintf("aws s3 cp %q %q", remotePath, downloadPath))
+	commands = append(commands, fmt.Sprintf("aws s3 cp %s %s", remotePath, downloadPath))
 
 	return commands, downloadPath
 }
