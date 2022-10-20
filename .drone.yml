@@ -8265,7 +8265,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume AWS Role
-- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -8316,8 +8316,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport_v11-tag_amd64.deb" artifacts from S3
+- name: Download "teleport_v11-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -8368,8 +8368,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v11-tag_arm.deb" artifacts from S3
+- name: Download "teleport_v11-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -8420,7 +8420,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v11-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -8532,7 +8532,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -8583,8 +8583,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -8635,8 +8635,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -8687,7 +8687,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -8799,7 +8799,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -8850,7 +8850,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -10744,7 +10744,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -10795,8 +10795,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport_v11-tag_amd64.deb" artifacts from S3
+- name: Download "teleport_v11-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -10847,8 +10847,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v11-tag_arm.deb" artifacts from S3
+- name: Download "teleport_v11-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -10899,7 +10899,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v11-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -11410,7 +11410,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -11461,8 +11461,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -11513,8 +11513,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -11565,7 +11565,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -12078,7 +12078,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -12129,7 +12129,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -13148,7 +13148,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_v10-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -13199,8 +13199,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport_v10-tag_amd64.deb" artifacts from S3
+- name: Download "teleport_v10-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -13251,8 +13251,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v10-tag_arm.deb" artifacts from S3
+- name: Download "teleport_v10-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -13303,7 +13303,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v10-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -13814,7 +13814,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v10-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -13865,8 +13865,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport-ent_v10-tag_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v10-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -13917,8 +13917,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v10-tag_arm.deb" artifacts from S3
+- name: Download "teleport-ent_v10-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -13969,7 +13969,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v10-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -14482,7 +14482,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v10-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -14533,7 +14533,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  - Download "teleport-ent_v10-tag-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -15551,7 +15551,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_v9-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -15602,8 +15602,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport_v9-tag_amd64.deb" artifacts from S3
+- name: Download "teleport_v9-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -15654,8 +15654,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v9-tag_arm.deb" artifacts from S3
+- name: Download "teleport_v9-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -15706,7 +15706,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v9-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -16217,7 +16217,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v9-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -16268,8 +16268,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport-ent_v9-tag_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v9-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -16320,8 +16320,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v9-tag_arm.deb" artifacts from S3
+- name: Download "teleport-ent_v9-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -16372,7 +16372,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v9-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -16885,7 +16885,7 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v9-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -16936,7 +16936,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  - Download "teleport-ent_v9-tag-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -17931,7 +17931,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume AWS Role
-- name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -17982,8 +17982,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport_v11-tag_amd64.deb" artifacts from S3
+- name: Download "teleport_v11-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -18034,8 +18034,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v11-tag_arm.deb" artifacts from S3
+- name: Download "teleport_v11-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -18086,7 +18086,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport_v11-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -18198,7 +18198,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -18249,8 +18249,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -18301,8 +18301,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm.deb" artifacts from S3
-- name: Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -18353,7 +18353,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>_arm64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -18465,7 +18465,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume AWS Role
-- name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+- name: Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
   - END_TIME=$(( $(date +%s) + 3600 ))
@@ -18516,7 +18516,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
+  - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -18768,6 +18768,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4997b00421cb15448616421117790e96504ec67b4c5a2b2a8498d376de7ee980
+hmac: d3b9305f0e7890caa9f590088e0ba3c4f7acd6b7ffa3a7cf094c391bd2febb4d
 
 ...

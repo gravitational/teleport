@@ -193,7 +193,7 @@ func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory strin
 func buildTeleportDebName(version *ReleaseVersion, arch string, isEnterprise, isFips, humanReadable bool) string {
 	var versionString string
 	if humanReadable {
-		versionString = fmt.Sprintf("<%s-tag>", version.GetFullSemver().Name)
+		versionString = fmt.Sprintf("%s-tag", version.MajorVersion)
 	} else {
 		versionString = version.GetFullSemver().GetSemverValue()
 	}
@@ -245,6 +245,7 @@ func wrapCommandsInTimeout(commands []string, successCommand string, timeoutSeco
 // Generates a step that downloads the Teleport Dockerfile
 // Returns the generated step and the path to the downloaded Dockerfile
 func downloadTeleportDockerfileStep(productName, workingPath, downloadURL string) (step, string) {
+	// Enterprise and fips specific dockerfiles should be configured here in the future if needed
 	dockerfilePath := path.Join(workingPath, "Dockerfile")
 
 	return step{
