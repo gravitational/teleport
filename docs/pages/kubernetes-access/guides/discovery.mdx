@@ -11,7 +11,7 @@ The discovery process does not install any component on the cluster but requires
 
 The discovery consists of two distinct steps:
 
-#### Discovery
+### Discovery
 
 The discovery process is responsible for scanning the cloud providers and checking if any Kubernetes cluster match the desired filtering labels. 
 When a new cluster is discovered, it registers that cluster in Teleport together with the cloud access parameters.
@@ -56,7 +56,7 @@ discovery_service:
 The `discovery_service` automatically imports the tags defined in the cluster and 
 their value is constantly monitored and updated.
 
-#### Registering and forwarding requests
+### Registering and forwarding requests
 
 The `kubernetes_service` is responsible for monitoring the resources created or 
 updated by the `discovery_service` and forwarding requests to them.
