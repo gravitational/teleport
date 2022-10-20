@@ -7286,16 +7286,6 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
-  depends_on:
-  - Verify build is tagged
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Check out code
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7323,7 +7313,6 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -7342,7 +7331,6 @@ steps:
   - Assume Download AWS Role
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
   commands:
@@ -7371,7 +7359,16 @@ steps:
   - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Assume Upload AWS Role
+  - Verify build is tagged
+  - Check out code
 - name: Publish debs to APT repos for "${DRONE_TAG}"
   image: golang:1.18.4-bullseye
   commands:
@@ -7405,10 +7402,9 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume Upload AWS Role
+  - Check if tag is prerelease
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 volumes:
 - name: apt-persistence
   claim:
@@ -7485,16 +7481,6 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
-  depends_on:
-  - Verify build is tagged
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Check out code
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7522,7 +7508,6 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -7541,7 +7526,6 @@ steps:
   - Assume Download AWS Role
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
   commands:
@@ -7570,7 +7554,16 @@ steps:
   - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Assume Upload AWS Role
+  - Verify build is tagged
+  - Check out code
 - name: Publish rpms to YUM repos for "${DRONE_TAG}"
   image: golang:1.18.4-bullseye
   commands:
@@ -7605,10 +7598,9 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume Upload AWS Role
+  - Check if tag is prerelease
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 volumes:
 - name: yum-persistence
   claim:
@@ -8733,6 +8725,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: e9992895713d9c2f4ae7e748ae1dd1a990699936b4a4c4bc99c28de13be0cd10
+hmac: 467f277797ee98b558697809478f100a8e1e6e70c50610b0ee769c8cfe7ba621
 
 ...
