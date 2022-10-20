@@ -71,16 +71,6 @@ within a production database except for the `admin` database user or
 the `postgres` database name:
 
 ```yaml
-kind: user
-metadata:
-  name: alice@example.com
-spec:
-  roles: ["db-developer"]
-  traits:
-    db_users: ["*"]
-    db_names: ["*"]
-```
-```yaml
 kind: role
 version: v5
 metadata:
@@ -95,6 +85,15 @@ spec:
   deny:
     db_users: ["admin"]
     db_names: ["postgres"]
+---
+kind: user
+metadata:
+  name: alice@example.com
+spec:
+  roles: ["db-developer"]
+  traits:
+    db_users: ["*"]
+    db_names: ["*"]
 ```
 
 Now suppose we want to grant Alice more permissive access.
