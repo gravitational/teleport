@@ -6947,7 +6947,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:250
+# Generated at dronegen/os_repos.go:253
 ################################################
 
 kind: pipeline
@@ -6975,7 +6975,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:274
+# Generated at dronegen/os_repos.go:277
 ################################################
 
 kind: pipeline
@@ -7009,16 +7009,6 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
-  depends_on:
-  - Verify build is tagged
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Check out code
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7046,7 +7036,6 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -7065,7 +7054,6 @@ steps:
   - Assume Download AWS Role
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
   commands:
@@ -7094,7 +7082,16 @@ steps:
   - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Assume Upload AWS Role
+  - Verify build is tagged
+  - Check out code
 - name: Publish debs to APT repos for "${DRONE_TAG}"
   image: golang:1.18.4-bullseye
   commands:
@@ -7128,10 +7125,9 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume Upload AWS Role
+  - Check if tag is prerelease
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 volumes:
 - name: apt-persistence
   claim:
@@ -7146,7 +7142,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:250
+# Generated at dronegen/os_repos.go:253
 ################################################
 
 kind: pipeline
@@ -7174,7 +7170,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:274
+# Generated at dronegen/os_repos.go:277
 ################################################
 
 kind: pipeline
@@ -7208,16 +7204,6 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "${DRONE_TAG}"
-  depends_on:
-  - Verify build is tagged
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Check out code
 - name: Assume Download AWS Role
   image: amazon/aws-cli
   commands:
@@ -7245,7 +7231,6 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -7264,7 +7249,6 @@ steps:
   - Assume Download AWS Role
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
   commands:
@@ -7293,7 +7277,16 @@ steps:
   - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Assume Upload AWS Role
+  - Verify build is tagged
+  - Check out code
 - name: Publish rpms to YUM repos for "${DRONE_TAG}"
   image: golang:1.18.4-bullseye
   commands:
@@ -7328,10 +7321,9 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume Upload AWS Role
+  - Check if tag is prerelease
   - Verify build is tagged
   - Check out code
-  - Check if tag is prerelease
 volumes:
 - name: yum-persistence
   claim:
@@ -8100,6 +8092,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 40c063a36d5403efe1277d3564ae1fea45a3de4544f39959bd7a2941c89cc459
+hmac: f162c7d06af74b0d16a9aa80e0b4dff707915abae8167556c5a28ec2b551c165
 
 ...
