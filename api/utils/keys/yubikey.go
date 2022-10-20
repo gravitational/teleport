@@ -28,6 +28,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-piv/piv-go/piv"
@@ -95,6 +96,7 @@ type YubiKeyPrivateKey struct {
 	*yubiKey
 	pivSlot piv.Slot
 	pub     crypto.PublicKey
+	signMux sync.Mutex
 }
 
 // yubiKeyPrivateKeyData is marshalable data used to retrieve a specific yubiKey PIV private key.
@@ -142,6 +144,11 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 
 // Sign implements crypto.Signer.
 func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	// To prevent concurrent calls to Sign from failing due to PIV only handling a
+	// single connection, use a lock to queue through signature requests one at a time.
+	y.signMux.Lock()
+	defer y.signMux.Unlock()
+
 	yk, err := y.open()
 	if err != nil {
 		return nil, trace.Wrap(err)
