@@ -25,7 +25,7 @@ import (
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
-func getOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*PrivateKey, error) {
+func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

@@ -13,8 +13,6 @@ limitations under the License.
 
 package keys
 
-import "context"
-
-func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*PrivateKey, error) {
-	return getOrGenerateYubiKeyPrivateKey(ctx, touchRequired)
+func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
+	return getOrGenerateYubiKeyPrivateKey(touchRequired)
 }
