@@ -191,7 +191,10 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	setupSteps := verifyValidPromoteRunSteps(checkoutPath, commitName, true)
+	setupSteps := []step{
+		verifyTaggedStep(),
+		cloneRepoStep(checkoutPath, commitName),
+	}
 
 	setupStepNames := make([]string, 0, len(setupSteps))
 	for _, setupStep := range setupSteps {
@@ -401,6 +404,8 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 		name:            "Assume Upload AWS Role",
 	})
 
+	verifyNotPrereleaseStep := verifyNotPrereleaseStep(codePath)
+
 	buildAndUploadStep := step{
 		Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
 		Image:       "golang:1.18.4-bullseye",
@@ -446,13 +451,15 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 	if enableParallelism {
 		downloadStep.DependsOn = []string{assumeDownloadRoleStep.Name}
 		assumeUploadRoleStep.DependsOn = []string{downloadStep.Name}
-		buildAndUploadStep.DependsOn = []string{assumeUploadRoleStep.Name}
+		verifyNotPrereleaseStep.DependsOn = []string{assumeUploadRoleStep.Name}
+		buildAndUploadStep.DependsOn = []string{verifyNotPrereleaseStep.Name}
 	}
 
 	return []step{
 		assumeDownloadRoleStep,
 		downloadStep,
 		assumeUploadRoleStep,
+		verifyNotPrereleaseStep,
 		buildAndUploadStep,
 	}
 }
