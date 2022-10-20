@@ -152,7 +152,9 @@ func readCronShellVersionCommand(majorVersionDirectory, majorVersion string) str
 func (ti *TriggerInfo) buildPipelines() []pipeline {
 	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
 	for _, teleportVersion := range ti.SupportedVersions {
-		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.Flags)
+		// pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.Flags)
+		pipeline := pipeline{Kind: "pipeline", Type: "kubernetes"}
+		pipeline.Name = fmt.Sprintf("teleport-container-images-%s", teleportVersion.RelativeVersionName)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
 
