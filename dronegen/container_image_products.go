@@ -175,15 +175,17 @@ func getTeleportArchSetupStep(arch, workingDirectory string, version *ReleaseVer
 // Returns the commands as well as the path where the deb will be downloaded to.
 func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory string) ([]string, string) {
 	bucketPath := fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", trimmedTag)
-	checkCommand := fmt.Sprintf("aws s3 ls %s | tr -s ' ' | cut -d' ' -f 4 | grep -x %s", bucketPath, debName)
-	successCommand := "[ $? ]"
+	checkCommands := []string{
+		fmt.Sprintf("aws s3 ls %s | tr -s ' ' | cut -d' ' -f 4 | grep -x %s; EXIT_CODE=$?", bucketPath, debName),
+	}
+	successCommand := "[ \"$EXIT_CODE\" -eq 0 ]"
 
 	remotePath := fmt.Sprintf("%s/%s", bucketPath, debName)
 	downloadPath := path.Join(workingDirectory, debName)
 
 	commands := make([]string, 0)
 	// Wait up to an hour for debs to be build and published to s3 by other pipelines
-	commands = append(commands, wrapCommandsInTimeout([]string{checkCommand}, successCommand, 60*60, 60)...)
+	commands = append(commands, wrapCommandsInTimeout(checkCommands, successCommand, 60*60, 60)...)
 	commands = append(commands, fmt.Sprintf("mkdir -pv %q", workingDirectory))
 	commands = append(commands, fmt.Sprintf("aws s3 cp %q %q", remotePath, downloadPath))
 

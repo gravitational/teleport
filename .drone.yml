@@ -8272,13 +8272,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -8322,13 +8323,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
@@ -8372,13 +8374,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -8533,13 +8536,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -8583,13 +8587,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
@@ -8633,13 +8638,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -8794,13 +8800,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
@@ -10737,13 +10744,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -10787,13 +10795,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
@@ -10837,13 +10846,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -11397,13 +11407,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -11447,13 +11458,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
@@ -11497,13 +11509,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -12059,13 +12072,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
@@ -13127,13 +13141,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -13177,13 +13192,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
@@ -13227,13 +13243,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -13787,13 +13804,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -13837,13 +13855,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
@@ -13887,13 +13906,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -14449,13 +14469,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
@@ -15516,13 +15537,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -15566,13 +15588,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
@@ -15616,13 +15639,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -16176,13 +16200,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -16226,13 +16251,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
@@ -16276,13 +16302,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -16838,13 +16865,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
@@ -17882,13 +17910,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -17932,13 +17961,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
@@ -17982,13 +18012,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -18143,13 +18174,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_amd64.deb"
@@ -18193,13 +18225,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm.deb"
@@ -18243,13 +18276,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")_arm64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")_arm64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")_arm64.deb"
@@ -18404,13 +18438,14 @@ steps:
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - aws s3 ls s3://$AWS_S3_BUCKET/teleport/tag/$(cat "/go/var/full-version")/ | tr
-    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
-  - '[ $? ] && TIMED_OUT=false && break;'
+    -s ' ' | cut -d' ' -f 4 | grep -x teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb;
+    EXIT_CODE=$?
+  - '[ "$EXIT_CODE" -eq 0 ] && TIMED_OUT=false && break;'
   - echo 'Condition not met yet, waiting another 60 seconds...'
   - sleep 60
   - done
   - '[ $${TIMED_OUT?} = true ] && echo ''Timed out while waiting for condition: [
-    $? ]'' && exit 1'
+    "$EXIT_CODE" -eq 0 ]'' && exit 1'
   - mkdir -pv "/go/build"
   - aws s3 cp "s3://$AWS_S3_BUCKET/teleport/tag/$(cat \"/go/var/full-version\")//teleport-ent_$(cat
     \"/go/var/full-version\")-fips_amd64.deb" "/go/build/teleport-ent_$(cat \"/go/var/full-version\")-fips_amd64.deb"
@@ -18698,6 +18733,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4c0e4412b48981302df40073b75d77f034f4d8550dfa92d1efa8ac9af58cd831
+hmac: 52da25fab284119a10e3134ee440b8adbc3fec6dbd3b620979fd60d5ba82a226
 
 ...
