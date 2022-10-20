@@ -19,8 +19,11 @@ package db
 import (
 	"context"
 	"fmt"
+	"net"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgproto3/v2"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -54,6 +57,31 @@ func TestProxyProtocolPostgres(t *testing.T) {
 			psql, err := testCtx.postgresClientWithAddr(ctx, proxy.Address(), "alice", "postgres", "postgres", "postgres")
 			require.NoError(t, err)
 			require.NoError(t, psql.Close(ctx))
+
+			// Check that we can send a GSSEncRequest and get an 'N' response indicated server does not accept
+			// GSS encryption.
+			conn, err := net.Dial("tcp", proxy.Address())
+			require.NoError(t, err)
+			defer func() {
+				require.NoError(t, conn.Close())
+			}()
+			req := pgproto3.GSSEncRequest{}
+			msg := req.Encode(nil)
+			bytesWritten, err := conn.Write(msg)
+			require.NoError(t, err)
+			require.Equal(t, len(msg), bytesWritten)
+			buf := make([]byte, 512)
+			bytesRead, err := conn.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, []byte("N"), buf[:bytesRead], "server should respond with 'N' to indicate GSS encryption is not supported'")
+			sslReq := pgproto3.SSLRequest{}
+			msg = sslReq.Encode(nil)
+			bytesWritten, err = conn.Write(msg)
+			require.NoError(t, err, "server should not have closed conn after rejecting GSS")
+			require.Equal(t, len(msg), bytesWritten)
+			bytesRead, err = conn.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, []byte("S"), buf[:bytesRead], "server should respond with 'S' to indicate SSL encryption is supported'")
 		})
 	}
 }
