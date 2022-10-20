@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+
+	"golang.org/x/exp/maps"
 )
 
 // Describes a Gravitational "product", where a "product" is a piece of software
@@ -309,10 +311,10 @@ func (p *Product) buildSteps(version *ReleaseVersion, parentStepNames []string, 
 
 	archBuildStepDetails := make([]*buildStepOutput, 0, len(p.SupportedArchs))
 
-	for i, supportedArch := range p.SupportedArchs {
+	for _, supportedArch := range p.SupportedArchs {
 		// Include steps for building images from scratch
 		if flags.ShouldBuildNewImages {
-			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version, i)
+			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version)
 
 			// Collect the name of steps that are required before build, taking into account arch-specific steps
 			setupStepNames := make([]string, 0)
@@ -378,7 +380,7 @@ func cleanBuilderName(builderName string) string {
 	return invalidBuildxCharExpression.ReplaceAllString(builderName, "-")
 }
 
-func (p *Product) createBuildStep(arch string, version *ReleaseVersion, delay int) (step, *buildStepOutput) {
+func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *buildStepOutput) {
 	localRegistryImage := p.GetLocalRegistryImage(arch, version)
 	builderName := cleanBuilderName(fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName()))
 
@@ -408,31 +410,38 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion, delay in
 	}
 	buildCommand += " " + p.WorkingDirectory
 
-	delayTime := delay * 30
+	// Allows container images to be pulled from our staging repo if needed.
+	// Note that this has an important side effect: it increases the `docker pull` rate limit
+	// from one layer per second to ten. When running `docker buildx build` in parallel
+	// this is important to prevent AWS from throwing 429 errors due to parallel pulls.
+	stagingRepo := GetStagingContainerRepo(false)
+	authenticatedBuildCommands := stagingRepo.buildCommandsWithLogin([]string{buildCommand})
+
+	commands := []string{
+		"docker run --privileged --rm tonistiigi/binfmt --install all",
+		fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
+		fmt.Sprintf("mkdir -pv %q", buildxConfigFileDir),
+		fmt.Sprintf("echo '[registry.%q]' > %q", LocalRegistrySocket, buildxConfigFilePath),
+		fmt.Sprintf("echo '  http = true' >> %q", buildxConfigFilePath),
+		buildxCreateCommand,
+	}
+	commands = append(commands, authenticatedBuildCommands...)
+	commands = append(commands,
+		fmt.Sprintf("docker buildx rm %q", builderName),
+		fmt.Sprintf("rm -rf %q", buildxConfigFileDir),
+	)
+
+	envVars := maps.Clone(stagingRepo.EnvironmentVars)
+	envVars["DOCKER_BUILDKIT"] = value{
+		raw: "1",
+	}
 
 	step := step{
-		Name:    p.GetBuildStepName(arch, version),
-		Image:   "docker",
-		Volumes: dockerVolumeRefs(),
-		Environment: map[string]value{
-			"DOCKER_BUILDKIT": {
-				raw: "1",
-			},
-		},
-		Commands: []string{
-			// Without a delay buildx can occasionally try to pull base images faster than container registries will allow,
-			// triggering a rate limit.
-			fmt.Sprintf("echo 'Sleeping %ds to avoid registry pull rate limits' && sleep %d", delayTime, delayTime),
-			"docker run --privileged --rm tonistiigi/binfmt --install all",
-			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
-			fmt.Sprintf("mkdir -pv %q", buildxConfigFileDir),
-			fmt.Sprintf("echo '[registry.%q]' > %q", LocalRegistrySocket, buildxConfigFilePath),
-			fmt.Sprintf("echo '  http = true' >> %q", buildxConfigFilePath),
-			buildxCreateCommand,
-			buildCommand,
-			fmt.Sprintf("docker buildx rm %q", builderName),
-			fmt.Sprintf("rm -rf %q", buildxConfigFileDir),
-		},
+		Name:        p.GetBuildStepName(arch, version),
+		Image:       "docker",
+		Volumes:     dockerVolumeRefs(),
+		Environment: envVars,
+		Commands:    commands,
 	}
 
 	return step, &buildStepOutput{
