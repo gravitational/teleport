@@ -7289,19 +7289,6 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -7337,7 +7324,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
@@ -7356,7 +7342,6 @@ steps:
   depends_on:
   - Assume Download AWS Role
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
@@ -7385,7 +7370,23 @@ steps:
   depends_on:
   - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
-  - Check if tag is prerelease
+  - Check out code
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Assume Upload AWS Role
+  - Verify build is tagged
   - Check out code
 - name: Publish debs to APT repos for "${DRONE_TAG}"
   image: golang:1.18-bullseye
@@ -7420,9 +7421,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume Upload AWS Role
-  - Verify build is tagged
   - Check if tag is prerelease
+  - Verify build is tagged
   - Check out code
 volumes:
 - name: apt-persistence
@@ -7492,19 +7492,6 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -7540,7 +7527,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
@@ -7559,7 +7545,6 @@ steps:
   depends_on:
   - Assume Download AWS Role
   - Verify build is tagged
-  - Check if tag is prerelease
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
@@ -7588,7 +7573,23 @@ steps:
   depends_on:
   - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
-  - Check if tag is prerelease
+  - Check out code
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - apk add git
+  - mkdir -pv "/tmp/repo"
+  - cd "/tmp/repo"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_TAG}"
+  - cd "/tmp/repo/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Assume Upload AWS Role
+  - Verify build is tagged
   - Check out code
 - name: Publish rpms to YUM repos for "${DRONE_TAG}"
   image: golang:1.18-bullseye
@@ -7624,9 +7625,8 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume Upload AWS Role
-  - Verify build is tagged
   - Check if tag is prerelease
+  - Verify build is tagged
   - Check out code
 volumes:
 - name: yum-persistence
@@ -11579,6 +11579,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 14604baa2d8e374b8c2ae4323aadf1e0ff93c54098dbfd3c1196ef5aa6426d84
+hmac: 45ba388eb8c6898edca566511da05dea51daeca458fed5bcb5baa83177795a5b
 
 ...
