@@ -45,7 +45,7 @@ func (rv *ReleaseVersion) buildVersionPipeline(triggerSetupSteps []step, flags *
 		dockerService(),
 		dockerRegistryService(),
 	}
-	pipeline.Volumes = dockerVolumes()
+	pipeline.Volumes = dockerVolumes(volumeAwsConfig)
 	pipeline.Environment = map[string]value{
 		"DEBIAN_FRONTEND": {
 			raw: "noninteractive",
@@ -87,6 +87,14 @@ func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 		waitForDockerRegistryStep(),
 		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
 		rv.buildSplitSemverSteps(flags.ShouldOnlyPublishFullSemver),
+		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configVolume: volumeRefAwsConfig,
+		}),
 	}
 	for _, setupStep := range setupSteps {
 		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)

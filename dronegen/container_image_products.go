@@ -130,19 +130,9 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 
 func getTeleportSetupSteps(productName, workingPath, downloadURL string) ([]step, string) {
 	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(productName, workingPath, downloadURL)
-	getCredentialsStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-		awsRoleSettings: awsRoleSettings{
-			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
-			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			role:               value{fromSecret: "AWS_ROLE"},
-		},
-		configVolume: volumeRefAwsConfig,
-	})
+	// Additional setup steps in the future should go here
 
-	return []step{
-		downloadDockerfileStep,
-		getCredentialsStep,
-	}, dockerfilePath
+	return []step{downloadDockerfileStep}, dockerfilePath
 }
 
 // Generates steps that download a deb for each supported arch to the working directory.

@@ -8224,17 +8224,6 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
 - name: Assume AWS Role
   image: amazon/aws-cli
   commands:
@@ -8264,6 +8253,18 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  image: alpine
+  commands:
+  - apk add curl
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+  - Assume AWS Role
 - name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -8292,7 +8293,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -8345,7 +8345,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -8398,7 +8397,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -8533,35 +8531,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -8590,7 +8560,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -8643,7 +8612,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -8696,7 +8664,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -8831,35 +8798,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -8888,7 +8827,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
   commands:
@@ -8988,6 +8926,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm"
   image: docker
   commands:
@@ -9016,6 +8955,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm64"
   image: docker
   commands:
@@ -9044,6 +8984,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+  - Assume AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -9155,6 +9096,8 @@ services:
   privileged: false
   volumes: []
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -9256,19 +9199,6 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume AWS Role
   image: amazon/aws-cli
   commands:
@@ -9300,6 +9230,20 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  image: alpine
+  commands:
+  - apk add curl
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -9322,7 +9266,6 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Pull teleport:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -9345,7 +9288,6 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Pull teleport:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -9368,7 +9310,6 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Tag and push image "teleport:v11-amd64" to Quay
   image: docker
   commands:
@@ -9684,37 +9625,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Pull teleport-ent:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -9737,7 +9648,6 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Pull teleport-ent:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -9760,7 +9670,6 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Pull teleport-ent:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -9783,7 +9692,6 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Tag and push image "teleport-ent:v11-amd64" to Quay
   image: docker
   commands:
@@ -10101,37 +10009,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check if tag is prerelease
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Pull teleport-ent-fips:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -10155,7 +10033,6 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-  - Assume AWS Role
 - name: Tag and push image "teleport-ent-fips:v11-amd64" to Quay
   image: docker
   commands:
@@ -10356,6 +10233,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Pull teleport-operator:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -10384,6 +10262,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Pull teleport-operator:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -10412,6 +10291,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
@@ -10730,6 +10610,8 @@ services:
   privileged: false
   volumes: []
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -10819,18 +10701,6 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume AWS Role
   image: amazon/aws-cli
   commands:
@@ -10861,6 +10731,19 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  image: alpine
+  commands:
+  - apk add curl
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  depends_on:
+  - Find the latest available semver for v11
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -10889,7 +10772,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -10942,7 +10824,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -10995,7 +10876,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -11529,36 +11409,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -11587,7 +11438,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -11640,7 +11490,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -11693,7 +11542,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -12229,36 +12077,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -12287,7 +12106,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
   commands:
@@ -12622,6 +12440,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm"
   image: docker
   commands:
@@ -12651,6 +12470,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm64"
   image: docker
   commands:
@@ -12680,6 +12500,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -13193,6 +13014,8 @@ services:
   privileged: false
   volumes: []
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -13282,18 +13105,6 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume AWS Role
   image: amazon/aws-cli
   commands:
@@ -13324,6 +13135,19 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  image: alpine
+  commands:
+  - apk add curl
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  depends_on:
+  - Find the latest available semver for v10
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -13352,7 +13176,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v10-amd64"
   image: docker
   commands:
@@ -13405,7 +13228,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v10-arm"
   image: docker
   commands:
@@ -13458,7 +13280,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v10-arm64"
   image: docker
   commands:
@@ -13992,36 +13813,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -14050,7 +13842,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-amd64"
   image: docker
   commands:
@@ -14103,7 +13894,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-arm"
   image: docker
   commands:
@@ -14156,7 +13946,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v10-arm64"
   image: docker
   commands:
@@ -14692,36 +14481,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -14750,7 +14510,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
   image: docker
   commands:
@@ -15085,6 +14844,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v10-arm"
   image: docker
   commands:
@@ -15114,6 +14874,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v10-arm64"
   image: docker
   commands:
@@ -15143,6 +14904,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -15656,6 +15418,8 @@ services:
   privileged: false
   volumes: []
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -15744,18 +15508,6 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume AWS Role
   image: amazon/aws-cli
   commands:
@@ -15786,6 +15538,19 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  image: alpine
+  commands:
+  - apk add curl
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  depends_on:
+  - Find the latest available semver for v9
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -15814,7 +15579,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v9-amd64"
   image: docker
   commands:
@@ -15867,7 +15631,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v9-arm"
   image: docker
   commands:
@@ -15920,7 +15683,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v9-arm64"
   image: docker
   commands:
@@ -16454,36 +16216,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -16512,7 +16245,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-amd64"
   image: docker
   commands:
@@ -16565,7 +16297,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-arm"
   image: docker
   commands:
@@ -16618,7 +16349,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v9-arm64"
   image: docker
   commands:
@@ -17154,36 +16884,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -17212,7 +16913,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
   image: docker
   commands:
@@ -17547,6 +17247,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v9-arm"
   image: docker
   commands:
@@ -17576,6 +17277,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v9-arm64"
   image: docker
   commands:
@@ -17605,6 +17307,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
+  - Assume AWS Role
 - name: Tag and push image "teleport-operator:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -18118,6 +17821,8 @@ services:
   privileged: false
   volumes: []
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 
@@ -18185,17 +17890,6 @@ steps:
   - Wait for docker
   - Wait for docker registry
   - Check out code
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  image: alpine
-  commands:
-  - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
 - name: Assume AWS Role
   image: amazon/aws-cli
   commands:
@@ -18225,6 +17919,18 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  image: alpine
+  commands:
+  - apk add curl
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  depends_on:
+  - Wait for docker
+  - Wait for docker registry
+  - Check out code
+  - Build full semver
+  - Assume AWS Role
 - name: Download "teleport_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -18253,7 +17959,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -18306,7 +18011,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -18359,7 +18063,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
-  - Assume AWS Role
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -18494,35 +18197,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -18551,7 +18226,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -18604,7 +18278,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -18657,7 +18330,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
-  - Assume AWS Role
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -18792,35 +18464,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
-- name: Assume AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
+  - Assume AWS Role
 - name: Download "teleport-ent_<full-tag>-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -18849,7 +18493,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-  - Assume AWS Role
 - name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
   image: docker
   commands:
@@ -18949,6 +18592,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm"
   image: docker
   commands:
@@ -18977,6 +18621,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+  - Assume AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm64"
   image: docker
   commands:
@@ -19005,6 +18650,7 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build full semver
+  - Assume AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -19116,10 +18762,12 @@ services:
   privileged: false
   volumes: []
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 ---
 kind: signature
-hmac: 5bbd7cad44f2ec29a09b3c2412036a03f183f8eed2389630117744102401ef05
+hmac: 4997b00421cb15448616421117790e96504ec67b4c5a2b2a8498d376de7ee980
 
 ...
