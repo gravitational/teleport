@@ -53,7 +53,7 @@ $ tctl create -f user.yaml
 Now that Teleport RBAC is configured, you can **authenticate** to your Kubernetes cluster, but authentication
 alone does not allow you to actually do anything in the Kubernetes cluster; for that you need **authorization**.
 
-### Kubernetes Authorization
+### Kubernetes authorization
 
 To configure **authorization** within your Kubernetes cluster, you need to create Kubernetes RoleBindings or
 ClusterRoleBindings which grant permissions to the subjects listed in `kubernetes_users` and
