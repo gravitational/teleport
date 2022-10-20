@@ -7339,6 +7339,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume Download AWS Role
   - Verify build is tagged
   - Check out code
   - Check if tag is prerelease
@@ -7367,6 +7368,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check out code
   - Check if tag is prerelease
@@ -7403,7 +7405,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Assume Upload AWS Role
   - Verify build is tagged
   - Check out code
   - Check if tag is prerelease
@@ -7536,6 +7538,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume Download AWS Role
   - Verify build is tagged
   - Check out code
   - Check if tag is prerelease
@@ -7564,6 +7567,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Download artifacts for "${DRONE_TAG}"
   - Verify build is tagged
   - Check out code
   - Check if tag is prerelease
@@ -7601,7 +7605,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Download artifacts for "${DRONE_TAG}"
+  - Assume Upload AWS Role
   - Verify build is tagged
   - Check out code
   - Check if tag is prerelease
@@ -8729,6 +8733,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: b1c9a7bbb841e00e8cf6a36bb2b6f91a72cce77f9b23c47c6d72cad432087711
+hmac: e9992895713d9c2f4ae7e748ae1dd1a990699936b4a4c4bc99c28de13be0cd10
 
 ...
