@@ -82,7 +82,8 @@ type TerminalServiceClient interface {
 	SetGatewayLocalPort(ctx context.Context, in *SetGatewayLocalPortRequest, opts ...grpc.CallOption) (*Gateway, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(ctx context.Context, in *GetAuthSettingsRequest, opts ...grpc.CallOption) (*AuthSettings, error)
-	// GetCluster returns a cluster
+	// GetCluster returns cluster. Makes a network request and includes detailed
+	// information about enterprise features availabed on the connected auth server
 	GetCluster(ctx context.Context, in *GetClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
 	// Login logs in a user to a cluster
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
@@ -505,7 +506,8 @@ type TerminalServiceServer interface {
 	SetGatewayLocalPort(context.Context, *SetGatewayLocalPortRequest) (*Gateway, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(context.Context, *GetAuthSettingsRequest) (*AuthSettings, error)
-	// GetCluster returns a cluster
+	// GetCluster returns cluster. Makes a network request and includes detailed
+	// information about enterprise features availabed on the connected auth server
 	GetCluster(context.Context, *GetClusterRequest) (*Cluster, error)
 	// Login logs in a user to a cluster
 	Login(context.Context, *LoginRequest) (*EmptyResponse, error)
