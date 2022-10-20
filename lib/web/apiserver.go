@@ -897,6 +897,11 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	}
 
 	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
+	pingResp, err := authClient.Ping(ctx)
+	if err != nil {
+		return webclient.AuthenticationSettings{}, trace.Wrap(err)
+	}
+	as.LoadAllCAs = pingResp.LoadAllCAs
 
 	return as, nil
 }
@@ -944,6 +949,12 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	pingResp, err := authClient.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	loadAllCAs := pingResp.LoadAllCAs
+
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -961,6 +972,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			return nil, trace.Wrap(err)
 		}
 		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+		response.Auth.LoadAllCAs = loadAllCAs
 		response.Auth.Local.Name = connectorName // echo connector queried by caller
 		return response, nil
 	}
@@ -977,6 +989,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = oidcSettings(oidcConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
 			}
 		}
@@ -990,6 +1003,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = samlSettings(samlConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
 			}
 		}
@@ -1003,6 +1017,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = githubSettings(githubConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
 			}
 		}
