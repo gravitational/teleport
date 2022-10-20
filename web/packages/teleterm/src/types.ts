@@ -20,5 +20,4 @@ export type ElectronGlobals = {
   readonly mainProcessClient: MainProcessClient;
   readonly tshClient: TshClient;
   readonly ptyServiceClient: PtyServiceClient;
-  readonly loggerService: LoggerService;
 };

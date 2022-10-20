@@ -1,9 +1,6 @@
 import path from 'path';
-
 import { watch } from 'fs';
 import { readFile, writeFile, stat, rename } from 'fs/promises';
-
-import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import { makeCert } from './makeCert';
 
@@ -82,18 +79,4 @@ export async function readGrpcCert(
   } finally {
     abortController.abort();
   }
-}
-
-/**
- * Checks if the gRPC connection should be encrypted.
- * The only source of truth is the type of tshd protocol.
- * Any other protocol than `unix` should be encrypted.
- * The same check is performed on the tshd side.
- */
-export function shouldEncryptConnection(
-  runtimeSettings: RuntimeSettings
-): boolean {
-  return (
-    new URL(runtimeSettings.tshd.requestedNetworkAddress).protocol !== 'unix:'
-  );
 }
