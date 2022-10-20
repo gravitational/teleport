@@ -7329,7 +7329,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
-  - rm -rf "$ARTIFACT_PATH/*"
+  - rm -rf "$ARTIFACT_PATH"/*
   - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -7532,7 +7532,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
-  - rm -rf "$ARTIFACT_PATH/*"
+  - rm -rf "$ARTIFACT_PATH"/*
   - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -11579,6 +11579,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 45ba388eb8c6898edca566511da05dea51daeca458fed5bcb5baa83177795a5b
+hmac: bee65ecafb73bb1999f8ceca2c75b205dd5e8d0c8701e69d0a28db87615039cf
 
 ...
