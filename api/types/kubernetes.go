@@ -92,10 +92,12 @@ func NewKubernetesClusterV3FromLegacyCluster(namespace string, cluster *Kubernet
 // NewKubernetesClusterV3WithoutSecrets creates a new copy of the provided cluster
 // but without secrets/credentials.
 func NewKubernetesClusterV3WithoutSecrets(cluster KubeCluster) (*KubernetesClusterV3, error) {
+	// Force a copy of the cluster to deep copy the Metadata fields.
+	copiedCluster := cluster.Copy()
 	clusterWithoutCreds, err := NewKubernetesClusterV3(
-		cluster.GetMetadata(),
+		copiedCluster.Metadata,
 		KubernetesClusterSpecV3{
-			DynamicLabels: LabelsToV2(cluster.GetDynamicLabels()),
+			DynamicLabels: copiedCluster.Spec.DynamicLabels,
 		},
 	)
 	return clusterWithoutCreds, trace.Wrap(err)
