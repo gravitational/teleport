@@ -92,7 +92,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 
 	if wtmpPath == "" {
 		// Check where wtmp is located.
-		if utils.FileExists(wtmpPath) {
+		if utils.FileExists(wtmpFilePath) {
 			wtmpPath = wtmpFilePath
 		} else {
 			wtmpPath = wtmpAltFilePath
