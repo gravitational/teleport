@@ -683,6 +683,20 @@
             {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
+            },
+            {
+              "title": "Kubernetes Discovery (Preview)",
+              "slug": "/kubernetes-access/guides/discovery/",
+              "entries": [
+                {
+                  "title": "AWS",
+                  "slug": "/kubernetes-access/guides/discovery/aws/"
+                },
+                {
+                  "title": "Azure",
+                  "slug": "/kubernetes-access/guides/discovery/azure/"
+                }
+              ]
             }
           ]
         },
