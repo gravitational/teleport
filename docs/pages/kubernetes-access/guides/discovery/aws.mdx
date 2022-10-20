@@ -3,7 +3,7 @@ title: Teleport EKS auto-discovery (Preview)
 description: Auto-discovery of EKS clusters in AWS cloud.
 ---
 
-Similarly to [EKS discovery](./aws.mdx), the EKS Discovery can automatically 
+Similarly to [AKS discovery](./azure.mdx), the EKS Discovery can automatically 
 discover any EKS cluster running and enroll it if its tags match the configured labels. 
 
 As mentioned in [Kubernetes Discovery](./discovery.mdx), the discovery process 
@@ -74,8 +74,8 @@ cluster creation and management tools such as `eksctl` and Terraform to automati
 configure access.
 
 For simplicity, it is possible to set up an existing group in the cluster to the 
-Teleport IAM role such as `system:masters`, but the guide to setting up the minimum 
-permissions is available below.
+Teleport IAM role such as `system:masters`, but recommend setting up the minimum 
+permissions as described below.
 
 <Details 
 title="Configure Teleport minimal RBAC permissions" 
