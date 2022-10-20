@@ -143,7 +143,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 
 		sort.Sort(sortedLabels(uiLabels))
 
-		kubeUsers, kubeGroups := userRoles.GetAllowedKubeUsersAndGroupsForCluster(cluster)
+		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(userRoles, cluster)
 
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
 			Name:       cluster.GetName(),
@@ -154,6 +154,23 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 	}
 
 	return uiKubeClusters
+}
+
+// getAllowedKubeUsersAndGroupsForCluster works on a given set of roles to return
+// a list of allowed `kubernetes_users` and `kubernetes_groups` that can be used
+// to access a given kubernetes cluster.
+// This function ignores any verification of the TTL associated with
+// each Role, and focuses only on listing all users and groups that the user may
+// have access to.
+func getAllowedKubeUsersAndGroupsForCluster(roles services.RoleSet, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
+	// We ignore the TTL verification because we want to include every possibility.
+	// Later, if the user certificate expiration is longer than the maximum allowed TTL
+	// for the role that defines the `kubernetes_*` principals the request will be
+	// denied by Kubernetes Service.
+	// We ignore the returning error since we are only interested in allowed users and groups.
+	kubeGroups, kubeUsers, _ = roles.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
+	return
 }
 
 // ConnectionDiagnostic describes a connection diagnostic.

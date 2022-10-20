@@ -948,16 +948,6 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
-// GetAllowedKubeUsersAndGroupsForCluster works on a given role set to return a minimal list of
-// configured kubernetes_users and kubernetes_groups for a given kubernetes cluster.
-// The wildcard selector is ignored, since it is not allowed for kubernetes principals.
-func (set RoleSet) GetAllowedKubeUsersAndGroupsForCluster(kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
-	// ignore error since we are only interested in Allowed  groups
-	kubeGroups, kubeUsers, _ = set.CheckKubeGroupsAndUsers(5*time.Minute, true /* force ttl override*/, matcher)
-	return
-}
-
 // EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
 // The wildcard selector is ignored, since it is now allowed for server logins
 func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
