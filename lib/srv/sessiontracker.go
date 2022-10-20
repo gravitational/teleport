@@ -21,11 +21,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 )
@@ -113,10 +114,8 @@ func (s *SessionTracker) UpdateExpiration(ctx context.Context, expiry time.Time)
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -135,7 +134,6 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
 
@@ -157,7 +155,6 @@ func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID st
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
 
@@ -179,7 +176,6 @@ func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionSta
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
 

@@ -54,6 +54,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
@@ -93,7 +95,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
