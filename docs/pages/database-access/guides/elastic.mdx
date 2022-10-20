@@ -220,8 +220,6 @@ The command will create three files:
 - `elastic.key` with a generated private key
 - `elastic.crt` with a generated host certificate
 
-You will need these files to enable mutual TLS on your Elasticsearch server.
-
 (!docs/pages/includes/database-access/rotation-note.mdx!)
 
 Use the generated secrets to enable mutual TLS in your `elasticsearch.yml` configuration
@@ -244,7 +242,8 @@ xpack.security.authc.realms.pki.pki1:
 
 Once mutual TLS has been enabled, you will no longer be able to connect to the cluster without
 providing a valid client certificate. You can set `xpack.security.http.ssl.client_authentication`
-to `optional` to allow connections from clients that do not present a certificate.
+to `optional` to allow connections from clients that do not present a certificate, using other
+methods like username and password.
 
 ## Step 5/5. Connect
 
@@ -274,7 +273,7 @@ Log into your Teleport cluster and see available databases:
 To connect to a particular database instance:
 
 ```code
-$ tsh db connect myelastic --db-user=elastic
+$ tsh db connect myelastic --db-user=alice
 ```
 
 To log out of the database and remove credentials:
@@ -285,6 +284,29 @@ $ tsh db logout myelastic
 #Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+## Tunneled connection example
+
+We can create a tunneled connection to Elasticsearch to use with GUI applications like Elasticvue:
+
+```code
+$ tsh proxy db myelastic --db-user=alice --tunnel
+Started authenticated tunnel for the  database "myelastic" in cluster "teleport.example.com" on 127.0.0.1:53657.
+
+Use one of the following commands to connect to the database:
+
+  * interactive SQL connection: 
+
+  $ elasticsearch-sql-cli http://localhost:53657/
+
+  * run single request with curl: 
+
+  $ curl http://localhost:53657/
+```
+
+Note the assigned port, and provide it to your GUI client:
+
+![ElasticVue](../../../img/database-access/guides/elasticvue.png)
 
 ## Next steps
 
