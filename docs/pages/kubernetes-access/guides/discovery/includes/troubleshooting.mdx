@@ -1,0 +1,26 @@
+### Discovery service
+
+To check if `discovery_service` is working normally, you can check if Kubernetes 
+Clusters are created dynamically. To do this, you can use the `tctl get kube_cluster` 
+command and inspect if the expected clusters have already been discovered and 
+created in Teleport.
+
+If some clusters do not appear in the list, check if the filtering labels match 
+the missing cluster tags or look into the service logs for permission errors.
+
+### Kubernetes service
+
+If the `tctl get kube_cluster` command returns the discovered clusters but the 
+`tsh kube ls` command does not include them, check that you have set the 
+`kubernetes_service.resources` section correctly.
+
+```yaml
+kubernetes_service:
+  enabled: `yes`
+  resources:
+  - tags:
+      "env": "prod"
+```
+
+If the section is correctly configured, but clusters still do not appear or 
+return authentication errors, check if permissions have been correctly configured.

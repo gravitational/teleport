@@ -1,0 +1,86 @@
+---
+title: Kubernetes Discovery Guides (Preview)
+description: Detailed guides for configuring Kubernetes Auto-discovery.
+layout: tocless-doc
+---
+
+## Discovery
+
+Kubernetes cluster auto-discovery is a Teleport feature that allows the Teleport process automatically discover and enroll Kubernetes clusters from different cloud providers. 
+The discovery process does not install any component on the cluster but requires Teleport to have access to the cluster API and minimal permissions.
+
+The discovery consists of two distinct steps:
+
+#### Discovery
+
+The discovery process is responsible for scanning the cloud providers and checking if any Kubernetes cluster match the desired filtering labels. 
+When a new cluster is discovered, it registers that cluster in Teleport together with the cloud access parameters.
+
+This process is also responsible for removing the cluster when it has been deleted or when it no longer meets the filtering labels.
+
+
+```yaml
+# This section configures the 'discovery service'
+discovery_service:
+    enabled: "yes"
+    aws:
+       # AWS resource types. Valid options are:
+       # eks - discovers and registers AWS EKS clusters
+     - types: ["eks"]
+       # AWS regions to search for resources from
+       regions: ["eu-central-1"]
+       # AWS resource tags to match when registering resources
+       # Optional section: Defaults to "*":"*"
+       tags:
+         "*": "*"
+    # Matchers for discovering Azure-hosted resources.
+    azure:
+      # Azure resource types. Valid options are:
+      # 'aks' - discovers and registers Azure AKS Kubernetes Clusters.
+    - types: ["aks"]
+      # Azure regions to search for resources from. Valid options are:
+      # '*' - discovers resources in all regions (default).
+      # Any valid Azure region name. List all valid regions using the Azure "az" cli: `az account list-locations -o table`
+      regions: ["*"]
+      # Azure subscription IDs to search resources from. Valid options are:
+      # '*' - discovers resources in all subscriptions (default).
+      subscriptions: ["*"]
+      # Azure resource groups to search resources from. Valid options are:
+      # '*' - discovers resources in all resource groups within configured subscription(s) (default).
+      resource_groups: ["*"]
+      # Azure resource tag filters used to match resources.
+      tags:
+        "*": "*"
+```
+
+The `discovery_service` automatically imports the tags defined in the cluster and 
+their value is constantly monitored and updated.
+
+#### Registering and forwarding requests
+
+The `kubernetes_service` is responsible for monitoring the resources created or 
+updated by the `discovery_service` and forwarding requests to them.
+It requires direct access to the Cluster API and that the permissions associated 
+with the identity it is using are able to use `Impersonation`.
+
+To watch and serve discovered clusters the following confuguration is required:
+
+```yaml
+## This section configures the 'kubernetes service'
+kubernetes_service:
+    enabled: "yes"
+    # Matchers for dynamic kubernetes cluster resources created with "tctl create" command or by Kubernetes auto-discovery.
+    # When resources were created by 'discovery_service', ' kubernetes_service' must have the required permissions.
+    resources:
+    - labels:
+        "*": "*" # can be configured to limit the clusters to watch for this service.
+```
+
+Both services can be configured in the same Teleport process or in separate processes. 
+When they run separately, you need to take care of the permissions required for each service.
+
+## Supported Clouds
+
+- [AWS](./discovery/aws.mdx): Kubernetes Auto-Discovery for EKS clusters.
+- [Azure](./discovery/azure.mdx): Kubernetes Auto-Discovery for AKS clusters.
+
