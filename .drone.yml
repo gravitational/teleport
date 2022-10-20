@@ -8306,7 +8306,7 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -8358,7 +8358,7 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -8410,7 +8410,7 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -8573,8 +8573,8 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_amd64.deb /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -8625,8 +8625,8 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -8677,8 +8677,8 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm64.deb /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -8840,8 +8840,8 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")-fips_amd64.deb /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -8912,8 +8912,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
-    "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
@@ -8941,8 +8941,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
@@ -8970,8 +8970,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
@@ -10785,7 +10785,7 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -10837,7 +10837,7 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -10889,7 +10889,7 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -11451,8 +11451,8 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_amd64.deb /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -11503,8 +11503,8 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -11555,8 +11555,8 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm64.deb /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -12119,8 +12119,8 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")-fips_amd64.deb /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -12425,8 +12425,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
-    "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
@@ -12455,8 +12455,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
@@ -12485,8 +12485,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
@@ -13189,7 +13189,7 @@ steps:
     "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   - rm -rf "/tmp/teleport-v10-amd64-builder"
@@ -13241,7 +13241,7 @@ steps:
     "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   - rm -rf "/tmp/teleport-v10-arm-builder"
@@ -13293,7 +13293,7 @@ steps:
     "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   - rm -rf "/tmp/teleport-v10-arm64-builder"
@@ -13855,8 +13855,8 @@ steps:
     "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_amd64.deb /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
@@ -13907,8 +13907,8 @@ steps:
     "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
@@ -13959,8 +13959,8 @@ steps:
     "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm64.deb /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
@@ -14523,8 +14523,8 @@ steps:
     "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")-fips_amd64.deb /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
@@ -14829,8 +14829,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
-    "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
   environment:
@@ -14859,8 +14859,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm-builder"
   environment:
@@ -14889,8 +14889,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
   environment:
@@ -15592,7 +15592,7 @@ steps:
     "teleport-v9-amd64-builder" --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker buildx rm "teleport-v9-amd64-builder"
   - rm -rf "/tmp/teleport-v9-amd64-builder"
@@ -15644,7 +15644,7 @@ steps:
     "teleport-v9-arm-builder" --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker buildx rm "teleport-v9-arm-builder"
   - rm -rf "/tmp/teleport-v9-arm-builder"
@@ -15696,7 +15696,7 @@ steps:
     "teleport-v9-arm64-builder" --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker buildx rm "teleport-v9-arm64-builder"
   - rm -rf "/tmp/teleport-v9-arm64-builder"
@@ -16258,8 +16258,8 @@ steps:
     "teleport-ent-v9-amd64-builder" --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_amd64.deb /go/build
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v9-amd64-builder"
   environment:
@@ -16310,8 +16310,8 @@ steps:
     "teleport-ent-v9-arm-builder" --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker buildx rm "teleport-ent-v9-arm-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm-builder"
   environment:
@@ -16362,8 +16362,8 @@ steps:
     "teleport-ent-v9-arm64-builder" --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm64.deb /go/build
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm64-builder"
   environment:
@@ -16926,8 +16926,8 @@ steps:
     "teleport-ent-fips-v9-amd64-builder" --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")-fips_amd64.deb /go/build
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v9-amd64-builder"
   environment:
@@ -17232,8 +17232,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v9-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
-    "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v9-amd64-builder"
   environment:
@@ -17262,8 +17262,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v9-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm-builder"
   - rm -rf "/tmp/teleport-operator-v9-arm-builder"
   environment:
@@ -17292,8 +17292,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v9-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v9-arm64-builder"
   environment:
@@ -17972,7 +17972,7 @@ steps:
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_amd64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker buildx rm "teleport-v11-amd64-builder"
   - rm -rf "/tmp/teleport-v11-amd64-builder"
@@ -18024,7 +18024,7 @@ steps:
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker buildx rm "teleport-v11-arm-builder"
   - rm -rf "/tmp/teleport-v11-arm-builder"
@@ -18076,7 +18076,7 @@ steps:
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport_$(cat \"/go/var/full-version\")_arm64.deb"
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker buildx rm "teleport-v11-arm64-builder"
   - rm -rf "/tmp/teleport-v11-arm64-builder"
@@ -18239,8 +18239,8 @@ steps:
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_amd64.deb /go/build
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
   environment:
@@ -18291,8 +18291,8 @@ steps:
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm.deb" /go/build
+    --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
   environment:
@@ -18343,8 +18343,8 @@ steps:
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")_arm64.deb" /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")_arm64.deb /go/build
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
   environment:
@@ -18506,8 +18506,8 @@ steps:
     "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/build/teleport-ent_$(cat
-    \"/go/var/full-version\")-fips_amd64.deb" /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=/go/build/teleport-ent_$(cat
+    "/go/var/full-version")-fips_amd64.deb /go/build
   - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
   environment:
@@ -18578,8 +18578,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11" --build-arg
-    "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport11 --build-arg
+    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
   environment:
@@ -18607,8 +18607,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
   environment:
@@ -18636,8 +18636,8 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    "BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11" --build-arg
-    "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
+    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport11 --build-arg
+    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
   environment:
@@ -18768,6 +18768,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 330e5c8c0c1ff6b5097c00bb2750f838a90e913064f7cca0d9fafb3421543baa
+hmac: c8270380f1f0230f8f68068e3118936dcd68e4c0f6c0b433b32f64c0978193f0
 
 ...

@@ -403,7 +403,7 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion, delay in
 	buildCommand += fmt.Sprintf(" --file %q", p.DockerfilePath)
 	if p.DockerfileArgBuilder != nil {
 		for _, buildArg := range p.DockerfileArgBuilder(arch) {
-			buildCommand += fmt.Sprintf(" --build-arg %q", buildArg)
+			buildCommand += fmt.Sprintf(" --build-arg %s", buildArg)
 		}
 	}
 	buildCommand += " " + p.WorkingDirectory
