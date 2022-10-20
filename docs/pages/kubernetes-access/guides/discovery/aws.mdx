@@ -6,7 +6,7 @@ description: Auto-discovery of EKS clusters in AWS cloud.
 Similarly to [AKS discovery](./azure.mdx), the EKS Discovery can automatically 
 discover any EKS cluster running and enroll it if its tags match the configured labels. 
 
-As mentioned in [Kubernetes Discovery](./discovery.mdx), the discovery process 
+As mentioned in [Kubernetes Discovery](../discovery.mdx), the discovery process 
 requires two separate Teleport components. The first, `discovery_service`, is 
 responsible for watching the cloud provider and checking if there are any 
 new clusters or if there have been any modifications to previously discovered clusters. 
@@ -85,7 +85,7 @@ opened={false}
 Connect to your target cluster with admin permissions and create the following 
 resources using `kubectl`.
 
-#### ClusterRole
+### ClusterRole
 
 Create the `ClusterRole` RBAC definition with minimum permissions for the Teleport 
 to forward requests to the cluster.
@@ -119,7 +119,7 @@ rules:
   - create
 ```
 
-#### ClusterRoleBinding
+### ClusterRoleBinding
 
 Link the previously created `ClusterRole` into an RBAC group.
 
