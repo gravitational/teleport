@@ -108,7 +108,7 @@ spec:
 ```
 
 If an SSH Node must never allow the automatic creation of transient Unix users
-you can set `disable_create_host_users` to `true` in the Node's configuration:
+you can set `disable_create_host_user` to `true` in the Node's configuration:
 
 ```yaml
 # teleport.yaml
@@ -117,7 +117,7 @@ teleport:
 ssh_service:
   enabled: true
   # Disable automatic host user creation on this Node, regardless of role permissions.
-  disable_create_host_users: true
+  disable_create_host_user: true
 ```
 
 ## Step 2/2 Test host user creation

@@ -35,6 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -679,7 +680,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 // serveAWSWebConsole generates a sign-in URL for AWS management console and
 // redirects the user to it.
 func (s *Server) serveAWSWebConsole(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application) error {
-	s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
+	s.log.Debugf("Redirecting %v to AWS management console with role %v.",
 		identity.Username, identity.RouteToApp.AWSRoleARN)
 
 	url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
@@ -768,10 +769,6 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
 
 	// When accessing AWS management console, check permissions to assume
 	// requested IAM role as well.
@@ -782,6 +779,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 		})
 	}
 
+	mfaParams := authContext.MFAParams(ap.GetRequireMFAType())
 	err = authContext.Checker.CheckAccess(
 		app,
 		mfaParams,
@@ -843,7 +841,7 @@ func (s *Server) newHTTPServer() *http.Server {
 	s.authMiddleware.Wrap(s)
 
 	return &http.Server{
-		Handler:           s.authMiddleware,
+		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 	}

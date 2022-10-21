@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -39,7 +39,7 @@ type shardEvent struct {
 }
 
 func (b *Backend) asyncPollStreams(ctx context.Context) error {
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: b.RetryPeriod / 10,
 		Max:  b.RetryPeriod,
 	})

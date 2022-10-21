@@ -31,6 +31,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -41,15 +44,15 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // Pack contains identity as well as initialized Teleport clusters and instances.
@@ -166,7 +169,7 @@ func (p *Pack) initUser(t *testing.T, opts AppTestOptions) {
 	require.NoError(t, err)
 
 	user.AddRole(role.GetName())
-	user.SetTraits(map[string][]string{"env": {"production"}})
+	user.SetTraits(map[string][]string{"env": {"production"}, "empty": {}, "nil": nil})
 	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
@@ -554,12 +557,10 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
 		raConf.SetToken("static-token-value")
-		raConf.AuthServers = []utils.NetAddr{
-			{
-				AddrNetwork: "tcp",
-				Addr:        p.rootCluster.Web,
-			},
-		}
+		raConf.SetAuthServerAddress(utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        p.rootCluster.Web,
+		})
 		raConf.Auth.Enabled = false
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
@@ -655,6 +656,14 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
+						},
 						// Make sure we can insert JWT token in custom header.
 						{
 							Name:  "X-JWT",
@@ -672,15 +681,21 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 	require.NoError(t, err)
 	require.Equal(t, len(configs), len(servers))
 
-	for _, appServer := range servers {
+	for i, appServer := range servers {
 		srv := appServer
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
 	}
 
 	return servers
+}
+
+func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, hostUUID string, apps []service.App) {
+	// Make sure that the app server is ready to accept connections.
+	// The remote site cache needs to be filled with new registered application services.
+	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
 func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
@@ -693,12 +708,10 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
 		laConf.SetToken("static-token-value")
-		laConf.AuthServers = []utils.NetAddr{
-			{
-				AddrNetwork: "tcp",
-				Addr:        p.leafCluster.Web,
-			},
-		}
+		laConf.SetAuthServerAddress(utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        p.leafCluster.Web,
+		})
 		laConf.Auth.Enabled = false
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
@@ -780,6 +793,14 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						{
+							Name:  common.XForwardedSSL,
+							Value: "rewritten-x-forwarded-ssl-header",
+						},
+						{
+							Name:  forward.XForwardedPort,
+							Value: "rewritten-x-forwarded-port-header",
+						},
 					},
 				},
 			},
@@ -792,13 +813,32 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 	require.NoError(t, err)
 	require.Equal(t, len(configs), len(servers))
 
-	for _, appServer := range servers {
+	for i, appServer := range servers {
 		srv := appServer
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID)
+		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
 	}
 
 	return servers
+}
+
+func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnel.Server, clusterName string, cfgApps []service.App, hostUUID string) {
+	require.Eventually(t, func() bool {
+		site, err := tunnel.GetSite(clusterName)
+		require.NoError(t, err)
+		ap, err := site.CachingAccessPoint()
+		require.NoError(t, err)
+		apps, err := ap.GetApplicationServers(context.Background(), apidefaults.Namespace)
+		require.NoError(t, err)
+
+		counter := 0
+		for _, v := range apps {
+			if v.GetHostID() == hostUUID {
+				counter++
+			}
+		}
+		return len(cfgApps) == counter
+	}, time.Minute*2, time.Millisecond*200)
 }

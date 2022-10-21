@@ -31,6 +31,13 @@
         # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
         $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
         $ sudo yum install teleport
+        #
+        # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
+        # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
+        #
+        # Optional:  Using DNF on newer distributions
+        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        # $ sudo dnf install teleport
         ```
     </TabItem>
 
