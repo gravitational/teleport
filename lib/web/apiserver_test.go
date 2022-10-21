@@ -2679,7 +2679,15 @@ func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+	kubeRole, err := types.NewRoleV3("kube", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			KubeGroups:       []string{"kubegroup1"},
+			KubeUsers:        []string{"kubeuser"},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	pack := proxy.authPack(t, "test-user@example.com", []types.Role{kubeRole})
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2724,8 +2732,10 @@ func TestClusterKubesGet(t *testing.T) {
 	require.Len(t, resp.Items, 1)
 	require.Equal(t, 1, resp.TotalCount)
 	require.EqualValues(t, ui.KubeCluster{
-		Name:   "test-kube-name",
-		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Name:       "test-kube-name",
+		Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+		KubeGroups: []string{"kubegroup1"},
+		KubeUsers:  []string{"kubeuser"},
 	}, resp.Items[0])
 }
 
