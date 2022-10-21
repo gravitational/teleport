@@ -1000,6 +1000,8 @@ type certRequest struct {
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
 	attestationStatement *keys.AttestationStatement
+	// skipAttestation is a server-side flag which is used to skip the attestation check.
+	skipAttestation bool
 }
 
 // check verifies the cert request is valid.
