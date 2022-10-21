@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +34,8 @@ import (
 type mockClients struct {
 	cloud.Clients
 
-	ec2Client *mockEC2Client
+	ec2Client   *mockEC2Client
+	azureClient *azure.VirtualMachinesClient
 }
 
 func (c *mockClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
