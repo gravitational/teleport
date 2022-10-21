@@ -191,6 +191,7 @@ func TestProxySSH(t *testing.T) {
 			name: "TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -199,6 +200,7 @@ func TestProxySSH(t *testing.T) {
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -258,6 +260,100 @@ func TestProxySSH(t *testing.T) {
 			})
 		})
 
+	}
+}
+
+// TestProxySSHJumpHost verifies "tsh proxy ssh -J" functionality.
+func TestProxySSHJumpHost(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	createAgent(t)
+
+	tests := []struct {
+		name string
+		opts []testSuiteOptionFunc
+	}{
+		{
+			name: "TLS routing enabled for root and leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+			},
+		},
+		{
+			name: "TLS routing enabled for root and disabled for leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+			},
+		},
+
+		{
+			name: "TLS routing disabled for root and enabled for leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+			},
+		},
+		{
+			name: "TLS routing disabled for root and leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTestSuite(t, tc.opts...)
+
+			runProxySSHJump := func(opts ...cliOption) error {
+				proxyRequest := fmt.Sprintf("%s:%d",
+					s.leaf.Config.Proxy.SSHAddr.Host(),
+					s.leaf.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
+				return Run(context.Background(), []string{
+					"--insecure", "proxy", "ssh", "-J", s.leaf.Config.Proxy.WebAddr.Addr, proxyRequest,
+				}, opts...)
+			}
+
+			// login to root
+			tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+
+			// Connect to leaf node though proxy jump host. This should automatically
+			// reissue leaf certs from the root without explicility switching clusters.
+			err := runProxySSHJump(setHomePath(tshHome))
+			require.NoError(t, err)
+
+			// Terminate root cluster.
+			err = s.root.Close()
+			require.NoError(t, err)
+
+			// Since we've already retrieved valid leaf certs, we should be able to connect without root.
+			err = runProxySSHJump(setHomePath(tshHome))
+			require.NoError(t, err)
+		})
 	}
 }
 
