@@ -105,9 +105,12 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 	switch connectionOptions.mode {
 	case Standalone:
 		return redis.NewClient(&redis.Options{
-			Addr:                 connectionAddr,
-			TLSConfig:            tlsConfig,
-			OnConnect:            onConnect,
+			Addr:      connectionAddr,
+			TLSConfig: tlsConfig,
+			OnConnect: onConnect,
+
+			// Auth should be done by the `OnConnect` callback here. So disable
+			// "automatic" auth by the client.
 			DisableAuthOnConnect: true,
 		}), nil
 	case Cluster:

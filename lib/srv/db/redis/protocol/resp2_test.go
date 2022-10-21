@@ -112,15 +112,38 @@ func TestWriteCmd(t *testing.T) {
 }
 
 func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
-	t.Run("HELLO", func(t *testing.T) {
-		cmd := redis.NewCmd(context.TODO(), "HELLO", 3, "user", "TOKEN")
-		err := MakeUnknownCommandErrorForCmd(cmd)
-		require.Equal(t, redis.RedisError("ERR unknown command 'HELLO', with args beginning with: '3' 'user' 'TOKEN'"), err)
-	})
+	tests := []struct {
+		name          string
+		command       []interface{}
+		expectedError redis.RedisError
+	}{
+		{
+			name:          "HELLO",
+			command:       []interface{}{"HELLO", 3, "user", "TOKEN"},
+			expectedError: "ERR unknown command 'HELLO', with args beginning with: '3' 'user' 'TOKEN'",
+		},
+		{
+			name:          "no extra args",
+			command:       []interface{}{"abcdef"},
+			expectedError: "ERR unknown command 'abcdef', with args beginning with: ",
+		},
+		{
+			name:          "cluster",
+			command:       []interface{}{"cluster", "aaa", "bbb"},
+			expectedError: "ERR unknown subcommand 'aaa'. Try CLUSTER HELP.",
+		},
+		{
+			name:          "command",
+			command:       []interface{}{"command", "aaa", "bbb"},
+			expectedError: "ERR unknown subcommand 'aaa'. Try COMMAND HELP.",
+		},
+	}
 
-	t.Run("cluster", func(t *testing.T) {
-		cmd := redis.NewCmd(context.TODO(), "cluster", "aaa", "bbb")
-		err := MakeUnknownCommandErrorForCmd(cmd)
-		require.Equal(t, redis.RedisError("ERR unknown subcommand 'aaa'. Try CLUSTER HELP."), err)
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := redis.NewCmd(context.TODO(), test.command...)
+			actualError := MakeUnknownCommandErrorForCmd(cmd)
+			require.Equal(t, test.expectedError, actualError)
+		})
+	}
 }
