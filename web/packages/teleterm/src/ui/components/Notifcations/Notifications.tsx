@@ -26,8 +26,8 @@ export function Notifications(props: NotificationsProps) {
 }
 
 const Container = styled.div`
-  position: fixed;
-  bottom: 28px;
+  position: absolute;
+  bottom: 0;
   right: 12px;
   z-index: 10;
 `;
