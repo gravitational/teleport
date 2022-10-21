@@ -115,3 +115,54 @@ func TestEC2IsInstanceMetadataAvailable(t *testing.T) {
 		})
 	}
 }
+
+func TestGetInstanceID(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name         string
+		stausCode    int
+		body         []byte
+		expectedID   string
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:         "with ID",
+			stausCode:    http.StatusOK,
+			body:         []byte(`i-1234567890abcdef0`),
+			expectedID:   "i-1234567890abcdef0",
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "with old ID format",
+			stausCode:    http.StatusOK,
+			body:         []byte(`i-1a2b3c4d`),
+			expectedID:   "i-1a2b3c4d",
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "with empty ID",
+			stausCode:    http.StatusOK,
+			body:         []byte{},
+			errAssertion: require.Error,
+		},
+		{
+			name:         "request error",
+			stausCode:    http.StatusNotFound,
+			errAssertion: require.Error,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write(tc.body)
+			}))
+
+			client, err := NewInstanceMetadataClient(ctx, WithIMDSClient(imds.New(imds.Options{Endpoint: server.URL})))
+			require.NoError(t, err)
+			id, err := client.GetID(context.Background())
+			tc.errAssertion(t, err)
+			require.Equal(t, tc.expectedID, id)
+		})
+	}
+}
