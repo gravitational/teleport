@@ -63,11 +63,12 @@ type nodeJoinToken struct {
 // scriptSettings is used to hold values which are passed into the function that
 // generates the join script.
 type scriptSettings struct {
-	token          string
-	appInstallMode bool
-	appName        string
-	appURI         string
-	joinMethod     string
+	token               string
+	appInstallMode      bool
+	appName             string
+	appURI              string
+	joinMethod          string
+	databaseInstallMode bool
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -242,6 +243,29 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	return nil, nil
 }
 
+func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	scripts.SetScriptHeaders(w.Header())
+
+	settings := scriptSettings{
+		token:               params.ByName("token"),
+		databaseInstallMode: true,
+	}
+
+	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
+	if err != nil {
+		log.WithError(err).Info("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := fmt.Fprintln(w, script); err != nil {
+		log.WithError(err).Debug("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+	}
+
+	return nil, nil
+}
 func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
 	req := &proto.GenerateTokenRequest{
 		Roles: roles,
@@ -295,7 +319,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	version := proxyServers[0].GetTeleportVersion()
 	hostname, portStr, err := utils.SplitHostPort(proxyServers[0].GetPublicAddr())
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(err, "AQUI", proxyServers[0], proxyServers[0].GetPublicAddr())
 	}
 
 	// Get the CA pin hashes of the cluster to join.
@@ -312,6 +336,14 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	for labelKey, labelValues := range token.GetSuggestedLabels() {
 		labels := strings.Join(labelValues, " ")
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
+	}
+
+	dbService := ""
+	if settings.databaseInstallMode {
+		dbService, err = scripts.MarshalDBServiceConfigSection(token.GetAgentMatcherLabels())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
 	var buf bytes.Buffer
@@ -336,14 +368,16 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		// version used space delimited values whereas the teleport command uses
 		// a comma delimeter. The Old version can be removed when the install.sh
 		// file has been completely converted over.
-		"caPinsOld":      strings.Join(caPins, " "),
-		"caPins":         strings.Join(caPins, ","),
-		"version":        version,
-		"appInstallMode": strconv.FormatBool(settings.appInstallMode),
-		"appName":        settings.appName,
-		"appURI":         settings.appURI,
-		"joinMethod":     settings.joinMethod,
-		"labels":         strings.Join(labelsList, ","),
+		"caPinsOld":           strings.Join(caPins, " "),
+		"caPins":              strings.Join(caPins, ","),
+		"version":             version,
+		"appInstallMode":      strconv.FormatBool(settings.appInstallMode),
+		"appName":             settings.appName,
+		"appURI":              settings.appURI,
+		"joinMethod":          settings.joinMethod,
+		"labels":              strings.Join(labelsList, ","),
+		"databaseInstallMode": strconv.FormatBool(settings.databaseInstallMode),
+		"db_service_section":  dbService,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

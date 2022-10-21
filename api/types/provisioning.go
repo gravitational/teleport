@@ -88,6 +88,9 @@ type ProvisionToken interface {
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
 	GetSuggestedLabels() Labels
 
+	// GetAgentMatcherLabels returns the set of labels that the resource should add when adding itself to the cluster
+	GetAgentMatcherLabels() Labels
+
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -305,6 +308,11 @@ func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 // GetSuggestedLabels returns the labels the resource should set when using this token
 func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 	return p.Spec.SuggestedLabels
+}
+
+// GetAgentMatcherLabels returns the labels the resource should set when using this token
+func (p *ProvisionTokenV2) GetAgentMatcherLabels() Labels {
+	return p.Spec.AgentMatcherLabels
 }
 
 // V1 returns V1 version of the resource
