@@ -2729,8 +2729,8 @@ func TestClusterKubesGet(t *testing.T) {
 			expectedResponse: ui.KubeCluster{
 				Name:       "test-kube-name",
 				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
-				KubeUsers:  []string{},
-				KubeGroups: []string{},
+				KubeUsers:  nil,
+				KubeGroups: nil,
 			},
 		},
 		{
