@@ -53,6 +53,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -3863,6 +3864,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				utils.GRPCServerStreamErrorInterceptor,
 				proxyLimiter.StreamServerInterceptor,
 			),
+			grpc.KeepaliveParams(keepalive.ServerParameters{
+				// Using an aggressive idle timeout here since this only hosts
+				// the join service which has no need for long-lived idle
+				// connections, and older teleport versions known to keep idle
+				// connections open forever after encountering an error.
+				MaxConnectionIdle: 10 * time.Second,
+			}),
 		)
 		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
