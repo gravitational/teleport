@@ -127,7 +127,7 @@ export function Kubes(props: State) {
 const emptyStateInfo: EmptyStateInfo = {
   title: 'Add your first Kubernetes cluster to Teleport',
   byline:
-    'Teleport Kubenetes Access provides secure access to Kubernetes clusters.',
+    'Teleport Kubernetes Access provides secure access to Kubernetes clusters.',
   docsURL: DOC_URL,
   resourceType: 'kubernetes',
   readOnly: {

@@ -256,7 +256,7 @@ exports[`empty state 1`] = `
             font-weight="400"
             style="opacity: 0.6;"
           >
-            Teleport Kubenetes Access provides secure access to Kubernetes clusters.
+            Teleport Kubernetes Access provides secure access to Kubernetes clusters.
           </div>
         </div>
         <div
