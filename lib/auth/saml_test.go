@@ -227,6 +227,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		PrivateKey: fixtures.EncryptionKeyPEM,
 	}
 
+	// SAML connector validation requires the roles in mappings exist.
 	role, err := types.NewRole("admin", types.RoleSpecV5{})
 	require.NoError(t, err)
 	err = a.CreateRole(ctx, role)
@@ -237,7 +238,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Provider:                 "ping",
 		Display:                  "Ping",
 		AttributesToRoles: []types.AttributeMapping{
-			{Name: "groups", Value: "ping-admin", Roles: []string{"admin"}},
+			{Name: "groups", Value: "ping-admin", Roles: []string{role.GetName()}},
 		},
 		EntityDescriptor:  entityDescriptor,
 		SigningKeyPair:    signingKeypair,
@@ -487,9 +488,10 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	}, nil, 10*365*24*time.Hour)
 	require.NoError(t, err)
 
-	role, err = types.NewRole("baz", types.RoleSpecV5{})
+	// SAML connector validation requires the roles in mappings exist.
+	connectorRole, err := types.NewRole("baz", types.RoleSpecV5{})
 	require.NoError(t, err)
-	err = a.CreateRole(ctx, role)
+	err = a.CreateRole(ctx, connectorRole)
 	require.NoError(t, err)
 
 	conn, err := types.NewSAMLConnector("saml-test-conn", types.SAMLConnectorSpecV2{
@@ -500,7 +502,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 		AttributesToRoles: []types.AttributeMapping{{
 			Name:  "foo",
 			Value: "bar",
-			Roles: []string{"baz"},
+			Roles: []string{connectorRole.GetName()},
 		}},
 		SigningKeyPair: &types.AsymmetricKeyPair{
 			PrivateKey: string(keyPEM),
