@@ -1003,14 +1003,10 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
 		s.emitSessionEndEvent()
-		s.Close()
+		if err := s.Close(); err != nil {
+			s.log.Warnf("Failed to close session: %v", err)
+		}
 	}()
 
 	return nil

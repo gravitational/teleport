@@ -168,10 +168,14 @@ func (t *terminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (t *terminal) Run(ctx context.Context) error {
-	var err error
-	defer t.closeTTY()
+func (t *terminal) Run(_ context.Context) error {
+	defer func() {
+		if err := t.closeTTY(); err != nil {
+			t.log.Warnf("Failed to close TTY: %v", err)
+		}
+	}()
 
+	var err error
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.ctx)
 	if err != nil {
@@ -271,6 +275,7 @@ func (t *terminal) Close() error {
 func (t *terminal) closeTTY() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer t.log.Debugf("Closed TTY")
 
 	if t.tty == nil {
 		return nil
@@ -294,7 +299,9 @@ func (t *terminal) closePTY() {
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	if err := t.pty.Close(); err != nil {
+		t.log.Warnf("Failed to close PTY: %v", err)
+	}
 	t.pty = nil
 }
 
@@ -458,7 +465,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
-	// prepare the remote remote session by setting environment variables
+	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr

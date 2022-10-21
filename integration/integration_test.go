@@ -439,7 +439,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 
-			myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
+			myTerm.Type("echo hi\n\rexit\n\r")
 
 			// wait for session to end:
 			select {
