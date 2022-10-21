@@ -202,6 +202,8 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else if params.JoinMethod == types.JoinMethodCircleCI {
+		return nil, trace.Errorf("Unimplemented")
 	}
 
 	type registerMethod struct {

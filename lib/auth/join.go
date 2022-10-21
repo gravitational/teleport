@@ -112,6 +112,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkGitHubJoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodCircleCI:
+		return nil, trace.Errorf("Unimplemented")
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -155,7 +157,9 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		case types.JoinMethodToken:
 			shouldDeleteToken = true
 			renewable = true
-		case types.JoinMethodIAM, types.JoinMethodGitHub:
+		case types.JoinMethodIAM,
+			types.JoinMethodGitHub,
+			types.JoinMethodCircleCI:
 			shouldDeleteToken = false
 			renewable = false
 		default:
