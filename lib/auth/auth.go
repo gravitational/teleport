@@ -1254,12 +1254,15 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	// verify that the required private key policy for the requesting identity
-	// is met by the provided attestation statement.
-	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	attestedKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var attestedKeyPolicy = keys.PrivateKeyPolicyNone
+	if !req.skipAttestation {
+		// verify that the required private key policy for the requesting identity
+		// is met by the provided attestation statement.
+		requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := a.GetDomainName()
