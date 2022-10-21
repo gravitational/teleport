@@ -35,7 +35,7 @@ License warnings should be displayed in CLI (tsh/tctl)
 TSH - on “tsh login” and "tsh status"
 When the user uses the “tsh login” command the appropriate license warning will be displayed. (see examples below)
 This will be achieved by showing alerts that have the 'on-login' label.
-When the user uses "tsh status" only expired license warnings will be displayed, this will be done by showing all 'high severity' alerts.
+When the user uses "tsh status" expired license warnings will be displayed along with any other 'high severity' alerts.
 
 TCTL - on any "tctl" command when expired.
 When the user uses any "tctl" command the appropriate license warning will be displayed if expired.
