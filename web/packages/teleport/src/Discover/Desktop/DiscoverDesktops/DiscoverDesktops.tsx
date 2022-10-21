@@ -14,6 +14,8 @@ import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import cfg from 'teleport/config';
 import { NavLink } from 'teleport/components/Router';
 
+import type { WindowsDesktopService } from 'teleport/services/desktops';
+
 const Desktops = styled.div`
   margin-top: 120px;
   margin-left: -40px;
@@ -83,7 +85,7 @@ const TimedOutTitle = styled.div`
 export function DiscoverDesktops(props: State) {
   const ctx = useTeleport();
 
-  const { result: desktopService } = usePingTeleport();
+  const { result: desktopService } = usePingTeleport<WindowsDesktopService>();
 
   const [enabled, setEnabled] = useState(true);
   const { clusterId } = useStickyClusterId();

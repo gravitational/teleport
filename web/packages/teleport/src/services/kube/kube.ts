@@ -24,17 +24,20 @@ import makeKube from './makeKube';
 class KubeService {
   fetchKubernetes(
     clusterId,
-    params: UrlResourcesParams
+    params: UrlResourcesParams,
+    signal?: AbortSignal
   ): Promise<AgentResponse<Kube>> {
-    return api.get(cfg.getKubernetesUrl(clusterId, params)).then(json => {
-      const items = json?.items || [];
+    return api
+      .get(cfg.getKubernetesUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
 
-      return {
-        agents: items.map(makeKube),
-        startKey: json?.startKey,
-        totalCount: json?.totalCount,
-      };
-    });
+        return {
+          agents: items.map(makeKube),
+          startKey: json?.startKey,
+          totalCount: json?.totalCount,
+        };
+      });
   }
 }
 

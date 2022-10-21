@@ -11,6 +11,8 @@ import { KeywordHighlight } from 'shared/components/AnimatedTerminal/TerminalCon
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 
+import type { WindowsDesktopService } from 'teleport/services/desktops';
+
 const startLines = [
   {
     text: 'sudo systemctl start teleport',
@@ -71,7 +73,8 @@ export function StartTeleportTerminalAnimation() {
   const [animationFinished, setAnimationFinished] = useState(false);
   const [lines, setLines] = useState<TerminalLine[]>([...startLines]);
 
-  const { active, result, timedOut, timeout } = usePingTeleport();
+  const { active, result, timedOut, timeout } =
+    usePingTeleport<WindowsDesktopService>();
 
   const savedTimeout = useRef(0);
   useEffect(() => {

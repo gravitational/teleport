@@ -24,6 +24,7 @@ import Select, { Props as SelectProps } from './../Select';
 
 export default function FieldSelect({
   label,
+  labelTip,
   value,
   options,
   onChange,
@@ -44,7 +45,12 @@ export default function FieldSelect({
   const labelText = hasError ? message : label;
   return (
     <Box mb="4" {...styles}>
-      {label && <LabelInput hasError={hasError}>{labelText}</LabelInput>}
+      {label && (
+        <LabelInput hasError={hasError}>
+          {labelText}
+          {labelTip && <LabelTip text={labelTip} />}
+        </LabelInput>
+      )}
       <Select
         menuPosition={menuPosition}
         hasError={hasError}
@@ -65,6 +71,12 @@ export default function FieldSelect({
 }
 
 const defaultRule = () => () => ({ valid: true });
+
+const LabelTip = ({ text }) => (
+  <span
+    css={{ fontWeight: 'normal', textTransform: 'none' }}
+  >{` - ${text}`}</span>
+);
 
 type Props = SelectProps & {
   autoFocus?: boolean;

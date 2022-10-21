@@ -79,6 +79,7 @@ export function useJoinTokenValue() {
 
 export function useJoinToken(
   resourceKind: ResourceKind,
+  runNow = true,
   joinMethod: JoinMethod = 'token'
 ): {
   joinToken: JoinToken;
@@ -122,12 +123,21 @@ export function useJoinToken(
 
   useEffect(() => {
     return () => {
-      abortController.abort();
+      abortController?.abort();
+
       // result will be stored in memory which can refer to
       // previously used or expired join tokens.
       clearCachedJoinTokenResult();
     };
   }, []);
+
+  if (!runNow)
+    return {
+      joinToken: null,
+      reloadJoinToken: run,
+      timedOut: false,
+      timeout: 0,
+    };
 
   if (cachedJoinTokenResult) {
     if (cachedJoinTokenResult.error) {

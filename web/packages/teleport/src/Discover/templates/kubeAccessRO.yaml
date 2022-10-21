@@ -1,0 +1,11 @@
+kind: role
+spec:
+  allow:
+    kubernetes_groups:
+    # Define Kubernetes groups for this role.
+    - kubeGroup1
+    - kubeGroup2
+    kubernetes_users:
+    # Define Kubernetes users for this role.
+    - kubeUser1
+    - kubeUser2

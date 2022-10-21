@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-import logins from './logins.yaml?raw';
-import loginsAndRuleUsers from './loginsAndRuleUsers.yaml?raw';
-import ruleConnectionDiagnostic from './ruleConnectionDiagnostic.yaml?raw';
-import kubeAccessRW from './kubeAccessRW.yaml?raw';
-import kubeAccessRO from './kubeAccessRO.yaml?raw';
+import { rest } from 'msw';
 
-export {
-  logins,
-  loginsAndRuleUsers,
-  ruleConnectionDiagnostic,
-  kubeAccessRW,
-  kubeAccessRO,
-};
+import type { SetupWorkerApi } from 'msw';
+
+declare global {
+  interface Window {
+    msw: {
+      worker: SetupWorkerApi;
+      rest: typeof rest;
+    };
+  }
+}
