@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box, ButtonPrimary } from 'design';
+import { Indicator, Box } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -25,6 +25,8 @@ import {
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import DesktopList from './DesktopList';
 import useDesktops, { State } from './useDesktops';
@@ -70,15 +72,12 @@ export function Desktops(props: State) {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoDesktops && (
-          <ButtonPrimary
-            as="a"
-            width="240px"
-            target="_blank"
-            href={DOC_URL}
-            rel="noreferrer"
-          >
-            View documentation
-          </ButtonPrimary>
+          <AgentButtonAdd
+            agent="desktop"
+            beginsWithVowel={false}
+            isLeafCluster={isLeafCluster}
+            canCreate={canCreate}
+          />
         )}
       </FeatureHeader>
       {attempt.status === 'processing' && (
