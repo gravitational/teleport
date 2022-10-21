@@ -20,7 +20,6 @@ import { Box, Flex, Image, Text } from 'design';
 
 import AddApp from 'teleport/Apps/AddApp';
 import AddDatabase from 'teleport/Databases/AddDatabase';
-import AddKube from 'teleport/Kubes/AddKube';
 import useTeleport from 'teleport/useTeleport';
 
 import { Acl } from 'teleport/services/user';
@@ -70,7 +69,6 @@ export function SelectResource(props: SelectResourceProps) {
   const { acl } = userContext;
 
   const [showAddApp, setShowAddApp] = useState(false);
-  const [showAddKube, setShowAddKube] = useState(false);
   const [showAddDB, setShowAddDB] = useState(false);
 
   const tabs: Tab[] = [
@@ -147,14 +145,13 @@ export function SelectResource(props: SelectResourceProps) {
       {props.selectedResourceKind === ResourceKind.Kubernetes && (
         <KubernetesResource
           disabled={disabled}
-          onProceed={() => setShowAddKube(true)}
+          onProceed={() => props.onNext()}
         />
       )}
       {props.selectedResourceKind === ResourceKind.Server && (
         <ServerResource disabled={disabled} onProceed={() => props.onNext()} />
       )}
       {showAddApp && <AddApp onClose={() => setShowAddApp(false)} />}
-      {showAddKube && <AddKube onClose={() => setShowAddKube(false)} />}
       {showAddDB && (
         <AddDatabase
           isEnterprise={ctx.isEnterprise}

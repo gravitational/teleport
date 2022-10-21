@@ -18,6 +18,8 @@ import { AgentLabel } from 'teleport/services/agents';
 export interface Kube {
   name: string;
   labels: AgentLabel[];
+  users?: string[];
+  groups?: string[];
 }
 
 export type KubesResponse = {

@@ -34,6 +34,8 @@ test('correct processed fetch response formatting', async () => {
           { name: 'kernal', value: '4.15.0-51-generic' },
           { name: 'env', value: 'prod' },
         ],
+        users: [],
+        groups: [],
       },
     ],
     startKey: mockApiResponse.startKey,
@@ -66,7 +68,9 @@ test('handling of null labels', async () => {
     search: 'does-not-matter',
   });
 
-  expect(response.agents).toEqual([{ name: 'test', labels: [] }]);
+  expect(response.agents).toEqual([
+    { name: 'test', labels: [], users: [], groups: [] },
+  ]);
 });
 
 const mockApiResponse = {
@@ -77,6 +81,8 @@ const mockApiResponse = {
         { name: 'kernal', value: '4.15.0-51-generic' },
         { name: 'env', value: 'prod' },
       ],
+      users: [],
+      groups: [],
     },
   ],
   startKey: 'mockKey',
