@@ -621,6 +621,13 @@ type ReRegisterParams struct {
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
 func ReRegister(params ReRegisterParams) (*Identity, error) {
+	var rotation *types.Rotation
+	if !params.Rotation.IsZero() {
+		// older auths didn't distinguish between empty and nil rotation
+		// structs, so we go out of our way to only send non-nil rotation
+		// if it is truly non-empty.
+		rotation = &params.Rotation
+	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
 			HostID:                        params.ID.HostID(),
@@ -630,7 +637,7 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 			DNSNames:                      params.DNSNames,
 			PublicTLSKey:                  params.PublicTLSKey,
 			PublicSSHKey:                  params.PublicSSHKey,
-			Rotation:                      &params.Rotation,
+			Rotation:                      rotation,
 			SystemRoles:                   params.SystemRoles,
 			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
 		})
