@@ -134,6 +134,7 @@ const Dropzone = styled.button`
   opacity: ${props => (props.disabled ? 0.7 : 1)};
   pointer-events: ${props => (props.disabled ? 'none' : 'unset')};
   border-radius: ${props => props.theme.radii[2]}px;
+  font-family: inherit;
 
   :focus {
     border-color: ${props => props.theme.colors.action.selected};

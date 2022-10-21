@@ -52,7 +52,7 @@ function reducer(
   switch (action.type) {
     case 'add': {
       return {
-        ids: [...state.ids, action.payload.id],
+        ids: [action.payload.id, ...state.ids],
         filesById: {
           ...state.filesById,
           [action.payload.id]: {

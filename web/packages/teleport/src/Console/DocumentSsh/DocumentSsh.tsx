@@ -85,7 +85,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
             window.confirm('Are you sure you want to cancel file transfers?')
           }
           afterClose={handleCloseFileTransfer}
-          backgroundColor={colors.terminalDark}
+          backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) =>
               getHttpFileTransferHandlers().download(

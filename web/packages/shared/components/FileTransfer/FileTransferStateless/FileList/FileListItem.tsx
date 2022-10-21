@@ -16,7 +16,7 @@
 
 import React, { FC, useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonIcon, Flex, Text } from 'design';
+import { ButtonIcon, Flex, Text } from 'design';
 import { CircleCheck, Cross, Warning } from 'design/Icon';
 
 import { TransferredFile } from '../types';
@@ -35,52 +35,52 @@ export function FileListItem(props: FileListItemProps) {
 
   return (
     <Li>
-      <Box>
-        <Flex justifyContent="space-between" alignItems="baseline">
-          <Flex alignItems="baseline">
-            <Text
-              mb={1}
-              typography="body2"
-              css={`
-                word-break: break-word;
-              `}
-            >
-              {name}
-            </Text>
-            {transferState.type === 'completed' && (
-              <CircleCheck
-                ml={2}
-                fontSize="14px"
-                color="progressBarColor"
-                title="Transfer completed"
-              />
-            )}
-          </Flex>
-          {transferState.type === 'processing' && (
-            <ButtonIcon
-              title="Cancel"
-              size={0}
-              onClick={() => props.onCancel(id)}
-            >
-              <Cross />
-            </ButtonIcon>
+      <Flex justifyContent="space-between" alignItems="center">
+        <Flex alignItems="center">
+          <Text
+            typography="body2"
+            css={`
+              word-break: break-all;
+            `}
+          >
+            {name}
+          </Text>
+          {transferState.type === 'completed' && (
+            <CircleCheck
+              ml={2}
+              fontSize="14px"
+              color="progressBarColor"
+              title="Transfer completed"
+            />
           )}
         </Flex>
-        {(transferState.type === 'processing' ||
-          transferState.type === 'error') && (
-          <Flex alignItems="baseline">
-            <ProgressPercentage mr={1}>
-              {transferState.progress}%
-            </ProgressPercentage>
-            <ProgressBackground>
-              <ProgressIndicator
-                progress={transferState.progress}
-                isFailure={transferState.type === 'error'}
-              />
-            </ProgressBackground>
-          </Flex>
+        {transferState.type === 'processing' && (
+          <ButtonIcon
+            title="Cancel"
+            size={0}
+            // prevents the icon from changing the height of the line
+            mt="-4px"
+            mb="-4px"
+            onClick={() => props.onCancel(id)}
+          >
+            <Cross />
+          </ButtonIcon>
         )}
-      </Box>
+      </Flex>
+      {(transferState.type === 'processing' ||
+        transferState.type === 'error') && (
+        <Flex alignItems="baseline" mt={1}>
+          <ProgressPercentage mr={1}>
+            {transferState.progress}%
+          </ProgressPercentage>
+          <ProgressBackground>
+            <ProgressIndicator
+              progress={transferState.progress}
+              isFailure={transferState.type === 'error'}
+            />
+          </ProgressBackground>
+        </Flex>
+      )}
       {transferState.type === 'error' && (
         <Error>{transferState.error.message}</Error>
       )}
@@ -98,7 +98,7 @@ const Error: FC = props => {
 };
 
 const ProgressPercentage = styled(Text)`
-  line-height: 14px;
+  line-height: 16px;
   width: 36px;
 `;
 
