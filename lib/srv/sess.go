@@ -990,6 +990,12 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			scx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
 		}
 
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
+		}
+
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
