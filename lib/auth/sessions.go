@@ -81,6 +81,9 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
+		// Since we are generating the keys and certs directly on the Auth Server,
+		// we need to skip attestation.
+		skipAttestation: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
