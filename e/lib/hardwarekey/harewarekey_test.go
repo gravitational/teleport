@@ -19,7 +19,6 @@ limitations under the License.
 package hardwarekey
 
 import (
-	"context"
 	"crypto/x509"
 	"os"
 	"testing"
@@ -37,9 +36,7 @@ func TestAttestHardwareKey(t *testing.T) {
 		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
-	ctx := context.Background()
-
-	priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, false)
+	priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 
 	att, err := keys.GetAttestationStatement(priv)
