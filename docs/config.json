@@ -219,6 +219,11 @@
               "title": "Moderated Sessions",
               "slug": "/access-controls/guides/moderated-sessions/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Hardware Key Support (Preview)",
+              "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -644,7 +649,7 @@
               "slug": "/server-access/guides/host-user-creation/"
             },
             {
-              "title": "EC2 Instance Discovery",
+              "title": "EC2 Instance Discovery (Preview)",
               "slug": "/server-access/guides/ec2-discovery/"
             }
           ]

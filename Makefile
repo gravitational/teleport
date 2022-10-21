@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.0.0-beta.1
+VERSION=11.0.0-rc.1
 
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
@@ -108,9 +108,7 @@ RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
-CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
-CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
@@ -118,12 +116,15 @@ CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
+# Do not build RDP client on ARM or 386.
 ifneq ("$(ARCH)","arm")
-# Do not build RDP client on ARM.
+ifneq ("$(ARCH)","386")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := "with-Windows-RDP-client"
 RDPCLIENT_TAG := desktop_access_rdp
 endif
+endif
+
 endif
 endif
 
