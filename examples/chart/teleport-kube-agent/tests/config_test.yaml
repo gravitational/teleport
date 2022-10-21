@@ -60,6 +60,16 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for azure-databases.yaml
+    values:
+      - ../.lint/azure-databases.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for backwards-compatibility.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
@@ -133,6 +143,26 @@ tests:
   - it: matches snapshot for initcontainers.yaml
     values:
       - ../.lint/initcontainers.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for join-params-iam.yaml
+    values:
+      - ../.lint/join-params-iam.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for join-params-token.yaml
+    values:
+      - ../.lint/join-params-token.yaml
     asserts:
       - hasDocuments:
           count: 1
