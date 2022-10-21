@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
@@ -1632,12 +1633,17 @@ func (process *TeleportProcess) initAuthService() error {
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
+	sessionService, err := session.New(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	authorizer, err := auth.NewAuthorizer(clusterName, authServer, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	apiConf := &auth.APIConfig{
 		AuthServer:     authServer,
+		SessionService: sessionService,
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
 		PluginRegistry: process.PluginRegistry,

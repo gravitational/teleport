@@ -1651,6 +1651,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 	} else {
 		s.tracker, err = NewSessionTracker(ctx, trackerSpec, s.registry.SessionTrackerService)
 	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
