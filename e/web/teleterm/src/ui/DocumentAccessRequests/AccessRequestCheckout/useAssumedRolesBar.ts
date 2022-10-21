@@ -4,6 +4,8 @@ import {
   isBefore,
   secondsToMilliseconds,
   formatDuration,
+  // Duration not found in 'date-fns' - false positive for some reason
+  // eslint-disable-next-line import/named
   Duration,
 } from 'date-fns';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
