@@ -79,11 +79,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
       retryWithRelogin(ctx, doc.uri, clusterUri, () =>
         // pass the requestId to the requestIds array on its own, and nothing into the dropids array
         // since we are only 'assuming' one requestId at a time
-        ctx.clustersService
-          .assumeRole(rootClusterUri, [request.id], [])
-          .then(() => {
-            ctx.clustersService.syncCluster(clusterUri);
-          })
+        ctx.clustersService.assumeRole(rootClusterUri, [request.id], [])
       )
     );
   }

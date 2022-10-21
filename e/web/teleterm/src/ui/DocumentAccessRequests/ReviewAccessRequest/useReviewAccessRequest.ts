@@ -21,7 +21,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
     rootClusterUri,
     documentsService,
   } = useWorkspaceContext();
-  const activeDoc = documentsService.getActive();
+  const activeDoc = documentsService?.getActive();
 
   const identity = useIdentity();
   const [request, setRequest] = useState<AccessRequest>(null);
@@ -100,11 +100,7 @@ export default function useReviewAccessRequest({ requestId, goBack }: Props) {
       retryWithRelogin(ctx, activeDoc.uri, clusterUri, () =>
         // pass the requestId to the requestIds array on its own, and nothing into the dropids array
         // since we are only 'assuming' one requestId at a time
-        ctx.clustersService
-          .assumeRole(rootClusterUri, [requestId], [])
-          .then(() => {
-            ctx.clustersService.syncCluster(clusterUri);
-          })
+        ctx.clustersService.assumeRole(rootClusterUri, [requestId], [])
       )
     );
   }
