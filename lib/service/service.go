@@ -3865,10 +3865,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				proxyLimiter.StreamServerInterceptor,
 			),
 			grpc.KeepaliveParams(keepalive.ServerParameters{
-				// Using an aggressive idle timeout here since this only hosts
-				// the join service which has no need for long-lived idle
-				// connections, and older teleport versions known to keep idle
-				// connections open forever after encountering an error.
+				// Using an aggressive idle timeout here since this gRPC server
+				// currently only hosts the join service, which has no need for
+				// long-lived idle connections.
+				//
+				// The reason for introducing this is that teleport clients
+				// before #17685 is fixed will hold connections open
+				// indefinitely if they encounter an error during the joining
+				// process, and this seems like the best way for the server to
+				// forcibly close those connections.
+				//
+				// If another gRPC service is added here in the future, it
+				// should be alright to increase or remove this idle timeout as
+				// necessary once the client fix has been released and widely
+				// available for some time.
 				MaxConnectionIdle: 10 * time.Second,
 			}),
 		)
