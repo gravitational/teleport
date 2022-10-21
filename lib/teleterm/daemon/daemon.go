@@ -17,14 +17,12 @@ package daemon
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -52,23 +50,6 @@ func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	go func() {
-		time.Sleep(time.Second)
-
-		randomString, err := utils.CryptoRandomHex(8)
-		if err != nil {
-			s.cfg.Log.Error(err)
-			return
-		}
-
-		_, err = s.tshdEventsClient.Test(s.closeContext, &api.TestRequest{
-			Foo: randomString,
-		})
-		if err != nil {
-			s.cfg.Log.WithError(err).Warn("Could not make a test request with tshd events client")
-		}
-	}()
 
 	return clusters, nil
 }
