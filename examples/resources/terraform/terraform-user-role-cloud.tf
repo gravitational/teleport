@@ -8,8 +8,8 @@ terraform {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Cloud tenant URL
-  addr               = "mytenant.teleport.sh"
+  # Update addr to point to your Teleport Cloud tenant URL's host:port
+  addr               = "mytenant.teleport.sh:443"
   identity_file_path = "terraform-identity"
 }
 
