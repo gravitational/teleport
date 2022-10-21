@@ -280,7 +280,7 @@ Options specify session, connection and auditing permissions of the role.
 | `port_forwarding`         | bool        | Port forwarding |
 | `request_access`          | string      | Access request strategy (optional\|note\|always) |
 | `request_prompt`          | string      | An optional message which tells users what they aught to |
-| `require_session_mfa`     | bool        | Specifies whether a user is required to do an MFA  check for every session |
+| `require_session_mfa`     | bool/string | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions |
 
 ## teleport_provision_token
 
@@ -476,6 +476,6 @@ Spec contains parameters of a resource.
 | `u2f.app_id`                 | string      | The application ID for universal second factor                                |
 | `u2f.facets`                 | string list | The facets for universal second factor                                        |
 | `u2f.device_attestation_cas` | string list | Trusted attestation CAs for U2F  devices                                      |
-| `require_session_mfa`        | bool        | Causes all sessions in this cluster to require MFA  checks                    |
+| `require_session_mfa`        | bool/string | Enforce per-session MFA or PIV-hardware key restrictions on all user login sessions |
 | `disconnect_expired_cert`    | bool        | If true, connections with expired client certificates will get disconnected   |
 | `allow_local_auth`           | bool        | If true, local authentication is enabled                                      |

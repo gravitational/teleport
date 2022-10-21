@@ -66,10 +66,11 @@ Teleport's certificate.
 
 ## Step 2/6. Run a simple web service
 
-Create a directory on your Linux machine called `demo-app` and run the following
-command:
+Run the following commands to create a directory on your Linux machine
+called `demo-app` and add a simple HTML file to serve to clients:
 
 ```code
+$ mkdir demo-app
 $ cat<<EOF>>demo-app/index.html
 <!DOCTYPE html>
 <html><head><title>Welcome!</title><head>
@@ -192,8 +193,9 @@ Visit the provided URL in order to create your Teleport user.
   `ec2-user` in our examples) must exist on your Linux machine. Otherwise, you
   will get authentication errors later in this tutorial.
 
-  If a user does not already exist, you can create it with `adduser <login>`.
-
+  If a user does not already exist, you can create it with `adduser <login>` or 
+  use [Host user creation](../server-access/guides/host-user-creation.mdx)
+  
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
   authenticate as the user that you have currently logged in as.
