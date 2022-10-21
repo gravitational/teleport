@@ -41,8 +41,6 @@ TCTL - on any "tctl" command when expired.
 When the user uses any "tctl" command the appropriate license warning will be displayed if expired.
 Similar to 'tsh status' this will be all alerts that have 'high severity' which the the expired license alerts will be included in.
 
-The warnings are to be displayed 90 days prior to the license expiring.
-
 ### Example outputs
 
 The license warning portion of the outputs should be coloured red and yellow respectively for the expired and unexpired warnings.
@@ -151,8 +149,9 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
 ```
 
 
-On startup and every 1 hour afterwards the auth server will check the license and generate a license warning if applicable, or clear license warning alerts if they are no longer needed.
+On startup and every 1 hour afterwards the auth server will check the license and generate a license warning if applicable, or clear license warning alerts if they are no longer needed. License warning alerts are only generated and cleared in Teleport enterprise and not Teleport cloud or OSS Teleport.
 
+The warnings are to be be created up to 90 days prior to the license expiring.
 All requests to grab cluster alerts will be made with a timeout of 500ms.
 
 The cluster alert spec may also need to be modified to add a bool for whether an alert is allowed to be dismissed for the web ui alerts.
