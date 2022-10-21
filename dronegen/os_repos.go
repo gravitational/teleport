@@ -96,10 +96,11 @@ func artifactMigrationPipeline() []pipeline {
 		// "v10.0.2",
 		// "v10.1.2",
 		// "v10.1.4",
+		"v10.3.3",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
-	migrationBranch := "" // "rfd/0058-package-distribution"
+	migrationBranch := "walt/v10.3.3-migration" // "rfd/0058-package-distribution"
 
 	aptPipeline := migrateAptPipeline(migrationBranch, migrationVersions)
 	yumPipeline := migrateYumPipeline(migrationBranch, migrationVersions)
