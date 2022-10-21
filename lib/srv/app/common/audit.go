@@ -18,7 +18,6 @@ package common
 
 import (
 	"context"
-	"io"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
@@ -190,16 +189,9 @@ func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *
 func (a *audit) onDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
 	// Try to read the body and JSON unmarshal it.
 	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
-	var body *apievents.Struct
-	if jsonBody, err := io.ReadAll(req.Body); err != nil {
-		a.log.WithError(err).Warn("Failed to read DynamoDB request body.")
-	} else {
-		s := &apievents.Struct{}
-		if err := s.UnmarshalJSON(jsonBody); err != nil {
-			a.log.WithError(err).Warn("Failed to decode DynamoDB request JSON body.")
-		} else {
-			body = s
-		}
+	body, err := awsutils.UnmarshalRequestBody(req)
+	if err != nil {
+		a.log.WithError(err).Warn("Failed to read request body as JSON, omitting the body from the audit event.")
 	}
 	// get the API target from the request header, according to the API request format documentation:
 	// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html#Programming.LowLevelAPI.RequestFormat
