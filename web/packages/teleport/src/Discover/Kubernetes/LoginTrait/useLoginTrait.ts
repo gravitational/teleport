@@ -84,6 +84,8 @@ export function useLoginTrait({ ctx, props }: Props) {
           kubeGroups: dynamicTraits.groups,
         },
       });
+
+      await ctx.userService.applyUserTraits();
       props.nextStep();
     } catch (err) {
       handleError(err);
