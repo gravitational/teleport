@@ -20,8 +20,8 @@ export function TopBar() {
         <QuickInput />
       </CentralContainer>
       <JustifyRight>
-        <Identity />
         <NavigationMenu />
+        <Identity />
       </JustifyRight>
     </Grid>
   );
