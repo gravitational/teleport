@@ -16,18 +16,26 @@ limitations under the License.
 import React from 'react';
 import { Flex } from 'design';
 
-import { AccessRequestCheckout } from 'e-teleterm/ui/DocumentAccessRequests/AccessRequestCheckout/AccessRequestCheckout';
+import { AccessRequestCheckout } from 'e-teleterm/ui/DocumentAccessRequests/AccessRequestCheckout';
 
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
 import { StatusBar } from 'teleterm/ui/StatusBar';
+import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
 
 export function LayoutManager() {
   return (
     <Flex flex="1" flexDirection="column" minHeight={0}>
       <TopBar />
-      <Flex flex="1" minHeight={0} style={{ position: 'relative' }}>
+      <Flex
+        flex="1"
+        minHeight={0}
+        css={`
+          position: relative;
+        `}
+      >
         <TabHostContainer />
+        <NotificationsHost />
       </Flex>
       <AccessRequestCheckout />
       <StatusBar />

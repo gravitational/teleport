@@ -21,6 +21,7 @@ import useFavicon from './useFavicon';
 import useDocTitle from './useDocTitle';
 import useAttemptNext from './useAttemptNext';
 import { useRefAutoFocus } from './useRefAutoFocus';
+import { useInterval } from './useInterval';
 
 export {
   useRef,
@@ -31,4 +32,5 @@ export {
   useFavicon,
   useDocTitle,
   useRefAutoFocus,
+  useInterval,
 };

@@ -6,7 +6,6 @@ import styled from 'styled-components';
 import { Failed } from 'design/CardError';
 
 import { AppInitializer } from 'teleterm/ui/AppInitializer';
-import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
 
 import CatchError from './components/CatchError';
 import ModalsHost from './ModalsHost';
@@ -26,7 +25,6 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
               <AppInitializer>
                 <LayoutManager />
                 <ModalsHost />
-                <NotificationsHost />
               </AppInitializer>
             </ThemeProvider>
           </AppContextProvider>

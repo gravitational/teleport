@@ -438,7 +438,8 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     if (!cluster.connected) {
       return;
     }
-    return this.client.assumeRole(clusterUri, requestIds, dropIds);
+    await this.client.assumeRole(clusterUri, requestIds, dropIds);
+    return this.syncCluster(clusterUri);
   }
 
   async getAccessRequest(clusterUri: string, requestId: string) {
