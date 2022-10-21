@@ -4295,9 +4295,9 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		ok := false
+		shouldSkipCleanup := false
 		defer func() {
-			if !ok {
+			if !shouldSkipCleanup {
 				warnOnErr(conn.Close(), log)
 			}
 		}()
@@ -4432,7 +4432,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		defer func() {
 			if !shouldSkipCleanup {
-				warnOnErr(asyncEmitter.Close(), process.log)
+				warnOnErr(asyncEmitter.Close(), log)
 			}
 		}()
 
@@ -4458,7 +4458,7 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		defer func() {
-			if !ok {
+			if !shouldSkipCleanup {
 				warnOnErr(appServer.Close(), log)
 			}
 		}()
@@ -4496,8 +4496,8 @@ func (process *TeleportProcess) initApps() {
 		log.Infof("All applications successfully started.")
 
 		// Cancel deferred cleanup actions, because we're going
-		// to regsiter an OnExit handler to take care of it
-		ok = true
+		// to register an OnExit handler to take care of it
+		shouldSkipCleanup = true
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
