@@ -442,12 +442,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 
 	} else {
-		err = dbProxyTpl.Execute(os.Stdout, map[string]string{
-			"database": routeToDatabase.ServiceName,
-			"address":  listener.Addr().String(),
-			"ca":       profile.CACertPathForCluster(rootCluster),
-			"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
-			"key":      profile.KeyPath(),
+		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
+			"database":   routeToDatabase.ServiceName,
+			"address":    listener.Addr().String(),
+			"ca":         profile.CACertPathForCluster(rootCluster),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
+			"key":        profile.KeyPath(),
+			"randomPort": randomPort,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -619,6 +620,9 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
+	if cf.LocalProxyPort == "" {
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
 
 	go func() {
 		<-cf.Context.Done()
@@ -661,6 +665,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"address":     awsApp.GetForwardProxyAddr(),
 		"endpointURL": awsApp.GetEndpointURL(),
 		"format":      cf.Format,
+		"randomPort":  cf.LocalProxyPort == "",
 	}
 
 	template := awsHTTPSProxyTemplate
@@ -715,7 +720,8 @@ func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
@@ -803,7 +809,8 @@ var awsTemplateFuncs = template.FuncMap{
 // HTTPS proxy is started.
 var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
@@ -815,7 +822,8 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
 // AWS endpoint URL proxy is started.
 var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 In addition to the endpoint URL, use the following credentials to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
