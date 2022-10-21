@@ -21,6 +21,7 @@ package protocol
 
 import (
 	"bufio"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -188,6 +189,38 @@ func writeSlice(wr *redis.Writer, vals interface{}) error {
 	}
 
 	return nil
+}
+
+// MakeUnknownCommandErrorForCmd creates an unknown command error for the
+// provided command in the original Redis format.
+func MakeUnknownCommandErrorForCmd(cmd *redis.Cmd) redis.RedisError {
+	args := cmd.Args()
+
+	if len(args) == 0 {
+		// Should never happen.
+		return redis.RedisError("ERR unknown command ''")
+	}
+
+	switch strings.ToLower(cmd.Name()) {
+	case "cluster", "command":
+		var subCmd string
+		if len(args) > 1 {
+			subCmd = fmt.Sprintf("%v", args[1])
+		}
+		// Example: ERR unknown subcommand 'aaa'. Try CLUSTER HELP.
+		return redis.RedisError(fmt.Sprintf("ERR unknown subcommand '%s'. Try %s HELP.", subCmd, strings.ToUpper(cmd.Name())))
+
+	default:
+		// cmd.Name() may be lower cased. Use args[0] to get the original command.
+		cmdName := fmt.Sprintf("%v", args[0])
+		args = args[1:]
+		argsInStrings := make([]string, 0, len(args))
+		for _, arg := range args {
+			argsInStrings = append(argsInStrings, fmt.Sprintf("'%v'", arg))
+		}
+		// Example: ERR unknown command 'cmd', with args beginning with: 'arg1' 'arg2' 'arg3' ...
+		return redis.RedisError(fmt.Sprintf("ERR unknown command '%s', with args beginning with: %s", cmdName, strings.Join(argsInStrings, " ")))
+	}
 }
 
 // writeInteger converts integer to Redis wire form.
