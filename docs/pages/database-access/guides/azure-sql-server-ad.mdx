@@ -1,0 +1,183 @@
+---
+title: Database Access with Azure SQL Server with Active Directory authentication (Preview)
+description: How to configure Teleport Database Access with Azure SQL Server with Active Directory authentication.
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="11.0"
+>
+  Database Access for Azure SQL Server with Active Directory authentication
+  is available starting from Teleport `11.0`.
+</Details>
+
+<Admonition type="warning" title="Preview">
+  Database Access for Azure SQL Server with Active Directory authentication is
+  currently in Preview mode.
+</Admonition>
+
+This guide will help you to:
+
+- Install and configure Teleport.
+- Set up access to Azure SQL Server using Active Directory authentication.
+- Connect to Azure SQL Server through Teleport.
+
+![Teleport Database Access Azure SQL Server Active Directory](../../../img/database-access/guides/sqlserver/sql-aad.png)
+
+## Prerequisites
+
+- A SQL Server running on Azure.
+- Teleport Database Service running on an Azure virtual instance.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+## Step 1/7. Set up the Teleport Auth and Proxy
+
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+
+## Step 2/7. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 3/7. Enable SQL Server Active Directory integration
+
+If you have it enabled, you can go to the next step.
+
+1. Go to the [Azure Portal](https://portal.azure.com/), select **Database
+   servers**, and select the database you wish to enable the Active Directory
+   integration.
+2. Select **Azure Active Directory** in the left-hand column.
+3. Select **Set Admin**, and choose an account that will be added as an admin
+   login to SQL Server.
+
+![Azure SQL Server Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
+
+## Step 4/7. Configure Azure Managed Identities
+
+Teleport Database Service needs access tokens from Azure AD to authenticate with
+SQL Server databases.
+
+It uses the managed identities attached to its Virtual Machine to fetch the
+authentication token.
+
+To create a new user-assigned managed identity, go to the **Managed Identities**
+page in your [Azure Portal](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
+and click on *Create*. Choose a name and resource group for it and create:
+
+![Azure Create user managed identity page](../../../img/database-access/guides/sqlserver/azure-user-managed-identity.png)
+
+Next, go to the **Teleport Database Service virtual machine instance**,
+**Identity** section, select **User assigned**, and add the identity we just
+created:
+
+![Azure Virtual machine user managed identities page](../../../img/database-access/guides/sqlserver/azure-attach-managed-identity-vm.png)
+
+## Step 5/7. Enable managed identities login on SQL Server
+
+Connect to your SQL Server using a pre-existent authentication method or the
+Activity Directory Admin set on
+[Step 3](#step-37-enable-sql-server-active-directory-integration).
+
+Create a [contained user](https://learn.microsoft.com/en-us/sql/relational-databases/security/contained-database-users-making-your-database-portable?view=sql-server-ver16)
+for your identities:
+```sql
+CREATE USER [sqlserver-identity] FROM EXTERNAL PROVIDER;
+```
+
+The newly created login will be attached to the public role, which might not
+have enough permissions to perform queries. Consider granting individual
+permissions or adding it to an existing role. For example, adding to
+`db_datareader` role:
+```sql
+ALTER ROLE db_datareader ADD MEMBER [sqlserver-identity];
+```
+
+<Admonition type="note">
+Since we’re creating contained users, this step needs to be done on each
+database we want to be able to log in.
+</Admonition>
+
+## Step 6/7. Start Teleport Database Service
+
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:3080 \
+   --name=sqlserver \
+   --protocol=sqlserver \
+   --uri=my-server.database.windows.net:1433 \
+   --labels=env=dev
+```
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  A single Teleport process can run multiple different services, for example
+  multiple Database Service agents as well as the SSH Service or Application
+  Service.
+  
+</Admonition>
+
+Start the database service:
+
+```code
+$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
+```
+
+## Step 7/7. Connect
+
+Login into your Teleport Cluster. Your database should appear in the list of
+available databases:
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh db ls
+# Name      Description         Labels
+# --------- ------------------- -------
+# sqlserver                     env=dev
+```
+
+To retrieve credentials for a database and connect to it:
+
+```code
+$ tsh db connect --db-user=sqlserver-identity --db-name=master sqlserver
+```
+
+Where `--db-user` is the managed identity name.
+
+<Admonition type="note">
+  The `mssql-cli` command-line client should be available in `PATH` of the machine
+  you're running `tsh db connect` from.
+</Admonition>
+
+## Troubleshooting
+
+### Could not find identity
+
+If you see the error `could not find identity "my-identity" attached to the
+instance` when connecting to your database, then the identity you’re trying to
+connect with is not attached to the Teleport Database Service Virtual Machine.
+You can navigate to the [Virtual Machines](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines),
+open the **Teleport instance**, **Identity** section, and choose **User
+assigned** to see all identities you can connect with. If you don’t see your
+identity check [Step 4](#step-47-configure-azure-managed-identities) to see how
+to add it.
+
+### Login failed for the user
+
+When connecting to your database, you see the error `mssql: login error: Login
+failed for user '<token-identified principal>'`, it means your managed identity
+login is not present on the SQL database. You’ll need to create their users as
+described in [Step 5](#step-57-enable-managed-identities-login-on-sql-server).
+Remember: you must create the users on all databases you want to connect.
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
