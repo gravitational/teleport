@@ -42,7 +42,7 @@ const Input = styled.input(props => {
     boxSizing: 'border-box',
     color: theme.colors.text.primary,
     width: '100%',
-    minHeight: '30px',
+    minHeight: '24px',
     minWidth: '300px',
     outline: 'none',
     borderRadius: '4px',
