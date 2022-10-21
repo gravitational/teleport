@@ -3,11 +3,28 @@ title: teleport-kube-agent Chart Reference
 description: Values that can be set using the teleport-kube-agent Helm chart
 ---
 
-The `teleport-kube-agent` Helm chart is used to configure a Teleport instance
-that runs in a remote Kubernetes cluster and joins back to a Teleport cluster to
-provide access to services running there.
+The `teleport-kube-agent` Helm chart is used to configure a Teleport agent that
+runs in a remote Kubernetes cluster and joins to a Teleport cluster to provide
+access to resources in your infrastructure. 
 
-You can [browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent).
+You can [browse the source on
+GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent).
+
+This reference details available values for the `teleport-kube-agent` chart.
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+Releases of this chart installed before version 12 are considered legacy
+releases, which launch the Teleport pod as a `Deployment`. In version 12 and
+above, the chart launches the Teleport pod as a `StatefulSet`. 
+
+To learn how how upgrading from a legacy release to version 12 will affect
+resources launched by this chart, see the [resource list](#kubernetes-resources)
+and the description of the [`storage.enabled`](#storageenabled) field below.
+
+## What the chart deploys
+
+### Teleport services
 
 The `teleport-kube-agent` chart can run any or all of three Teleport services:
 
@@ -17,9 +34,29 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | [`application_service`](../../application-access/guides.mdx) | `app` | Uses Teleport to handle authentication with and proxy access to web-based applications |
 | [`database_service`](../../database-access/guides.mdx) | `db` | Uses Teleport to handle authentication with and proxy access to databases |
 
-This reference details available values for the `teleport-kube-agent` chart.
+### Kubernetes resources
 
-(!docs/pages/includes/backup-warning.mdx!)
+The `teleport-kube-agent` chart deploys the following Kubernetes resources:
+
+|Kind|Default Name|Description|When Deployed|
+|---|---|---|---|
+|`StatefulSet`|The release name|Running a user-configured Teleport pod.|Always.|
+|`Secret`|`secretName` (default: ` teleport-kube-agent-join-token`)|Used for managing the state of the Teleport pod.|`authToken` or `joinParams.tokenName` is provided.|
+|`Deployment`|The release name|Runs a user-configured Teleport pod.|`storage.enabled` is `false` and the chart is being upgraded. Fresh installs will deploy a `StatefulSet` instead.|
+|`Role`|The `roleName` option, if given, or the release name.|Used to manage the state of the Teleport pod via Kubernetes secrets.|Always.|
+|`ClusterRole`|`clusterRoleName`, if given, or the release name.|Allows impersonating users, groups, and service accounts, getting pods, and creating [`SelfSubjectAccessReview`s](https://www.pulumi.com/registry/packages/kubernetes/api-docs/authorization/v1/selfsubjectaccessreview/) so the Teleport pod can manage access to resources in its Kubernetes cluster.|Always.|
+|`ClusterRoleBinding`|`clusterRoleBindingName`, if provided, or the release name|Enables the Teleport pod to manage access to resources in the Kubernetes cluster.|Always.|
+|`RoleBinding`|`roleBindingName`, if given, or the release name|Enables the Teleport pod to manage access to resources in the Kubernetes cluster.|Always.|
+|`ServiceAccount`|`serviceAccountName`, if given, or the release name|Enables the Teleport pod to manage access to resources in the Kubernetes cluster.|`serviceAccount.create` is `true`|
+|`PodDisruptionBudget`|The release name|Ensure high availability for the Teleport pod.|`highAvailability.podDisruptionBudget.enabled` is `true`.|
+|`ServiceAccount`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`Role`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`RoleBinding`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`Job`|The release name, suffixed by `-hook`|Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead.|If the `teleport-kube-agent` release contains a legacy `Deployment` resource.|
+|`ConfigMap`|The release name|Contains the configuration for the Teleport pod.|Always.|
+|`PodSecurityPolicy`|The release name|Enforces security requirements for pods deployed by `teleport-kube-agent`.|`podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.|
+|`Role`|The release name, suffixed by `-psp`|Enforces security requirements for pods deployed by `teleport-kube-agent`.|`podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.|
+|`RoleBinding`|The release name, suffixed by `-psp`|Enforces security requirements for pods deployed by `teleport-kube-agent`.|`podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.|
 
 ## `roles`
 
@@ -58,6 +95,90 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 </Tabs>
 
 If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
+
+## `roleBindingName`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | "" | No |
+
+`roleBindingName` provides a custom name for the `RoleBinding` resource that the
+`teleport-kube-agent` chart creates for the Teleport pod. By default, the
+`RoleBinding` has the name of the Helm release. 
+
+You should set this value if there is a `RoleBinding` resource in the namespace
+of your `teleport-kube-agent` resources with the same name as your
+`teleport-kube-agent` release.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  roleBindingName: myrolebinding
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set roleBindingName=myrolebinding
+  ```
+
+  </TabItem>
+</Tabs>
+
+## `roleName`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | "" | No |
+
+`roleName` provides a custom name for the `Role` resource that the
+`teleport-kube-agent` chart creates for the Teleport pod. By default, the `Role`
+has the name of the Helm release. 
+
+You should set this value if there is a `Role` resource in the namespace of your
+`teleport-kube-agent` resources with the same name as your `teleport-kube-agent`
+release.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  roleName: myrole 
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set roleName=myrole
+  ```
+
+  </TabItem>
+</Tabs>
+
+## `serviceAccountName`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | "" | No |
+
+`serviceAccountName` provides a custom name for the `ServiceAccount` resource
+that the `teleport-kube-agent` chart creates for the Teleport pod. By default,
+the `ServiceAccount` has the name of the Helm release. 
+
+You should set this value if there is a `ServiceAccount` resource in the
+namespace of your `teleport-kube-agent` resources with the same name as your
+`teleport-kube-agent` release.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  serviceAccountName: myserviceaccount
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set serviceAccountName=myserviceaccount
+  ```
+
+  </TabItem>
+</Tabs>
 
 ## `authToken`
 
@@ -804,6 +925,31 @@ Enables the creation of a Kubernetes persistent volume to hold Teleport instance
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 
+#### Chart upgrades
+
+If `storage.enabled` is `false` and you are upgrading a legacy
+`teleport-kube-agent` chart, the chart will launch a Teleport pod as a
+`Deployment` instead of a `StatefulSet`, disabling persistent storage for the
+Teleport pod. If `storage.enabled` is set to `true` during an upgrade, the chart
+will create a webhook that deletes any legacy `Deployment` and launches a
+`StatefulSet` instead.
+
+#### New chart installations
+
+New installations of `teleport-kube-agent` always launch the Teleport pod as a
+`StatefulSet`, and `storage.enabled` configures persistent storage for the pod.
+
+If `storage.enabled` is `true`, the chart creates a volume mount for the
+Teleport pod that persists across the lifetimes of all Teleport pods deployed on
+a particular node. The Teleport pod uses this volume mount to manage its data.
+
+You can configure this persistent storage using `storage.storageClassName` and
+`storage.requests`.
+
+If `storage.enabled` is `false`, the chart configures the Teleport pod to manage
+its data with a temporary directory that exists until the Teleport pod stops
+running.
+
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
@@ -1376,7 +1522,7 @@ nodes that Teleport pods will run on.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `ClusterRole` created by the chart.
+Kubernetes labels that should be applied to the `ClusterRole` created by the chart.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1405,7 +1551,7 @@ Kubernetes labels which should be applied to the `ClusterRole` created by the ch
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `ClusterRoleBinding` created by the chart.
+Kubernetes labels that should be applied to the `ClusterRoleBinding` created by the chart.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1426,6 +1572,67 @@ Kubernetes labels which should be applied to the `ClusterRoleBinding` created by
   </TabItem>
 </Tabs>
 
+## `extraLabels.role`
+
+| Type | Default value |
+| - | - |
+| `object` | `{}` |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+
+Kubernetes labels that should be applied to the `Role` created by the chart for
+the Teleport pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraLabels:
+    role:
+      app.kubernetes.io/name: teleport-kube-agent
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set extraLabels.role."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
+
+## `extraLabels.roleBinding`
+
+| Type | Default value |
+| - | - |
+| `object` | `{}` |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+
+Kubernetes labels that should be applied to the `RoleBinding` created by the
+chart for the Teleport pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraLabels:
+    roleBinding:
+      app.kubernetes.io/name: teleport-kube-agent
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set extraLabels.roleBinding."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```
+  <Admonition type="warning" title="Escaping values">
+    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
+    using a `values.yaml` file instead to avoid confusion and errors.
+  </Admonition>
+  </TabItem>
+</Tabs>
+
 ## `extraLabels.config`
 
 | Type | Default value |
@@ -1434,7 +1641,7 @@ Kubernetes labels which should be applied to the `ClusterRoleBinding` created by
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `ConfigMap` created by the chart.
+Kubernetes labels that should be applied to the `ConfigMap` created by the chart.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1463,7 +1670,7 @@ Kubernetes labels which should be applied to the `ConfigMap` created by the char
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `Deployment` or `StatefulSet` created by the chart.
+Kubernetes labels that should be applied to the `Deployment` or `StatefulSet` created by the chart.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1492,7 +1699,7 @@ Kubernetes labels which should be applied to the `Deployment` or `StatefulSet` c
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to every `Pod` in the `Deployment` or `StatefulSet` created by the chart.
+Kubernetes labels that should be applied to every `Pod` in the `Deployment` or `StatefulSet` created by the chart.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1521,7 +1728,7 @@ Kubernetes labels which should be applied to every `Pod` in the `Deployment` or 
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `PodDisruptionBudget` created by the chart (if enabled).
+Kubernetes labels that should be applied to the `PodDisruptionBudget` created by the chart (if enabled).
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1550,7 +1757,7 @@ Kubernetes labels which should be applied to the `PodDisruptionBudget` created b
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `PodSecurityPolicy` created by the chart (if enabled).
+Kubernetes labels that should be applied to the `PodSecurityPolicy` created by the chart (if enabled).
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1579,7 +1786,7 @@ Kubernetes labels which should be applied to the `PodSecurityPolicy` created by 
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `Secret` created by the chart (if enabled).
+Kubernetes labels that should be applied to the `Secret` created by the chart (if enabled).
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -1608,7 +1815,8 @@ Kubernetes labels which should be applied to the `Secret` created by the chart (
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
-Kubernetes labels which should be applied to the `ServiceAccount` created by the chart.
+Kubernetes labels that should be applied to the `ServiceAccount` created by the
+chart for the Teleport pod.
 
 <Tabs>
   <TabItem label="values.yaml">
