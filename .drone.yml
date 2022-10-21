@@ -7327,19 +7327,6 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Publish debs to APT repos for "v10.3.3"
   image: golang:1.18-bullseye
   commands:
@@ -7653,19 +7640,6 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
-- name: Check if tag is prerelease
-  image: golang:1.18-alpine
-  commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Publish rpms to YUM repos for "v10.3.3"
   image: golang:1.18-bullseye
   commands:
@@ -11826,6 +11800,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 84edcef2f2af6e74bd0f5414cdfd713baa6e2ed1084f01c31f0b607f8a6dec10
+hmac: 3b49b4fe0987613010a47ac22e63d4eee3ca172d8de8b1a1fae8ad11cb670deb
 
 ...
