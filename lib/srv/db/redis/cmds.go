@@ -55,9 +55,10 @@ const (
 func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
 	case helloCmd:
-		// Hello command is still not supported yet by Teleport.
-		// Some Redis clients may explicitly look for this error so it will fallback to resp2.
-		return redis.RedisError("ERR unknown command")
+		// HELLO command is still not supported yet by Teleport. However, some
+		// Redis clients (e.g. go-redis) may explicitly look for the original
+		// Redis unknown command error so it can fallback to RESP2.
+		return protocol.MakeUnknownCommandErrorForCmd(cmd)
 	case punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:
 		return protocol.ErrCmdNotSupported
 	case authCmd:

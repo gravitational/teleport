@@ -21,6 +21,7 @@ package protocol
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 
@@ -108,4 +109,18 @@ func TestWriteCmd(t *testing.T) {
 			require.Equal(t, tt.expected, buf.Bytes())
 		})
 	}
+}
+
+func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
+	t.Run("HELLO", func(t *testing.T) {
+		cmd := redis.NewCmd(context.TODO(), "HELLO", 3, "user", "TOKEN")
+		err := MakeUnknownCommandErrorForCmd(cmd)
+		require.Equal(t, redis.RedisError("ERR unknown command 'HELLO', with args beginning with: '3' 'user' 'TOKEN'"), err)
+	})
+
+	t.Run("cluster", func(t *testing.T) {
+		cmd := redis.NewCmd(context.TODO(), "cluster", "aaa", "bbb")
+		err := MakeUnknownCommandErrorForCmd(cmd)
+		require.Equal(t, redis.RedisError("ERR unknown subcommand 'aaa'. Try CLUSTER HELP."), err)
+	})
 }
