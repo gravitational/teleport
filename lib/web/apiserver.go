@@ -3134,11 +3134,14 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 //
 // GET /webapi/sites/:site/auth/export?type=<auth type>
 func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	authorities, err := auth.ExportAuthorities(r.Context(), auth.ExportAuthoritiesRequest{
-		Client:            h.GetProxyClient(),
-		AuthType:          r.URL.Query().Get("type"),
-		ExportPrivateKeys: false,
-	})
+	authorities, err := client.ExportAuthorities(
+		r.Context(),
+		h.GetProxyClient(),
+		client.ExportAuthoritiesRequest{
+			AuthType:          r.URL.Query().Get("type"),
+			ExportPrivateKeys: false,
+		},
+	)
 	if err != nil {
 		h.log.WithError(err).Debug("Failed to generate CA Certs.")
 		http.Error(w, err.Error(), trace.ErrorToCode(err))

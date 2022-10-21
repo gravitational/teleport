@@ -165,14 +165,17 @@ var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI) error {
-	authorities, err := auth.ExportAuthorities(ctx, auth.ExportAuthoritiesRequest{
-		AuthType:                   a.authType,
-		Client:                     client,
-		ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
-		ExportPrivateKeys:          a.exportPrivateKeys,
-		CompatVersion:              a.compatVersion,
-	})
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt auth.ClientI) error {
+	authorities, err := client.ExportAuthorities(
+		ctx,
+		clt,
+		client.ExportAuthoritiesRequest{
+			AuthType:                   a.authType,
+			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
+			ExportPrivateKeys:          a.exportPrivateKeys,
+			CompatVersion:              a.compatVersion,
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

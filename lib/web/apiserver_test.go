@@ -26,6 +26,7 @@ import (
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"image"
@@ -2482,6 +2483,8 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 }
 
 func TestAuthExport(t *testing.T) {
+	ctx := context.Background()
+
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()
 
@@ -2492,6 +2495,7 @@ func TestAuthExport(t *testing.T) {
 		name           string
 		authType       string
 		expectedStatus int
+		assertBody     func([]byte)
 	}{
 		{
 			name:           "all",
@@ -2517,11 +2521,27 @@ func TestAuthExport(t *testing.T) {
 			name:           "db",
 			authType:       "db",
 			expectedStatus: http.StatusOK,
+			assertBody: func(b []byte) {
+				pemBlock, _ := pem.Decode(b)
+				require.Contains(t, pemBlock.Type, "CERTIFICATE")
+			},
+		},
+		{
+			name:           "tls",
+			authType:       "tls",
+			expectedStatus: http.StatusOK,
+			assertBody: func(b []byte) {
+				pemBlock, _ := pem.Decode(b)
+				require.Contains(t, pemBlock.Type, "CERTIFICATE")
+			},
 		},
 		{
 			name:           "invalid",
 			authType:       "invalid",
 			expectedStatus: http.StatusBadRequest,
+			assertBody: func(b []byte) {
+				require.Contains(t, string(b), `"invalid" authority type is not supported`)
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2532,7 +2552,7 @@ func TestAuthExport(t *testing.T) {
 				endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, tt.authType)
 			}
 
-			req, err := http.NewRequest(http.MethodGet, endpointExport, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpointExport, nil)
 			require.NoError(t, err)
 
 			anonHTTPClient := &http.Client{
@@ -2547,11 +2567,15 @@ func TestAuthExport(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, tt.expectedStatus, resp.StatusCode)
-
 			bs, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
+
+			require.Equal(t, tt.expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
+
 			require.NotEmpty(t, bs)
+			if tt.assertBody != nil {
+				tt.assertBody(bs)
+			}
 		})
 	}
 }
