@@ -114,7 +114,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 		return diag, diagErr
 	}
 
-	client, err := s.getKubeClient(tlsCfg)
+	client, err := s.getKubeClient(tlsCfg, req.KubernetesImpersonation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,10 +179,16 @@ func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, co
 
 // getKubeClient creates a Kubernetes client with the authentication given by tlsCfg
 // to teleport Proxy or Kube proxy depending on whether tls routing is enabled.
-func (s KubeConnectionTester) getKubeClient(tlsCfg rest.TLSClientConfig) (kubernetes.Interface, error) {
+// If custom impersonation values are provided, it also configures them to be used
+// in the request.
+func (s KubeConnectionTester) getKubeClient(tlsCfg rest.TLSClientConfig, impersonation KubernetesImpersonation) (kubernetes.Interface, error) {
 	restConfig := &rest.Config{
 		Host:            "https://" + s.cfg.KubernetesPublicProxyAddr,
 		TLSClientConfig: tlsCfg,
+		Impersonate: rest.ImpersonationConfig{
+			UserName: impersonation.KubernetesUser,
+			Groups:   impersonation.KubernetesGroups,
+		},
 	}
 
 	if s.cfg.TLSRoutingEnabled {
@@ -223,10 +229,14 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 		return connDiag, trace.Wrap(err)
 	}
 
-	// check the the cluster is registered but offline
-	// WARNING: Check compatibility between this error message in the current version of
-	// Teleport and the previous version so that old agents connected to the
-	// Teleport cluster continue to be supported.
+	// WARNING: This message originates from the Teleport `kubernetes_service`.
+	// Whenever there is a change to the message returned by `kubernetes_service`
+	// you must also ensure backwards compatibility with the previous version of
+	// Teleport, otherwise the connection test will fail if one of the kubernetes
+	// agents is still running an older version.
+	// For this reason, messages are not shared between this connection test and
+	// `kubernetes_service` to force detection of incompatible messages.
+	// Checks if the cluster is registered but offline.
 	if kubeErr != nil && strings.Contains(kubeErr.ErrStatus.Message, "This usually means that the agent is offline or has disconnected") {
 		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online."
 		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
@@ -239,9 +249,13 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 	s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, nil)
 
 	if kubeErr != nil {
-		// WARNING: Check compatibility between this error message in the current version of
-		// Teleport and the previous version so that old agents connected to the
-		// Teleport cluster continue to be supported.
+		// WARNING: This message originates from the Teleport `kubernetes_service`.
+		// Whenever there is a change to the message returned by `kubernetes_service`
+		// you must also ensure backwards compatibility with the previous version of
+		// Teleport, otherwise the connection test will fail if one of the kubernetes
+		// agents is still running an older version.
+		// For this reason, messages are not shared between this connection test and
+		// `kubernetes_service` to force detection of incompatible messages.
 		noAssignedGroups := strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users")
 		if noAssignedGroups {
 			message := `User-associated roles do not configure "kubernetes_groups" or "kubernetes_users". Make sure that at least one is configured for the user.`
@@ -250,6 +264,54 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
 			return connDiag, trace.Wrap(err)
 		}
+		// WARNING: This message originates from the Teleport `kubernetes_service`.
+		// Whenever there is a change to the message returned by `kubernetes_service`
+		// you must also ensure backwards compatibility with the previous version of
+		// Teleport, otherwise the connection test will fail if one of the kubernetes
+		// agents is still running an older version.
+		// For this reason, messages are not shared between this connection test and
+		// `kubernetes_service` to force detection of incompatible messages.
+		multipleAssignedUsers := strings.Contains(kubeErr.ErrStatus.Message, "please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
+		if multipleAssignedUsers {
+			message := `User-associated roles define multiple "kubernetes_users". Make sure that only one value is defined or that you select the target user.`
+			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
+		// WARNING: This message originates from the Teleport `kubernetes_service`.
+		// Whenever there is a change to the message returned by `kubernetes_service`
+		// you must also ensure backwards compatibility with the previous version of
+		// Teleport, otherwise the connection test will fail if one of the kubernetes
+		// agents is still running an older version.
+		// For this reason, messages are not shared between this connection test and
+		// `kubernetes_service` to force detection of incompatible messages.
+		unauthorizedUserImpersonation := strings.Contains(kubeErr.ErrStatus.Message, "impersonation request has been denied, user header")
+		if unauthorizedUserImpersonation {
+			message := `User-associated roles do now allow the desired "kubernetes_user" impersonation. Please define a "kubernetes_user" that your roles allow to impersonate.`
+			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
+		// WARNING: This message originates from the Teleport `kubernetes_service`.
+		// Whenever there is a change to the message returned by `kubernetes_service`
+		// you must also ensure backwards compatibility with the previous version of
+		// Teleport, otherwise the connection test will fail if one of the kubernetes
+		// agents is still running an older version.
+		// For this reason, messages are not shared between this connection test and
+		// `kubernetes_service` to force detection of incompatible messages.
+		unauthorizedGroupImpersonation := strings.Contains(kubeErr.ErrStatus.Message, "impersonation request has been denied, group header")
+		if unauthorizedGroupImpersonation {
+			message := `User-associated roles do now allow the desired "kubernetes_group" impersonation. Please define a "kubernetes_group" that your roles allow to impersonate.`
+			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+			connDiag, err := s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, actionErr)
+			return connDiag, trace.Wrap(err)
+		}
+
 	}
 	message = "User-associated roles define valid Kubernetes principals."
 	traceType = types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
@@ -260,9 +322,13 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 	}
 
 	if kubeErr != nil {
-		// WARNING: Check compatibility between this error messages in the current version of
-		// Teleport and the previous version so that old agents connected to the
-		// Teleport cluster continue to be supported.
+		// WARNING: This message originates from the Teleport `kubernetes_service`.
+		// Whenever there is a change to the message returned by `kubernetes_service`
+		// you must also ensure backwards compatibility with the previous version of
+		// Teleport, otherwise the connection test will fail if one of the kubernetes
+		// agents is still running an older version.
+		// For this reason, messages are not shared between this connection test and
+		// `kubernetes_service` to force detection of incompatible messages.
 		notFound := strings.Contains(kubeErr.ErrStatus.Message, "not found")
 		accessDenied := strings.Contains(kubeErr.ErrStatus.Message, "[00] access denied")
 		if notFound || accessDenied {
@@ -272,7 +338,8 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 			return connDiag, trace.Wrap(err)
 		}
 
-		//  this is a kubernetes RBAC error
+		// This is a Kubernetes RBAC error triggered when the kube user/groups do not
+		// have permissions to list pods in the specified namespace.
 		cannotListPods := strings.Contains(kubeErr.ErrStatus.Message, "cannot list resource \"pods\"")
 		if cannotListPods {
 			message := fmt.Sprintf("You are not allowed to list pods in the %q namespace. "+
