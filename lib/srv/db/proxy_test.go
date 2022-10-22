@@ -224,9 +224,10 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 					nWritten, err := conn.Write(task.payload)
 					require.NoError(t, err)
 					require.Equal(t, len(task.payload), nWritten, "failed to fully write payload")
-					nRead, err := conn.Read(rcvBuf)
+					nRead, err := io.ReadAtLeast(conn, rcvBuf, 1)
 					if task.wantReadErr != nil {
-						require.ErrorIs(t, err, task.wantReadErr, "unexpected error")
+						require.Error(t, err)
+						require.ErrorIs(t, err, task.wantReadErr)
 						continue
 					}
 					wantResponse, needsTLSUpgrade := task.oracle(&proxy)
