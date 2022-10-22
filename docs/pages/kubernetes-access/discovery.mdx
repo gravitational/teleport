@@ -1,0 +1,106 @@
+---
+title: Kubernetes Auto-Discovery (Preview)
+description: Detailed guides for configuring Kubernetes Auto-Discovery.
+layout: tocless-doc
+---
+
+Kubernetes Auto-Discovery is a Teleport feature that allows Kubernetes clusters 
+hosted on cloud providers to be discovered and enrolled automatically. 
+
+While discovering a new Kubernetes cluster, Teleport does not install any component 
+on the cluster. Instead, it requires direct access to the cluster's API and minimal permissions.
+
+## How Kubernetes Auto-Discovery works
+
+The Kubernetes Auto-Discovery consists of two distinct steps:
+
+### Polling cloud APIs
+
+The Teleport Discovery Service is responsible for scanning the configured cloud 
+providers and identifying if any Kubernetes cluster match the filtering labels. 
+When the process identifies a new Kubernetes cluster, it creates a dynamic 
+resource within Teleport. This resource includes information imported from the 
+cloud cluster such as:
+
+- *Name*: Cluster Name (use `teleport.dev/kubernetes-name` tag to import the cluster in Teleport with a custom name) 
+- *Labels*
+  - Cluster tags.
+  - Region: Cluster location.
+  - Account ID: Identification of which cloud account the cluster belongs to — AWS Account ID / Azure Subscription ID.
+
+
+In addition to detecting new Kubernetes clusters, the Discovery Service also removes 
+— from Teleport's registry — the Kubernetes clusters that have been deleted or whose tags 
+no longer meet the filtering labels.
+
+The following snippet describes the different configuration options for the Discovery Service 
+and their default values.
+
+```yaml
+# This section configures the Discovery Service
+discovery_service:
+    enabled: "yes"
+    aws:
+       # AWS resource types. Valid options are:
+       # eks - discovers and registers AWS EKS clusters
+       # ec2 - discovers and registers AWS EC2 Machines
+     - types: ["eks"]
+       # AWS regions to search for resources from
+       regions: ["eu-central-1"]
+       # AWS resource tags to match when registering resources
+       # Optional section: Defaults to "*":"*"
+       tags:
+         "env": "prod"
+    # Matchers for discovering Azure-hosted resources.
+    azure:
+      # Azure resource types. Valid options are:
+      # 'aks' - discovers and registers Azure AKS Kubernetes Clusters.
+    - types: ["aks"]
+      # Azure regions to search for resources from. Valid options are:
+      # '*' - discovers resources in all regions (default).
+      # Any valid Azure region name. List all valid regions using the Azure "az" cli: `az account list-locations -o table`
+      regions: ["*"]
+      # Azure subscription IDs to search resources from. Valid options are:
+      # '*' - discovers resources in all subscriptions (default).
+      # Any subscription_id: `az account subscription list -o table`
+      subscriptions: ["*"]
+      # Azure resource groups to search resources from. Valid options are:
+      # '*' - discovers resources in all resource groups within configured subscription(s) (default).
+      # Any resource_groups: `az group list -o table`
+      resource_groups: ["*"]
+      # Azure resource tag filters used to match resources.
+      # Optional section: Defaults to "*":"*"
+      tags:
+        "env": "prod"
+```
+
+### Forwarding requests to the Kubernetes Cluster
+
+The Teleport Kubernetes Service is responsible for monitoring the dynamic resources created or 
+updated by the Discovery Service and forwarding requests to them.
+To work correctly, it requires direct access to the target Kubernetes cluster, 
+and the permissions associated with its identity must allow 
+[Kubernetes Impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
+
+To turn on dynamic resource monitoring in Kubernetes Service you must configure 
+the `kubernetes_service.resources` section as exemplified in the following snippet.
+
+```yaml
+## This section configures the Kubernetes Service
+kubernetes_service:
+    enabled: "yes"
+    # Matchers for dynamic Kubernetes cluster resources created with the "tctl create" command or by Kubernetes auto-discovery.
+    resources:
+    - labels:
+        "*": "*" # can be configured to limit the clusters to watched by this service.
+```
+
+Both services — Discovery and Kubernetes — can be configured in the same 
+Teleport process or separate processes. 
+When they run separately, you need to take care of the permissions required for each service.
+
+## Supported clouds
+
+- [AWS](./discovery/aws.mdx): Kubernetes Auto-Discovery for AWS EKS clusters.
+- [Azure](./discovery/azure.mdx): Kubernetes Auto-Discovery for Azure AKS clusters.
+
