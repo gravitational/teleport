@@ -65,10 +65,11 @@ func TestProxyProtocolPostgres(t *testing.T) {
 
 // TestProxyProtocolPostgresStartup tests that the proxy correctly handles startup messages for PostgreSQL.
 // Specifically, this test verifies that:
-//  * The proxy handles a GSSEncRequest by responding "N" to indicate that GSS encryption is not supported.
-//  * The proxy allows a client to send a SSLRequest after it is told GSS encryption is not supported.
-//  * The proxy allows a client to send a GSSEncRequest after it is told SSL encryption is not supported.
-//  * The proxy closes the connection if it receives a repeated SSLRequest or GSSEncRequest.
+//   - The proxy handles a GSSEncRequest by responding "N" to indicate that GSS encryption is not supported.
+//   - The proxy allows a client to send a SSLRequest after it is told GSS encryption is not supported.
+//   - The proxy allows a client to send a GSSEncRequest after it is told SSL encryption is not supported.
+//   - The proxy closes the connection if it receives a repeated SSLRequest or GSSEncRequest.
+//
 // This behavior allows a client to decide what it should do based on the responses from the proxy server.
 func TestProxyProtocolPostgresStartup(t *testing.T) {
 	t.Parallel()
