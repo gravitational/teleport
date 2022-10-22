@@ -40,9 +40,11 @@ discovery_service:
       regions: ["eastus", "westus"]
       # Azure subscription IDs to search resources from. Valid options are:
       # '*' - discovers resources in all subscriptions (default).
+      # Any subscription_id: `az account subscription list -o table`
       subscriptions: ["11111111-2222-3333-4444-555555555555"]
       # Azure resource groups to search resources from. Valid options are:
       # '*' - discovers resources in all resource groups within configured subscription(s) (default).
+      # Any resource_groups: `az group list -o table`
       resource_groups: ["group1", "group2"]
       # Azure resource tag filters used to match resources.
       tags:
