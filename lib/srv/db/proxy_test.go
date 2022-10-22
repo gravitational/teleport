@@ -26,14 +26,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgproto3/v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestProxyProtocolPostgres ensures that clients can successfully connect to a
@@ -66,10 +65,10 @@ func TestProxyProtocolPostgres(t *testing.T) {
 
 // TestProxyProtocolPostgresStartup tests that the proxy correctly handles startup messages for PostgreSQL.
 // Specifically, this test verifies that:
-//  - The proxy handles a GSSEncRequest by responding "N" to indicate that GSS encryption is not supported.
-//  - The proxy allows a client to send a SSLRequest after it is told GSS encryption is not supported.
-//  - The proxy allows a client to send a GSSEncRequest after it is told SSL encryption is not supported.
-//  - The proxy closes the connection if it receives a repeated SSLRequest or GSSEncRequest.
+//  * The proxy handles a GSSEncRequest by responding "N" to indicate that GSS encryption is not supported.
+//  * The proxy allows a client to send a SSLRequest after it is told GSS encryption is not supported.
+//  * The proxy allows a client to send a GSSEncRequest after it is told SSL encryption is not supported.
+//  * The proxy closes the connection if it receives a repeated SSLRequest or GSSEncRequest.
 // This behavior allows a client to decide what it should do based on the responses from the proxy server.
 func TestProxyProtocolPostgresStartup(t *testing.T) {
 	t.Parallel()
