@@ -387,6 +387,59 @@ $ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
 $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
 ```
 
+### tsh proxy ssh
+
+Start local TLS proxy for `ssh` connections when using Teleport in single-port mode.
+This is typically used as part of the SSH client configuration to use `ssh` as a client 
+through Teleport.  See [OpenSSH Guide](../server-access/guides/openssh)
+on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
+within the `ProxyCommand`.
+
+```code
+$ tsh proxy ssh [<flags>] <[user@]host>
+```
+
+#### Arguments
+- `<[user@]host>` Remote hostname and the login to use
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | Teleport Cluster | Specify the Teleport cluster to connect |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+```code
+#tsh proxy ssh used in combination with a ssh config
+$ tsh config
+```
+
+```
+# Produces the following output for a SSH config
+# Common flags for all example.com hosts
+Host *.example.com example.com
+    UserKnownHostsFile "/Users/jeff/.tsh/known_hosts"
+    IdentityFile "/Users/jeff/.tsh/keys/enterprise.teleportdemo.com/jeff"
+    CertificateFile "/Users/jeff/.tsh/keys/example.com/jeff-ssh/example.com-cert.pub"
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
+
+# Flags for all example.com hosts except the proxy
+Host *.example.com !example.com
+    Port 3022
+    ProxyCommand "/usr/local/bin/tsh" proxy ssh --cluster=example.com --proxy=example.com %r@%h:%p
+```
+
+```code
+# The tsh proxy ssh will be used in the ProxyCommand
+$ ssh jeff@node1.example.com
+```
+
 ### tsh proxy app
 
 Starts a local TLS proxy for Application Access connections.
