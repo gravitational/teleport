@@ -40,6 +40,7 @@ import (
 // Postgres database when Teleport is running behind a proxy that sends a proxy
 // line.
 func TestProxyProtocolPostgres(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
@@ -271,6 +272,7 @@ func TestProxyProtocolMySQL(t *testing.T) {
 // Mongo database when Teleport is running behind a proxy that sends a proxy
 // line.
 func TestProxyProtocolMongo(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
 	go testCtx.startHandlingConnections()
@@ -295,6 +297,7 @@ func TestProxyProtocolMongo(t *testing.T) {
 }
 
 func TestProxyProtocolRedis(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
@@ -326,6 +329,7 @@ func TestProxyProtocolRedis(t *testing.T) {
 
 // TestProxyClientDisconnectDueToIdleConnection ensures that idle clients will be disconnected.
 func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
+	t.Parallel()
 	const (
 		idleClientTimeout             = time.Minute
 		connMonitorDisconnectTimeBuff = time.Second * 5
@@ -354,6 +358,7 @@ func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 // TestProxyClientDisconnectDueToCertExpiration ensures that if the DisconnectExpiredCert cluster flag is enabled
 // clients will be disconnected after cert expiration.
 func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
+	t.Parallel()
 	const (
 		ttlClientCert = time.Hour
 	)
@@ -381,6 +386,7 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 // TestProxyClientDisconnectDueToLockInForce ensures that clients will be
 // disconnected when there is a matching lock in force.
 func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
@@ -421,6 +427,7 @@ func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *t
 }
 
 func TestExtractMySQLVersion(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.25")))
 	go testCtx.startHandlingConnections()
