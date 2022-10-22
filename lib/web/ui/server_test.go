@@ -296,13 +296,13 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 
 // makeTestKubeCluster creates a kube cluster with labels and an empty spec.
 func makeTestKubeCluster(t *testing.T, labels map[string]string) types.KubeCluster {
-	s, err := types.NewKubernetesClusterV3(
-		types.Metadata{
+	s := &types.KubernetesClusterV3{
+		Metadata: types.Metadata{
 			Name:   "kube_cluster",
 			Labels: labels,
 		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
+		Spec: types.KubernetesClusterSpecV3{},
+	}
+
 	return s
 }
