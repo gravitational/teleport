@@ -18,7 +18,9 @@ package db
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -57,32 +59,183 @@ func TestProxyProtocolPostgres(t *testing.T) {
 			psql, err := testCtx.postgresClientWithAddr(ctx, proxy.Address(), "alice", "postgres", "postgres", "postgres")
 			require.NoError(t, err)
 			require.NoError(t, psql.Close(ctx))
-
-			// Check that we can send a GSSEncRequest and get an 'N' response indicated server does not accept
-			// GSS encryption.
-			conn, err := net.Dial("tcp", proxy.Address())
-			require.NoError(t, err)
-			defer func() {
-				require.NoError(t, conn.Close())
-			}()
-			req := pgproto3.GSSEncRequest{}
-			msg := req.Encode(nil)
-			bytesWritten, err := conn.Write(msg)
-			require.NoError(t, err)
-			require.Equal(t, len(msg), bytesWritten)
-			buf := make([]byte, 512)
-			bytesRead, err := conn.Read(buf)
-			require.NoError(t, err)
-			require.Equal(t, []byte("N"), buf[:bytesRead], "server should respond with 'N' to indicate GSS encryption is not supported'")
-			sslReq := pgproto3.SSLRequest{}
-			msg = sslReq.Encode(nil)
-			bytesWritten, err = conn.Write(msg)
-			require.NoError(t, err, "server should not have closed conn after rejecting GSS")
-			require.Equal(t, len(msg), bytesWritten)
-			bytesRead, err = conn.Read(buf)
-			require.NoError(t, err)
-			require.Equal(t, []byte("S"), buf[:bytesRead], "server should respond with 'S' to indicate SSL encryption is supported'")
 		})
+	}
+}
+
+// TestProxyProtocolPostgresStartup tests that the proxy correctly handles startup messages for PostgreSQL.
+// Specifically, this test verifies that:
+//  - The proxy handles a GSSEncRequest by responding "N" to indicate that GSS encryption is not supported.
+//  - The proxy allows a client to send a SSLRequest after it is told GSS encryption is not supported.
+//  - The proxy allows a client to send a GSSEncRequest after it is told SSL encryption is not supported.
+//  - The proxy closes the connection if it receives a repeated SSLRequest or GSSEncRequest.
+// This behavior allows a client to decide what it should do based on the responses from the proxy server.
+func TestProxyProtocolPostgresStartup(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("pgsvc"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"pguser"}, []string{"pgdb"})
+	_, localProxy, err := testCtx.postgresClientLocalProxy(ctx, "alice", "pgsvc", "pguser", "pgdb")
+	require.NoError(t, err)
+
+	clientTLSCfg, err := testCtx.tlsServer.ClientTLSConfig(auth.TestUser("alice"))
+	require.NoError(t, err)
+
+	// We have to send messages manually since pgconn does not support GSS encryption.
+	// Therefore we create some []byte payloads to write into a connection ourselves.
+	gssReq := (&pgproto3.GSSEncRequest{}).Encode(nil)
+	sslReq := (&pgproto3.SSLRequest{}).Encode(nil)
+	startupReq := (&pgproto3.StartupMessage{}).Encode(nil)
+	terminateReq := (&pgproto3.Terminate{}).Encode(nil)
+
+	type proxyTarget struct {
+		name            string
+		addr            string
+		wantSSLResponse string
+	}
+
+	proxyTargets := []proxyTarget{
+		{
+			name:            "local proxy",
+			addr:            localProxy.GetAddr(),
+			wantSSLResponse: "N",
+		},
+		{
+			name:            "proxy multiplexer",
+			addr:            testCtx.mux.DB().Addr().String(),
+			wantSSLResponse: "S",
+		},
+	}
+
+	// responseOracle returns the proxyTarget's expected response and whether TLS upgrade is required.
+	type responseOracle func(cfg *proxyTarget) (wantResponse string, upgradeToTLS bool)
+	sslResponseOracle := func(cfg *proxyTarget) (string, bool) {
+		switch cfg.wantSSLResponse {
+		case "N":
+			return "N", false // SSLRequest not supported; client doesn't need to upgrade conn to TLS to proceed.
+		case "S":
+			return "S", true // SSLRequest is supported; client needs to upgrade conn to TLS to proceed.
+		default:
+			panic("unreachable")
+		}
+	}
+	gssResponseOracle := func(_ *proxyTarget) (string, bool) {
+		return "N", false // GSSEncRequest not supported; client doesn't need to upgrade conn to TLS to proceed.
+	}
+	startupResponseOracle := func(_ *proxyTarget) (string, bool) {
+		return "", false // just verify the connection is still open, but don't expect a response.
+	}
+
+	type task struct {
+		payload     []byte
+		wantReadErr error
+		oracle      responseOracle
+	}
+
+	tests := []struct {
+		name  string
+		tasks []task
+	}{
+		{
+			name: "handles GSSEncRequest followed by SSLRequest then StartupMessage and Terminate",
+			tasks: []task{
+				{
+					payload: gssReq,
+					oracle:  gssResponseOracle,
+				},
+				{
+					payload: sslReq,
+					oracle:  sslResponseOracle,
+				},
+				{
+					payload: startupReq,
+					oracle:  startupResponseOracle,
+				},
+				{
+					payload:     terminateReq,
+					wantReadErr: io.EOF,
+				},
+			},
+		},
+		{
+			name: "handles SSLRequest followed by GSSEncRequest then StartupMessage and Terminate",
+			tasks: []task{
+				{
+					payload: sslReq,
+					oracle:  sslResponseOracle,
+				},
+				{
+					payload: gssReq,
+					oracle:  gssResponseOracle,
+				},
+				{
+					payload: startupReq,
+					oracle:  startupResponseOracle,
+				},
+				{
+					payload:     terminateReq,
+					wantReadErr: io.EOF,
+				},
+			},
+		},
+		{
+			name: "closes connection on repeated GSSEncRequest",
+			tasks: []task{
+				{
+					payload: gssReq,
+					oracle:  gssResponseOracle,
+				},
+				{
+					payload:     gssReq,
+					wantReadErr: io.EOF,
+				},
+			},
+		},
+		{
+			name: "closes connection on repeated SSLRequest",
+			tasks: []task{
+				{
+					payload: sslReq,
+					oracle:  sslResponseOracle,
+				},
+				{
+					payload:     sslReq,
+					wantReadErr: io.EOF,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		for _, proxy := range proxyTargets {
+			proxy := proxy
+			testName := fmt.Sprintf("%s %s", proxy.name, tt.name)
+			t.Run(testName, func(t *testing.T) {
+				t.Parallel()
+				rcvBuf := make([]byte, 512)
+				conn, err := net.Dial("tcp", proxy.addr)
+				require.NoError(t, err)
+				defer conn.Close()
+				for _, task := range tt.tasks {
+					nWritten, err := conn.Write(task.payload)
+					require.NoError(t, err)
+					require.Equal(t, len(task.payload), nWritten, "failed to fully write payload")
+					nRead, err := conn.Read(rcvBuf)
+					if task.wantReadErr != nil {
+						require.ErrorIs(t, err, task.wantReadErr, "unexpected error")
+						continue
+					}
+					wantResponse, needsTLSUpgrade := task.oracle(&proxy)
+					require.Equal(t, wantResponse, string(rcvBuf[:nRead]))
+					if needsTLSUpgrade {
+						conn = tls.Client(conn, clientTLSCfg)
+					}
+				}
+			})
+		}
 	}
 }
 
@@ -90,6 +243,7 @@ func TestProxyProtocolPostgres(t *testing.T) {
 // MySQL database when Teleport is running behind a proxy that sends a proxy
 // line.
 func TestProxyProtocolMySQL(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
