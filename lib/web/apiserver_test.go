@@ -359,7 +359,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		HostUUID:                        proxyID,
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
-		cachedSessionLingeringThreshold: &sessionLingeringThreshold,
+		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
@@ -2676,55 +2676,90 @@ func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	extraRole := &types.RoleV5{
+		Metadata: types.Metadata{Name: "extra-role"},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeUsers:  []string{"user1"},
+				KubeGroups: []string{"group1"},
+				KubernetesLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+	}
+
+	cluster1, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   "test-kube-name",
+			Labels: map[string]string{"test-field": "test-value"},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
 	require.NoError(t, err)
+
+	// duplicate same server
+	for i := 0; i < 3; i++ {
+		server, err := types.NewKubernetesServerV3FromCluster(
+			cluster1,
+			fmt.Sprintf("hostname-%d", i),
+			fmt.Sprintf("uid-%d", i),
+		)
+		require.NoError(t, err)
+		// Register a kube service.
+		_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server)
+		require.NoError(t, err)
+	}
 
 	type testResponse struct {
 		Items      []ui.KubeCluster `json:"items"`
 		TotalCount int              `json:"totalCount"`
 	}
 
-	// No kube registered.
-	resp := testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 0)
-
-	// Register a kube service.
-	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
-		Metadata: types.Metadata{Name: "test-kube"},
-		Kind:     types.KindKubeService,
-		Version:  types.V2,
-		Spec: types.ServerSpecV2{
-			Addr: "test",
-			KubernetesClusters: []*types.KubernetesCluster{
-				{
-					Name:         "test-kube-name",
-					StaticLabels: map[string]string{"test-field": "test-value"},
-				},
-				// tests for de-duplication
-				{
-					Name:         "test-kube-name",
-					StaticLabels: map[string]string{"test-field": "test-value"},
-				},
+	tt := []struct {
+		name             string
+		user             string
+		extraRoles       services.RoleSet
+		expectedResponse ui.KubeCluster
+	}{
+		{
+			name: "user with no extra roles",
+			user: "test-user@example.com",
+			expectedResponse: ui.KubeCluster{
+				Name:       "test-kube-name",
+				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+				KubeUsers:  nil,
+				KubeGroups: nil,
 			},
 		},
-	})
-	require.NoError(t, err)
+		{
+			name:       "user with extra roles",
+			user:       "test-user2@example.com",
+			extraRoles: services.NewRoleSet(extraRole),
+			expectedResponse: ui.KubeCluster{
+				Name:       "test-kube-name",
+				Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
+				KubeUsers:  []string{"user1"},
+				KubeGroups: []string{"group1"},
+			},
+		},
+	}
 
-	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
-	require.NoError(t, err)
+	for _, tc := range tt {
+		pack := proxy.authPack(t, tc.user, tc.extraRoles)
 
-	resp = testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.Equal(t, 1, resp.TotalCount)
-	require.EqualValues(t, ui.KubeCluster{
-		Name:   "test-kube-name",
-		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
+		endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
+
+		re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+		require.NoError(t, err)
+
+		resp := testResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+		require.Equal(t, 1, resp.TotalCount)
+		require.EqualValues(t, tc.expectedResponse, resp.Items[0])
+	}
 }
 
 func TestClusterAppsGet(t *testing.T) {
@@ -3712,33 +3747,33 @@ func TestParseSSORequestParams(t *testing.T) {
 	tests := []struct {
 		name, url string
 		wantErr   bool
-		expected  *ssoRequestParams
+		expected  *SSORequestParams
 	}{
 		{
 			name: "preserve redirect's query params (escaped)",
 			url:  "https://localhost/login?connector_id=oidc&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fnodes%3Fsearch=tunnel&sort=hostname:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-				connectorID:       "oidc",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				ConnectorID:       "oidc",
+				CSRFToken:         token,
 			},
 		},
 		{
 			name: "preserve redirect's query params (unescaped)",
 			url:  "https://localhost/login?connector_id=github&redirect_url=https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
-				connectorID:       "github",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+				ConnectorID:       "github",
+				CSRFToken:         token,
 			},
 		},
 		{
 			name: "preserve various encoded chars",
 			url:  "https://localhost/login?connector_id=saml&redirect_url=https:%2F%2Flocalhost:8080%2Fweb%2Fcluster%2Fim-a-cluster-name%2Fapps%3Fquery=search(%2522watermelon%2522%252C%2520%2522this%2522)%2520%2526%2526%2520labels%255B%2522unique-id%2522%255D%2520%253D%253D%2520%2522hi%2522&sort=name:asc",
-			expected: &ssoRequestParams{
-				clientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
-				connectorID:       "saml",
-				csrfToken:         token,
+			expected: &SSORequestParams{
+				ClientRedirectURL: "https://localhost:8080/web/cluster/im-a-cluster-name/apps?query=search(%22watermelon%22%2C%20%22this%22)%20%26%26%20labels%5B%22unique-id%22%5D%20%3D%3D%20%22hi%22&sort=name:asc",
+				ConnectorID:       "saml",
+				CSRFToken:         token,
 			},
 		},
 		{
@@ -3759,7 +3794,7 @@ func TestParseSSORequestParams(t *testing.T) {
 			require.NoError(t, err)
 			addCSRFCookieToReq(req, token)
 
-			params, err := parseSSORequestParams(req)
+			params, err := ParseSSORequestParams(req)
 
 			switch {
 			case tc.wantErr:
@@ -4144,6 +4179,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 
 	var (
 		validKubeUsers              = []string{}
+		multiKubeUsers              = []string{"user1", "user2"}
 		validKubeGroups             = []string{"validKubeGroup"}
 		invalidKubeGroups           = []string{"invalidKubeGroups"}
 		kubeClusterName             = "kube_cluster"
@@ -4216,16 +4252,18 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	for _, tt := range []struct {
-		name             string
-		teleportUser     string
-		roleFunc         func(string, []string, []string) []types.Role
-		kubeUsers        []string
-		kubeGroups       []string
-		resourceName     string
-		expectedSuccess  bool
-		disconnectedKube bool
-		expectedMessage  string
-		expectedTraces   []types.ConnectionDiagnosticTrace
+		name               string
+		teleportUser       string
+		roleFunc           func(string, []string, []string) []types.Role
+		kubeUsers          []string
+		kubeGroups         []string
+		resourceName       string
+		selectedKubeUser   string
+		selectedKubeGroups []string
+		expectedSuccess    bool
+		disconnectedKube   bool
+		expectedMessage    string
+		expectedTraces     []types.ConnectionDiagnosticTrace
 	}{
 		{
 			name:            "kube cluster not found",
@@ -4349,6 +4387,117 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			},
 		},
 		{
+			name:            "user with multiple defined kube_users",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       multiKubeUsers,
+			teleportUser:    "multiuser",
+			resourceName:    kubeClusterName,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles define multiple "kubernetes_users". Make sure that only one value is defined or that you select the target user.`,
+					Error:   "please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user",
+				},
+			},
+		},
+		{
+			name:             "user choosed to impersonate invalid kube_users",
+			roleFunc:         roleWithFullAccess,
+			kubeGroups:       validKubeGroups,
+			kubeUsers:        multiKubeUsers,
+			teleportUser:     "userwithWrongImpUser",
+			resourceName:     kubeClusterName,
+			expectedSuccess:  false,
+			expectedMessage:  "failed",
+			selectedKubeUser: "missingUser",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles do now allow the desired "kubernetes_user" impersonation. Please define a "kubernetes_user" that your roles allow to impersonate.`,
+					Error:   `impersonation request has been denied, user header "missingUser" is not allowed in roles`,
+				},
+			},
+		},
+		{
+			name:               "user choosed to impersonate invalid kube_group",
+			roleFunc:           roleWithFullAccess,
+			kubeGroups:         validKubeGroups,
+			kubeUsers:          multiKubeUsers,
+			teleportUser:       "userwithWrongImpGroup",
+			resourceName:       kubeClusterName,
+			expectedSuccess:    false,
+			expectedMessage:    "failed",
+			selectedKubeUser:   "user1",
+			selectedKubeGroups: []string{"missingGroup"},
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `User-associated roles do now allow the desired "kubernetes_group" impersonation. Please define a "kubernetes_group" that your roles allow to impersonate.`,
+					Error:   `impersonation request has been denied, group header "missingGroup" value is not allowed in roles`,
+				},
+			},
+		},
+		{
+			name:            "user with multiple defined kube_users",
+			roleFunc:        roleWithFullAccess,
+			kubeGroups:      validKubeGroups,
+			kubeUsers:       validKubeUsers,
+			teleportUser:    "successwithmultiusers",
+			resourceName:    kubeClusterName,
+			expectedSuccess: true,
+			expectedMessage: "success",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Kubernetes Cluster is registered in Teleport.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "User-associated roles define valid Kubernetes principals.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_KUBE,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "You are authorized to access this Kubernetes Cluster.",
+					Error:   "",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_KUBE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Access to the Kubernetes Cluster granted.",
+					Error:   "",
+				},
+			},
+		},
+		{
 			name:            "success",
 			roleFunc:        roleWithFullAccess,
 			kubeGroups:      validKubeGroups,
@@ -4415,6 +4564,10 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				ResourceName: tt.resourceName,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
 				DialTimeout: time.Second,
+				KubernetesImpersonation: conntest.KubernetesImpersonation{
+					KubernetesUser:   tt.selectedKubeUser,
+					KubernetesGroups: tt.selectedKubeGroups,
+				},
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())

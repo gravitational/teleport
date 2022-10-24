@@ -219,6 +219,11 @@
               "title": "Moderated Sessions",
               "slug": "/access-controls/guides/moderated-sessions/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Hardware Key Support (Preview)",
+              "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -635,6 +640,10 @@
             {
               "title": "Visual Studio Code",
               "slug": "/server-access/guides/vscode/"
+            },
+            {
+              "title": "JetBrains SFTP",
+              "slug": "/server-access/guides/jetbrains-sftp/"
             },
             {
               "title": "Host User Creation",
