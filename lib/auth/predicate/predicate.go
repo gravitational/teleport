@@ -54,6 +54,56 @@ func getProperty(m any, k any) (any, error) {
 	}
 }
 
+func builtinOpEquals(a, b any) predicate.BoolPredicate {
+	return func() bool { return reflect.DeepEqual(a, b) }
+}
+
+func builtinOpLT(a, b any) predicate.BoolPredicate {
+	return func() bool {
+		if reflect.TypeOf(a) != reflect.TypeOf(b) {
+			return false
+		}
+
+		switch aT := a.(type) {
+		case string:
+			return aT < b.(string)
+		case int:
+			return aT < b.(int)
+		case float32:
+			return aT < b.(float32)
+		default:
+			return false
+		}
+	}
+}
+
+func builtinOpGT(a, b any) predicate.BoolPredicate {
+	return builtinOpLT(b, a)
+}
+
+func builtinOpLE(a, b any) predicate.BoolPredicate {
+	return func() bool {
+		if reflect.TypeOf(a) != reflect.TypeOf(b) {
+			return false
+		}
+
+		switch aT := a.(type) {
+		case string:
+			return aT <= b.(string)
+		case int:
+			return aT <= b.(int)
+		case float32:
+			return aT <= b.(float32)
+		default:
+			return false
+		}
+	}
+}
+
+func builtinOpGE(a, b any) predicate.BoolPredicate {
+	return builtinOpLE(b, a)
+}
+
 type NamedParameter interface {
 	GetName() string
 	GetMap() map[string]any
@@ -87,12 +137,15 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 	}
 
 	parser, err := predicate.NewParser(predicate.Def{
-		// todo: fix this
 		Operators: predicate.Operators{
 			AND: predicate.And,
 			OR:  predicate.Or,
 			NOT: predicate.Not,
-			EQ:  predicate.Equals,
+			EQ:  builtinOpEquals,
+			LT:  builtinOpLT,
+			GT:  builtinOpGT,
+			LE:  builtinOpLE,
+			GE:  builtinOpGE,
 		},
 		// todo: fix this
 		Functions:     map[string]any{},
