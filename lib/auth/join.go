@@ -113,7 +113,9 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodCircleCI:
-		return nil, trace.Errorf("Unimplemented")
+		if err := a.checkCircleCIJoinRequest(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
