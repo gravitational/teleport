@@ -18,9 +18,10 @@ package main
 
 import (
 	"fmt"
-	"golang.org/x/exp/slices"
 	"regexp"
 	"strings"
+
+	"golang.org/x/exp/slices"
 
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 	"sigs.k8s.io/controller-tools/pkg/loader"
