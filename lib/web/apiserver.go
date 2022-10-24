@@ -2045,15 +2045,13 @@ type getSiteNamespacesResponse struct {
 	Namespaces []types.Namespace `json:"namespaces"`
 }
 
-/*
-	getSiteNamespaces returns a list of namespaces for a given site
-
-GET /v1/webapi/sites/:site/namespaces
-
-Successful response:
-
-{"namespaces": [{..namespace resource...}]}
-*/
+// getSiteNamespaces returns a list of namespaces for a given site
+//
+// GET /v1/webapi/sites/:site/namespaces
+//
+// Successful response:
+//
+// {"namespaces": [{..namespace resource...}]}
 func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
