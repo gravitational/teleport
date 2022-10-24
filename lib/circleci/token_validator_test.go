@@ -32,9 +32,8 @@ import (
 	"time"
 )
 
-// fakeIDP pretends to be
+// fakeIDP pretends to be a circle CI org OIDC provider, e.g:
 // https://oidc.circleci.com/org/00f45056-5918-4171-9222-b538c76ed3f8/.well-known/openid-configuration
-// for a specified organization.
 type fakeIDP struct {
 	signer jose.Signer
 	server *httptest.Server
@@ -131,7 +130,6 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 		require.NoError(t, err)
 		_, err = w.Write(responseBytes)
 		require.NoError(t, err)
-
 	})
 
 	return &fakeIDP{
@@ -141,6 +139,7 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 }
 
 func TestValidateToken(t *testing.T) {
+	t.Parallel()
 	realOrgId := "xyz-foo-bar-123"
 	fake := newFakeIDP(t, realOrgId)
 	t.Cleanup(fake.close)
@@ -167,6 +166,18 @@ func TestValidateToken(t *testing.T) {
 				ProjectID:  "a-project",
 				Sub:        "org/xyz-foo-bar-123/project/a-project/user/USER_ID",
 			},
+		},
+		{
+			name:        "expired",
+			assertError: require.Error,
+			token: fake.issueToken(
+				t,
+				realOrgId,
+				"a-project",
+				[]string{"a-context"},
+				time.Now().Add(-10*time.Minute),
+				time.Now().Add(-5*time.Minute),
+			),
 		},
 	}
 
