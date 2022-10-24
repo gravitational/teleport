@@ -167,12 +167,7 @@ func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// Update known_hosts with the leaf proxy's CA certificate, otherwise
-		// users will be prompted to manually accept the key.
-		err = tc.UpdateKnownHosts(cf.Context, sp.proxyHost, sp.clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
 		// We'll be connecting directly to the leaf cluster so make sure agent
 		// loads correct host CA.
 		tc.LocalAgent().UpdateCluster(sp.clusterName)
