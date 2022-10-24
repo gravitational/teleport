@@ -24,13 +24,12 @@ import (
 
 type NamedParameter interface {
 	GetName() string
-	GetMap() map[string]any
 }
 
 func buildEnv(objects ...NamedParameter) map[string]any {
 	env := make(map[string]any)
 	for _, obj := range objects {
-		env[obj.GetName()] = obj.GetMap()
+		env[obj.GetName()] = obj
 	}
 
 	return env
@@ -130,33 +129,19 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 }
 
 type Node struct {
-	login  string
-	labels map[string]string
+	Login  string            `json:"login"`
+	Labels map[string]string `json:"labels"`
 }
 
 func (n *Node) GetName() string {
 	return "node"
 }
 
-func (n *Node) GetMap() map[string]any {
-	return map[string]any{
-		"login":  n.login,
-		"labels": n.labels,
-	}
-}
-
 type User struct {
-	name   string
-	traits map[string][]string
+	Name   string              `json:"name"`
+	Traits map[string][]string `json:"traits"`
 }
 
 func (u *User) GetName() string {
 	return "user"
-}
-
-func (u *User) GetMap() map[string]any {
-	return map[string]any{
-		"name":   u.name,
-		"traits": u.traits,
-	}
 }

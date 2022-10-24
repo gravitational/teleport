@@ -32,9 +32,29 @@ func getIdentifier(obj any, selectors []string) (any, error) {
 
 		if m, ok := obj.(map[string]any); ok {
 			obj = m[s]
-		} else {
-			return nil, trace.BadParameter("cannot take field of type: %T", obj)
+			continue
 		}
+
+		val := reflect.ValueOf(obj)
+		ty := reflect.TypeOf(obj)
+		if ty.Kind() == reflect.Interface || ty.Kind() == reflect.Ptr {
+			val = reflect.ValueOf(obj).Elem()
+			ty = val.Type()
+		}
+
+		if ty.Kind() == reflect.Struct {
+			for i := 0; i < ty.NumField(); i++ {
+				tagValue := ty.Field(i).Tag.Get("json")
+				parts := strings.Split(tagValue, ",")
+				if parts[0] == s {
+					obj = val.Field(i).Interface()
+				}
+			}
+
+			continue
+		}
+
+		return nil, trace.BadParameter("cannot take field of type: %T", obj)
 	}
 
 	return obj, nil
