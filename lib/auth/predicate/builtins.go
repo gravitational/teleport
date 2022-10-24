@@ -213,4 +213,65 @@ func builtinLower(a any) (any, error) {
 	return strings.ToLower(aS), nil
 }
 
-// contains (string, array), first(array), append (array), replace (string, array), regex (build), arrays literals, matches(string, array to regex), contains_regex (array, map), len (array,map), map_insert, map_remove
+func builtinContains(a, b any) (any, error) {
+	var bS string
+	if bT, ok := b.(string); ok {
+		bS = bT
+	} else {
+		return nil, trace.BadParameter("cannot check if type: %T contains type: %T", a, b)
+	}
+
+	switch aT := a.(type) {
+	case string:
+		return strings.Contains(aT, bS), nil
+	case []string:
+		for _, s := range aT {
+			if s == bS {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	default:
+		return nil, trace.BadParameter("contains not valid for type: %T", a)
+	}
+}
+
+func builtinFirst(a any) (any, error) {
+	switch aT := a.(type) {
+	case []string:
+		if len(aT) == 0 {
+			return nil, nil
+		}
+
+		return aT[0], nil
+	default:
+		return nil, trace.BadParameter("first not valid for type: %T", a)
+	}
+}
+
+func builtinAppend(a, b any) (any, error) {
+	var bS string
+	if bT, ok := b.(string); ok {
+		bS = bT
+	} else {
+		return nil, trace.BadParameter("cannot append type %T", b)
+	}
+
+	switch aT := a.(type) {
+	case []string:
+		return append(aT, bS), nil
+	default:
+		return nil, trace.BadParameter("append not valid for type: %T", a)
+	}
+}
+
+// TODO: array literals
+// TODO: implement elemental functions:
+// - replace(string, array)
+// - regex
+// - matches(string, regex, regexes?)
+// - contains_regex(array, regex, regexes?)
+// - len(array, map, string)
+// - map_insert
+// - map_remove
