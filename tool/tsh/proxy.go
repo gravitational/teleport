@@ -327,7 +327,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}
 
 	addr := "localhost:0"
+	randomPort := true
 	if cf.LocalProxyPort != "" {
+		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
 	listener, err := net.Listen("tcp", addr)
@@ -373,23 +375,25 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
-			"database": routeToDatabase.ServiceName,
-			"type":     dbProtocolToText(routeToDatabase.Protocol),
-			"cluster":  client.SiteName,
-			"command":  cmd.String(),
-			"address":  listener.Addr().String(),
+		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]interface{}{
+			"database":   routeToDatabase.ServiceName,
+			"type":       dbProtocolToText(routeToDatabase.Protocol),
+			"cluster":    client.SiteName,
+			"command":    cmd.String(),
+			"address":    listener.Addr().String(),
+			"randomPort": randomPort,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		err = dbProxyTpl.Execute(os.Stdout, map[string]string{
-			"database": routeToDatabase.ServiceName,
-			"address":  listener.Addr().String(),
-			"ca":       profile.CACertPathForCluster(rootCluster),
-			"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
-			"key":      profile.KeyPath(),
+		err = dbProxyTpl.Execute(os.Stdout, map[string]interface{}{
+			"database":   routeToDatabase.ServiceName,
+			"address":    listener.Addr().String(),
+			"ca":         profile.CACertPathForCluster(rootCluster),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
+			"key":        profile.KeyPath(),
+			"randomPort": randomPort,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -467,7 +471,8 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
@@ -495,7 +500,8 @@ func dbProtocolToText(protocol string) string {
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use the following command to connect to the database:
   $ {{.command}}
 `))
