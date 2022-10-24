@@ -123,8 +123,8 @@ The git histories of each branch will be maintained while merging. [Merging repo
       the correct version in the `teleport.e/web` folder.
 - [ ] Only require teleport build processes to run on teleport paths and the webapp
       ones to run on the webapp paths
--
-- Archive the [Webapps repository](https://github.com/gravitational/webapps).
+- [ ] Archive the [Webapps repository](https://github.com/gravitational/webapps).
+- [ ] Update Connect's build pipelines (in teleport/dronegen) as webapps will no longer need to be cloned.
 
 #### CI jobs
 
