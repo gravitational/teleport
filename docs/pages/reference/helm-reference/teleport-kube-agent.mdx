@@ -63,12 +63,15 @@ If you specify a role here, you may also need to specify some other settings whi
 
 | Type | Default value | Required? |
 | - | - | - |
-| `string` | `nil` | Yes |
+| `string` | `nil` | No |
 
 `authToken` provides a Teleport join token which will be used to join the Teleport instance to a Teleport cluster.
 
-This value **must** be provided for the chart to work. The token that you use must also be valid for every Teleport service that you
-are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
+The value `joinParams` supports more methods to join the Teleport cluster and takes precedence if both `authToken`
+and `joinParams` are set.
+
+A token must be specified for the agent to join the Teleport cluster, either though `authToken`,
+[`joinParams`](#joinparams), or [an existing Kubernetes Secret](#secretname).
 
 | Services | Service Name | `tctl tokens add` example | `teleport.yaml` static token example |
 | - | - | - | - |
@@ -98,6 +101,77 @@ fail to join the Teleport cluster.
   <TabItem label="--set">
   ```code
   $ --set authToken=<replace-with-actual-token>
+  ```
+  </TabItem>
+</Tabs>
+
+## `joinParams`
+
+`joinParams` controls how the Teleport agent joins the Teleport cluster.
+These sub-values must be configured for the agent to connect to a cluster.
+
+### `joinParams.method`
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `token` | Yes |
+
+`joinParams.method` defines which join method will be used to join the Teleport cluster.
+Possible values are `token`, `iam` and `ec2`.
+
+- For `iam`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx).
+- For `ec2`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-ec2.mdx).
+- For `token` (default value), the token must be provided through `joinParams.tokenName` or
+  [through an existing Kubernetes Secret](#secretName).
+
+<Admonition type="note" title="IAM joining requirements">
+Using the IAM joining method requires either the pods to have access to [instance
+metadata](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html),
+or [IAM roles for service
+accounts](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) to be
+set up on the pods's service account. For access to instance metadata (the quickest solution), see
+[AWS's examples on how to restrict instance metadata access to a few
+pods](https://aws.github.io/aws-eks-best-practices/security/docs/iam/#restrict-access-to-the-instance-profile-assigned-to-the-worker-node).
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  joinParams:
+    method: "token"|"ec2"|"iam"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set joinParams.method="token"|"ec2"|"iam"
+  ```
+  </TabItem>
+</Tabs>
+
+### `joinParams.tokenName`
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `nil` | Yes |
+
+When `joinParams.method` is `iam` or `ec2`, `joinParams.tokenName` contains the name of the token that will be used to
+join the cluster. In this case, the value is not sensitive as authorization is checked through AWS IAM or EC2.
+
+When `joinParams.method` is `token` (by default), `joinParams.tokenName` contains the join token itself. In this case,
+the value is sensitive and is automatically stored in a Kubernetes Secret instead of being directly included in the
+agent's configuration.
+
+If method is `token`, `joinParams.tokenName` can be empty if the token is provided through an existing Kubernetes
+Secret, see [`secretName`](#secretName) for more details and instructions.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  joinParams:
+    tokenName: "my-token"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set joinParams.token="my-token"
   ```
   </TabItem>
 </Tabs>
@@ -166,10 +240,7 @@ You can specify multiple apps by adding additional list elements.
       purpose: ci
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
   <TabItem label="--set">
   ```code
@@ -232,8 +303,8 @@ You can specify multiple selectors by including additional list elements.
 
 ## `awsDatabases`
 
-<Admonition type="tip" title="Database auto-discovery">
-  This section configures database auto-discovery, which is only currently supported on AWS. You can configure databases for other platforms using the [`databases`](#databases) section below this.
+<Admonition type="tip" title="AWS database auto-discovery">
+  This section configures AWS database auto-discovery. You can configure databases for other platforms using the [`azureDatabases`](#azuredatabases) or [`databases`](#databases) sections.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
@@ -250,7 +321,7 @@ You can specify multiple selectors by including additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `azureDatabases`,<br/> `databaseResources` is required. |
 
 `awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
 
@@ -263,6 +334,7 @@ You can specify multiple database filters by adding additional list elements.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
+  roles: db
   awsDatabases:
     - types: ["rds"]
       regions: ["us-east-1", "us-west-2"]
@@ -276,31 +348,100 @@ You can specify multiple database filters by adding additional list elements.
       regions: ["eu-west-1"]
       tags:
         "*": "*"
+  annotations:
+    serviceAccount:
+      eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
-  <TabItem label="--set">
+</Tabs>
+
+## `azureDatabases`
+
+<Admonition type="tip" title="Azure database auto-discovery">
+  This section configures Azure database auto-discovery. You can configure databases for other platforms using the [`awsDatabases`](#awsdatabases) or [`databases`](#databases) sections.
+</Admonition>
+
+<Admonition type="note" title="Azure IAM">
+  For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../database-access/guides/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+
+  After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
+  The easiest way is to use an Azure client secret.
+
+  First, create in the chart installation namespace a Kubernetes `Secret` containing the azure client secret:
   ```code
-  --set "awsDatabases[0].types[0]=rds" \
-  --set "awsDatabases[0].regions[0]=us-east-1" \
-  --set "awsDatabases[0].regions[1]=us-west-2" \
-  --set "awsDatabases[0].tags[0].environment=production" \
-  --set "awsDatabases[1].types[0]=rds" \
-  --set "awsDatabases[1].regions[0]=us-east-1" \
-  --set "awsDatabases[1].tags[0].environment=dev" \
-  --set "awsDatabases[2].types[0]=rds" \
-  --set "awsDatabases[2].regions[0]=eu-west-1" \
-  --set "awsDatabases[2].tags[0].*=*"
+  $ kubectl create secret generic teleport-azure-client-secret --from-literal=client_secret=<your-azure-client-secret>
+  secret/teleport-azure-client-secret created
   ```
 
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
+  Then, use the [`extraEnv`](#extraenv) value to set the pods environment variables:
 
+  ```yaml
+  extraEnv:
+  - name: AZURE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+      name: teleport-azure-client-secret
+      key: client_secret
+      optional: false
+  - name: AZURE_TENANT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  - name: AZURE_CLIENT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  ```
+</Admonition>
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
+
+`azureDatabases` is a YAML list object detailing the filters for the Azure databases that should be discovered and proxied by Teleport Database access.
+
+You can specify multiple database filters by adding additional list elements.
+
+Required fields for each filter:
+- `types` is a list containing the types of Azure databases that should be discovered.
+- `tags` can be used to set Azure resource tags that must be matched for databases to be discovered.
+
+Optional fields for each filter:
+- `regions` is a list of Azure regions which should be scanned for databases.
+- `subscriptions` can be used to discover databases within matching Azure subscriptions.
+- `resource_groups` can be used to discover databses within matching Azure resource groups.
+
+The default for each of these optional settings is `*`, which will auto-discover in all
+subscriptions, regions, or resource groups accessible by the Teleport service
+principal in Azure.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  roles: db
+  azureDatabases:
+  - types: ["mysql", "postgres"]
+    tags:
+      "*": "*"
+  - types: ["mysql"]
+    tags:
+      "env": ["dev", "staging"]
+      "origin": "alice"
+    regions: ["eastus", "centralus"]
+    subscriptions: ["subID1", "subID2"]
+    resource_groups: ["group1", "group2"]
+  extraEnv:
+  - name: AZURE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+      name: teleport-azure-client-secret
+      key: client_secret
+      optional: false
+  - name: AZURE_TENANT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  - name: AZURE_CLIENT_ID
+    value: "11111111-2222-3333-4444-555555555555"
+  ```
+
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
 </Tabs>
 
@@ -308,7 +449,7 @@ You can specify multiple database filters by adding additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
 
 `databases` is a YAML list object detailing the databases that should be proxied by Teleport Database access.
 
@@ -334,10 +475,7 @@ You can specify multiple databases by adding additional list elements.
       env: staging
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
+  (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
   <TabItem label="--set">
   ```code
@@ -392,20 +530,20 @@ You can specify multiple databases by adding additional list elements.
   ```
 </Admonition>
 
-## `dbResources`
+## `databaseResources`
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
 
-`dbResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
+`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
 
 You can specify multiple selectors by adding elements to the list.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  dbResources:
+  databaseResources:
   - labels:
       "env": "prod"
       "engine": "postgres"
@@ -418,10 +556,10 @@ You can specify multiple selectors by adding elements to the list.
   <TabItem label="--set">
   ```code
   $
-  --set "dbResources[0].labels.env=prod" \
-  --set "dbResources[0].labels.engine=postgres" \
-  --set "dbResources[1].labels.env=test" \
-  --set "dbResources[0].labels.engine=mysql"
+  --set "databaseResources[0].labels.env=prod" \
+  --set "databaseResources[0].labels.engine=postgres" \
+  --set "databaseResources[1].labels.env=test" \
+  --set "databaseResources[0].labels.engine=mysql"
   ```
 
   <Admonition type="note">
@@ -432,7 +570,7 @@ You can specify multiple selectors by adding elements to the list.
 </Tabs>
 
 <Admonition type="tip" title="Example">
-  Once `dbResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
+  Once `databaseResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
 
 ## `teleportVersionOverride`
@@ -1022,10 +1160,11 @@ When off, the `serviceAccount.name` parameter should be set to the existing `Ser
 | - | - |
 | `string` | `teleport-kube-agent-join-token` |
 
-`secretName` is the name of the Kubernetes `Secret` used to store the Teleport join token which is used by the `teleport-kube-agent` chart.
+`secretName` is the name of the Kubernetes Secret containing the Teleport join token used by the chart.
 
-If you set this to a blank value, the chart will not attempt to create the secret itself and will instead read the value of the
-existing `teleport-kube-agent-join-token` secret. This allows you to configure this secret externally and avoid having a plaintext
+If `joinParams.method` is `token` and you set both `authToken` and `joinParams.tokenName` to a blank value, the chart
+will not attempt to create the secret itself. Instead, it will read the value from an existing secret. `secretName`
+configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
 join token stored in your Teleport chart values.
 
 To create your own join token secret, you can use a command like this:
@@ -1041,12 +1180,17 @@ $ kubectl --namespace teleport create secret generic teleport-kube-agent-join-to
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  serviceAccountName:
+  secretName: "secret-i-created-before"
+  joinParams:
+    method: "token"
+    tokenName: ""
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set serviceAccountName=""
+  $ --set secretName="secret-i-created-before" \
+    --set joinParams.method="token" \
+    --set joinParams.tokenName=""
   ```
   </TabItem>
 </Tabs>

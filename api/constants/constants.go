@@ -19,6 +19,7 @@ package constants
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -337,3 +338,8 @@ const (
 // SupportedAWSDiscoveryServices is list of AWS services currently
 // supported by the Teleport discovery service
 var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}
+
+const (
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 500
+)

@@ -150,6 +150,9 @@ type WriteConfig struct {
 	KubeProxyAddr string
 	// KubeTLSServerName is the SNI host value passed to the server.
 	KubeTLSServerName string
+	// KubeStoreAllCAs stores the CAs of all clusters in kubeconfig, instead
+	// of just the root cluster's CA.
+	KubeStoreAllCAs bool
 	// OverwriteDestination forces all existing destination files to be
 	// overwritten. When false, user will be prompted for confirmation of
 	// overwrite first.
@@ -338,7 +341,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
 			TLSServerName:       cfg.KubeTLSServerName,
-		}); err != nil {
+		}, cfg.KubeStoreAllCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
