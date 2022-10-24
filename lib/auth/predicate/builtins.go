@@ -48,6 +48,7 @@ func getIdentifier(obj any, selectors []string) (any, error) {
 				parts := strings.Split(tagValue, ",")
 				if parts[0] == s {
 					obj = val.Field(i).Interface()
+					break
 				}
 			}
 
