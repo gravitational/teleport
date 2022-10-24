@@ -5,6 +5,7 @@ import { makeLabelTag } from 'teleport/components/formatters';
 import { Label } from 'teleport/types';
 import { formatDatabaseInfo } from 'teleport/services/databases/makeDatabase';
 import { DbProtocol, DbType } from 'teleport/services/databases';
+import { pipe } from 'shared/utils/pipe';
 
 import { routing } from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
@@ -713,16 +714,20 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
           clusterUri
         )
       : undefined;
+    const mergeAssumedRequests = (cluster: Cluster) => ({
+      ...cluster,
+      loggedInUser: cluster.loggedInUser && {
+        ...cluster.loggedInUser,
+        assumedRequests,
+      },
+    });
+    const processCluster = pipe(
+      this.removeInternalLoginsFromCluster,
+      mergeAssumedRequests
+    );
+
     this.setState(draft => {
-      draft.clusters.set(clusterUri, {
-        ...this.removeInternalLoginsFromCluster(cluster),
-        loggedInUser: cluster.loggedInUser
-          ? {
-              ...cluster.loggedInUser,
-              assumedRequests,
-            }
-          : undefined,
-      });
+      draft.clusters.set(clusterUri, processCluster(cluster));
     });
   }
 
