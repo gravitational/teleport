@@ -447,6 +447,8 @@ You will need a YubiKey 4.3+ to test this feature.
 
 This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
+#### Server Access
+
 These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
 
 1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login and no hardware key requirement.
@@ -473,6 +475,13 @@ These tests should be carried out sequentially. `tsh` tests should be carried ou
   - [ ] `tsh ssh`
     - [ ] Requires yubikey to be connected for re-login
     - [ ] Prompts for touch if not cached
+
+#### Other
+
+Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
+
+- [ ] Database Acces: `tsh proxy db`
+- [ ] Application Access: `tsh login app && tsh proxy app`
 
 ## WEB UI
 
@@ -1517,6 +1526,20 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Application access through curl with `tsh app login`
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
+
+## EC2 Discovery
+
+[EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)
+
+- Verify EC2 instance discovery
+  - [ ]  Only EC2 instances matching given AWS tags have the installer executed on them
+  - [ ]  Only the IAM permissions mentioned in the discovery docs are required for operation
+  - [ ]  Custom scripts specified in different matchers are executed
+  - [ ] Custom SSM documents specified in different matchers are executed
+  - [ ] New EC2 instances with matching AWS tags are discovered and added to the teleport cluster
+    - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
+  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+
 
 ## Resources
 

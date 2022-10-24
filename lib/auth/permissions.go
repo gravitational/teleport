@@ -145,17 +145,12 @@ Loop:
 	return lockTargets
 }
 
-// UseSearchAsRoles extends the roles of the Checker on the current Context with
-// the set of roles the user is allowed to search as.
-func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName string) error {
-	if len(c.Checker.GetAllowedResourceIDs()) > 0 {
-		return trace.AccessDenied("user is currently logged in with a search-based access request, cannot further extend roles for search")
-	}
+// UseExtraRoles extends the roles of the Checker on the current Context with
+// the given extra roles.
+func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, roles []string) error {
 	var newRoleNames []string
-	// include existing roles
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
-	// extend with allowed search_as_roles
-	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleNames = append(newRoleNames, roles...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
 	// set new roles on the context user and create a new access checker
