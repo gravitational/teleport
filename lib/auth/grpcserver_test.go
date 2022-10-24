@@ -22,6 +22,8 @@ import (
 	"encoding/base32"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
 	"time"
@@ -2529,6 +2531,106 @@ func TestExport(t *testing.T) {
 
 			tt.errAssertion(t, traceClt.UploadTraces(ctx, tt.spans))
 			tt.uploadedAssertion(t, tt.mockTraceClient.spans)
+		})
+	}
+}
+
+// TestSAMLValidation tests that SAML validation does not perform an HTTP
+// request if the calling user does not have permissions to create or update
+// a SAML connector.
+func TestSAMLValidation(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{SAML: true},
+	})
+
+	// minimal entity_descriptor to pass validation. not actually valid
+	const minimalEntityDescriptor = `
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://example.com">
+  <md:IDPSSODescriptor>
+    <md:SingleSignOnService Location="http://example.com" />
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+	allowSAMLUpsert := types.RoleConditions{
+		Rules: []types.Rule{{
+			Resources: []string{types.KindSAML},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+		}},
+	}
+
+	testCases := []struct {
+		desc             string
+		allow            types.RoleConditions
+		entityDescriptor string
+		edURLCalled      bool
+		errAs            error
+	}{
+		{
+			desc:        "access denied",
+			allow:       types.RoleConditions{},
+			edURLCalled: false,
+			errAs:       &trace.AccessDeniedError{},
+		},
+		{
+			desc:             "validation failure",
+			allow:            allowSAMLUpsert,
+			entityDescriptor: "<unparsable XML",
+			edURLCalled:      true,
+			errAs:            &trace.BadParameterError{},
+		},
+		{
+			desc:             "access permitted",
+			allow:            allowSAMLUpsert,
+			entityDescriptor: minimalEntityDescriptor,
+			edURLCalled:      true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			srv := newTestTLSServer(t)
+			// Create an http server to serve the entity descriptor url
+			edSvrCalled := false
+			edSvr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				edSvrCalled = true
+				_, err := w.Write([]byte(tc.entityDescriptor))
+				require.NoError(t, err)
+
+			}))
+
+			role, err := CreateRole(ctx, srv.Auth(), "test_role", types.RoleSpecV5{Allow: tc.allow})
+			require.NoError(t, err)
+			user, err := CreateUser(srv.Auth(), "test_user", role)
+			require.NoError(t, err)
+
+			connector, err := types.NewSAMLConnector("test_connector", types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "http://localhost:65535/acs", // not called
+				EntityDescriptorURL:      edSvr.URL,
+				AttributesToRoles: []types.AttributeMapping{
+					// not used. can be any name, value but role must exist
+					{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
+				},
+			})
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			err = client.UpsertSAMLConnector(ctx, connector)
+
+			if tc.errAs != nil {
+				require.ErrorAs(t, err, &tc.errAs)
+			} else {
+				require.NoError(t, err)
+			}
+			if tc.edURLCalled {
+				require.True(t, edSvrCalled, "entity_descriptor_url was not called")
+			} else {
+				require.False(t, edSvrCalled, "entity_descriptor_url was called")
+			}
 		})
 	}
 }
