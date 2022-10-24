@@ -29,8 +29,10 @@ package circleci
 
 import "fmt"
 
-func IssuerURL(organizationID string) string {
-	return fmt.Sprintf("https://oidc.circleci.com/org/%s", organizationID)
+const IssuerURLTemplate = "https://oidc.circleci.com/org/%s"
+
+func issuerURL(template, organizationID string) string {
+	return fmt.Sprintf(template, organizationID)
 }
 
 // IDTokenClaims is the structure of claims contained with a CircleCI issued
