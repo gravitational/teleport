@@ -31,7 +31,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,15 +60,12 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 
 	fakeClock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
 	log, err := New(context.Background(), Config{
 		Region:       "eu-north-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-	}, backend)
+	})
 	require.NoError(t, err)
 
 	// Clear all items in table.

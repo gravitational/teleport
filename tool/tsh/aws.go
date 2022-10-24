@@ -243,7 +243,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	if err := cmd.Run(); err != nil {
+	if err := a.cf.RunCommand(cmd); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

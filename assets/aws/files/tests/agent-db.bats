@@ -20,10 +20,10 @@ load fixtures/common
     [ ${GENERATE_EXIT_CODE?} -eq 0 ]
 }
 
-@test "[${TEST_SUITE?}] teleport.auth_servers is set correctly" {
+@test "[${TEST_SUITE?}] teleport.proxy_server is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     cat "${TELEPORT_CONFIG_PATH?}"
-    cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^  auth_servers:" -A1 | grep -q "${TELEPORT_PROXY_SERVER_LB?}"
+    cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^  proxy_server:" -A1 | grep -q "${TELEPORT_PROXY_SERVER_LB?}"
 }
 
 @test "[${TEST_SUITE?}] teleport.auth_token is set correctly" {

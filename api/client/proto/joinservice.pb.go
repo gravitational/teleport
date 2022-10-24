@@ -27,6 +27,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+// TODO(nklaassen): Document me.
 type RegisterUsingIAMMethodRequest struct {
 	// RegisterUsingTokenRequest holds registration parameters common to all
 	// join methods.

@@ -36,6 +36,15 @@ type ConnectionsDiagnostic interface {
 	//
 	// If not found, a `trace.NotFound` error is returned
 	GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error)
+
+	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
+	ConnectionDiagnosticTraceAppender
+}
+
+// ConnectionDiagnosticTraceAppender specifies methods to add Traces into a DiagnosticConnection
+type ConnectionDiagnosticTraceAppender interface {
+	// AppendDiagnosticTrace atomically adds a new trace into the ConnectionDiagnostic.
+	AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error)
 }
 
 // MarshalConnectionDiagnostic marshals the ConnectionDiagnostic resource to JSON.

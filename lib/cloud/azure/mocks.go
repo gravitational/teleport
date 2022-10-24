@@ -21,10 +21,14 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
-
 	"github.com/gravitational/trace"
 )
 
@@ -201,4 +205,288 @@ func (m *ARMPostgresMock) NewListByResourceGroupPager(group string, _ *armpostgr
 			}, nil
 		},
 	})
+}
+
+// ARMRedisMock mocks armRedisClient.
+type ARMRedisMock struct {
+	Token   string
+	NoAuth  bool
+	Servers []*armredis.ResourceInfo
+}
+
+func (m *ARMRedisMock) ListKeys(ctx context.Context, resourceGroupName string, name string, options *armredis.ClientListKeysOptions) (armredis.ClientListKeysResponse, error) {
+	if m.NoAuth {
+		return armredis.ClientListKeysResponse{}, trace.AccessDenied("unauthorized")
+	}
+	return armredis.ClientListKeysResponse{
+		AccessKeys: armredis.AccessKeys{
+			PrimaryKey: &m.Token,
+		},
+	}, nil
+}
+
+func (m *ARMRedisMock) NewListBySubscriptionPager(options *armredis.ClientListBySubscriptionOptions) *runtime.Pager[armredis.ClientListBySubscriptionResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredis.ClientListBySubscriptionResponse, error) {
+		return armredis.ClientListBySubscriptionResponse{
+			ListResult: armredis.ListResult{
+				Value: m.Servers,
+			},
+		}, nil
+	})
+}
+func (m *ARMRedisMock) NewListByResourceGroupPager(resourceGroupName string, options *armredis.ClientListByResourceGroupOptions) *runtime.Pager[armredis.ClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredis.ClientListByResourceGroupResponse, error) {
+		var servers []*armredis.ResourceInfo
+		for _, server := range m.Servers {
+			id, err := arm.ParseResourceID(StringVal(server.ID))
+			if err != nil {
+				return armredis.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+			}
+			if resourceGroupName == id.ResourceGroupName {
+				servers = append(servers, server)
+			}
+		}
+		if len(servers) == 0 {
+			return armredis.ClientListByResourceGroupResponse{}, trace.NotFound("no resources found")
+		}
+		return armredis.ClientListByResourceGroupResponse{
+			ListResult: armredis.ListResult{
+				Value: servers,
+			},
+		}, nil
+	})
+}
+
+// ARMRedisEnterpriseDatabaseMock mocks armRedisEnterpriseDatabaseClient.
+type ARMRedisEnterpriseDatabaseMock struct {
+	Token                string
+	TokensByDatabaseName map[string]string
+	NoAuth               bool
+	Databases            []*armredisenterprise.Database
+}
+
+func (m *ARMRedisEnterpriseDatabaseMock) ListKeys(ctx context.Context, resourceGroupName string, clusterName string, databaseName string, options *armredisenterprise.DatabasesClientListKeysOptions) (armredisenterprise.DatabasesClientListKeysResponse, error) {
+	if m.NoAuth {
+		return armredisenterprise.DatabasesClientListKeysResponse{}, trace.AccessDenied("unauthorized")
+	}
+	if len(m.TokensByDatabaseName) != 0 {
+		if token, found := m.TokensByDatabaseName[databaseName]; found {
+			return armredisenterprise.DatabasesClientListKeysResponse{
+				AccessKeys: armredisenterprise.AccessKeys{
+					PrimaryKey: &token,
+				},
+			}, nil
+		}
+	}
+	return armredisenterprise.DatabasesClientListKeysResponse{
+		AccessKeys: armredisenterprise.AccessKeys{
+			PrimaryKey: &m.Token,
+		},
+	}, nil
+}
+
+func (m *ARMRedisEnterpriseDatabaseMock) NewListByClusterPager(resourceGroupName string, clusterName string, options *armredisenterprise.DatabasesClientListByClusterOptions) *runtime.Pager[armredisenterprise.DatabasesClientListByClusterResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredisenterprise.DatabasesClientListByClusterResponse, error) {
+		var databases []*armredisenterprise.Database
+		for _, database := range m.Databases {
+			id, err := arm.ParseResourceID(StringVal(database.ID))
+			if err != nil {
+				return armredisenterprise.DatabasesClientListByClusterResponse{}, trace.Wrap(err)
+			}
+			if resourceGroupName == id.ResourceGroupName && id.Parent != nil && id.Parent.Name == clusterName {
+				databases = append(databases, database)
+			}
+		}
+		if len(databases) == 0 {
+			return armredisenterprise.DatabasesClientListByClusterResponse{}, trace.NotFound("no resources found")
+		}
+		return armredisenterprise.DatabasesClientListByClusterResponse{
+			DatabaseList: armredisenterprise.DatabaseList{
+				Value: databases,
+			},
+		}, nil
+	})
+}
+
+// ARMRedisEnterpriseClusterMock mocks armRedisEnterpriseClusterClient.
+type ARMRedisEnterpriseClusterMock struct {
+	NoAuth   bool
+	Clusters []*armredisenterprise.Cluster
+}
+
+func (m *ARMRedisEnterpriseClusterMock) NewListPager(options *armredisenterprise.ClientListOptions) *runtime.Pager[armredisenterprise.ClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredisenterprise.ClientListResponse, error) {
+		return armredisenterprise.ClientListResponse{
+			ClusterList: armredisenterprise.ClusterList{
+				Value: m.Clusters,
+			},
+		}, nil
+	})
+}
+func (m *ARMRedisEnterpriseClusterMock) NewListByResourceGroupPager(resourceGroupName string, options *armredisenterprise.ClientListByResourceGroupOptions) *runtime.Pager[armredisenterprise.ClientListByResourceGroupResponse] {
+	return newPagerHelper(m.NoAuth, func() (armredisenterprise.ClientListByResourceGroupResponse, error) {
+		var clusters []*armredisenterprise.Cluster
+		for _, cluster := range m.Clusters {
+			id, err := arm.ParseResourceID(StringVal(cluster.ID))
+			if err != nil {
+				return armredisenterprise.ClientListByResourceGroupResponse{}, trace.Wrap(err)
+			}
+			if resourceGroupName == id.ResourceGroupName {
+				clusters = append(clusters, cluster)
+			}
+		}
+		if len(clusters) == 0 {
+			return armredisenterprise.ClientListByResourceGroupResponse{}, trace.NotFound("no resources found")
+		}
+		return armredisenterprise.ClientListByResourceGroupResponse{
+			ClusterList: armredisenterprise.ClusterList{
+				Value: clusters,
+			},
+		}, nil
+	})
+}
+
+// newPagerHelper is a helper for creating a runtime.Pager for common ARM mocks.
+func newPagerHelper[T any](noAuth bool, newT func() (T, error)) *runtime.Pager[T] {
+	return runtime.NewPager(runtime.PagingHandler[T]{
+		More: func(_ T) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *T) (T, error) {
+			if noAuth {
+				var t T
+				return t, trace.AccessDenied("unauthorized")
+			}
+			return newT()
+		},
+	})
+}
+
+// ARMKubernetesMock mocks Azure armmanagedclusters API.
+type ARMKubernetesMock struct {
+	KubeServers       []*armcontainerservice.ManagedCluster
+	ClusterAdminCreds *armcontainerservice.CredentialResult
+	ClusterUserCreds  *armcontainerservice.CredentialResult
+	NoAuth            bool
+}
+
+var _ ARMAKS = (*ARMKubernetesMock)(nil)
+
+func (m *ARMKubernetesMock) Get(_ context.Context, group, name string, _ *armcontainerservice.ManagedClustersClientGetOptions) (armcontainerservice.ManagedClustersClientGetResponse, error) {
+	if m.NoAuth {
+		return armcontainerservice.ManagedClustersClientGetResponse{}, trace.AccessDenied("unauthorized")
+	}
+	for _, s := range m.KubeServers {
+		if name == *s.Name {
+			id, err := arm.ParseResourceID(*s.ID)
+			if err != nil {
+				return armcontainerservice.ManagedClustersClientGetResponse{}, trace.Wrap(err)
+			}
+			if group == id.ResourceGroupName {
+				return armcontainerservice.ManagedClustersClientGetResponse{ManagedCluster: *s}, nil
+			}
+		}
+	}
+	return armcontainerservice.ManagedClustersClientGetResponse{}, trace.NotFound("resource %v in group %v not found", name, group)
+}
+
+func (m *ARMKubernetesMock) NewListPager(_ *armcontainerservice.ManagedClustersClientListOptions) *runtime.Pager[armcontainerservice.ManagedClustersClientListResponse] {
+	return runtime.NewPager(runtime.PagingHandler[armcontainerservice.ManagedClustersClientListResponse]{
+		More: func(_ armcontainerservice.ManagedClustersClientListResponse) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *armcontainerservice.ManagedClustersClientListResponse) (armcontainerservice.ManagedClustersClientListResponse, error) {
+			if m.NoAuth {
+				return armcontainerservice.ManagedClustersClientListResponse{}, trace.AccessDenied("unauthorized")
+			}
+			return armcontainerservice.ManagedClustersClientListResponse{
+				ManagedClusterListResult: armcontainerservice.ManagedClusterListResult{
+					Value: m.KubeServers,
+				},
+			}, nil
+		},
+	})
+}
+
+func (m *ARMKubernetesMock) NewListByResourceGroupPager(group string, _ *armcontainerservice.ManagedClustersClientListByResourceGroupOptions) *runtime.Pager[armcontainerservice.ManagedClustersClientListByResourceGroupResponse] {
+	return runtime.NewPager(runtime.PagingHandler[armcontainerservice.ManagedClustersClientListByResourceGroupResponse]{
+		More: func(_ armcontainerservice.ManagedClustersClientListByResourceGroupResponse) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *armcontainerservice.ManagedClustersClientListByResourceGroupResponse) (armcontainerservice.ManagedClustersClientListByResourceGroupResponse, error) {
+			if m.NoAuth {
+				return armcontainerservice.ManagedClustersClientListByResourceGroupResponse{}, trace.AccessDenied("unauthorized")
+			}
+			var servers []*armcontainerservice.ManagedCluster
+			for _, s := range m.KubeServers {
+				id, err := arm.ParseResourceID(*s.ID)
+				if err != nil {
+					return armcontainerservice.ManagedClustersClientListByResourceGroupResponse{}, trace.Wrap(err)
+				}
+				if group == id.ResourceGroupName {
+					servers = append(servers, s)
+				}
+			}
+			if len(servers) == 0 {
+				return armcontainerservice.ManagedClustersClientListByResourceGroupResponse{}, trace.NotFound("Resource group '%v' could not be found.", group)
+			}
+			return armcontainerservice.ManagedClustersClientListByResourceGroupResponse{
+				ManagedClusterListResult: armcontainerservice.ManagedClusterListResult{
+					Value: servers,
+				},
+			}, nil
+		},
+	})
+}
+
+func (m *ARMKubernetesMock) GetCommandResult(ctx context.Context, resourceGroupName string, resourceName string, commandID string, options *armcontainerservice.ManagedClustersClientGetCommandResultOptions) (armcontainerservice.ManagedClustersClientGetCommandResultResponse, error) {
+	return armcontainerservice.ManagedClustersClientGetCommandResultResponse{
+		RunCommandResult: armcontainerservice.RunCommandResult{
+			ID: to.Ptr(commandID),
+		},
+	}, nil
+}
+func (m *ARMKubernetesMock) ListClusterAdminCredentials(ctx context.Context, resourceGroupName string, resourceName string, options *armcontainerservice.ManagedClustersClientListClusterAdminCredentialsOptions) (armcontainerservice.ManagedClustersClientListClusterAdminCredentialsResponse, error) {
+	if m.NoAuth {
+		return armcontainerservice.ManagedClustersClientListClusterAdminCredentialsResponse{}, trace.AccessDenied("unauthorized")
+	}
+
+	return armcontainerservice.ManagedClustersClientListClusterAdminCredentialsResponse{
+		CredentialResults: armcontainerservice.CredentialResults{
+			Kubeconfigs: []*armcontainerservice.CredentialResult{
+				m.ClusterAdminCreds,
+			},
+		},
+	}, nil
+}
+func (m *ARMKubernetesMock) ListClusterUserCredentials(ctx context.Context, resourceGroupName string, resourceName string, options *armcontainerservice.ManagedClustersClientListClusterUserCredentialsOptions) (armcontainerservice.ManagedClustersClientListClusterUserCredentialsResponse, error) {
+	if m.NoAuth {
+		return armcontainerservice.ManagedClustersClientListClusterUserCredentialsResponse{}, trace.AccessDenied("unauthorized")
+	}
+	return armcontainerservice.ManagedClustersClientListClusterUserCredentialsResponse{
+		CredentialResults: armcontainerservice.CredentialResults{
+			Kubeconfigs: []*armcontainerservice.CredentialResult{
+				m.ClusterUserCreds,
+			},
+		},
+	}, nil
+}
+
+func (m *ARMKubernetesMock) BeginRunCommand(ctx context.Context, resourceGroupName string, resourceName string, requestPayload armcontainerservice.RunCommandRequest, options *armcontainerservice.ManagedClustersClientBeginRunCommandOptions) (*runtime.Poller[armcontainerservice.ManagedClustersClientRunCommandResponse], error) {
+	if m.NoAuth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+	return &runtime.Poller[armcontainerservice.ManagedClustersClientRunCommandResponse]{}, nil
+}
+
+// ARMComputeMock mocks armcompute.VirtualMachinesClient.
+type ARMComputeMock struct {
+	GetResult armcompute.VirtualMachine
+	GetErr    error
+}
+
+func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
+	return armcompute.VirtualMachinesClientGetResponse{
+		VirtualMachine: m.GetResult,
+	}, m.GetErr
 }

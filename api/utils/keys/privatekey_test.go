@@ -17,10 +17,12 @@ limitations under the License.
 package keys
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/tls"
+	"encoding/pem"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -58,7 +60,7 @@ func TestParsePrivateKey(t *testing.T) {
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
 				privateKey, ok := key.(*PrivateKey)
 				require.True(t, ok)
-				require.IsType(t, &rsa.PrivateKey{}, privateKey.GetBaseSigner())
+				require.IsType(t, &rsa.PrivateKey{}, privateKey.Signer)
 			},
 		},
 		{
@@ -68,7 +70,7 @@ func TestParsePrivateKey(t *testing.T) {
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
 				privateKey, ok := key.(*PrivateKey)
 				require.True(t, ok)
-				require.IsType(t, &ecdsa.PrivateKey{}, privateKey.GetBaseSigner())
+				require.IsType(t, &ecdsa.PrivateKey{}, privateKey.Signer)
 			},
 		},
 		{
@@ -78,7 +80,7 @@ func TestParsePrivateKey(t *testing.T) {
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
 				privateKey, ok := key.(*PrivateKey)
 				require.True(t, ok)
-				require.IsType(t, ed25519.PrivateKey{}, privateKey.GetBaseSigner())
+				require.IsType(t, ed25519.PrivateKey{}, privateKey.Signer)
 			},
 		},
 	} {
@@ -92,13 +94,38 @@ func TestParsePrivateKey(t *testing.T) {
 
 // TestX509KeyPair tests that X509KeyPair returns the same value as tls.X509KeyPair.
 func TestX509KeyPair(t *testing.T) {
-	expectCert, err := tls.X509KeyPair(rsaCertPEM, rsaKeyPEM)
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		desc    string
+		keyPEM  []byte
+		certPEM []byte
+	}{
+		{
+			desc:    "rsa cert",
+			keyPEM:  rsaKeyPEM,
+			certPEM: rsaCertPEM,
+		}, {
+			desc:   "rsa certs",
+			keyPEM: rsaKeyPEM,
+			certPEM: func() []byte {
+				// encode two certs into certPEM.
+				rsaCertPEMDuplicated := new(bytes.Buffer)
+				der, _ := pem.Decode(rsaCertPEM)
+				pem.Encode(rsaCertPEMDuplicated, der)
+				pem.Encode(rsaCertPEMDuplicated, der)
+				return rsaCertPEMDuplicated.Bytes()
+			}(),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			expectCert, err := tls.X509KeyPair(tc.certPEM, tc.keyPEM)
+			require.NoError(t, err)
 
-	tlsCert, err := X509KeyPair(rsaCertPEM, rsaKeyPEM)
-	require.NoError(t, err)
+			tlsCert, err := X509KeyPair(tc.certPEM, tc.keyPEM)
+			require.NoError(t, err)
 
-	require.Equal(t, expectCert, tlsCert)
+			require.Equal(t, expectCert, tlsCert)
+		})
+	}
 }
 
 var (
