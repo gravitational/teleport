@@ -266,8 +266,21 @@ func builtinAppend(a, b any) (any, error) {
 	}
 }
 
-// TODO: array literals
-// TODO: implement elemental functions:
+func builtinArray(elements ...any) (any, error) {
+	arr := make([]string, len(elements))
+	for i, e := range elements {
+		s, ok := e.(string)
+		if !ok {
+			return nil, trace.BadParameter("cannot create array with element type %T", e)
+		}
+
+		arr[i] = s
+	}
+
+	return arr, nil
+}
+
+// TODO(joel): implement elemental functions:
 // - replace(string, array)
 // - regex
 // - matches(string, regex, regexes?)

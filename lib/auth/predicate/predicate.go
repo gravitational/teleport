@@ -77,6 +77,7 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 			"contains": builtinContains,
 			"first":    builtinFirst,
 			"append":   builtinAppend,
+			"array":    builtinArray,
 		},
 		GetIdentifier: getIdentifierInEnv,
 		GetProperty:   getProperty,
