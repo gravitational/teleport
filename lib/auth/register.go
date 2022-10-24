@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"time"
 
 	"github.com/gravitational/teleport/lib/githubactions"
 
@@ -129,6 +130,10 @@ type RegisterParams struct {
 	// IDToken is a token retrieved from a workload identity provider for
 	// certain join types e.g GitHub, Google.
 	IDToken string
+	// Expires is an optional field for bots that specifies a time that the
+	// certificates that are returned by registering should expire at.
+	// It should not be specified for non-bot registrations.
+	Expires *time.Time
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -292,6 +297,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
 				IDToken:              params.IDToken,
+				Expires:              params.Expires,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -347,6 +353,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
 				IDToken:              params.IDToken,
+				Expires:              params.Expires,
 			})
 	}
 	return certs, trace.Wrap(err)
@@ -614,6 +621,13 @@ type ReRegisterParams struct {
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
 func ReRegister(params ReRegisterParams) (*Identity, error) {
+	var rotation *types.Rotation
+	if !params.Rotation.IsZero() {
+		// older auths didn't distinguish between empty and nil rotation
+		// structs, so we go out of our way to only send non-nil rotation
+		// if it is truly non-empty.
+		rotation = &params.Rotation
+	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
 			HostID:                        params.ID.HostID(),
@@ -623,7 +637,7 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 			DNSNames:                      params.DNSNames,
 			PublicTLSKey:                  params.PublicTLSKey,
 			PublicSSHKey:                  params.PublicSSHKey,
-			Rotation:                      &params.Rotation,
+			Rotation:                      rotation,
 			SystemRoles:                   params.SystemRoles,
 			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
 		})

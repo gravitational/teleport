@@ -21,7 +21,6 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-BUILDBOX_VERSION ?= teleport11
 
 GOLANG_VERSION ?= go1.19.2
 
@@ -47,13 +46,8 @@ PROTOC_VER ?= 3.20.1
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 
-BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
-BUILDBOX_FIPS=public.ecr.aws/gravitational/teleport-buildbox-fips:$(BUILDBOX_VERSION)
-BUILDBOX_CENTOS7=public.ecr.aws/gravitational/teleport-buildbox-centos7:$(BUILDBOX_VERSION)
-BUILDBOX_CENTOS7_FIPS=public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$(BUILDBOX_VERSION)
-BUILDBOX_ARM=public.ecr.aws/gravitational/teleport-buildbox-arm:$(BUILDBOX_VERSION)
-BUILDBOX_ARM_FIPS=public.ecr.aws/gravitational/teleport-buildbox-arm-fips:$(BUILDBOX_VERSION)
-BUILDBOX_TELETERM=public.ecr.aws/gravitational/teleport-buildbox-teleterm:$(BUILDBOX_VERSION)
+# BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
+include images.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
