@@ -135,7 +135,6 @@ exports[`render device dashboard 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
@@ -656,7 +655,6 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
@@ -1123,7 +1121,6 @@ exports[`render failed state for fetching devices 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;

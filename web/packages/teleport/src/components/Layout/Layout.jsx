@@ -52,7 +52,6 @@ FeatureHeaderTitle.defaultProps = {
  * Feature Box (container)
  */
 const FeatureBox = styled(Flex)`
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
