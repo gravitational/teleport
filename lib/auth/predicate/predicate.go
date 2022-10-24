@@ -17,92 +17,10 @@ limitations under the License.
 package predicate
 
 import (
-	"reflect"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
 )
-
-func getIdentifier(obj any, selectors []string) (any, error) {
-	for _, s := range selectors {
-		if obj == nil || reflect.ValueOf(obj).IsNil() {
-			return nil, trace.BadParameter("cannot take field of nil")
-		}
-
-		if m, ok := obj.(map[string]any); ok {
-			obj = m[s]
-		} else {
-			return nil, trace.BadParameter("cannot take field of type: %T", obj)
-		}
-	}
-
-	return obj, nil
-}
-
-func getProperty(m any, k any) (any, error) {
-	switch mT := m.(type) {
-	case map[string]any:
-		kS, ok := k.(string)
-		if !ok {
-			return nil, trace.BadParameter("unsupported key type: %T", k)
-		}
-
-		return mT[kS], nil
-	default:
-		return nil, trace.BadParameter("cannot take property of type: %T", m)
-	}
-}
-
-func builtinOpEquals(a, b any) predicate.BoolPredicate {
-	return func() bool { return reflect.DeepEqual(a, b) }
-}
-
-func builtinOpLT(a, b any) predicate.BoolPredicate {
-	return func() bool {
-		if reflect.TypeOf(a) != reflect.TypeOf(b) {
-			return false
-		}
-
-		switch aT := a.(type) {
-		case string:
-			return aT < b.(string)
-		case int:
-			return aT < b.(int)
-		case float32:
-			return aT < b.(float32)
-		default:
-			return false
-		}
-	}
-}
-
-func builtinOpGT(a, b any) predicate.BoolPredicate {
-	return builtinOpLT(b, a)
-}
-
-func builtinOpLE(a, b any) predicate.BoolPredicate {
-	return func() bool {
-		if reflect.TypeOf(a) != reflect.TypeOf(b) {
-			return false
-		}
-
-		switch aT := a.(type) {
-		case string:
-			return aT <= b.(string)
-		case int:
-			return aT <= b.(int)
-		case float32:
-			return aT <= b.(float32)
-		default:
-			return false
-		}
-	}
-}
-
-func builtinOpGE(a, b any) predicate.BoolPredicate {
-	return builtinOpLE(b, a)
-}
 
 type NamedParameter interface {
 	GetName() string
@@ -147,8 +65,16 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 			LE:  builtinOpLE,
 			GE:  builtinOpGE,
 		},
-		// todo: fix this
-		Functions:     map[string]any{},
+		Functions: map[string]any{
+			"add":   builtinAdd,
+			"sub":   builtinSub,
+			"mul":   builtinMul,
+			"div":   builtinDiv,
+			"xor":   builtinXor,
+			"split": builtinSplit,
+			"upper": builtinUpper,
+			"lower": builtinLower,
+		},
 		GetIdentifier: getIdentifierInEnv,
 		GetProperty:   getProperty,
 	})

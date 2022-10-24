@@ -26,7 +26,7 @@ import (
 func TestCheckAccessToNode(t *testing.T) {
 	withNameAsLogin := types.NewPolicy("allow", types.PolicySpecV1{
 		Allow: map[string]string{
-			"node": "node.login == user.name",
+			"node": "(node.login == user.name) || (add(user.name, \"-admin\") == node.login)",
 		},
 	})
 
@@ -44,6 +44,10 @@ func TestCheckAccessToNode(t *testing.T) {
 	access, err = checker.CheckAccessToNode(&Node{login: "alice"}, &User{name: "bob"})
 	require.NoError(t, err)
 	require.False(t, access)
+
+	access, err = checker.CheckAccessToNode(&Node{login: "bob-admin"}, &User{name: "bob"})
+	require.NoError(t, err)
+	require.True(t, access)
 
 	checkerWithDeny := NewPredicateAccessChecker([]types.Policy{withNameAsLogin, denyMike})
 	access, err = checkerWithDeny.CheckAccessToNode(&Node{login: "mike"}, &User{name: "mike"})
