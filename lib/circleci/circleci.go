@@ -25,7 +25,7 @@ limitations under the License.
 // Useful references:
 // - https://circleci.com/docs/openid-connect-tokens/
 
-package cirleci
+package circleci
 
 import "fmt"
 

@@ -14,15 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cirleci
+package circleci
 
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/coreos/go-oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"time"
 )
 
 func ValidateToken(ctx context.Context, clock clockwork.Clock, organizationID string, token string) (*IDTokenClaims, error) {
