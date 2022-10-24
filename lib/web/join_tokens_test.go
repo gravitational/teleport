@@ -624,14 +624,12 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 
 	for _, test := range []struct {
 		desc            string
-		skip            bool
 		settings        scriptSettings
 		errAssert       require.ErrorAssertionFunc
 		extraAssertions func(script string)
 	}{
 		{
 			desc: "two installation methods",
-			skip: true,
 			settings: scriptSettings{
 				token:               validToken,
 				databaseInstallMode: true,
@@ -641,7 +639,6 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 		},
 		{
 			desc: "valid",
-			skip: true,
 			settings: scriptSettings{
 				databaseInstallMode: true,
 				token:               validToken,
@@ -680,15 +677,13 @@ db_service:
 db_service:
   enabled: "yes"
   resources:
-    - labels: {}
+    - labels:
+        {}
 `)
 			},
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			if test.skip {
-				t.SkipNow()
-			}
 			script, err := getJoinScript(context.Background(), test.settings, m)
 			test.errAssert(t, err)
 			if err != nil {

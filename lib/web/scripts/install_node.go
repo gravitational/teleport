@@ -17,9 +17,9 @@ limitations under the License.
 package scripts
 
 import (
-	"bytes"
 	_ "embed"
 	"net/http"
+	"strings"
 	"text/template"
 
 	"gopkg.in/yaml.v3"
@@ -53,51 +53,23 @@ var installNodeBashScript string
 
 var InstallNodeBashScript = template.Must(template.New("nodejoin").Parse(installNodeBashScript))
 
-// DBServiceConfig is partial configuration of the Teleport config file.
-// It only contains the top level `db_service` field.
-type DBServiceConfig struct {
-	DBService DBService `yaml:"db_service,omitempty"`
-}
-
-// DBService contains the configurable fields in the context of install node script generation.
-type DBService struct {
-	Enabled          string            `yaml:"enabled"`
-	ResourceMatchers []ResourceMatcher `yaml:"resources"`
-}
-
-// ResourceMatcher has a set of labels used to match the resources to be monitored by the database agent.
-type ResourceMatcher struct {
-	// Labels match resource labels.
-	Labels map[string]utils.Strings `yaml:"labels"`
-}
-
-// MarshalDBServiceConfigSection returns a yaml marshaled representation of `db_service` config property.
-// It adds the resourceMatcherLabels as `db_service.resources.0.labels`.
-// This should only be used to generate the configuration part of the script.
-// New properties should be added as necessary.
-func MarshalDBServiceConfigSection(resourceMatcherLabels types.Labels) (string, error) {
-	var dbServiceEncoded bytes.Buffer
-	dbServiceEncoder := yaml.NewEncoder(&dbServiceEncoded)
-	dbServiceEncoder.SetIndent(2)
-
-	dbService := DBServiceConfig{
-		DBService: DBService{
-			Enabled: "yes",
-			ResourceMatchers: []ResourceMatcher{
-				{
-					Labels: resourceMatcherLabels,
-				},
-			},
-		},
+// MarshalLabelsYAML returns a list of strings, each one containing a label key/value pair.
+// This is used to create yaml sections within the join scripts.
+func MarshalLabelsYAML(resourceMatcherLabels types.Labels) ([]string, error) {
+	if len(resourceMatcherLabels) == 0 {
+		return []string{"{}"}, nil
 	}
 
-	if err := dbServiceEncoder.Encode(dbService); err != nil {
-		return "", trace.Wrap(err)
+	ret := []string{}
+
+	for labelName, labelValue := range resourceMatcherLabels {
+		bs, err := yaml.Marshal(map[string]utils.Strings{labelName: labelValue})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret = append(ret, strings.TrimSpace(string(bs)))
 	}
 
-	if err := dbServiceEncoder.Close(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return dbServiceEncoded.String(), nil
+	return ret, nil
 }

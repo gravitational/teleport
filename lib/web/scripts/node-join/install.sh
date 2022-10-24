@@ -442,6 +442,9 @@ EOF
 install_teleport_database_config() {
     log "Writing Teleport database service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+
+    # we disable this shellcheck check because go templates this section before this becoming an actual shell script
+    # shellcheck disable=SC2154
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 version: v3
 teleport:
@@ -458,7 +461,12 @@ ssh_service:
   enabled: no
 proxy_service:
   enabled: no
-{{.db_service_section}}
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:{{range $index, $line := .db_service_resource_labels}}
+        {{$line -}}
+{{end}}
 EOF
 }
 # installs the provided teleport config (for node service)

@@ -338,9 +338,10 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
 
-	dbService := ""
+	resourceLabelsList := []string{}
 	if settings.databaseInstallMode {
-		dbService, err = scripts.MarshalDBServiceConfigSection(token.GetAgentMatcherLabels())
+		agentMatcherLabels := token.GetAgentMatcherLabels()
+		resourceLabelsList, err = scripts.MarshalLabelsYAML(agentMatcherLabels)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -359,7 +360,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
-	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]string{
+	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]interface{}{
 		"token":    settings.token,
 		"hostname": hostname,
 		"port":     portStr,
@@ -368,16 +369,16 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		// version used space delimited values whereas the teleport command uses
 		// a comma delimeter. The Old version can be removed when the install.sh
 		// file has been completely converted over.
-		"caPinsOld":           strings.Join(caPins, " "),
-		"caPins":              strings.Join(caPins, ","),
-		"version":             version,
-		"appInstallMode":      strconv.FormatBool(settings.appInstallMode),
-		"appName":             settings.appName,
-		"appURI":              settings.appURI,
-		"joinMethod":          settings.joinMethod,
-		"labels":              strings.Join(labelsList, ","),
-		"databaseInstallMode": strconv.FormatBool(settings.databaseInstallMode),
-		"db_service_section":  dbService,
+		"caPinsOld":                  strings.Join(caPins, " "),
+		"caPins":                     strings.Join(caPins, ","),
+		"version":                    version,
+		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
+		"appName":                    settings.appName,
+		"appURI":                     settings.appURI,
+		"joinMethod":                 settings.joinMethod,
+		"labels":                     strings.Join(labelsList, ","),
+		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
+		"db_service_resource_labels": resourceLabelsList,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
