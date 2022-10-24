@@ -42,7 +42,9 @@ is just not possible.
 
 #### Sync Recording modes
 
-Both `proxy-sync` and `node-sync` recording modes require a persistent connection to Auth to upload session recordings. As a result, even if `tsh ssh` doesn't require a connection to Auth, the session does and as a result the node will prevent a session from starting.
+Both `proxy-sync` and `node-sync` recording modes require a persistent connection to Auth to upload session recordings. As a result, 
+even if `tsh ssh` doesn't require a connection to Auth, the session cannot be created without being able to start a connection
+for the recordings. This will prevent the connection to the node from being established successfully.
 
 #### Per-Session MFA
 
@@ -67,7 +69,7 @@ spec:
       ssh: strict
 ```
 
-Strict mode, which is only available when recording at the node, will result in the session failing to launch if the node is unable to record the session. In the event that 
+Strict mode, which is only available when recording at the node, will result in the session failing to launch if the node is unable to record the session.
 
 
 #### Moderated Sessions 
@@ -79,6 +81,21 @@ Tracking participants for a moderated session requires persisting the `types.Ses
 All access via the Web UI requires a connection to Auth. None of the auth connector resources are replicated to the Proxy which means users are unable to login to the Web UI without
 connectivity to Auth. Even when already logged in prior to losing connection to Auth, the Proxy doesn't perform any RBAC for users locally. It instead relies on proxying all requests
 to the Auth server on behalf of the logged in user for RBAC to be performed. 
+
+#### Strict Locking mode
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: lock-strict
+spec:
+  options:
+    lock: strict
+```
+
+Strict mode, which is not the default mode, causes all interactions to be terminated when the locks are not guaranteed to be up to date. When connectivity to Auth is
+interrupted and locks aren't able to be replicated, new connections will eventually be aborted out of an abundance of caution. 
 
 ### Auth Connection Not Required 
 
@@ -161,6 +178,15 @@ sequenceDiagram
     tsh->>+Node: Connect
     Node-->>+tsh: Access Denied
 ```
+
+
+Alternative approaches:
+
+1) Attempt to connect to the node first, and if it fails with a `trace.AccessDenied` error then try `proto.AuthService/IsMFARequired` and then perform the MFA ceremony and connect to the node again
+    - Results in reduced latency for the happy path which doesn't require per-session MFA by removing the call to `proto.AuthService/IsMFARequired` entirely. However, `proto.AuthService/IsMFARequired` is still required   if the user doesn't have access to the node at all or per-session MFA is required.
+    - Results in increased latency when per-session MFA is required since that flow now requires establishing the connection to the target node twice.
+3) Perform `proto.AuthService/IsMFARequired` and connecting to the node in parallel and act accordingly
+    - Ultimately leads to roughly the same outcome as Option 1. The connection to the node almost always takes longer than the connection to auth. By performing them in parallel you really only get gains in the happy path.
 
 ###### Session Trackers
 A new session tracker is created for every session. In the event that persisting the session tracker fails the 
