@@ -25,7 +25,12 @@ This guide will help you to:
 - Set up access to Azure SQL Server using Azure Active Directory authentication.
 - Connect to Azure SQL Server through Teleport.
 
-![Teleport Database Access Azure SQL Server Azure Active Directory](../../../img/database-access/guides/sqlserver/sql-aad.png)
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access Azure SQL Server Azure Active Directory Self-Hosted](../../../img/database-access/guides/sqlserver/sql-aad.png)
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access Azure SQL Server Azure Active Directory Cloud](../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
+</ScopedBlock>
 
 ## Prerequisites
 
@@ -104,6 +109,7 @@ database we want to be able to log in.
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
+<ScopedBlock scope={["oss", "enterprise"]}>
 ```code
 $ teleport db configure create \
    -o file \
@@ -114,6 +120,19 @@ $ teleport db configure create \
    --uri=my-server.database.windows.net:1433 \
    --labels=env=dev
 ```
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=mytenant.teleport.sh:443 \
+   --name=sqlserver \
+   --protocol=sqlserver \
+   --uri=my-server.database.windows.net:1433 \
+   --labels=env=dev
+```
+</ScopedBlock>
 
 <Admonition
   type="tip"
@@ -136,6 +155,7 @@ $ teleport start --config=/etc/teleport.yaml
 Login into your Teleport Cluster. Your database should appear in the list of
 available databases:
 
+<ScopedBlock scope={["oss", "enterprise"]}>
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -143,6 +163,16 @@ $ tsh db ls
 # --------- ------------------- -------
 # sqlserver                     env=dev
 ```
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name      Description         Labels
+# --------- ------------------- -------
+# sqlserver                     env=dev
+```
+</ScopedBlock>
 
 To retrieve credentials for a database and connect to it:
 

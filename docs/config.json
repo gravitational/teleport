@@ -738,8 +738,7 @@
             },
             {
               "title": "Azure SQL Server (Preview)",
-              "slug": "/database-access/guides/azure-sql-server-ad/",
-              "forScopes": ["oss", "enterprise"]
+              "slug": "/database-access/guides/azure-sql-server-ad/"
             },
             {
               "title": "MongoDB Atlas",
