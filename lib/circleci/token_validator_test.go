@@ -179,6 +179,18 @@ func TestValidateToken(t *testing.T) {
 				time.Now().Add(-5*time.Minute),
 			),
 		},
+		{
+			name:        "another org",
+			assertError: require.Error,
+			token: fake.issueToken(
+				t,
+				"not-the-configured-org",
+				"a-project",
+				[]string{"a-context"},
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+		},
 	}
 
 	for _, tt := range tests {
