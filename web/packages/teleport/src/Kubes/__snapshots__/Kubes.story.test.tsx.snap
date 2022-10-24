@@ -204,7 +204,6 @@ exports[`empty state 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
@@ -256,7 +255,7 @@ exports[`empty state 1`] = `
             font-weight="400"
             style="opacity: 0.6;"
           >
-            Teleport Kubenetes Access provides secure access to Kubernetes clusters.
+            Teleport Kubernetes Access provides secure access to Kubernetes clusters.
           </div>
         </div>
         <div
@@ -717,7 +716,6 @@ exports[`failed 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
@@ -1429,7 +1427,6 @@ exports[`loaded 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
@@ -1764,7 +1761,6 @@ exports[`readonly empty state 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
