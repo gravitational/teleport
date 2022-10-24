@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"github.com/gravitational/teleport/e/tool/tctl/devices"
 	"github.com/gravitational/teleport/e/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/e/tool/tctl/sso/tester"
 	"github.com/gravitational/teleport/tool/tctl/common"
@@ -28,6 +29,7 @@ func ENTCommands() []common.CLICommand {
 		&ResourceCommandE{},
 		&SAMLCommand{},
 		&configure.SSOConfigureCommandE{},
+		&devices.Command{},
 		&tester.SSOTestCommandE{},
 	}
 }
