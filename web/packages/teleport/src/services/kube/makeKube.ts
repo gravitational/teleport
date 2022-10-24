@@ -23,5 +23,7 @@ export default function makeKube(json): Kube {
   return {
     name,
     labels,
+    users: json.kubernetes_users || [],
+    groups: json.kubernetes_groups || [],
   };
 }

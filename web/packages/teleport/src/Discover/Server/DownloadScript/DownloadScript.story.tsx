@@ -22,7 +22,7 @@ import { DownloadScript } from './DownloadScript';
 import { State } from './useDownloadScript';
 
 export default {
-  title: 'Teleport/Discover/DownloadScript',
+  title: 'Teleport/Discover/Server/DownloadScript',
 };
 
 export const Polling = () => (

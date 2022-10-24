@@ -14,16 +14,21 @@
  * limitations under the License.
  */
 
-import logins from './logins.yaml?raw';
-import loginsAndRuleUsers from './loginsAndRuleUsers.yaml?raw';
-import ruleConnectionDiagnostic from './ruleConnectionDiagnostic.yaml?raw';
-import kubeAccessRW from './kubeAccessRW.yaml?raw';
-import kubeAccessRO from './kubeAccessRO.yaml?raw';
+import { rest } from 'msw';
 
-export {
-  logins,
-  loginsAndRuleUsers,
-  ruleConnectionDiagnostic,
-  kubeAccessRW,
-  kubeAccessRO,
-};
+import cfg from 'teleport/config';
+import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
+
+// handlersTeleport defines default positive (200) response values.
+export const handlersTeleport = [
+  rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
+    return res(
+      ctx.json({
+        id: 'token-id',
+        suggestedLabels: [
+          { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
+        ],
+      })
+    );
+  }),
+];

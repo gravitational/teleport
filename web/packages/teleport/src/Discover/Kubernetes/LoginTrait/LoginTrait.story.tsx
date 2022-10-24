@@ -22,65 +22,83 @@ import { LoginTrait } from './LoginTrait';
 import { State } from './useLoginTrait';
 
 export default {
-  title: 'Teleport/Discover/Server/LoginTrait',
+  title: 'Teleport/Discover/Kube/LoginTrait',
 };
 
-export const NoLoginsAndPerm = () => (
+export const NoAccessAndNoTraits = () => (
   <MemoryRouter>
     <LoginTrait
       {...props}
       canEditUser={false}
-      staticLogins={[]}
-      dynamicLogins={[]}
+      dynamicTraits={{ users: [], groups: [] }}
+      staticTraits={{ users: [], groups: [] }}
     />
   </MemoryRouter>
 );
 
-export const NoLoginsAndPermAndSsoUser = () => (
-  <MemoryRouter>
-    <LoginTrait
-      {...props}
-      canEditUser={false}
-      isSsoUser={true}
-      staticLogins={[]}
-      dynamicLogins={[]}
-    />
-  </MemoryRouter>
-);
-
-export const NoPerm = () => (
+export const NoAccessButHasTraits = () => (
   <MemoryRouter>
     <LoginTrait {...props} canEditUser={false} />
   </MemoryRouter>
 );
 
-export const SsoUser = () => (
+export const SsoUserAndNoTraits = () => (
+  <MemoryRouter>
+    <LoginTrait
+      {...props}
+      canEditUser={false}
+      isSsoUser={true}
+      dynamicTraits={{ users: [], groups: [] }}
+      staticTraits={{ users: [], groups: [] }}
+    />
+  </MemoryRouter>
+);
+
+export const SsoUserButHasTraits = () => (
   <MemoryRouter>
     <LoginTrait {...props} isSsoUser={true} />
   </MemoryRouter>
 );
 
-export const StaticAndDynamic = () => (
-  <MemoryRouter>
-    <LoginTrait {...props} />
-  </MemoryRouter>
-);
-
 export const DynamicOnly = () => (
   <MemoryRouter>
-    <LoginTrait {...props} staticLogins={[]} />
+    <LoginTrait {...props} staticTraits={{ users: [], groups: [] }} />
   </MemoryRouter>
 );
 
 export const StaticOnly = () => (
   <MemoryRouter>
-    <LoginTrait {...props} dynamicLogins={[]} />
+    <LoginTrait {...props} dynamicTraits={{ users: [], groups: [] }} />
   </MemoryRouter>
 );
 
-export const NoLogins = () => (
+export const GroupsOnly = () => (
   <MemoryRouter>
-    <LoginTrait {...props} dynamicLogins={[]} staticLogins={[]} />
+    <LoginTrait
+      {...props}
+      dynamicTraits={{ users: [], groups: [...props.dynamicTraits.groups] }}
+      staticTraits={{ users: [], groups: [...props.staticTraits.groups] }}
+    />
+  </MemoryRouter>
+);
+
+export const UsersOnly = () => (
+  <MemoryRouter>
+    <LoginTrait
+      {...props}
+      dynamicTraits={{ groups: [], users: [...props.dynamicTraits.users] }}
+      staticTraits={{ groups: [], users: [...props.staticTraits.users] }}
+    />
+  </MemoryRouter>
+);
+
+export const NoTraits = () => (
+  <MemoryRouter>
+    <LoginTrait
+      {...props}
+      dynamicTraits={{ users: [], groups: [] }}
+      staticTraits={{ users: [], groups: [] }}
+    />
   </MemoryRouter>
 );
 
@@ -104,14 +122,12 @@ const props: State = {
     status: 'success',
     statusText: '',
   },
-  dynamicLogins: [
-    'root',
-    'llama',
-    'george_washington_really_long_name_testing',
-  ],
-  staticLogins: ['ubunutu', 'debian'],
+  dynamicTraits: {
+    users: ['root', 'llama', 'george_washington_really_long_name_testing'],
+    groups: ['group1', 'group2'],
+  },
+  staticTraits: { users: ['staticUser1'], groups: ['staticGroup1'] },
   nextStep: () => null,
-  addLogin: () => null,
   fetchLoginTraits: () => null,
   canEditUser: true,
   isSsoUser: false,

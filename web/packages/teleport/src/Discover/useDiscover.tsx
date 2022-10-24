@@ -28,6 +28,7 @@ import { addIndexToViews, findViewAtIndex, View } from './flow';
 import { resources } from './resources';
 
 import type { Node } from 'teleport/services/nodes';
+import type { Kube } from 'teleport/services/kube';
 
 export function getKindFromString(value: string) {
   switch (value) {
@@ -113,6 +114,12 @@ type AppMeta = BaseMeta & {
   publicAddr: string;
 };
 
-export type AgentMeta = AppMeta | NodeMeta;
+// KubeMeta describes the fields that may be provided or required by user
+// when connecting a app.
+export type KubeMeta = BaseMeta & {
+  kube: Kube;
+};
+
+export type AgentMeta = AppMeta | NodeMeta | KubeMeta;
 
 export type State = ReturnType<typeof useDiscover>;

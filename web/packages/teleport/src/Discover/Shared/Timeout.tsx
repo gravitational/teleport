@@ -27,9 +27,12 @@ export function Timeout({
     timeout - Date.now()
   );
 
+  const formattedSeconds = String(seconds).padStart(2, '0');
+  const formattedMinutes = String(minutes).padStart(2, '0');
+
   return (
     <span>
-      {message} {minutes}:{seconds}
+      {message} {formattedMinutes}:{formattedSeconds}
     </span>
   );
 }

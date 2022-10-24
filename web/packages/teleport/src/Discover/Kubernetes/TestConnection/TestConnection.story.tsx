@@ -23,12 +23,60 @@ import type { ConnectionDiagnosticTrace } from 'teleport/services/agents';
 import type { State } from './useTestConnection';
 
 export default {
-  title: 'Teleport/Discover/Server/TestConnection',
+  title: 'Teleport/Discover/Kube/TestConnection',
 };
 
-export const LoadedInit = () => (
+export const LoadedInitWithLocal = () => (
   <MemoryRouter>
     <TestConnection {...props} />
+  </MemoryRouter>
+);
+
+export const LoadedInitWithSso = () => (
+  <MemoryRouter>
+    <TestConnection {...props} authType="sso" />
+  </MemoryRouter>
+);
+
+export const WithKubeUsers = () => (
+  <MemoryRouter>
+    <TestConnection
+      {...props}
+      kube={{
+        name: 'some-kube-name',
+        labels: [],
+        users: ['user1', 'user2'],
+        groups: [],
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const WithKubeGroups = () => (
+  <MemoryRouter>
+    <TestConnection
+      {...props}
+      kube={{
+        name: 'some-kube-name',
+        labels: [],
+        users: [],
+        groups: ['group1', 'group2'],
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const WithKubeUsersAndGroups = () => (
+  <MemoryRouter>
+    <TestConnection
+      {...props}
+      kube={{
+        name: 'some-kube-name',
+        labels: [],
+        users: ['user1', 'user2'],
+        groups: ['group1', 'group2'],
+      }}
+    />
   </MemoryRouter>
 );
 
@@ -89,6 +137,7 @@ export const Failed = () => (
   </MemoryRouter>
 );
 
+// TODO update to kube, does not matter really.
 const mockDiagnosis = {
   id: 'id',
   labels: [],
@@ -133,10 +182,17 @@ const props: State = {
     status: 'success',
     statusText: '',
   },
-  logins: ['root', 'llama', 'george_washington_really_long_name_testing'],
-  startSshSession: () => null,
   runConnectionDiagnostic: () => null,
   nextStep: () => null,
   diagnosis: null,
   canTestConnection: true,
+  kube: {
+    name: 'some-kube-name',
+    labels: [],
+    users: [],
+    groups: [],
+  },
+  username: 'teleport-username',
+  authType: 'local',
+  clusterId: 'some-cluster-id',
 };

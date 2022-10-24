@@ -18,12 +18,20 @@ import React from 'react';
 
 import { Kubernetes } from 'design/Icon';
 
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { Resource } from 'teleport/Discover/flow';
+
+import { KubeWrapper } from './KubeWrapper';
+import { DownloadScript } from './DownloadScript';
+import { LoginTrait } from './LoginTrait';
+import { TestConnection } from './TestConnection';
 
 export const KubernetesResource: Resource = {
   kind: ResourceKind.Kubernetes,
   icon: <Kubernetes />,
+  wrapper: (component: React.ReactNode) => (
+    <KubeWrapper>{component}</KubeWrapper>
+  ),
   shouldPrompt(currentStep) {
     // do not prompt on exit if they're selecting a resource
     return currentStep !== 0;
@@ -31,6 +39,23 @@ export const KubernetesResource: Resource = {
   views: [
     {
       title: 'Select Resource',
+    },
+    {
+      title: 'Configure Resource',
+      component: DownloadScript,
+    },
+    {
+      title: 'Set Up Access',
+      component: LoginTrait,
+    },
+    {
+      title: 'Test Connection',
+      component: TestConnection,
+    },
+    {
+      title: 'Finished',
+      component: Finished,
+      hide: true,
     },
   ],
 };
