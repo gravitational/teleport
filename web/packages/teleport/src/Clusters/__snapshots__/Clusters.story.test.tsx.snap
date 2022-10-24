@@ -145,7 +145,6 @@ exports[`render clusters 1`] = `
   padding-left: 40px;
   padding-right: 40px;
   display: flex;
-  overflow: auto;
   width: 100%;
   height: 100%;
   flex-direction: column;
