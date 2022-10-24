@@ -52,10 +52,10 @@ func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, chal
 	return c.returnCerts, c.returnError
 }
 
-func ConnectionCountingStreamInterceptor(count *atomic.Int32) grpc.StreamServerInterceptor {
+func ConnectionCountingStreamInterceptor(count *int32) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		count.Add(1)
-		defer count.Add(-1)
+		atomic.AddInt32(count, 1)
+		defer atomic.AddInt32(count, -1)
 		return handler(srv, ss)
 	}
 }
@@ -87,7 +87,7 @@ type testPack struct {
 	authClient, proxyClient         *client.JoinServiceClient
 	authGRPCClient, proxyGRPCClient proto.JoinServiceClient
 	authServer, proxyServer         *JoinServiceGRPCServer
-	streamConnectionCount           *atomic.Int32
+	streamConnectionCount           *int32
 	mockAuthServer                  *mockJoinServiceClient
 }
 
@@ -95,11 +95,11 @@ func newTestPack(t *testing.T) *testPack {
 	// create a mock auth server which implements RegisterUsingIAMMethod
 	mockAuthServer := &mockJoinServiceClient{}
 
-	streamConnectionCount := &atomic.Int32{}
+	var streamConnectionCount int32
 
 	// create the first instance of JoinServiceGRPCServer wrapping the mock auth
 	// server, to imitate the JoinServiceGRPCServer which runs on Auth
-	authGRPCServer, authGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
+	authGRPCServer, authGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(&streamConnectionCount)))
 	authServer := NewJoinServiceGRPCServer(mockAuthServer)
 	proto.RegisterJoinServiceServer(authGRPCServer, authServer)
 
@@ -110,7 +110,7 @@ func newTestPack(t *testing.T) *testPack {
 
 	// create a second instance of JoinServiceGRPCServer wrapping the "auth"
 	// gRPC client, to imitate the JoinServiceGRPCServer which runs on Proxy
-	proxyGRPCServer, proxyGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
+	proxyGRPCServer, proxyGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(&streamConnectionCount)))
 	proxyServer := NewJoinServiceGRPCServer(authJoinServiceClient)
 	proto.RegisterJoinServiceServer(proxyGRPCServer, proxyServer)
 
@@ -143,7 +143,7 @@ func newTestPack(t *testing.T) *testPack {
 		authClient:            authJoinServiceClient,
 		proxyGRPCClient:       proxyGRPCClient,
 		proxyClient:           proxyJoinServiceClient,
-		streamConnectionCount: streamConnectionCount,
+		streamConnectionCount: &streamConnectionCount,
 		mockAuthServer:        mockAuthServer,
 	}
 }
@@ -250,7 +250,7 @@ func TestTimeout(t *testing.T) {
 				return nil, trace.BadParameter("")
 			})
 			require.Eventually(t, func() bool {
-				return testPack.streamConnectionCount.Load() == 0
+				return atomic.LoadInt32(testPack.streamConnectionCount) == 0
 			}, 10*time.Second, 1*time.Millisecond)
 			// ^ This timeout is absurdly large but I really don't want this to
 			// be flaky in CI. This test is still pretty fast most of the time and
@@ -281,7 +281,7 @@ func TestTimeout(t *testing.T) {
 
 			// Sanity check there are some open connections after the first gRPC
 			// Recv
-			require.Greater(t, testPack.streamConnectionCount.Load(), int32(0))
+			require.Greater(t, atomic.LoadInt32(testPack.streamConnectionCount), int32(0))
 
 			// Instead of sending a challenge response, a poorly behaved client
 			// might just hang and never close the connection.
@@ -290,7 +290,7 @@ func TestTimeout(t *testing.T) {
 			// connections are closed shortly after the timeout.
 			fakeClock.Advance(iamJoinRequestTimeout)
 			require.Eventually(t, func() bool {
-				return testPack.streamConnectionCount.Load() == 0
+				return atomic.LoadInt32(testPack.streamConnectionCount) == 0
 			}, 10*time.Second, 1*time.Millisecond)
 			// ^ This timeout is absurdly large but I really don't want this to
 			// be flaky in CI. This test is still pretty fast most of the time and
