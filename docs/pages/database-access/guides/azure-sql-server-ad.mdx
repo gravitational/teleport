@@ -1,6 +1,6 @@
 ---
-title: Database Access with Azure SQL Server with Active Directory authentication (Preview)
-description: How to configure Teleport Database Access with Azure SQL Server with Active Directory authentication.
+title: Database Access with Azure SQL Server with Azure Active Directory authentication (Preview)
+description: How to configure Teleport Database Access with Azure SQL Server with Azure Active Directory authentication.
 ---
 
 <Details
@@ -10,22 +10,22 @@ description: How to configure Teleport Database Access with Azure SQL Server wit
   scopeOnly={true}
   min="11.0"
 >
-  Database Access for Azure SQL Server with Active Directory authentication
+  Database Access for Azure SQL Server with Azure Active Directory authentication
   is available starting from Teleport `11.0`.
 </Details>
 
 <Admonition type="warning" title="Preview">
-  Database Access for Azure SQL Server with Active Directory authentication is
+  Database Access for Azure SQL Server with Azure Active Directory authentication is
   currently in Preview mode.
 </Admonition>
 
 This guide will help you to:
 
 - Install and configure Teleport.
-- Set up access to Azure SQL Server using Active Directory authentication.
+- Set up access to Azure SQL Server using Azure Active Directory authentication.
 - Connect to Azure SQL Server through Teleport.
 
-![Teleport Database Access Azure SQL Server Active Directory](../../../img/database-access/guides/sqlserver/sql-aad.png)
+![Teleport Database Access Azure SQL Server Azure Active Directory](../../../img/database-access/guides/sqlserver/sql-aad.png)
 
 ## Prerequisites
 
@@ -42,22 +42,22 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Enable SQL Server Active Directory integration
+## Step 3/7. Enable SQL Server Azure Active Directory integration
 
 If you have it enabled, you can go to the next step.
 
 1. Go to the [Azure Portal](https://portal.azure.com/), select **Database
-   servers**, and select the database you wish to enable the Active Directory
+   servers**, and select the database you wish to enable the Azure Active Directory
    integration.
 2. Select **Azure Active Directory** in the left-hand column.
 3. Select **Set Admin**, and choose an account that will be added as an admin
    login to SQL Server.
 
-![Azure SQL Server Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
+![Azure SQL Server Azure Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
 ## Step 4/7. Configure Azure Managed Identities
 
-Teleport Database Service needs access tokens from Azure AD to authenticate with
+The Teleport Database Service needs access tokens from Azure AD to authenticate with
 SQL Server databases.
 
 It uses the managed identities attached to its Virtual Machine to fetch the
@@ -87,9 +87,9 @@ for your identities:
 CREATE USER [sqlserver-identity] FROM EXTERNAL PROVIDER;
 ```
 
-The newly created login will be attached to the public role, which might not
+The newly created user will be attached to the public role, which might not
 have enough permissions to perform queries. Consider granting individual
-permissions or adding it to an existing role. For example, adding to
+permissions to the user or assigning it to an existing role. For example, add the user as a member of the
 `db_datareader` role:
 ```sql
 ALTER ROLE db_datareader ADD MEMBER [sqlserver-identity];
@@ -128,7 +128,7 @@ $ teleport db configure create \
 Start the database service:
 
 ```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
+$ teleport start --config=/etc/teleport.yaml
 ```
 
 ## Step 7/7. Connect
