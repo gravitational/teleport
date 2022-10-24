@@ -3464,6 +3464,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessPoint:  accessPoint,
 		}
 
+		proxyKubeAddr := cfg.Proxy.Kube.ListenAddr
+		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+			proxyKubeAddr = cfg.Proxy.Kube.PublicAddrs[0]
+		}
+
 		webConfig := web.Config{
 			Proxy:            tsrv,
 			AuthServers:      cfg.AuthServers[0],
@@ -3484,6 +3489,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySettings:    proxySettings,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
 			PublicProxyAddr:  process.proxyPublicAddr().Addr,
+			ProxyKubeAddr:    proxyKubeAddr,
 		}
 
 		webHandler, err = web.NewHandler(webConfig)
