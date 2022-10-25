@@ -40,7 +40,11 @@ In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "
 
 This will bring you to the "Add New Resorces" menu. "Desktop" will already be selected. Click **NEXT**.
 
-If your Windows server is already running as an Active Directory controller, skip to the next step. Otherwise, copy and paste the first command provided into a Windows Powershell window. If your server is not already running AD Certificate Services, copy and paste the second command after the first one completes and the server restarts:
+Teleport provides three commands that you can run to perform starts of the set up process. Which commands you need to run depends on what is already configured.
+
+1. Install Active Directory. Skip this step if Active Directory is already running.
+2. Install AD Certificate Services. Skip this step if AD CS is already running.
+3. Configure AD for Teleport. This step should always be run.
 
 ![Install Active Directory](../../img/desktop-access/install-active-directory.png)
 
@@ -54,7 +58,7 @@ Click **NEXT**.
 
 The Powershell script will output a Teleport configuration block. Copy this block to a temporary location. Click **Next**.
 
-On the host you installed Teleport to run as the Desktop Access connector, edit `/etc/teleport.yaml` and paste the configuration provided by the output of the previous step:
+On the Linux host where you intend to run the Teleport Windows Desktop Service, paste the configuration provided by the output of the previous step in a file called `/etc/teleport.yaml`.
 
 ```yaml
 version: v3
