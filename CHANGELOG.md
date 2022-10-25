@@ -90,6 +90,11 @@ https://github.com/gravitational/teleport-actions
 In addition, the Teleport Terraform plugin now supports the creation of Machine
 ID Bots and Bot Tokens.
 
+### TSH MFA on Windows
+
+TSH 11 adds support for MFA and passwordless logins via Windows Hello and
+FIDO2 devices.
+
 ### Teleport Connect
 
 Teleport Connect has added support for Access Requests and file upload/download.
