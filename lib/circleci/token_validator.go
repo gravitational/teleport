@@ -18,6 +18,7 @@ package circleci
 
 import (
 	"context"
+
 	"github.com/coreos/go-oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"

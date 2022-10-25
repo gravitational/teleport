@@ -444,5 +444,5 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 			)
 		}
 	}
-	return fmt.Errorf("unimplemented")
+	return nil
 }

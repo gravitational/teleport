@@ -37,10 +37,8 @@ func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.Regist
 		return trace.BadParameter("circleci join method only support ProvisionTokenV2")
 	}
 
-	claims, err := circleci.ValidateToken(
+	claims, err := a.circleCITokenValidate(
 		ctx,
-		a.GetClock(),
-		circleci.IssuerURLTemplate,
 		token.Spec.CircleCI.OrganizationID,
 		req.IDToken,
 	)
