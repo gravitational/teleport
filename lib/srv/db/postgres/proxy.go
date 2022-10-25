@@ -131,7 +131,7 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 		case *pgproto3.SSLRequest:
 			if receivedSSLRequest {
 				// avoid receiving the same request over and over.
-				return nil, nil, nil, trace.LimitExceeded("received more than one SSLRequest")
+				return nil, nil, nil, trace.BadParameter("received more than one SSLRequest")
 			}
 			receivedSSLRequest = true
 			if p.TLSConfig == nil {
@@ -158,7 +158,7 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 		case *pgproto3.GSSEncRequest:
 			if receivedGSSEncRequest {
 				// avoid receiving the same request over and over.
-				return nil, nil, nil, trace.LimitExceeded("received more than one GSSEncRequest")
+				return nil, nil, nil, trace.BadParameter("received more than one GSSEncRequest")
 			}
 			receivedGSSEncRequest = true
 			// Send 'N' back to make the client connect without GSS encryption.
