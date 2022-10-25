@@ -745,6 +745,10 @@
               "slug": "/database-access/guides/mongodb-atlas/"
             },
             {
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
+            },
+            {
               "title": "Self-Hosted PostgreSQL",
               "slug": "/database-access/guides/postgres-self-hosted/"
             },
