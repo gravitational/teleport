@@ -127,7 +127,7 @@ endif
 endif
 
 # Enable libfido2 for testing?
-# Eargerly enable if we detect the package, we want to test as much as possible.
+# Eagerly enable if we detect the package, we want to test as much as possible.
 ifeq ("$(shell pkg-config libfido2 2>/dev/null; echo $$?)", "0")
 LIBFIDO2_TEST_TAG := libfido2
 endif
@@ -154,7 +154,7 @@ TOUCHID_TAG := touchid
 endif
 
 # Enable PIV for testing?
-# Eargerly enable if we detect the dynamic libpcsclite library, we want to test as much as possible.
+# Eagerly enable if we detect the dynamic libpcsclite library, we want to test as much as possible.
 ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
 # This test tag should not be used for builds/releases, only tests.
 PIV_TEST_TAG := piv
