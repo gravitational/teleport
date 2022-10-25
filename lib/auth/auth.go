@@ -31,7 +31,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/gravitational/teleport/lib/circleci"
 	"math"
 	"math/big"
 	insecurerand "math/rand"
@@ -41,6 +40,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gravitational/teleport/lib/circleci"
 
 	"github.com/gravitational/teleport/lib/githubactions"
 

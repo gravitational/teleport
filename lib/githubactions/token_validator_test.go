@@ -103,7 +103,7 @@ func fakeGithubIDP(t *testing.T) (*httptest.Server, jose.Signer) {
 		require.NoError(t, err)
 
 	})
-	
+
 	return srv, signer
 }
 
