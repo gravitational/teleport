@@ -92,7 +92,7 @@ ID Bots and Bot Tokens.
 
 ### tsh MFA on Windows
 
-TSH 11 adds support for MFA and passwordless logins via Windows Hello and
+tsh 11 adds support for MFA and passwordless logins via Windows Hello and
 FIDO2 devices.
 
 ### Teleport Connect
