@@ -18,18 +18,18 @@ package types
 
 import (
 	"fmt"
-	"net"
 	"strings"
 	"text/template"
 	"time"
-
-	"github.com/gravitational/teleport/api/utils"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
 
 // Database represents a database proxied by a database server.
@@ -371,9 +371,14 @@ func (d *DatabaseV3) IsMemoryDB() bool {
 	return d.GetType() == DatabaseTypeMemoryDB
 }
 
+// IsAWSKeyspaces returns true if this is an AWS hosted Cassandra database.
+func (d *DatabaseV3) IsAWSKeyspaces() bool {
+	return d.GetType() == DatabaseTypeAWSKeyspaces
+}
+
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB()
+	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB() || d.IsAWSKeyspaces()
 }
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
@@ -384,6 +389,9 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
+	if d.GetAWS().AccountID != "" && d.Spec.Protocol == DatabaseTypeCassandra {
+		return DatabaseTypeAWSKeyspaces
+	}
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
@@ -453,11 +461,19 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
 	if d.Spec.URI == "" {
-		return trace.BadParameter("database %q URI is empty", d.GetName())
+		switch {
+		case d.IsAWSKeyspaces() && d.GetAWS().Region != "":
+			// In case of AWS Hosted Cassandra allow to omit URI.
+			// The URL will be constructed from the database resource based on the region and account ID.
+			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
+		default:
+			return trace.BadParameter("database %q URI is empty", d.GetName())
+		}
 	}
 	if d.Spec.MySQL.ServerVersion != "" && d.Spec.Protocol != "mysql" {
 		return trace.BadParameter("MySQL ServerVersion can be only set for MySQL database")
 	}
+
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
@@ -511,31 +527,51 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
-	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
-		name, err := parseAzureEndpoint(d.Spec.URI)
+
+	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
+		// For Azure MySQL and PostgresSQL.
+		name, err := azureutils.ParseDatabaseEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
+	case strings.Contains(d.Spec.URI, awsutils.AWSEndpointSuffix) || strings.Contains(d.Spec.URI, awsutils.AWSCNEndpointSuffix):
+		if d.Spec.AWS.AccountID == "" {
+			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
+		}
+		if d.Spec.AWS.Region == "" {
+			region, err := awsutils.CassandraEndpointRegion(d.Spec.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			d.Spec.AWS.Region = region
+		}
+	case azureutils.IsCacheForRedisEndpoint(d.Spec.URI):
+		// ResourceID is required for fetching Redis tokens.
+		if d.Spec.Azure.ResourceID == "" {
+			return trace.BadParameter("missing ResourceID for Azure Cache %v", d.Metadata.Name)
+		}
+
+		name, err := azureutils.ParseCacheForRedisEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if d.Spec.Azure.Name == "" {
+			d.Spec.Azure.Name = name
+		}
+	case azureutils.IsMSSQLServerEndpoint(d.Spec.URI):
+		if d.Spec.Azure.Name == "" {
+			name, err := azureutils.ParseMSSQLEndpoint(d.Spec.URI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			d.Spec.Azure.Name = name
+		}
 	}
 	return nil
-}
-
-// parseAzureEndpoint extracts database server name from Azure endpoint.
-func parseAzureEndpoint(endpoint string) (name string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// Azure endpoint looks like this:
-	// name.mysql.database.azure.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, AzureEndpointSuffix) || len(parts) != 5 {
-		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
-	}
-	return parts[0], nil
 }
 
 // GetIAMPolicy returns AWS IAM policy for this database.
@@ -672,6 +708,10 @@ const (
 	DatabaseTypeElastiCache = "elasticache"
 	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
 	DatabaseTypeMemoryDB = "memorydb"
+	// DatabaseTypeAWSKeyspaces is AWS-hosted Keyspaces database (Cassandra).
+	DatabaseTypeAWSKeyspaces = "keyspace"
+	// DatabaseTypeCassandra is AWS-hosted Keyspace database.
+	DatabaseTypeCassandra = "cassandra"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
@@ -720,11 +760,6 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-
-const (
-	// AzureEndpointSuffix is the Azure database endpoint suffix.
-	AzureEndpointSuffix = ".database.azure.com"
-)
 
 type arnTemplateInput struct {
 	Partition, Region, AccountID, ResourceID string
