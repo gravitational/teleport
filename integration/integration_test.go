@@ -282,6 +282,8 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 // testAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
 func testAuditOn(t *testing.T, suite *integrationTestSuite) {
+	t.Skip("This test is flaky, skip for now.")
+
 	ctx := context.Background()
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
