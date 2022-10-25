@@ -56,7 +56,6 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
-	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20220901134012-2a1956e29525+incompatible
 	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 	github.com/gravitational/oxy v0.0.0-20221006122657-40fb61a9d599
@@ -105,12 +104,12 @@ require (
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.36.3
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.36.3
-	go.opentelemetry.io/otel v1.11.0
+	go.opentelemetry.io/otel v1.11.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.0
 	go.opentelemetry.io/otel/sdk v1.11.0
-	go.opentelemetry.io/otel/trace v1.11.0
+	go.opentelemetry.io/otel/trace v1.11.1
 	go.opentelemetry.io/proto/otlp v0.19.0
 	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be
 	golang.org/x/exp v0.0.0-20220929160808-de9c53c655b9
