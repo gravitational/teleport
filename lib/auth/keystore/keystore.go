@@ -127,7 +127,7 @@ func NewKeyStore(cfg Config) (KeyStore, error) {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Path == "" {
-		return NewRawKeyStore(&RawConfig{cfg.RSAKeyPairSource}), nil
+		return NewSoftwareKeyStore(&SoftwareConfig{cfg.RSAKeyPairSource}), nil
 	}
 	if !modules.GetModules().Features().HSM {
 		return nil, trace.AccessDenied("HSM support is only available with an enterprise license")

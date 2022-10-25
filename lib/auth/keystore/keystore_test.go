@@ -144,15 +144,15 @@ func TestKeyStore(t *testing.T) {
 	testcases := []struct {
 		desc       string
 		config     keystore.Config
-		isRaw      bool
+		isSoftware bool
 		shouldSkip func() bool
 	}{
 		{
-			desc: "raw keystore",
+			desc: "software keystore",
 			config: keystore.Config{
 				RSAKeyPairSource: native.GenerateKeyPair,
 			},
-			isRaw:      true,
+			isSoftware: true,
 			shouldSkip: func() bool { return false },
 		},
 		{
@@ -317,7 +317,7 @@ func TestKeyStore(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if !tc.isRaw {
+			if !tc.isSoftware {
 				// hsm keyStore should not get any signer from raw keys
 				_, err = keyStore.GetSSHSigner(ca)
 				require.True(t, trace.IsNotFound(err))
@@ -328,7 +328,7 @@ func TestKeyStore(t *testing.T) {
 				_, err = keyStore.GetJWTSigner(ca)
 				require.True(t, trace.IsNotFound(err))
 			} else {
-				// raw keyStore should be able to get a signer
+				// software keyStore should be able to get a signer
 				sshSigner, err = keyStore.GetSSHSigner(ca)
 				require.NoError(t, err)
 				require.NotNil(t, sshSigner)
