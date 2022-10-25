@@ -18,6 +18,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -26,11 +28,17 @@ import (
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	grpcCredentials, err := createGRPCCredentials(cfg.Addr, cfg.CertsDir)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -50,9 +58,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	apiServer, err := apiserver.New(apiserver.Config{
-		HostAddr: cfg.Addr,
-		Daemon:   daemonService,
-		CertsDir: cfg.CertsDir,
+		HostAddr:        cfg.Addr,
+		Daemon:          daemonService,
+		TshdServerCreds: grpcCredentials.tshd,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -85,4 +93,36 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	return nil
+}
+
+type grpcCredentials struct {
+	tshd grpc.ServerOption
+}
+
+func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCredentials, error) {
+	shouldUseMTLS := strings.HasPrefix(tshdServerAddress, "tcp://")
+
+	if !shouldUseMTLS {
+		return &grpcCredentials{
+			tshd: grpc.Creds(nil),
+		}, nil
+	}
+
+	rendererCertPath := filepath.Join(certsDir, rendererCertFileName)
+	tshdCertPath := filepath.Join(certsDir, tshdCertFileName)
+	tshdKeyPair, err := generateAndSaveCert(tshdCertPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// rendererCertPath will be read on an incoming client connection so we can assume that at this
+	// point the renderer process has saved its public key under that path.
+	tshdCreds, err := createServerCredentials(tshdKeyPair, rendererCertPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &grpcCredentials{
+		tshd: tshdCreds,
+	}, nil
 }
