@@ -1574,7 +1574,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		// Since checking for private key policy meant that they passed authn,
 		// return policy error as is to help direct user.
-		if yes := keys.IsPrivateKeyPolicyError(err); yes {
+		if keys.IsPrivateKeyPolicyError(err) {
 			return nil, trace.Wrap(err)
 		}
 		// Obscure all other errors.
@@ -1737,8 +1737,8 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		}
 		return &ui.ChangedUserAuthn{
 			Recovery: ui.RecoveryCodes{
-				Codes:   res.Recovery.Codes,
-				Created: &res.Recovery.Created,
+				Codes:   res.GetRecovery().GetCodes(),
+				Created: &res.GetRecovery().Created,
 			},
 			PrivateKeyPolicyEnabled: res.PrivateKeyPolicyEnabled,
 		}, nil
@@ -1765,8 +1765,8 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 
 	return &ui.ChangedUserAuthn{
 		Recovery: ui.RecoveryCodes{
-			Codes:   res.Recovery.Codes,
-			Created: &res.Recovery.Created,
+			Codes:   res.GetRecovery().GetCodes(),
+			Created: &res.GetRecovery().Created,
 		},
 	}, nil
 }
@@ -1923,7 +1923,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		// Since checking for private key policy meant that they passed authn,
 		// return policy error as is to help direct user.
-		if yes := keys.IsPrivateKeyPolicyError(err); yes {
+		if keys.IsPrivateKeyPolicyError(err) {
 			return nil, trace.Wrap(err)
 		}
 		// Obscure all other errors.

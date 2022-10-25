@@ -63,7 +63,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 
 	webSession, err := s.createUserWebSession(ctx, user)
 	if err != nil {
-		if yes := keys.IsPrivateKeyPolicyError(err); yes {
+		if keys.IsPrivateKeyPolicyError(err) {
 			// Do not return an error, otherwise
 			// the user won't be able to receive
 			// recovery codes. Even with no recovery codes
