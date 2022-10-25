@@ -132,7 +132,7 @@ func NewKeyStore(cfg Config) (KeyStore, error) {
 	if !modules.GetModules().Features().HSM {
 		return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
 	}
-	return NewHSMKeyStore(&HSMConfig{
+	return NewPKCS11KeyStore(&PKCS11Config{
 		Path:       cfg.Path,
 		SlotNumber: cfg.SlotNumber,
 		TokenLabel: cfg.TokenLabel,
