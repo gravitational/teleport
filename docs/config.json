@@ -873,12 +873,12 @@
           "slug": "/desktop-access/introduction/"
         },
         {
-          "title": "Desktop Discovery",
-          "slug": "/desktop-access/discovery/"
-        },
-        {
           "title": "Getting Started",
           "slug": "/desktop-access/getting-started/"
+        },
+        {
+          "title": "Manual Setup",
+          "slug": "/desktop-access/manual-setup/"
         },
         {
           "title": "Access Controls",
