@@ -414,7 +414,7 @@ func itemToMFADevice(item backend.Item) (*types.MFADevice, error) {
 
 // userFromUserItems is an extended variant of itemToUser which can be used
 // with the `userItems` collector to include additional backend.Item values
-// such as password hash or u2f registration.
+// such as password hash or MFA devices.
 func userFromUserItems(name string, items userItems) (types.User, error) {
 	if items.params == nil {
 		return nil, trace.BadParameter("cannot itemTo user %q without primary item %q", name, paramsPrefix)

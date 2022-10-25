@@ -54,6 +54,10 @@ func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
 	return value, nil
 }
 
+func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
+	return "", nil
+}
+
 func TestCloudLabelsSync(t *testing.T) {
 	ctx := context.Background()
 	tags := map[string]string{"a": "1", "b": "2"}

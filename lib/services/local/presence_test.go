@@ -28,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -124,21 +125,15 @@ func TestApplicationServersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Make a legacy app server.
-	appBLegacy := &types.App{Name: "b", URI: "http://localhost:8081"}
-	appB, err := types.NewAppV3FromLegacyApp(appBLegacy)
-	require.NoError(t, err)
-	serverBLegacy, err := types.NewServer(uuid.New().String(), types.KindAppServer,
-		types.ServerSpecV2{
-			Hostname: "localhost",
-			Apps:     []*types.App{appBLegacy},
-		})
+	// Make another app and an app server.
+	appB, err := types.NewAppV3(types.Metadata{Name: "b"},
+		types.AppSpecV3{URI: "http://localhost:8081"})
 	require.NoError(t, err)
 	serverB, err := types.NewAppServerV3(types.Metadata{
-		Name: appBLegacy.Name,
+		Name: appB.GetName(),
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   serverBLegacy.GetName(),
+		HostID:   uuid.New().String(),
 		App:      appB,
 	})
 	require.NoError(t, err)
@@ -148,27 +143,27 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 
-	// Create app server.
+	// Create app servers.
 	lease, err := presence.UpsertApplicationServer(ctx, serverA)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{}, lease)
-
-	// Create legacy app server.
-	lease, err = presence.UpsertAppServer(ctx, serverBLegacy)
+	lease, err = presence.UpsertApplicationServer(ctx, serverB)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{}, lease)
 
 	// Make sure all app servers are registered.
 	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
 	require.NoError(t, err)
+	servers := types.AppServers(out)
+	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-	// Delete app server.
+	// Delete an app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
 	require.NoError(t, err)
 
-	// Expect only the legacy one to be returned.
+	// Expect only one to return.
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
@@ -191,11 +186,10 @@ func TestApplicationServersCRUD(t *testing.T) {
 	err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
 	require.NoError(t, err)
 
-	// Expect only legacy one to be returned.
+	// Expect no servers to return.
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, out)
 }
 
 func TestDatabaseServersCRUD(t *testing.T) {
@@ -551,6 +545,29 @@ func TestListResources(t *testing.T) {
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		},
+		"WindowsDesktopService": {
+			resourceType: types.KindWindowsDesktopService,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktop, err := types.NewWindowsDesktopServiceV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
+					},
+					types.WindowsDesktopServiceSpecV3{
+						Addr:            "localhost:1234",
+						TeleportVersion: teleport.Version,
+					})
+				if err != nil {
+					return err
+				}
+
+				_, err = presence.UpsertWindowsDesktopService(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllWindowsDesktopServices(ctx)
 			},
 		},
 	}
