@@ -159,8 +159,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	return ui.MakeDesktop(windowsDesktops[0]), nil
 }
 
-// desktopIsActive checks if a desktop has an active session and if so, returns a one time token that is needed
-// to start a session to said desktop.
+// desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
 //
 // GET /v1/webapi/sites/:site/desktops/:desktopName/active
 //
