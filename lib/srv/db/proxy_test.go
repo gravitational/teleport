@@ -17,6 +17,7 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -30,9 +31,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestProxyProtocolPostgres ensures that clients can successfully connect to a
@@ -81,82 +85,72 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 	_, localProxy, err := testCtx.postgresClientLocalProxy(ctx, "alice", "pgsvc", "pguser", "pgdb")
 	require.NoError(t, err)
 
-	clientTLSCfg, err := testCtx.tlsServer.ClientTLSConfig(auth.TestUser("alice"))
+	clientTLSCfg, err := common.MakeTestClientTLSConfig(common.TestClientConfig{
+		AuthClient: testCtx.authClient,
+		AuthServer: testCtx.authServer,
+		Cluster:    testCtx.clusterName,
+		Username:   "alice",
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: "pgsvc",
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    "pguser",
+			Database:    "pgdb",
+		},
+	})
 	require.NoError(t, err)
-
-	// We have to send messages manually since pgconn does not support GSS encryption.
-	// Therefore we create some []byte payloads to write into a connection ourselves.
-	gssReq := (&pgproto3.GSSEncRequest{}).Encode(nil)
-	sslReq := (&pgproto3.SSLRequest{}).Encode(nil)
-	startupReq := (&pgproto3.StartupMessage{}).Encode(nil)
-	terminateReq := (&pgproto3.Terminate{}).Encode(nil)
 
 	type proxyTarget struct {
 		name            string
 		addr            string
-		wantSSLResponse string
+		wantSSLResponse []byte
 	}
 
 	proxyTargets := []proxyTarget{
 		{
 			name:            "local proxy",
 			addr:            localProxy.GetAddr(),
-			wantSSLResponse: "N",
+			wantSSLResponse: []byte("N"),
 		},
 		{
 			name:            "proxy multiplexer",
 			addr:            testCtx.mux.DB().Addr().String(),
-			wantSSLResponse: "S",
+			wantSSLResponse: []byte("S"),
 		},
 	}
 
-	// responseOracle returns the proxyTarget's expected response and whether TLS upgrade is required.
-	type responseOracle func(cfg *proxyTarget) (wantResponse string, upgradeToTLS bool)
-	sslResponseOracle := func(cfg *proxyTarget) (string, bool) {
-		switch cfg.wantSSLResponse {
-		case "N":
-			return "N", false // SSLRequest not supported; client doesn't need to upgrade conn to TLS to proceed.
-		case "S":
-			return "S", true // SSLRequest is supported; client needs to upgrade conn to TLS to proceed.
-		default:
-			panic("unreachable")
-		}
-	}
-	gssResponseOracle := func(_ *proxyTarget) (string, bool) {
-		return "N", false // GSSEncRequest not supported; client doesn't need to upgrade conn to TLS to proceed.
-	}
-	startupResponseOracle := func(_ *proxyTarget) (string, bool) {
-		return "", false // just verify the connection is still open, but don't expect a response.
+	// We have to send messages manually since pgconn does not support GSS encryption.
+	type task struct {
+		sendMsg pgproto3.FrontendMessage
+		wantErr error
 	}
 
-	type task struct {
-		payload     []byte
-		wantReadErr error
-		oracle      responseOracle
+	// build a basic startup message we can use
+	startupMsg := pgproto3.StartupMessage{
+		ProtocolVersion: pgproto3.ProtocolVersionNumber,
+		Parameters:      make(map[string]string),
 	}
+	startupMsg.Parameters["user"] = "pguser"
+	startupMsg.Parameters["database"] = "pgdb"
 
 	tests := []struct {
 		name  string
 		tasks []task
 	}{
 		{
-			name: "handles GSSEncRequest followed by SSLRequest then StartupMessage and Terminate",
+			name: "handles GSSEncRequest followed by SSLRequest then StartupMessage",
 			tasks: []task{
 				{
-					payload: gssReq,
-					oracle:  gssResponseOracle,
+					sendMsg: &pgproto3.GSSEncRequest{},
 				},
 				{
-					payload: sslReq,
-					oracle:  sslResponseOracle,
+					sendMsg: &pgproto3.SSLRequest{},
 				},
 				{
-					payload: startupReq,
-					oracle:  startupResponseOracle,
+					sendMsg: &startupMsg,
 				},
 				{
-					payload:     terminateReq,
-					wantReadErr: io.EOF,
+					sendMsg: &pgproto3.Terminate{},
+					wantErr: io.EOF,
 				},
 			},
 		},
@@ -164,20 +158,17 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 			name: "handles SSLRequest followed by GSSEncRequest then StartupMessage and Terminate",
 			tasks: []task{
 				{
-					payload: sslReq,
-					oracle:  sslResponseOracle,
+					sendMsg: &pgproto3.SSLRequest{},
 				},
 				{
-					payload: gssReq,
-					oracle:  gssResponseOracle,
+					sendMsg: &pgproto3.GSSEncRequest{},
 				},
 				{
-					payload: startupReq,
-					oracle:  startupResponseOracle,
+					sendMsg: &startupMsg,
 				},
 				{
-					payload:     terminateReq,
-					wantReadErr: io.EOF,
+					sendMsg: &pgproto3.Terminate{},
+					wantErr: io.EOF,
 				},
 			},
 		},
@@ -185,12 +176,11 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 			name: "closes connection on repeated GSSEncRequest",
 			tasks: []task{
 				{
-					payload: gssReq,
-					oracle:  gssResponseOracle,
+					sendMsg: &pgproto3.GSSEncRequest{},
 				},
 				{
-					payload:     gssReq,
-					wantReadErr: io.EOF,
+					sendMsg: &pgproto3.GSSEncRequest{},
+					wantErr: io.EOF,
 				},
 			},
 		},
@@ -198,12 +188,11 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 			name: "closes connection on repeated SSLRequest",
 			tasks: []task{
 				{
-					payload: sslReq,
-					oracle:  sslResponseOracle,
+					sendMsg: &pgproto3.SSLRequest{},
 				},
 				{
-					payload:     sslReq,
-					wantReadErr: io.EOF,
+					sendMsg: &pgproto3.SSLRequest{},
+					wantErr: io.EOF,
 				},
 			},
 		},
@@ -216,27 +205,77 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 			testName := fmt.Sprintf("%s %s", proxy.name, tt.name)
 			t.Run(testName, func(t *testing.T) {
 				t.Parallel()
-				rcvBuf := make([]byte, 512)
 				conn, err := net.Dial("tcp", proxy.addr)
 				require.NoError(t, err)
 				defer conn.Close()
 				for _, task := range tt.tasks {
-					nWritten, err := conn.Write(task.payload)
+					payload := task.sendMsg.Encode(nil)
+					nWritten, err := conn.Write(payload)
 					require.NoError(t, err)
-					require.Equal(t, len(task.payload), nWritten, "failed to fully write payload")
-					nRead, err := io.ReadAtLeast(conn, rcvBuf, 1)
-					if task.wantReadErr != nil {
-						require.Error(t, err)
-						require.ErrorIs(t, err, task.wantReadErr)
+					require.Equal(t, len(payload), nWritten, "failed to fully write payload")
+
+					var checkResponse responseChecker
+					var needsTLSUpgrade bool
+					switch task.sendMsg.(type) {
+					case *pgproto3.SSLRequest:
+						checkResponse = checkNextMessage(conn, proxy.wantSSLResponse)
+						needsTLSUpgrade = bytes.Equal(proxy.wantSSLResponse, []byte("S"))
+					case *pgproto3.GSSEncRequest:
+						checkResponse = checkNextMessage(conn, []byte("N"))
+					case *pgproto3.StartupMessage:
+						checkResponse = checkReceiveReadyMessage
+					case *pgproto3.Terminate:
+						// try to read one byte to check for expected EOF
+						checkResponse = checkNextMessage(conn, []byte("x"))
+					default:
+						require.FailNow(t, "unexpected encoder used in test case")
+					}
+					checkResponse(t, conn, task.wantErr)
+					if task.wantErr != nil {
 						continue
 					}
-					wantResponse, needsTLSUpgrade := task.oracle(&proxy)
-					require.Equal(t, wantResponse, string(rcvBuf[:nRead]))
 					if needsTLSUpgrade {
-						conn = tls.Client(conn, clientTLSCfg)
+						tlsConn := tls.Client(conn, clientTLSCfg)
+						require.NoError(t, tlsConn.Handshake())
+						conn = tlsConn
 					}
 				}
 			})
+		}
+	}
+}
+
+type responseChecker func(t *testing.T, conn net.Conn, wantErr error)
+
+// checkNextMessage is a helper that gets one message from the backend and checks it.
+func checkNextMessage(conn net.Conn, wantMsg []byte) responseChecker {
+	return func(t *testing.T, conn net.Conn, wantErr error) {
+		buf := make([]byte, 512)
+		nRead, err := io.ReadAtLeast(conn, buf, len(wantMsg))
+		if wantErr != nil {
+			require.Error(t, err)
+			require.ErrorIs(t, err, wantErr)
+			return
+		}
+		require.NoError(t, err)
+		require.Equal(t, wantMsg, buf[:nRead])
+	}
+}
+
+// checkReceiveReadyMessage checks that a pgproto3.ReadyForQuery message is eventually received.
+func checkReceiveReadyMessage(t *testing.T, conn net.Conn, wantErr error) {
+	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
+	for {
+		msg, err := frontend.Receive()
+		if wantErr != nil {
+			require.Error(t, err)
+			require.ErrorIs(t, err, wantErr)
+			return
+		}
+		require.NoError(t, err)
+		switch msg.(type) {
+		case *pgproto3.ReadyForQuery:
+			return
 		}
 	}
 }
