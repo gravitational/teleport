@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 )
 
 // New creates an instance of Daemon service
@@ -538,6 +539,31 @@ func (s *Service) Stop() {
 	}
 }
 
+// UpdateTshdEventsServerAddress allows the Electron app to provide the tshd events server address.
+//
+// The startup of the app is orchestrated so that this method is called before any other method on
+// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
+// client is available right from the beginning, without the need for nil checks.
+func (s *Service) UpdateTshdEventsServerAddress(serverAddress string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	withCreds, err := s.cfg.CreateTshdEventsClientCredsFunc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	conn, err := grpc.Dial(serverAddress, withCreds)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client := api.NewTshdEventsServiceClient(conn)
+	s.tshdEventsClient = client
+
+	return nil
+}
+
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
 	cluster, err := s.ResolveCluster(request.GetClusterUri())
 	if err != nil {
@@ -554,6 +580,11 @@ type Service struct {
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
+	// tshdEventsClient is created after UpdateTshdEventsServerAddress gets called. The startup of the
+	// whole app is orchestrated in a way which ensures that is the first Service method that gets
+	// called. This lets other methods in Service assume that tshdEventsClient is available from the
+	// start, without having to perform nil checks.
+	tshdEventsClient api.TshdEventsServiceClient
 }
 
 type CreateGatewayParams struct {
