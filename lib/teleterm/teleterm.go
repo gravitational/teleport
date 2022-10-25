@@ -29,6 +29,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Serve starts daemon service
@@ -51,7 +52,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
+		Storage:                         storage,
+		CreateTshdEventsClientCredsFunc: grpcCredentials.tshdEvents,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,7 +98,8 @@ func Serve(ctx context.Context, cfg Config) error {
 }
 
 type grpcCredentials struct {
-	tshd grpc.ServerOption
+	tshd       grpc.ServerOption
+	tshdEvents daemon.CreateTshdEventsClientCredsFunc
 }
 
 func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCredentials, error) {
@@ -105,6 +108,9 @@ func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCred
 	if !shouldUseMTLS {
 		return &grpcCredentials{
 			tshd: grpc.Creds(nil),
+			tshdEvents: func() (grpc.DialOption, error) {
+				return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+			},
 		}, nil
 	}
 
@@ -122,7 +128,20 @@ func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCred
 		return nil, trace.Wrap(err)
 	}
 
+	// To create client creds, we need to read the server cert. However, at this point we'd need to
+	// wait for the Electron app to save the cert under rendererCertPath.
+	//
+	// Instead of waiting for it, we're going to capture the logic in a function that's going to be
+	// called after the Electron app calls UpdateTshdEventsServerAddress of the Terminal service.
+	// Since this calls the gRPC server hosted by tsh, we can assume that by this point the Electron
+	// app has saved the cert to disk – without the cert, it wouldn't be able to call the tsh server.
+	createTshdEventsClientCredsFunc := func() (grpc.DialOption, error) {
+		creds, err := createClientCredentials(tshdKeyPair, rendererCertPath)
+		return creds, trace.Wrap(err, "could not create tshd events client credentials")
+	}
+
 	return &grpcCredentials{
-		tshd: tshdCreds,
+		tshd:       tshdCreds,
+		tshdEvents: createTshdEventsClientCredsFunc,
 	}, nil
 }
