@@ -469,7 +469,7 @@ type Server struct {
 	ghaIDTokenValidator ghaIDTokenValidator
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
-	// the auth server. It can be overriden for the purpose of tests.
+	// the auth server. It can be overridden for the purpose of tests.
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.

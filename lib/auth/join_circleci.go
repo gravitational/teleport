@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/circleci"

@@ -38,7 +38,6 @@ import (
 type fakeIDP struct {
 	signer jose.Signer
 	server *httptest.Server
-	issuer string
 }
 
 func (f *fakeIDP) close() {
@@ -141,8 +140,8 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 
 func TestValidateToken(t *testing.T) {
 	t.Parallel()
-	realOrgId := "xyz-foo-bar-123"
-	fake := newFakeIDP(t, realOrgId)
+	realOrgID := "xyz-foo-bar-123"
+	fake := newFakeIDP(t, realOrgID)
 	t.Cleanup(fake.close)
 
 	tests := []struct {
@@ -156,7 +155,7 @@ func TestValidateToken(t *testing.T) {
 			assertError: require.NoError,
 			token: fake.issueToken(
 				t,
-				realOrgId,
+				realOrgID,
 				"a-project",
 				[]string{"a-context"},
 				time.Now().Add(-5*time.Minute),
@@ -173,7 +172,7 @@ func TestValidateToken(t *testing.T) {
 			assertError: require.Error,
 			token: fake.issueToken(
 				t,
-				realOrgId,
+				realOrgID,
 				"a-project",
 				[]string{"a-context"},
 				time.Now().Add(-10*time.Minute),
@@ -198,7 +197,7 @@ func TestValidateToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			claims, err := ValidateToken(
-				ctx, clockwork.NewRealClock(), fake.issuerURLTemplate(), realOrgId, tt.token,
+				ctx, clockwork.NewRealClock(), fake.issuerURLTemplate(), realOrgID, tt.token,
 			)
 			tt.assertError(t, err)
 			require.Equal(t, tt.want, claims)
