@@ -85,13 +85,19 @@ The Teleport Database Service needs Azure IAM permissions to:
 - Discover and register Azure Cache for Redis databases. 
 - Retrieve Redis access keys to authenticate with the databases.
 
-### Configure Azure service principal
+### Configure an Azure service principal
 
 (!docs/pages/includes/database-access/azure-configure-service-principal.mdx!)
 
 ### Create a custom role
 
-Now create a custom role with Azure Cache for Redis permissions. For example:
+Teleport requires `<resource-type>/read` permissions for discovery and
+`<resource-type>/listKeys/action` permissions for authentication with the
+Redis servers, but Teleport only needs permissions for the resource types
+you have.
+
+Here is a sample role definition allowing Teleport to read and list keys
+for both Azure Redis and Azure Redis Enterprise:
 ```json
 {
     "properties": {
@@ -117,25 +123,14 @@ Now create a custom role with Azure Cache for Redis permissions. For example:
     }
 }
 ```
+The `assignableScopes` field above includes a subscription
+`/subscriptions/<subscription>`, allowing the role to be assigned at any
+resource scope within that subscription or the subscription scope itself. If
+you want to further limit the `assignableScopes`, you can use a resource group
+`/subscriptions/<subscription>/resourceGroups/<group>` or a management group
+`/providers/Microsoft.Management/managementGroups/<group>` instead.
 
-This role definition allows Teleport to discover and list keys for both Azure
-Redis and Azure Redis Enterprise, but Teleport only needs permissions for the
-database types you have. The assignable scopes include a subscription, so the
-role can be assigned at any resource scope within that subscription, or
-assigned using the subscription scope itself.
-
-<Admonition type="note" title="Custom role assignable scope">
-Custom roles, unlike
-[Azure built-in roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles),
-can not have a root assignable scope. The highest assignable scope that
-can be used in a custom role is subscription scope. Using a management group scope is currently an Azure
-preview feature, and only allows for a single management group in the "assignableScopes" of a role 
-definition.
-See [Azure RBAC custom roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles) for
-more information.
-</Admonition>
-
-Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
+Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
 <Figure align="left">
@@ -143,7 +138,7 @@ Click on *Access control (IAM)* in the subscription and select *Add > Add custom
 </Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
-and replace the subscription in "assignableScopes" with your own subscription id:
+and replace the subscription in `assignableScopes` with your own subscription id:
 <Figure align="left">
 ![Create JSON role](../../../img/database-access/guides/azure/redis-create-role-from-json.png)
 </Figure>
@@ -207,7 +202,7 @@ $ tsh db connect my-azure-redis
 
 Note that the Teleport Database Service will retrieve the access key and
 authenticate with the Redis server on the backend automatically. Therefore,
-`AUTH <access-key>` command is **not required** here once connected.
+the `AUTH <access-key>` command is **not required** here once connected.
 
 To log out of the database and remove credentials:
 
@@ -222,3 +217,7 @@ $ tsh db logout my-azure-redis
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
+## Further reading
+- [Understand Azure Role Definitions - AssignableScopes](https://learn.microsoft.com/en-us/azure/role-based-access-control/role-definitions#assignablescopes)
+- [Azure RBAC custom roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/custom-roles)
