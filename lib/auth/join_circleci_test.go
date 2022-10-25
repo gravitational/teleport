@@ -160,7 +160,10 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 					},
 				},
 			}),
-			assertError: tokenNotMatched,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "\"IDToken\" not provided")
+			},
 		},
 		{
 			name:    "invalid context",
