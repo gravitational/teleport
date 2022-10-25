@@ -265,29 +265,23 @@ func downloadTeleportDockerfileStep(productName, workingPath, downloadURL string
 	}, dockerfilePath
 }
 
-func (p *Product) getBaseImage(arch string, version *ReleaseVersion) *Image {
-	return &Image{
-		Name: p.Name,
-		Tag: &ImageTag{
+func (p *Product) getBaseImage(arch string, version *ReleaseVersion, containerRepo *ContainerRepo) *Image {
+	return p.ImageBuilder(
+		containerRepo,
+		&ImageTag{
 			ShellBaseValue:   version.GetFullSemver().GetSemverValue(),
 			DisplayBaseValue: version.MajorVersion,
 			Arch:             arch,
 		},
-	}
+	)
 }
 
 func (p *Product) GetLocalRegistryImage(arch string, version *ReleaseVersion) *Image {
-	image := p.getBaseImage(arch, version)
-	image.Repo = NewLocalContainerRepo()
-
-	return image
+	return p.getBaseImage(arch, version, NewLocalContainerRepo())
 }
 
 func (p *Product) GetStagingRegistryImage(arch string, version *ReleaseVersion, stagingRepo *ContainerRepo) *Image {
-	image := p.getBaseImage(arch, version)
-	image.Repo = stagingRepo
-
-	return image
+	return p.getBaseImage(arch, version, stagingRepo)
 }
 
 func (p *Product) buildSteps(version *ReleaseVersion, parentStepNames []string, flags *TriggerFlags) []step {

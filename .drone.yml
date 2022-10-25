@@ -8835,26 +8835,26 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-- name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
+- name: Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-fips-v11-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
+  - mkdir -pv "/tmp/teleport-ent-v11-fips-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
+    "teleport-ent-v11-fips-amd64-builder" --config "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
-    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
+  - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
   - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
-  - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
+  - docker buildx rm "teleport-ent-v11-fips-amd64-builder"
+  - rm -rf "/tmp/teleport-ent-v11-fips-amd64-builder"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -8866,16 +8866,16 @@ steps:
     path: /var/run
   depends_on:
   - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-fips-amd64 > /dev/null 2>&1 && echo 'Found existing image,
-    skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+    skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-fips-amd64)
@@ -8889,7 +8889,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - staging
   image: docker
   commands:
@@ -8912,7 +8912,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Build teleport-operator image "teleport-operator:v11-amd64"
   image: docker
   commands:
@@ -10025,19 +10025,19 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Pull teleport-ent-fips:v11-amd64 and push it to Local Registry
+- name: Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64
-  - docker push drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
+  - docker push drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10048,19 +10048,19 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "quay.io"
@@ -10073,7 +10073,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-ent-fips:v11-amd64 and push it to Local Registry
+  - Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
   image: docker
   commands:
@@ -10091,7 +10091,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
@@ -10109,7 +10109,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
   image: docker
   commands:
@@ -10129,22 +10129,23 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "public.ecr.aws"
@@ -10157,7 +10158,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-ent-fips:v11-amd64 and push it to Local Registry
+  - Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
   image: docker
   commands:
@@ -10177,7 +10178,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
   image: docker
   commands:
@@ -10197,7 +10198,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
   image: docker
   commands:
@@ -10219,7 +10220,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Pull teleport-operator:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -12160,26 +12161,26 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-- name: Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
+- name: Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-fips-v11-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
+  - mkdir -pv "/tmp/teleport-ent-v11-fips-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-fips-v11-amd64-builder" --config "/tmp/teleport-ent-fips-v11-amd64-builder/buildkitd.toml"
+    "teleport-ent-v11-fips-amd64-builder" --config "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-fips-v11-amd64-builder" --target
-    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
+  - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
   - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-fips-v11-amd64-builder"
-  - rm -rf "/tmp/teleport-ent-fips-v11-amd64-builder"
+  - docker buildx rm "teleport-ent-v11-fips-amd64-builder"
+  - rm -rf "/tmp/teleport-ent-v11-fips-amd64-builder"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -12191,30 +12192,30 @@ steps:
     path: /var/run
   depends_on:
   - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64)
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64)
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12227,7 +12228,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -12251,7 +12252,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -12275,7 +12276,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -12299,20 +12300,20 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - staging
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "quay.io"
@@ -12325,7 +12326,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
   image: docker
   commands:
@@ -12343,7 +12344,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
@@ -12361,7 +12362,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
   image: docker
   commands:
@@ -12381,22 +12382,23 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "public.ecr.aws"
@@ -12409,7 +12411,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v11-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
   image: docker
   commands:
@@ -12429,7 +12431,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
   image: docker
   commands:
@@ -12449,7 +12451,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
   image: docker
   commands:
@@ -12471,7 +12473,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v11-amd64"
   image: docker
   commands:
@@ -14634,26 +14636,26 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-- name: Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
+- name: Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-fips-v10-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - mkdir -pv "/tmp/teleport-ent-v10-fips-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-fips-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-fips-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+    "teleport-ent-v10-fips-amd64-builder" --config "/tmp/teleport-ent-v10-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
-    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
+  - docker buildx build --push --builder "teleport-ent-v10-fips-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
   - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
-  - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
+  - docker buildx rm "teleport-ent-v10-fips-amd64-builder"
+  - rm -rf "/tmp/teleport-ent-v10-fips-amd64-builder"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -14665,30 +14667,30 @@ steps:
     path: /var/run
   depends_on:
   - Download "teleport-ent_v10-tag-fips_amd64.deb" artifacts from S3
-- name: Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
+- name: Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64)
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64)
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -14701,7 +14703,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -14725,7 +14727,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -14749,7 +14751,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -14773,20 +14775,20 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - staging
-- name: Tag and push image "teleport-ent-fips:v10-amd64" to Quay
+  - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
+- name: Tag and push image "teleport-ent:v10-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "quay.io"
@@ -14799,7 +14801,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
   image: docker
   commands:
@@ -14817,7 +14819,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to Quay
+  - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
@@ -14835,7 +14837,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to Quay
+  - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
   image: docker
   commands:
@@ -14855,22 +14857,23 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to Quay
-- name: Tag and push image "teleport-ent-fips:v10-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
+- name: Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "public.ecr.aws"
@@ -14883,7 +14886,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v10-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
   image: docker
   commands:
@@ -14903,7 +14906,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
   image: docker
   commands:
@@ -14923,7 +14926,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
   image: docker
   commands:
@@ -14945,7 +14948,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v10-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v10-amd64"
   image: docker
   commands:
@@ -17107,26 +17110,26 @@ steps:
     path: /root/.aws
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-- name: Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
+- name: Build teleport-ent-fips image "teleport-ent:v9-fips-amd64"
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
-  - mkdir -pv "/tmp/teleport-ent-fips-v9-amd64-builder"
-  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
-  - echo '  http = true' >> "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
+  - mkdir -pv "/tmp/teleport-ent-v9-fips-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v9-fips-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v9-fips-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
-    "teleport-ent-fips-v9-amd64-builder" --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
+    "teleport-ent-v9-fips-amd64-builder" --config "/tmp/teleport-ent-v9-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker buildx build --push --builder "teleport-ent-fips-v9-amd64-builder" --target
-    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
+  - docker buildx build --push --builder "teleport-ent-v9-fips-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
     "/go/var/full-version")-fips_amd64.deb /go/build
   - docker logout "public.ecr.aws"
-  - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
-  - rm -rf "/tmp/teleport-ent-fips-v9-amd64-builder"
+  - docker buildx rm "teleport-ent-v9-fips-amd64-builder"
+  - rm -rf "/tmp/teleport-ent-v9-fips-amd64-builder"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -17138,30 +17141,30 @@ steps:
     path: /var/run
   depends_on:
   - Download "teleport-ent_v9-tag-fips_amd64.deb" artifacts from S3
-- name: Tag and push image "teleport-ent-fips:v9-amd64" to ECR - staging
+- name: Tag and push image "teleport-ent:v9-fips-amd64" to ECR - staging
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/full-version")-$TIMESTAMP-fips-amd64)
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/major-version")-$TIMESTAMP-fips-amd64)
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64 > /dev/null 2>&1 && echo 'Found
-    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64 && docker push 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
     "/go/var/minor-version")-$TIMESTAMP-fips-amd64)
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -17174,7 +17177,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v9-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -17198,7 +17201,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v9-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -17222,7 +17225,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to ECR - staging
+  - Tag and push image "teleport-ent:v9-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
   image: docker
   commands:
@@ -17246,20 +17249,20 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to ECR - staging
-- name: Tag and push image "teleport-ent-fips:v9-amd64" to Quay
+  - Tag and push image "teleport-ent:v9-fips-amd64" to ECR - staging
+- name: Tag and push image "teleport-ent:v9-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "quay.io"
@@ -17272,7 +17275,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v9-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
   image: docker
   commands:
@@ -17290,7 +17293,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to Quay
+  - Tag and push image "teleport-ent:v9-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
@@ -17308,7 +17311,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to Quay
+  - Tag and push image "teleport-ent:v9-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
   image: docker
   commands:
@@ -17328,22 +17331,23 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to Quay
-- name: Tag and push image "teleport-ent-fips:v9-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v9-fips-amd64" to Quay
+- name: Tag and push image "teleport-ent:v9-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "public.ecr.aws"
@@ -17356,7 +17360,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Build teleport-ent-fips image "teleport-ent-fips:v9-amd64"
+  - Build teleport-ent-fips image "teleport-ent:v9-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
   image: docker
   commands:
@@ -17376,7 +17380,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v9-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
   image: docker
   commands:
@@ -17396,7 +17400,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v9-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
   image: docker
   commands:
@@ -17418,7 +17422,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v9-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v9-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v9-amd64"
   image: docker
   commands:
@@ -18935,19 +18939,19 @@ steps:
   - Check out code
   - Build major, minor, and full semvers
   - Assume AWS Role
-- name: Pull teleport-ent-fips:v11-amd64 and push it to Local Registry
+- name: Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
-  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64
+  - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
-  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64
-  - docker push drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64
+  - docker push drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -18958,19 +18962,19 @@ steps:
     path: /var/run
   depends_on:
   - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
   - docker manifest inspect quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     && docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push quay.io/fred_heinecke/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "quay.io"
@@ -18983,7 +18987,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-ent-fips:v11-amd64 and push it to Local Registry
+  - Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
   image: docker
   commands:
@@ -19001,7 +19005,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
   image: docker
   commands:
@@ -19019,7 +19023,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
   image: docker
   commands:
@@ -19039,22 +19043,23 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to Quay
-- name: Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
+- name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
   image: docker
   commands:
-  - docker pull drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat
-    "/go/var/full-version")-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
-    && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64)
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+    > /dev/null 2>&1 && echo 'Found existing image, skipping' || (docker tag drone-docker-registry:5000/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64 && docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat
+    "/go/var/full-version")-fips-amd64)
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips-amd64
-  - docker tag drone-docker-registry:5000/teleport-ent-fips:$(cat "/go/var/full-version")-amd64
+  - docker tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
     public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker push public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips-amd64
   - docker logout "public.ecr.aws"
@@ -19067,7 +19072,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-ent-fips:v11-amd64 and push it to Local Registry
+  - Pull teleport-ent:v11-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
   image: docker
   commands:
@@ -19087,7 +19092,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
   image: docker
   commands:
@@ -19107,7 +19112,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
   image: docker
   commands:
@@ -19129,7 +19134,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-ent-fips:v11-amd64" to ECR - production
+  - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Pull teleport-operator:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -19538,6 +19543,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: daffe09f86cae850267bc46c265f30eecb07bc5f54258728c7b266187c9fd4d6
+hmac: b3651fcddf4ebaa96abeae3cf7c794458f1279e973a4b9b1570596d980e39d86
 
 ...
