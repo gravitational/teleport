@@ -20,11 +20,18 @@ package joinserver
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/peer"
 )
+
+const iamJoinRequestTimeout = time.Minute
 
 type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
@@ -34,12 +41,14 @@ type joinServiceClient interface {
 // to run on both the Teleport Proxy and Auth servers.
 type JoinServiceGRPCServer struct {
 	joinServiceClient joinServiceClient
+	clock             clockwork.Clock
 }
 
-// NewJoinGRPCServer returns a new JoinServiceGRPCServer.
+// NewJoinServiceGRPCServer returns a new JoinServiceGRPCServer.
 func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
+		clock:             clockwork.NewRealClock(),
 	}
 }
 
@@ -54,10 +63,39 @@ func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceG
 func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
 	ctx := srv.Context()
 
-	// call RegisterUsingIAMMethod with a callback to get the challenge response
-	// from the gRPC client
+	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
+	// hold connections open indefinitely.
+	timeout := s.clock.After(iamJoinRequestTimeout)
+
+	// The only way to cancel a blocked Send or Recv on the server side without
+	// adding an interceptor to the entire gRPC service is to return from the
+	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.registerUsingIAMMethod(ctx, srv)
+	}()
+	select {
+	case err := <-errCh:
+		// Completed before the deadline, return the error (may be nil).
+		return trace.Wrap(err)
+	case <-timeout:
+		nodeAddr := ""
+		if peerInfo, ok := peer.FromContext(ctx); ok {
+			nodeAddr = peerInfo.Addr.String()
+		}
+		logrus.Warnf("IAM join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
+		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.LimitExceeded("RegisterUsingIAMMethod timed out after %s, terminating the stream on the server", iamJoinRequestTimeout)
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv proto.JoinService_RegisterUsingIAMMethodServer) error {
+	// Call RegisterUsingIAMMethod with a callback to get the challenge response
+	// from the gRPC client.
 	certs, err := s.joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-		// first forward challenge from to the client
+		// First, forward the challenge from Auth to the client.
 		err := srv.Send(&proto.RegisterUsingIAMMethodResponse{
 			Challenge: challenge,
 		})
@@ -65,7 +103,7 @@ func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_Reg
 			return nil, trace.Wrap(err)
 		}
 
-		// then get the response from the client and return it
+		// Then get the response from the client and return it.
 		req, err := srv.Recv()
 		return req, trace.Wrap(err)
 	})
