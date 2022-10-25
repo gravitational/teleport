@@ -73,6 +73,13 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			PublicSSHKey: sshPublicKey,
 		}
 	}
+	provisionTokenSpec := func(spec *types.ProvisionTokenSpecV2CircleCI) types.ProvisionTokenSpecV2 {
+		return types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodCircleCI,
+			Roles:      types.SystemRoles{types.RoleNode},
+			CircleCI:   spec,
+		}
+	}
 
 	// helpers for error assertions
 	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
@@ -92,106 +99,95 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 		{
 			name:    "matching all",
 			request: newRequest(validIDToken),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodCircleCI,
-				Roles:      types.SystemRoles{types.RoleNode},
-				CircleCI: &types.ProvisionTokenSpecV2CircleCI{
-					OrganizationID: validOrg,
-					Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
-						{
-							ProjectID: validProject,
-							ContextID: validContextA,
-						},
+			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
+				OrganizationID: validOrg,
+				Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+					{
+						ProjectID: validProject,
+						ContextID: validContextA,
 					},
 				},
-			},
+			}),
 			assertError: require.NoError,
 		},
 		{
 			name:    "matching second context",
 			request: newRequest(validIDToken),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodCircleCI,
-				Roles:      types.SystemRoles{types.RoleNode},
-				CircleCI: &types.ProvisionTokenSpecV2CircleCI{
-					OrganizationID: validOrg,
-					Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
-						{
-							ContextID: validContextB,
-						},
+			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
+				OrganizationID: validOrg,
+				Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+					{
+						ContextID: validContextB,
 					},
 				},
-			},
+			}),
 			assertError: require.NoError,
 		},
 		{
 			name:    "invalid org",
 			request: newRequest(validIDToken),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodCircleCI,
-				Roles:      types.SystemRoles{types.RoleNode},
-				CircleCI: &types.ProvisionTokenSpecV2CircleCI{
-					OrganizationID: "not-this-org",
-					Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
-						{
-							ContextID: validContextB,
-						},
+			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
+				OrganizationID: "not-this-org",
+				Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+					{
+						ContextID: validContextB,
 					},
 				},
-			},
+			}),
 			assertError: tokenNotMatched,
 		},
 		{
-			name:    "invalid token",
+			name:    "invalid IDToken",
 			request: newRequest("not-this-token"),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodCircleCI,
-				Roles:      types.SystemRoles{types.RoleNode},
-				CircleCI: &types.ProvisionTokenSpecV2CircleCI{
-					OrganizationID: "not-this-org",
-					Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
-						{
-							ContextID: validContextB,
-						},
+			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
+				OrganizationID: validOrg,
+				Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+					{
+						ContextID: validContextB,
 					},
 				},
-			},
+			}),
+			assertError: tokenNotMatched,
+		},
+		{
+			name:    "missing IDToken in request",
+			request: newRequest(""),
+			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
+				OrganizationID: validOrg,
+				Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+					{
+						ContextID: validContextB,
+					},
+				},
+			}),
 			assertError: tokenNotMatched,
 		},
 		{
 			name:    "invalid context",
 			request: newRequest(validIDToken),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodCircleCI,
-				Roles:      types.SystemRoles{types.RoleNode},
-				CircleCI: &types.ProvisionTokenSpecV2CircleCI{
-					OrganizationID: validOrg,
-					Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
-						{
-							ProjectID: validProject,
-							ContextID: "not-this-context",
-						},
+			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
+				OrganizationID: validOrg,
+				Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+					{
+						ProjectID: validProject,
+						ContextID: "not-this-context",
 					},
 				},
-			},
+			}),
 			assertError: allowRulesNotMatched,
 		},
 		{
 			name:    "invalid project",
 			request: newRequest(validIDToken),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodCircleCI,
-				Roles:      types.SystemRoles{types.RoleNode},
-				CircleCI: &types.ProvisionTokenSpecV2CircleCI{
-					OrganizationID: validOrg,
-					Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
-						{
-							ProjectID: "invalid-project",
-							ContextID: validContextA,
-						},
+			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
+				OrganizationID: validOrg,
+				Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+					{
+						ProjectID: "invalid-project",
+						ContextID: validContextA,
 					},
 				},
-			},
+			}),
 			assertError: allowRulesNotMatched,
 		},
 	}

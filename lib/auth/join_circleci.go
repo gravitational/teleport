@@ -26,7 +26,7 @@ import (
 
 func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for Github join request")
+		return trace.BadParameter("IDToken not provided for 'circleci' join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
@@ -34,7 +34,7 @@ func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.Regist
 	}
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("circleci join method only support ProvisionTokenV2")
+		return trace.BadParameter("'circleci' join method only support ProvisionTokenV2")
 	}
 
 	claims, err := a.circleCITokenValidate(
