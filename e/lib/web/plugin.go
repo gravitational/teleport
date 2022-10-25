@@ -83,6 +83,20 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.POST("/enterprise/oidc", h.WithAuth(p.upsertOIDCConnectorHandle))
 	h.DELETE("/enterprise/oidc/:name", h.WithAuth(p.deleteOIDCConnectorHandle))
 
+	// /webapi handlers have been moved from OSS Teleport, but the path must remain unchanged
+	// for compatibility reasons (connector resources contain URLs with these paths)
+
+	// SAML 2.0 callback handlers
+	h.POST("/webapi/saml/acs", h.WithMetaRedirect(p.samlACSHandle))
+	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(p.samlACSHandle))
+	h.GET("/webapi/saml/sso", h.WithMetaRedirect(p.samlSSO))
+	h.POST("/webapi/saml/login/console", httplib.MakeHandler(p.samlSSOConsole))
+
+	// OIDC callback handlers
+	h.GET("/webapi/oidc/login/web", h.WithRedirect(p.oidcLoginWeb))
+	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(p.oidcCallback))
+	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(p.oidcLoginConsole))
+
 	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
 
 	h.POST("/enterprise/accessrequest", h.WithClusterClientProvider(p.createAccessRequestHandle))
