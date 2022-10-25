@@ -280,11 +280,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.NoError(t, auth.CreateToken(ctx, token))
-
-			// Set common request fields
 			tt.request.Token = tt.name
-			tt.request.PublicSSHKey = sshPublicKey
-			tt.request.PublicTLSKey = tlsPublicKey
 
 			_, err = auth.RegisterUsingToken(ctx, tt.request)
 			tt.assertError(t, err)
