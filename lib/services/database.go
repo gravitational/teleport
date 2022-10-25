@@ -259,7 +259,7 @@ func NewDatabaseFromAzureSQLServer(server *armsql.Server) (types.Database, error
 
 	return types.NewDatabaseV3(
 		setAzureDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure SQL server in %v", azure.StringVal(server.Location)),
+			Description: fmt.Sprintf("Azure SQL Server in %v", azure.StringVal(server.Location)),
 			Labels:      labels,
 		}, azure.StringVal(server.Name)),
 		types.DatabaseSpecV3{

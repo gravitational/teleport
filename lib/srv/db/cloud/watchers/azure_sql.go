@@ -29,7 +29,7 @@ func newAzureSQLServerFetcher(config azureFetcherConfig) (Fetcher, error) {
 	return newAzureFetcher[*armsql.Server, azure.SQLServerClient](config, &azureSQLServerFetcher{})
 }
 
-// azureRedisPlugin implements azureFetcherPlugin for Azure Redis.
+// azureRedisPlugin implements azureFetcherPlugin for Azure SQL Servers.
 type azureSQLServerFetcher struct {
 }
 
