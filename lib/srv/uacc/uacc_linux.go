@@ -183,6 +183,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 }
 
 // getDefaultPaths sets the default paths for utmp and wtmp files if passed empty.
+// This function always returns both paths, even if they don't exist in the system.
 func getDefaultPaths(utmpPath, wtmpPath string) (string, string) {
 	if utmpPath == "" {
 		utmpPath = utmpFilePath
