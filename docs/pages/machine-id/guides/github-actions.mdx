@@ -148,14 +148,14 @@ jobs:
 # Ensure that the domain "authserver.domain" matches the auth server of your own cluster.
        run: >
          tsh -i ./certs/identity
-         --proxy=authserver.domain:443 --skip-version-check
+         --proxy=authserver.domain:443
          ls
      - name: Write file to remote
 # Enters a command from the cluster, in this case "tsh ssh" using Machine ID credentials to gain SSH access to an SSH node, and then write the commit hash to the "github_run_log_2" file.
 # Ensure that the domain matches the auth server, that `username` matches the username of a remote SSH username, and that hostname matches an SSH host name that is a part of the Teleport cluster configured for access.
        run: >
          tsh -i ./certs/identity
-         --proxy authserver.domain:443 --skip-version-check
+         --proxy authserver.domain:443
          ssh username@hostname
          "echo $GITHUB_SHA >> ~/github_run_log_2"
 ```
