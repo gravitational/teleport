@@ -107,7 +107,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 //
 // Returns the startup message that contains initial connect parameters and
 // the upgraded TLS connection.
-func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgproto3.StartupMessage, utils.TLSConn, *pgproto3.Backend, error) {
+func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgproto3.StartupMessage, *tls.Conn, *pgproto3.Backend, error) {
 	receivedSSLRequest := false
 	receivedGSSEncRequest := false
 	for {
@@ -174,8 +174,6 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 			// established, just return the startup message.
 			switch tlsConn := clientConn.(type) {
 			case *tls.Conn:
-				return m, tlsConn, backend, nil
-			case *alpnproxy.PingConn:
 				return m, tlsConn, backend, nil
 			default:
 				return nil, nil, nil, trace.BadParameter(
