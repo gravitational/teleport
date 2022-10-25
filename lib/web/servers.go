@@ -162,13 +162,13 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 // desktopIsActive checks if a desktop has an active session and if so, returns a one time token that is needed
 // to start a session to said desktop.
 //
-// GET /v1/webapi/sites/:site/desktop_is_active/:desktop
+// GET /v1/webapi/sites/:site/desktops/:desktopName/active
 //
 // Response body:
 //
 // {"active": bool}
 func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	desktopName := p.ByName("desktop")
+	desktopName := p.ByName("desktopName")
 	trackers, err := h.auth.proxyClient.GetActiveSessionTrackers(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)

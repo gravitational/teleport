@@ -622,7 +622,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithClusterAuth(h.desktopPlaybackHandle))
-	h.GET("/webapi/sites/:site/desktop_is_active/:desktop", h.WithClusterAuth(h.desktopIsActive))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
 	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
