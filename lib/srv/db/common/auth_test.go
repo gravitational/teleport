@@ -20,9 +20,14 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -189,6 +194,153 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	}
 }
 
+func TestGetAzureIdentityResourceID(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		desc                string
+		identityName        string
+		clients             *cloud.TestCloudClients
+		errAssertion        require.ErrorAssertionFunc
+		resourceIDAssertion require.ValueAssertionFunc
+	}{
+		{
+			desc:         "running on Azure and identity is attached",
+			identityName: "identity",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
+					GetResult: generateAzureVM(t, []string{identityResourceID(t, "identity")}),
+				}),
+			},
+			errAssertion: require.NoError,
+			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+				require.Equal(requireT, identityResourceID(t, "identity"), value)
+			},
+		},
+		{
+			desc:         "running on Azure without the identity",
+			identityName: "random-identity-not-attached",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
+					GetResult: generateAzureVM(t, []string{identityResourceID(t, "identity")}),
+				}),
+			},
+			errAssertion:        require.Error,
+			resourceIDAssertion: require.Empty,
+		},
+		{
+			desc:         "running on Azure wrong format identity",
+			identityName: "identity",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
+					GetResult: generateAzureVM(t, []string{"identity"}),
+				}),
+			},
+			errAssertion:        require.Error,
+			resourceIDAssertion: require.Empty,
+		},
+		{
+			desc:         "running outside of Azure",
+			identityName: "identity",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "i-1234567890abcdef0",
+					instanceType: types.InstanceMetadataTypeEC2,
+				},
+			},
+			errAssertion:        require.Error,
+			resourceIDAssertion: require.Empty,
+		},
+		{
+			desc:         "running on azure but failed to get VM",
+			identityName: "random-identity-not-attached",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
+					GetErr: errors.New("failed to get VM"),
+				}),
+			},
+			errAssertion:        require.Error,
+			resourceIDAssertion: require.Empty,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			auth, err := NewAuth(AuthConfig{
+				AuthClient: new(authClientMock),
+				Clients:    tc.clients,
+			})
+			require.NoError(t, err)
+
+			resourceID, err := auth.GetAzureIdentityResourceID(ctx, tc.identityName)
+			tc.errAssertion(t, err)
+			tc.resourceIDAssertion(t, resourceID)
+		})
+	}
+}
+
+func TestGetAzureIdentityResourceIDCache(t *testing.T) {
+	ctx := context.Background()
+	identityName := "identity"
+	virtualMachinesMock := &libcloudazure.ARMComputeMock{
+		GetErr: errors.New("failed to fetch VM"),
+	}
+
+	clock := clockwork.NewFakeClock()
+
+	auth, err := NewAuth(AuthConfig{
+		Clock:      clock,
+		AuthClient: new(authClientMock),
+		Clients: &cloud.TestCloudClients{
+			InstanceMetadata: &imdsMock{
+				id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
+				instanceType: types.InstanceMetadataTypeAzure,
+			},
+			AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(virtualMachinesMock),
+		},
+	})
+	require.NoError(t, err)
+
+	// First fetch will return an error.
+	resourceID, err := auth.GetAzureIdentityResourceID(ctx, identityName)
+	require.Error(t, err)
+	require.Empty(t, resourceID)
+
+	// Change mock to return the VM.
+	virtualMachinesMock.GetErr = nil
+	virtualMachinesMock.GetResult = generateAzureVM(t, []string{identityResourceID(t, "identity")})
+
+	// Advance the clock to force cache expiration.
+	clock.Advance(azureVirtualMachineCacheTTL + time.Second)
+
+	// Second fetch succeeds and return the matched identity.
+	resourceID, err = auth.GetAzureIdentityResourceID(ctx, identityName)
+	require.NoError(t, err)
+	require.Equal(t, identityResourceID(t, "identity"), resourceID)
+
+	// Change mock back to return an error.
+	virtualMachinesMock.GetErr = errors.New("failed to fetch VM")
+
+	// Third fetch succeeds and return the cached identity.
+	resourceID, err = auth.GetAzureIdentityResourceID(ctx, identityName)
+	require.NoError(t, err)
+	require.Equal(t, identityResourceID(t, "identity"), resourceID)
+}
+
 func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
 	database, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test-database",
@@ -257,6 +409,31 @@ func newRedshiftDatabase(t *testing.T, ca string) types.Database {
 	return database
 }
 
+// identityResourceID generates full resource ID of the Azure user identity.
+func identityResourceID(t *testing.T, identityName string) string {
+	t.Helper()
+	return fmt.Sprintf("/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", identityName)
+}
+
+// generateAzureVM generates Azure VM resource.
+func generateAzureVM(t *testing.T, identities []string) armcompute.VirtualMachine {
+	t.Helper()
+
+	identitiesMap := make(map[string]*armcompute.UserAssignedIdentitiesValue)
+	for _, identity := range identities {
+		identitiesMap[identity] = &armcompute.UserAssignedIdentitiesValue{}
+	}
+
+	return armcompute.VirtualMachine{
+		ID:   to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm"),
+		Name: to.Ptr("vm"),
+		Identity: &armcompute.VirtualMachineIdentity{
+			PrincipalID:            to.Ptr("00000000-0000-0000-0000-000000000000"),
+			UserAssignedIdentities: identitiesMap,
+		},
+	}
+}
+
 // authClientMock is a mock that implements AuthClient interface.
 type authClientMock struct {
 }
@@ -297,4 +474,22 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 // GetAuthPreference always returns types.DefaultAuthPreference().
 func (m *authClientMock) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return types.DefaultAuthPreference(), nil
+}
+
+// imdsMock is a mock that implements InstanceMetadata interface.
+type imdsMock struct {
+	cloud.InstanceMetadata
+	// GetID mocks.
+	id    string
+	idErr error
+	// GetType mocks.
+	instanceType types.InstanceMetadataType
+}
+
+func (m *imdsMock) GetID(_ context.Context) (string, error) {
+	return m.id, m.idErr
+}
+
+func (m *imdsMock) GetType() types.InstanceMetadataType {
+	return m.instanceType
 }

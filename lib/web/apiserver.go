@@ -77,9 +77,9 @@ import (
 )
 
 const (
-	// ssoLoginConsoleErr is a generic error message to hide revealing sso login failure msgs.
-	ssoLoginConsoleErr = "Failed to login. Please check Teleport's log for more details."
-	metaRedirectHTML   = `
+	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
+	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
+	metaRedirectHTML       = `
 <!DOCTYPE html>
 <html lang="en">
 	<head>
@@ -184,10 +184,10 @@ type Config struct {
 	// Enables web UI if set.
 	StaticFS http.FileSystem
 
-	// cachedSessionLingeringThreshold specifies the time the session will linger
+	// CachedSessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired.
 	// Defaults to cachedSessionLingeringThreshold if unspecified.
-	cachedSessionLingeringThreshold *time.Duration
+	CachedSessionLingeringThreshold *time.Duration
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
@@ -266,8 +266,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
-	if cfg.cachedSessionLingeringThreshold != nil {
-		sessionLingeringThreshold = *cfg.cachedSessionLingeringThreshold
+	if cfg.CachedSessionLingeringThreshold != nil {
+		sessionLingeringThreshold = *cfg.CachedSessionLingeringThreshold
 	}
 
 	auth, err := newSessionCache(sessionCacheOptions{
@@ -558,17 +558,6 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
-
-	// OIDC related callback handlers
-	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
-	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
-	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
-
-	// SAML 2.0 handlers
-	h.POST("/webapi/saml/acs", h.WithMetaRedirect(h.samlACS))
-	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(h.samlACS))
-	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
-	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -1207,47 +1196,21 @@ func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	return webclient.MotD{Text: authPrefs.GetMessageOfTheDay()}, nil
 }
 
-func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
-	logger := h.log.WithField("auth", "oidc")
-	logger.Debug("Web login start.")
-
-	req, err := parseSSORequestParams(r)
-	if err != nil {
-		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
-		return client.LoginFailedRedirectURL
-	}
-
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		CSRFToken:         req.csrfToken,
-		ConnectorID:       req.connectorID,
-		CreateWebSession:  true,
-		ClientRedirectURL: req.clientRedirectURL,
-		CheckUser:         true,
-		ProxyAddress:      r.Host,
-	})
-	if err != nil {
-		logger.WithError(err).Error("Error creating auth request.")
-		return client.LoginFailedRedirectURL
-	}
-
-	return response.RedirectURL
-}
-
 func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
 	logger := h.log.WithField("auth", "github")
 	logger.Debug("Web login start.")
 
-	req, err := parseSSORequestParams(r)
+	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.WithError(err).Error("Failed to extract SSO parameters from request.")
 		return client.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		CSRFToken:         req.csrfToken,
-		ConnectorID:       req.connectorID,
+		CSRFToken:         req.CSRFToken,
+		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
-		ClientRedirectURL: req.clientRedirectURL,
+		ClientRedirectURL: req.ClientRedirectURL,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -1265,12 +1228,12 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -1285,7 +1248,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -1307,7 +1270,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
 		if requestID := r.URL.Query().Get("state"); requestID != "" {
 			if request, errGet := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
-				if redURL, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
+				if redURL, errEnc := RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return redURL.String()
 				}
 			}
@@ -1323,19 +1286,19 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	if response.Req.CreateWebSession {
 		logger.Infof("Redirecting to web browser.")
 
-		res := &ssoCallbackResponse{
-			csrfToken:         response.Req.CSRFToken,
-			username:          response.Username,
-			sessionName:       response.Session.GetName(),
-			clientRedirectURL: response.Req.ClientRedirectURL,
+		res := &SSOCallbackResponse{
+			CSRFToken:         response.Req.CSRFToken,
+			Username:          response.Username,
+			SessionName:       response.Session.GetName(),
+			ClientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
+		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}
 
-		return res.clientRedirectURL
+		return res.ClientRedirectURL
 	}
 
 	logger.Infof("Callback is redirecting to console login.")
@@ -1353,112 +1316,6 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		FIPS:              h.cfg.FIPS,
-	})
-	if err != nil {
-		logger.WithError(err).Error("Error constructing ssh response")
-		return client.LoginFailedRedirectURL
-	}
-
-	return redirectURL.String()
-}
-
-func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	logger := h.log.WithField("auth", "oidc")
-	logger.Debug("Console login start.")
-
-	req := new(client.SSOLoginConsoleReq)
-	if err := httplib.ReadJSON(r, req); err != nil {
-		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
-	}
-
-	if err := req.CheckAndSetDefaults(); err != nil {
-		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
-	}
-
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		ConnectorID:          req.ConnectorID,
-		ClientRedirectURL:    req.RedirectURL,
-		PublicKey:            req.PublicKey,
-		CertTTL:              req.CertTTL,
-		CheckUser:            true,
-		Compatibility:        req.Compatibility,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		ProxyAddress:         r.Host,
-		AttestationStatement: req.AttestationStatement.ToProto(),
-	})
-	if err != nil {
-		logger.WithError(err).Error("Failed to create OIDC auth request.")
-		return nil, trace.AccessDenied(ssoLoginConsoleErr)
-	}
-
-	return &client.SSOLoginConsoleResponse{
-		RedirectURL: response.RedirectURL,
-	}, nil
-}
-
-func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
-	logger := h.log.WithField("auth", "oidc")
-	logger.Debug("Callback start.")
-
-	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.Context(), r.URL.Query())
-	if err != nil {
-		logger.WithError(err).Error("Error while processing callback.")
-
-		// try to find the auth request, which bears the original client redirect URL.
-		// if found, use it to terminate the flow.
-		//
-		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
-		if requestID := r.URL.Query().Get("state"); requestID != "" {
-			if request, errGet := h.cfg.ProxyClient.GetOIDCAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
-				if redURL, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
-					return redURL.String()
-				}
-			}
-		}
-
-		if errors.Is(err, auth.ErrOIDCNoRoles) {
-			return client.LoginFailedUnauthorizedRedirectURL
-		}
-
-		return client.LoginFailedBadCallbackRedirectURL
-	}
-
-	// if we created web session, set session cookie and redirect to original url
-	if response.Req.CreateWebSession {
-		logger.Info("Redirecting to web browser.")
-
-		res := &ssoCallbackResponse{
-			csrfToken:         response.Req.CSRFToken,
-			username:          response.Username,
-			sessionName:       response.Session.GetName(),
-			clientRedirectURL: response.Req.ClientRedirectURL,
-		}
-
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
-			logger.WithError(err).Error("Error setting web session.")
-			return client.LoginFailedRedirectURL
-		}
-
-		return res.clientRedirectURL
-	}
-
-	logger.Info("Callback redirecting to console login.")
-	if len(response.Req.PublicKey) == 0 {
-		logger.Error("Not a web or console login request.")
-		return client.LoginFailedRedirectURL
-	}
-
-	redirectURL, err := ConstructSSHResponse(AuthParams{
-		ClientRedirectURL: response.Req.ClientRedirectURL,
-		Username:          response.Username,
-		Identity:          response.Identity,
-		Session:           response.Session,
-		Cert:              response.Cert,
-		TLSCert:           response.TLSCert,
-		HostSigners:       response.HostSigners,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response")
@@ -1593,7 +1450,11 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	return u, nil
 }
 
-func redirectURLWithError(clientRedirectURL string, errReply error) (*url.URL, error) {
+// RedirectURLWithError adds an err query parameter to the given redirect URL with the
+// given errReply message and returns the new URL. If the given URL cannot be parsed,
+// an error is returned with a nil URL. It is used to return an error back to the
+// original URL in an SSO callback when validation fails.
+func RedirectURLWithError(clientRedirectURL string, errReply error) (*url.URL, error) {
 	u, err := url.Parse(clientRedirectURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3167,13 +3028,23 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 	return config, nil
 }
 
-type ssoRequestParams struct {
-	clientRedirectURL string
-	connectorID       string
-	csrfToken         string
+// SSORequestParams holds parameters parsed out of a HTTP request initiating an
+// SSO login. See ParseSSORequestParams().
+type SSORequestParams struct {
+	// ClientRedirectURL is the URL specified in the query parameter
+	// redirect_url, which will be unescaped here.
+	ClientRedirectURL string
+	// ConnectorID identifies the SSO connector to use to log in, from
+	// the connector_id query parameter.
+	ConnectorID string
+	// CSRFToken is the token in the CSRF cookie header.
+	CSRFToken string
 }
 
-func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
+// ParseSSORequestParams extracts the SSO request parameters from an http.Request,
+// returning them in an SSORequestParams struct. If any fields are not present,
+// an error is returned.
+func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 	// Manually grab the value from query param "redirect_url".
 	//
 	// The "redirect_url" param can contain its own query params such as in
@@ -3205,37 +3076,52 @@ func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &ssoRequestParams{
-		clientRedirectURL: clientRedirectURL,
-		connectorID:       connectorID,
-		csrfToken:         csrfToken,
+	return &SSORequestParams{
+		ClientRedirectURL: clientRedirectURL,
+		ConnectorID:       connectorID,
+		CSRFToken:         csrfToken,
 	}, nil
 }
 
-type ssoCallbackResponse struct {
-	csrfToken         string
-	username          string
-	sessionName       string
-	clientRedirectURL string
+// SSOCallbackResponse holds the parameters for validating and executing an SSO
+// callback URL. See SSOSetWebSessionAndRedirectURL().
+type SSOCallbackResponse struct {
+	// CSRFToken is the token provided in the originating SSO login request
+	// to be validated against.
+	CSRFToken string
+	// Username is the authenticated teleport username of the user that has
+	// logged in, provided by the SSO provider.
+	Username string
+	// SessionName is the name of the session generated by auth server if
+	// requested in the SSO request.
+	SessionName string
+	// ClientRedirectURL is the URL to redirect back to on completion of
+	// the SSO login process.
+	ClientRedirectURL string
 }
 
-func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *ssoCallbackResponse, verifyCSRF bool) error {
+// SSOSetWebSessionAndRedirectURL validates the CSRF token in the response
+// against that in the request, validates that the callback URL in the response
+// can be parsed, and sets a session cookie with the username and session name
+// from the response. On success, nil is returned. If the validation fails, an
+// error is returned.
+func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *SSOCallbackResponse, verifyCSRF bool) error {
 	if verifyCSRF {
-		if err := csrf.VerifyToken(response.csrfToken, r); err != nil {
+		if err := csrf.VerifyToken(response.CSRFToken, r); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if err := SetSessionCookie(w, response.username, response.sessionName); err != nil {
+	if err := SetSessionCookie(w, response.Username, response.SessionName); err != nil {
 		return trace.Wrap(err)
 	}
 
-	parsedURL, err := url.Parse(response.clientRedirectURL)
+	parsedURL, err := url.Parse(response.ClientRedirectURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	response.clientRedirectURL = parsedURL.RequestURI()
+	response.ClientRedirectURL = parsedURL.RequestURI()
 
 	return nil
 }

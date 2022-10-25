@@ -89,6 +89,9 @@ type Clients interface {
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 	GetGCPSQLAdminClient(context.Context) (GCPSQLAdminClient, error)
+	// GetInstanceMetadataClient returns instance metadata client based on which
+	// cloud provider Teleport is running on, if any.
+	GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error)
 	// AzureClients is an interface for Azure-specific API clients
 	AzureClients
 	// Closer closes all initialized clients.
@@ -111,6 +114,8 @@ type AzureClients interface {
 	GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error)
 	// GetAzureKubernetesClient returns an Azure AKS client for the specified subscription.
 	GetAzureKubernetesClient(subscription string) (azure.AKSClient, error)
+	// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
+	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -123,6 +128,7 @@ func NewClients() Clients {
 			azureRedisClients:           azure.NewClientMap(azure.NewRedisClient),
 			azureRedisEnterpriseClients: azure.NewClientMap(azure.NewRedisEnterpriseClient),
 			azureKubernetesClient:       make(map[string]azure.AKSClient),
+			azureVirtualMachinesClients: azure.NewClientMap(azure.NewVirtualMachinesClient),
 		},
 	}
 }
@@ -137,6 +143,8 @@ type cloudClients struct {
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
 	gcpSQLAdmin GCPSQLAdminClient
+	// instanceMetadata is the cached instance metadata client.
+	instanceMetadata InstanceMetadata
 	// azureClients contains Azure-specific clients.
 	azureClients
 	// mtx is used for locking.
@@ -159,6 +167,8 @@ type azureClients struct {
 	azureRedisEnterpriseClients azure.ClientMap[azure.RedisEnterpriseClient]
 	// azureKubernetesClient is the cached Azure Kubernetes client.
 	azureKubernetesClient map[string]azure.AKSClient
+	// azureVirtualMachinesClients contains the cached Azure Virtual Machines clients.
+	azureVirtualMachinesClients azure.ClientMap[azure.VirtualMachinesClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -284,6 +294,17 @@ func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminCli
 	return c.initGCPSQLAdminClient(ctx)
 }
 
+// GetInstanceMetadata returns the instance metadata.
+func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error) {
+	c.mtx.RLock()
+	if c.instanceMetadata != nil {
+		defer c.mtx.RUnlock()
+		return c.instanceMetadata, nil
+	}
+	c.mtx.RUnlock()
+	return c.initInstanceMetadata(ctx)
+}
+
 // GetAzureCredential returns default Azure token credential chain.
 func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	c.mtx.RLock()
@@ -347,6 +368,12 @@ func (c *cloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSC
 	}
 	c.mtx.RUnlock()
 	return c.initAzureKubernetesClient(subscription)
+}
+
+// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
+// the given subscription.
+func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
+	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
 }
 
 // Close closes all initialized clients.
@@ -498,6 +525,23 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 	return client, nil
 }
 
+// initInstanceMetadata initializes the instance metadata client.
+func (c *cloudClients) initInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.instanceMetadata != nil { // If some other thread already got here first.
+		return c.instanceMetadata, nil
+	}
+	logrus.Debug("Initializing instance metadata client.")
+	client, err := DiscoverInstanceMetadata(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.instanceMetadata = client
+	return client, nil
+}
+
 func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
@@ -523,7 +567,6 @@ func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKS
 		})
 	c.azureKubernetesClient[subscription] = client
 	return client, nil
-
 }
 
 // TestCloudClients implements Clients
@@ -542,6 +585,7 @@ type TestCloudClients struct {
 	GCPSQL                  GCPSQLAdminClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
+	InstanceMetadata        InstanceMetadata
 	EKS                     eksiface.EKSAPI
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
@@ -552,6 +596,7 @@ type TestCloudClients struct {
 	AzureRedisEnterprise    azure.RedisEnterpriseClient
 	AzureAKSClientPerSub    map[string]azure.AKSClient
 	AzureAKSClient          azure.AKSClient
+	AzureVirtualMachines    azure.VirtualMachinesClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -607,6 +652,11 @@ func (c *TestCloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
 	return c.GCPSQL, nil
+}
+
+// GetInstanceMetadata returns the instance metadata.
+func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error) {
+	return c.InstanceMetadata, nil
 }
 
 // GetAzureCredential returns default Azure token credential chain.
@@ -666,6 +716,12 @@ func (c *TestCloudClients) GetAzureRedisClient(subscription string) (azure.Redis
 // GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
 func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error) {
 	return c.AzureRedisEnterprise, nil
+}
+
+// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
+// the given subscription.
+func (c *TestCloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
+	return c.AzureVirtualMachines, nil
 }
 
 // Close closes all initialized clients.
