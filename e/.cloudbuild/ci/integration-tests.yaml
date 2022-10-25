@@ -1,42 +1,5 @@
+# Integration tests run as part of the unit-tests job.
 steps:
   - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
     id: pull-buildbox-image
     args: ["echo", "done"]
-
-  # Checkout OSS teleport and move the e repo into place
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
-    id: checkout
-    secretEnv:
-      - WEBASSETS_DEPLOYMENT_KEY
-    entrypoint: /bin/bash
-    args:
-      - -c
-      - go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH
-
-  # Run the integration tests. Actual content of this job depends on the changes
-  # detected in the PR
-  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
-    id: run-tests
-    dir: /tmp/teleport/.cloudbuild/scripts
-    entrypoint: /bin/bash
-    args:
-      - -c
-      - go run ./cmd/integration-tests -workspace=/tmp/teleport -target=$_BASE_BRANCH -skip-unshallow
-    timeout: 30m
-
-availableSecrets:
-  secretManager:
-  - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/2
-    env: WEBASSETS_DEPLOYMENT_KEY
-
-timeout: 35m
-
-options:
-  volumes:
-    - name: oss_teleport
-      path: /tmp/teleport
-
-  env:
-    - GOMODCACHE=/tmp/teleport/.gomodcacheci
-
-  machineType: 'E2_HIGHCPU_32'

@@ -107,7 +107,7 @@ endif
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
-# PIV=yes and PIV=static enable static piv builds. This is used by the build 
+# PIV=yes and PIV=static enable static piv builds. This is used by the build
 # process to link a static library of libpcsclite for piv-go to connect to.
 #
 # PIV=dynamic enables dynamic piv builds. This can be used for local
@@ -346,8 +346,7 @@ endif
 #
 .PHONY: test
 test:
-	go test -v ./lib/... && \
-	go vet ./lib/...
+	go test -v ./...
 
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
@@ -379,7 +378,7 @@ publish-fips:
 	docker push $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)-fips
 
 .PHONY: publish-ecr
-publish-ecr: 
+publish-ecr:
 	docker tag $(DOCKER_IMAGE_ENT_QUAY) $(DOCKER_IMAGE_ENT_ECR)
 	docker push $(DOCKER_IMAGE_ENT_ECR):$(VERSION)
 

@@ -198,7 +198,7 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 		},
 		{
 			name:              "does not create alert if not self enrolled",
-			shouldCreateAlert: true,
+			shouldCreateAlert: false,
 			setupMocks: func(m *reporterMocks) {
 				m.client.MockGetBillingInformation = func() (*cloudapi.GetBillingInformationResponse, error) {
 					return &cloudapi.GetBillingInformationResponse{Trial: true, SelfEnrolled: false}, nil

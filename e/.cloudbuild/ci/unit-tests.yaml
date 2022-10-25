@@ -12,15 +12,14 @@ steps:
       - "-c"
       - "go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH"
 
-  # Run the unit tests. Actual content of this job depends on the changes
-  # detected in the PR
+  # Build and run unit tests.
   - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
     id: run-tests
-    dir: /tmp/teleport/.cloudbuild/scripts
+    dir: /tmp/teleport/
     entrypoint: bash
     args:
       - -c
-      - go run ./cmd/unit-tests -workspace=/tmp/teleport -target=$_BASE_BRANCH -skip-unshallow
+      - go build ./e/tool/{tctl,teleport} && make -C e/ test
     timeout: 25m
 
 availableSecrets:
