@@ -1,5 +1,28 @@
 # Changelog
 
+## 11.0.1
+
+This release of Teleport contains a security fix and multiple bug fixes.
+
+## Block SFTP in Moderated Sessions
+
+Teleport did not block SFTP protocol in Moderated Sessions.
+
+[#17727](https://github.com/gravitational/teleport/pull/17727)
+
+## Other fixes
+
+* Fixed issue with agent forwarding not working for auto-created users. [#17586](https://github.com/gravitational/teleport/pull/17586)
+* Fixed "traits missing" error in Application Access. [#17737](https://github.com/gravitational/teleport/pull/17737)
+* Fixed connection leak issue in IAM joining. [#17737](https://github.com/gravitational/teleport/pull/17737)
+* Fixed panic in "tsh db ls". [#17780](https://github.com/gravitational/teleport/pull/17780)
+* Fixed issue with "tsh mfa add" not displaying OTP QR code image on Windows. [#17703](https://github.com/gravitational/teleport/pull/17703)
+* Fixed issue with `tctl rm windows_desktop/<name>` removing all desktops. [#17732](https://github.com/gravitational/teleport/pull/17732)
+* Fixed issue connecting to Redis 7.0 in cluster mode. [#17849](https://github.com/gravitational/teleport/pull/17849)
+* Fixed "failed to open user account database" error after exiting SSH session. [#17825](https://github.com/gravitational/teleport/pull/17825)
+* Improved `tctl` UX when using hardware-backed private keys. [#17681](https://github.com/gravitational/teleport/pull/17681)
+* Improved `tsh mfa add` error reporting. [#17580](https://github.com/gravitational/teleport/pull/17580)
+
 ## 11.0.0
 
 Teleport 11 brings the following new major features and improvements:
