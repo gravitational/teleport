@@ -443,7 +443,10 @@ install_teleport_database_config() {
     log "Writing Teleport database service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
 
-    # we disable this shellcheck check because go templates this section before this becoming an actual shell script
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
     # shellcheck disable=SC2154
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 version: v3
