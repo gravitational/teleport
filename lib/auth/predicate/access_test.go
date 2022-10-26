@@ -24,13 +24,13 @@ import (
 )
 
 func TestCheckAccessToNode(t *testing.T) {
-	withNameAsLogin := types.NewPolicy("allow", types.PolicySpecV1{
+	withNameAsLogin := types.NewPolicy("allow", types.AccessPolicySpecV1{
 		Allow: map[string]string{
 			"node": "(node.login == user.name) || (add(user.name, \"-admin\") == node.login)",
 		},
 	})
 
-	denyMike := types.NewPolicy("allow", types.PolicySpecV1{
+	denyMike := types.NewPolicy("allow", types.AccessPolicySpecV1{
 		Deny: map[string]string{
 			"node": "node.login == \"mike\"",
 		},

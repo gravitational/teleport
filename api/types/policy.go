@@ -34,9 +34,9 @@ type Policy interface {
 }
 
 // NewPolicy creates a new policy from a specification.
-func NewPolicy(name string, spec PolicySpecV1) *PolicyV1 {
-	return &PolicyV1{
-		Kind:    KindPolicy,
+func NewPolicy(name string, spec AccessPolicySpecV1) *AccessPolicyV1 {
+	return &AccessPolicyV1{
+		Kind:    KindAccessPolicy,
 		Version: V1,
 		Metadata: Metadata{
 			Name:      name,
