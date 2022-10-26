@@ -22,7 +22,9 @@ import (
 	"github.com/vulcand/predicate"
 )
 
+// NamedParameter is an object with a name that can be added to the environment in which a predicate expression runs.
 type NamedParameter interface {
+	// GetName returns the name of the object.
 	GetName() string
 }
 
@@ -35,19 +37,24 @@ func buildEnv(objects ...NamedParameter) map[string]any {
 	return env
 }
 
+// PredicateAccessChecker checks access/permissions to access certain resources by evaluating AccessPolicy resources.
 type PredicateAccessChecker struct {
 	polices []types.Policy
 }
 
+// NewPredicateAccessChecker creates a new PredicateAccessChecker with a set of policies describing the permissions.
 func NewPredicateAccessChecker(policies []types.Policy) *PredicateAccessChecker {
 	return &PredicateAccessChecker{policies}
 }
 
+// CheckAccessToNode checks if a given user has access to a Server Access node.
 func (c *PredicateAccessChecker) CheckAccessToNode(node *Node, user *User) (bool, error) {
 	env := buildEnv(node, user)
 	return c.checkPolicyExprs("node", env)
 }
 
+// checkPolicyExprs is the internal routine that evaluates expressions in a given scope from all policies
+// with a provided execution environment containing input values.
 func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]any) (bool, error) {
 	getIdentifierInEnv := func(selector []string) (any, error) {
 		return getIdentifier(env, selector)
@@ -128,20 +135,24 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 	return false, nil
 }
 
+// Node describes a Server Access node.
 type Node struct {
 	Login  string            `json:"login"`
 	Labels map[string]string `json:"labels"`
 }
 
+// GetName returns the name of the object.
 func (n *Node) GetName() string {
 	return "node"
 }
 
+// User describes a Teleport user.
 type User struct {
 	Name   string              `json:"name"`
 	Traits map[string][]string `json:"traits"`
 }
 
+// GetName returns the name of the object.
 func (u *User) GetName() string {
 	return "user"
 }

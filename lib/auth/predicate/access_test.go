@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestCheckAccessToNode checks that `CheckAccessToNode` works properly.
 func TestCheckAccessToNode(t *testing.T) {
 	withNameAsLogin := types.NewPolicy("allow", types.AccessPolicySpecV1{
 		Allow: map[string]string{
