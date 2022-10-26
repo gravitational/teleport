@@ -27,6 +27,8 @@ const (
 	Azure = "azure"
 	// AWS identifies that a fetcher is watching resources from AWS.
 	AWS = "aws"
+	// GCP identifies that a fetcher is watching resources from GCP.
+	GCP = "gcp"
 )
 
 // Fetcher defines the common methods across all fetchers.

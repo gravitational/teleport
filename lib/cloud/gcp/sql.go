@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cloud
+package gcp
 
 import (
 	"context"
@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// GCPSQLAdminClient defines an interface providing access to the GCP Cloud SQL API.
-type GCPSQLAdminClient interface {
+// SQLAdminClient defines an interface providing access to the GCP Cloud SQL API.
+type SQLAdminClient interface {
 	// UpdateUser updates an existing user for the project/instance configured in a session.
 	UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error
 	// GetDatabaseInstance returns database instance details for the project/instance
@@ -46,7 +46,7 @@ type GCPSQLAdminClient interface {
 }
 
 // NewGCPSQLAdminClient returns a GCPSQLAdminClient interface wrapping sqladmin.Service.
-func NewGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
+func NewSQLAdminClient(ctx context.Context) (SQLAdminClient, error) {
 	service, err := sqladmin.NewService(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

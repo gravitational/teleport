@@ -1240,3 +1240,10 @@ const (
 	// labelResourceGroup is the label key for the Azure resource group name.
 	labelResourceGroup = "resource-group"
 )
+
+const (
+	// labelProjectID is the label key for GCP project ID.
+	labelProjectID = "project-id"
+	// labelLocation is the label key for GCP location.
+	labelLocation = "location"
+)
