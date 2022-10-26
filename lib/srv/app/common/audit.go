@@ -21,9 +21,8 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -43,6 +42,8 @@ type Audit interface {
 	OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, serverID string) error
 	// OnRequest is called when an app request is sent during the session and a response is received.
 	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error
+	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
+	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
@@ -167,9 +168,6 @@ func (a *audit) OnSessionChunk(ctx context.Context, sessionCtx *SessionContext, 
 
 // OnRequest is called when an app request is sent during the session and a response is received.
 func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
-	if sessionCtx.App.IsDynamoDB() {
-		return trace.Wrap(a.onDynamoDBRequest(ctx, sessionCtx, req, res, re))
-	}
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionRequestEvent,
@@ -185,8 +183,8 @@ func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
-// onDynamoDBRequest is called when a DynamoDB app request is sent during the session.
-func (a *audit) onDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
+// OnDynamoDBRequest is called when a DynamoDB app request is sent during the session.
+func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, res *http.Response, re *endpoints.ResolvedEndpoint) error {
 	// Try to read the body and JSON unmarshal it.
 	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
 	body, err := awsutils.UnmarshalRequestBody(req)

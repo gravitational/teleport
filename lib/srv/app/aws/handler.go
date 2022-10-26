@@ -19,6 +19,7 @@ package aws
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -153,7 +154,13 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, req, resp, resolvedEndpoint)
+	// emit audit event with original request, but change the URL since we resolved and rewrote it.
+	signedReq.Body = io.NopCloser(bytes.NewReader(payload))
+	if isDynamoDBEndpoint(resolvedEndpoint) {
+		err = sessionCtx.Audit.OnDynamoDBRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
+	} else {
+		err = sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
+	}
 	if err != nil {
 		s.Log.WithError(err).Warn("Failed to emit audit event.")
 	}
