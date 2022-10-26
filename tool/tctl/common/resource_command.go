@@ -107,6 +107,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindKubernetesCluster:       rc.createKubeCluster,
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
+		types.KindAccessPolicy:            rc.createPolicy,
 	}
 	rc.config = config
 
@@ -624,6 +625,16 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	}
 
 	err = client.SetInstaller(ctx, inst)
+	return trace.Wrap(err)
+}
+
+func (rc *ResourceCommand) createPolicy(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	policy, err := services.UnmarshalPolicy(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.CreatePolicy(ctx, policy)
 	return trace.Wrap(err)
 }
 
@@ -1365,6 +1376,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	case types.KindAccessPolicy:
+		if rc.ref.Name == "" {
+			policies, err := client.GetPolicies(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &policyCollection{policies: policies}, nil
+		}
+		policy, err := client.GetPolicy(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &policyCollection{policies: []types.Policy{policy}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
