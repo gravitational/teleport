@@ -1843,6 +1843,7 @@ steps:
   - name: Download chart repo contents
     image: amazon/aws-cli
     environment:
+      AWS_REGION: us-west-2        
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -1871,7 +1872,7 @@ steps:
       - cd /go/chart
       - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
     environment:
-      AWS_REGION: us-east-2
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -11580,6 +11581,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 556a5809492d01e67eb04f2c52869646f200bbdb897c62ff1ac8d5d53c90abaa
+hmac: 8eae660ab3c2877f4b5420c2c6ff49a6161d6baa207e8ee1bc020ce55985af40
 
 ...
