@@ -76,7 +76,7 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 		f.log.Debugf("Failed to get RDS Proxy endpoints: %v.", err)
 	}
 
-	databases := types.Databases{}
+	var databases types.Databases
 	for _, dbProxy := range rdsProxies {
 		// TODO(greedy52) RDS Proxy supports MS SQL Server but it requires MS
 		// SQL Server engine support for IAM auth.

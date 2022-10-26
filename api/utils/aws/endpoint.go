@@ -75,6 +75,11 @@ type RDSEndpointDetails struct {
 	Region string
 }
 
+// IsProxy returns true if the RDS endpoint is an RDS Proxy.
+func (d RDSEndpointDetails) IsProxy() bool {
+	return d.ProxyName != "" || d.ProxyCustomEndpointName != ""
+}
+
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
 // endpoint.
 func ParseRDSEndpoint(endpoint string) (d *RDSEndpointDetails, err error) {

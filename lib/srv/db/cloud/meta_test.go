@@ -249,17 +249,16 @@ func TestAWSMetadata(t *testing.T) {
 			name: "RDS Proxy",
 			inAWS: types.AWS{
 				Region: "us-east-1",
-				RDS: types.RDS{
-					ProxyName: "rds-proxy",
+				RDSProxy: types.RDSProxy{
+					Name: "rds-proxy",
 				},
 			},
 			outAWS: types.AWS{
 				AccountID: "1234567890",
 				Region:    "us-east-1",
-				RDS: types.RDS{
-					ProxyName:  "rds-proxy",
+				RDSProxy: types.RDSProxy{
+					Name:       "rds-proxy",
 					ResourceID: "prx-resource-id",
-					IAMAuth:    true,
 				},
 			},
 		},
@@ -267,18 +266,17 @@ func TestAWSMetadata(t *testing.T) {
 			name: "RDS Proxy custom endpoint",
 			inAWS: types.AWS{
 				Region: "us-east-1",
-				RDS: types.RDS{
-					ProxyCustomEndpointName: "rds-proxy-endpoint",
+				RDSProxy: types.RDSProxy{
+					CustomEndpointName: "rds-proxy-endpoint",
 				},
 			},
 			outAWS: types.AWS{
 				AccountID: "1234567890",
 				Region:    "us-east-1",
-				RDS: types.RDS{
-					ProxyName:               "rds-proxy",
-					ProxyCustomEndpointName: "rds-proxy-endpoint",
-					ResourceID:              "prx-resource-id",
-					IAMAuth:                 true,
+				RDSProxy: types.RDSProxy{
+					Name:               "rds-proxy",
+					CustomEndpointName: "rds-proxy-endpoint",
+					ResourceID:         "prx-resource-id",
 				},
 			},
 		},
@@ -334,16 +332,16 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 		{
 			name: "RDS proxy",
 			meta: types.AWS{
-				RDS: types.RDS{
-					ProxyName: "rds-proxy",
+				RDSProxy: types.RDSProxy{
+					Name: "rds-proxy",
 				},
 			},
 		},
 		{
 			name: "RDS proxy endpoint",
 			meta: types.AWS{
-				RDS: types.RDS{
-					ProxyCustomEndpointName: "rds-proxy-endpoint",
+				RDSProxy: types.RDSProxy{
+					CustomEndpointName: "rds-proxy-endpoint",
 				},
 			},
 		},

@@ -99,6 +99,8 @@ type Database interface {
 	SetManagedUsers(users []string)
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
+	// IsRDSProxy returns true if this is an RDS Proxy database.
+	IsRDSProxy() bool
 	// IsRedshift returns true if this is a Redshift database.
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
@@ -346,6 +348,11 @@ func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
 
+// IsRDSProxy returns true if this is an AWS RDS Proxy database.
+func (d *DatabaseV3) IsRDSProxy() bool {
+	return d.GetType() == DatabaseTypeRDSProxy
+}
+
 // IsRedshift returns true if this is a Redshift database instance.
 func (d *DatabaseV3) IsRedshift() bool {
 	return d.GetType() == DatabaseTypeRedshift
@@ -373,7 +380,8 @@ func (d *DatabaseV3) IsMemoryDB() bool {
 
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB()
+	_, ok := d.GetAWS().GetType()
+	return ok
 }
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
@@ -383,19 +391,31 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 }
 
 // GetType returns the database type.
+func (a AWS) GetType() (string, bool) {
+	if a.Redshift.ClusterID != "" {
+		return DatabaseTypeRedshift, true
+	}
+	if a.ElastiCache.ReplicationGroupID != "" {
+		return DatabaseTypeElastiCache, true
+	}
+	if a.MemoryDB.ClusterName != "" {
+		return DatabaseTypeMemoryDB, true
+	}
+	if a.RDSProxy.Name != "" || a.RDSProxy.CustomEndpointName != "" {
+		return DatabaseTypeRDSProxy, true
+	}
+	if a.Region != "" || a.RDS.InstanceID != "" || a.RDS.ClusterID != "" {
+		return DatabaseTypeRDS, true
+	}
+	return "", false
+}
+
+// GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
-	if d.GetAWS().Redshift.ClusterID != "" {
-		return DatabaseTypeRedshift
+	if awsType, ok := d.GetAWS().GetType(); ok {
+		return awsType
 	}
-	if d.GetAWS().ElastiCache.ReplicationGroupID != "" {
-		return DatabaseTypeElastiCache
-	}
-	if d.GetAWS().MemoryDB.ClusterName != "" {
-		return DatabaseTypeMemoryDB
-	}
-	if d.GetAWS().Region != "" || d.GetAWS().RDS.HasValidID() {
-		return DatabaseTypeRDS
-	}
+
 	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
 	}
@@ -473,11 +493,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.RDS.ClusterID == "" {
 			d.Spec.AWS.RDS.ClusterID = details.ClusterID
 		}
-		if d.Spec.AWS.RDS.ProxyName == "" {
-			d.Spec.AWS.RDS.ProxyName = details.ProxyName
+		if d.Spec.AWS.RDSProxy.Name == "" {
+			d.Spec.AWS.RDSProxy.Name = details.ProxyName
 		}
-		if d.Spec.AWS.RDS.ProxyCustomEndpointName == "" {
-			d.Spec.AWS.RDS.ProxyCustomEndpointName = details.ProxyCustomEndpointName
+		if d.Spec.AWS.RDSProxy.CustomEndpointName == "" {
+			d.Spec.AWS.RDSProxy.CustomEndpointName = details.ProxyCustomEndpointName
 		}
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = details.Region
@@ -554,10 +574,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 
 // GetIAMPolicy returns AWS IAM policy for this database.
 func (d *DatabaseV3) GetIAMPolicy() (string, error) {
-	if d.IsRDS() {
+	switch d.GetType() {
+	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
 		policy, err := d.getRDSPolicy()
 		return policy, trace.Wrap(err)
-	} else if d.IsRedshift() {
+	case DatabaseTypeRedshift:
 		policy, err := d.getRedshiftPolicy()
 		return policy, trace.Wrap(err)
 	}
@@ -566,9 +587,10 @@ func (d *DatabaseV3) GetIAMPolicy() (string, error) {
 
 // GetIAMAction returns AWS IAM action needed to connect to the database.
 func (d *DatabaseV3) GetIAMAction() string {
-	if d.IsRDS() {
+	switch d.GetType() {
+	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
 		return "rds-db:connect"
-	} else if d.IsRedshift() {
+	case DatabaseTypeRedshift:
 		return "redshift:GetClusterCredentials"
 	}
 	return ""
@@ -578,14 +600,15 @@ func (d *DatabaseV3) GetIAMAction() string {
 func (d *DatabaseV3) GetIAMResources() []string {
 	aws := d.GetAWS()
 	partition := awsutils.GetPartitionFromRegion(aws.Region)
-	if d.IsRDS() {
-		if aws.Region != "" && aws.AccountID != "" && aws.RDS.ResourceID != "" {
+	switch d.GetType() {
+	case DatabaseTypeRDS, DatabaseTypeRDSProxy:
+		if aws.Region != "" && aws.AccountID != "" && d.getRDSResourceID() != "" {
 			return []string{
 				fmt.Sprintf("arn:%v:rds-db:%v:%v:dbuser:%v/*",
-					partition, aws.Region, aws.AccountID, aws.RDS.ResourceID),
+					partition, aws.Region, aws.AccountID, d.getRDSResourceID()),
 			}
 		}
-	} else if d.IsRedshift() {
+	case DatabaseTypeRedshift:
 		if aws.Region != "" && aws.AccountID != "" && aws.Redshift.ClusterID != "" {
 			return []string{
 				fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*",
@@ -615,7 +638,7 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
 }
 
-// getRDSPolicy returns IAM policy document for this RDS database.
+// getRDSPolicy returns IAM policy document for this RDS or RDS Proxy database.
 func (d *DatabaseV3) getRDSPolicy() (string, error) {
 	region := d.GetAWS().Region
 	if region == "" {
@@ -625,7 +648,7 @@ func (d *DatabaseV3) getRDSPolicy() (string, error) {
 	if accountID == "" {
 		accountID = "<account_id>"
 	}
-	resourceID := d.GetAWS().RDS.ResourceID
+	resourceID := d.getRDSResourceID()
 	if resourceID == "" {
 		resourceID = "<resource_id>"
 	}
@@ -641,6 +664,18 @@ func (d *DatabaseV3) getRDSPolicy() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return sb.String(), nil
+}
+
+// getRDSResourceID returns the resource ID for RDS or RDS Proxy database.
+func (d *DatabaseV3) getRDSResourceID() string {
+	switch d.GetType() {
+	case DatabaseTypeRDS:
+		return d.GetAWS().RDS.ResourceID
+	case DatabaseTypeRDSProxy:
+		return d.GetAWS().RDSProxy.ResourceID
+	default:
+		return ""
+	}
 }
 
 // getRedshiftPolicy returns IAM policy document for this Redshift database.
@@ -676,6 +711,8 @@ const (
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
+	// DatabaseTypeRDSProxy is an AWS-hosted RDS Proxy.
+	DatabaseTypeRDSProxy = "rdsproxy"
 	// DatabaseTypeRedshift is AWS Redshift database.
 	DatabaseTypeRedshift = "redshift"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
@@ -691,16 +728,6 @@ const (
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
 func (gcp GCPCloudSQL) GetServerName() string {
 	return fmt.Sprintf("%s:%s", gcp.ProjectID, gcp.InstanceID)
-}
-
-// HasValidID returns true if any of the identifiers exists.
-func (rds RDS) HasValidID() bool {
-	return rds.ClusterID != "" || rds.InstanceID != "" || rds.ProxyName != "" || rds.ProxyCustomEndpointName != ""
-}
-
-// IsRDSProxy returns true if this is an RDS Proxy.
-func (rds RDS) IsRDSProxy() bool {
-	return rds.ProxyName != "" || rds.ProxyCustomEndpointName != ""
 }
 
 // DeduplicateDatabases deduplicates databases by name.

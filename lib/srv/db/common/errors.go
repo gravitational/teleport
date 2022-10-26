@@ -137,6 +137,8 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 		switch sessionCtx.Database.GetType() {
 		case types.DatabaseTypeRDS:
 			return createRDSAccessDeniedError(err, sessionCtx)
+		case types.DatabaseTypeRDSProxy:
+			return createRDSProxyAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeAzure:
 			return createAzureAccessDeniedError(err, sessionCtx)
 		}
@@ -148,10 +150,6 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 // createRDSAccessDeniedError creates an error with help message to setup IAM
 // auth for RDS.
 func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
-	if sessionCtx.Database.GetAWS().RDS.IsRDSProxy() {
-		return createRDSProxyAccessDeniedError(err, sessionCtx)
-	}
-
 	policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
 	if getPolicyErr != nil {
 		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)

@@ -44,16 +44,11 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	}
 	// Can only download it for cloud-hosted instances.
 	switch database.GetType() {
-	case types.DatabaseTypeRedshift,
+	case types.DatabaseTypeRDS,
+		types.DatabaseTypeRedshift,
 		types.DatabaseTypeElastiCache,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeCloudSQL:
-
-	case types.DatabaseTypeRDS:
-		// RDS Proxy uses system cert pool.
-		if database.GetAWS().RDS.IsRDSProxy() {
-			return nil
-		}
 
 	case types.DatabaseTypeAzure:
 		// Azure Cache for Redis uses system cert pool.

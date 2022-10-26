@@ -271,8 +271,8 @@ func newRDSProxyDatabase(t *testing.T, uri string) types.Database {
 		URI:      uri,
 		AWS: types.AWS{
 			Region: "us-east-1",
-			RDS: types.RDS{
-				ProxyName: "test-database",
+			RDSProxy: types.RDSProxy{
+				Name: "test-database",
 			},
 		},
 	})

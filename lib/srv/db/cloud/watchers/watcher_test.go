@@ -328,7 +328,7 @@ func TestWatcher(t *testing.T) {
 		{
 			name: "RDS Proxy",
 			awsMatchers: []services.AWSMatcher{{
-				Types:   []string{services.AWSMatcherRDS},
+				Types:   []string{services.AWSMatcherRDSProxy},
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"vpc-id": []string{"vpc1"}},
 			}},

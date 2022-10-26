@@ -63,8 +63,6 @@ var (
 	auroraActions = []string{"rds:DescribeDBClusters", "rds:ModifyDBCluster"}
 	// rdsProxyActions list of actions used when giving RDS Proxy permissions.
 	rdsProxyActions = []string{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets"}
-	// allRDSActions list of actions used when giving all RDS permissions.
-	allRDSActions = append(rdsInstancesActions, append(auroraActions, rdsProxyActions...)...)
 	// redshiftActions list of actions used when giving Redshift auto-discovery
 	// permissions.
 	redshiftActions = []string{"redshift:DescribeClusters"}
@@ -391,14 +389,19 @@ func policiesTarget(flags BootstrapFlags, accountID string, partitionID string, 
 // buildPolicyBoundaryDocument builds the policy document.
 func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
 	var statements []*awslib.Statement
-	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
+	rdsDatabases := hasRDSDatabases(flags, fileConfig)
+	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
 	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
 	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
 
-	if rdsAutoDiscovery {
-		statements = append(statements, buildRDSAutoDiscoveryStatements()...)
+	if rdsDatabases {
+		statements = append(statements, buildRDSStatements()...)
+	}
+
+	if rdsProxyDatabases {
+		statements = append(statements, buildRDSProxyStatements()...)
 	}
 
 	if redshiftDatabases {
@@ -417,9 +420,9 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
 
-	// If the RDS auto discovery is enabled or there are Redshift databases, we
-	// need permission to edit the target user/role.
-	if rdsAutoDiscovery || redshiftDatabases {
+	// If there are RDS, RDS Proxy, Redshift databases, we need permission to
+	// edit the target user/role.
+	if rdsDatabases || rdsProxyDatabases || redshiftDatabases {
 		targetStatements, err := buildIAMEditStatements(target)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -441,14 +444,19 @@ func buildPolicyDocument(flags BootstrapFlags, fileConfig *config.FileConfig, ta
 // buildPolicyBoundaryDocument builds the policy boundary document.
 func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
 	var statements []*awslib.Statement
-	rdsAutoDiscovery := isRDSAutoDiscoveryEnabled(flags, fileConfig)
+	rdsDatabases := hasRDSDatabases(flags, fileConfig)
+	rdsProxyDatabases := hasRDSProxyDatabases(flags, fileConfig)
 	redshiftDatabases := hasRedshiftDatabases(flags, fileConfig)
 	elastiCacheDatabases := hasElastiCacheDatabases(flags, fileConfig)
 	memoryDBDatabases := hasMemoryDBDatabases(flags, fileConfig)
 	requireSecretsManager := elastiCacheDatabases || memoryDBDatabases
 
-	if rdsAutoDiscovery {
-		statements = append(statements, buildRDSAutoDiscoveryBoundaryStatements()...)
+	if rdsDatabases {
+		statements = append(statements, buildRDSBoundaryStatements()...)
+	}
+
+	if rdsProxyDatabases {
+		statements = append(statements, buildRDSProxyBoundaryStatements()...)
 	}
 
 	if redshiftDatabases {
@@ -467,9 +475,9 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 		statements = append(statements, buildSecretsManagerStatements(fileConfig, target)...)
 	}
 
-	// If the RDS auto discovery is enabled or there are Redshift databases, we
-	// need permission to edit the target user/role.
-	if rdsAutoDiscovery || redshiftDatabases {
+	// If there are RDS, RDS Proxy, Redshift databases, we need permission to
+	// edit the target user/role.
+	if rdsDatabases || rdsProxyDatabases || redshiftDatabases {
 		targetStatements, err := buildIAMEditStatements(target)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -488,14 +496,26 @@ func buildPolicyBoundaryDocument(flags BootstrapFlags, fileConfig *config.FileCo
 	), nil
 }
 
-// isRDSAutoDiscoveryEnabled checks if the agent needs permission for
-// RDS/Aurora auto-discovery.
-func isRDSAutoDiscoveryEnabled(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+// hasRDSDatabases checks if the agent needs permission for
+// RDS/Aurora databases.
+func hasRDSDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
 	if flags.ForceRDSPermissions {
 		return true
 	}
 
-	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRDS)
+	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRDS) ||
+		findEndpointIs(fileConfig, isRDSEndpoint)
+}
+
+// hasRDSProxyDatabases checks if the agent needs permission for
+// RDS Proxy databases.
+func hasRDSProxyDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) bool {
+	if flags.ForceRDSProxyPermissions {
+		return true
+	}
+
+	return isAutoDiscoveryEnabledForMatcher(fileConfig, services.AWSMatcherRDSProxy) ||
+		findEndpointIs(fileConfig, isRDSProxyEndpoint)
 }
 
 // hasRedshiftDatabases checks if the agent needs permission for
@@ -555,6 +575,24 @@ func findEndpointIs(fileConfig *config.FileConfig, endpointIs func(string) bool)
 	return false
 }
 
+// isRDSEndpoint returns true if the endpoint is an endpoint for RDS instance or Aurora cluster.
+func isRDSEndpoint(uri string) bool {
+	details, err := awsutils.ParseRDSEndpoint(uri)
+	if err != nil {
+		return false
+	}
+	return !details.IsProxy()
+}
+
+// isRDSProxyEndpoint returns true if the endpoint is an endpoint for RDS Proxy.
+func isRDSProxyEndpoint(uri string) bool {
+	details, err := awsutils.ParseRDSEndpoint(uri)
+	if err != nil {
+		return false
+	}
+	return details.IsProxy()
+}
+
 // buildIAMEditStatements returns IAM statements necessary for the Teleport
 // agent to edit user/role permissions.
 func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error) {
@@ -575,25 +613,49 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 	return []*awslib.Statement{statement}, nil
 }
 
-// buildRDSAutoDiscoveryStatements returns IAM statements necessary for
+// buildRDSStatements returns IAM statements necessary for
 // RDS/Aurora databases auto-discovery.
-func buildRDSAutoDiscoveryStatements() []*awslib.Statement {
+func buildRDSStatements() []*awslib.Statement {
 	return []*awslib.Statement{
 		{
 			Effect:    awslib.EffectAllow,
-			Actions:   allRDSActions,
+			Actions:   append(rdsInstancesActions, auroraActions...),
 			Resources: []string{"*"},
 		},
 	}
 }
 
-// buildRDSAutoDiscoveryBoundaryStatements returns IAM boundary statements
+// buildRDSBoundaryStatements returns IAM boundary statements
 // necessary for RDS/Aurora databases auto-discovery.
-func buildRDSAutoDiscoveryBoundaryStatements() []*awslib.Statement {
+func buildRDSBoundaryStatements() []*awslib.Statement {
 	return []*awslib.Statement{
 		{
 			Effect:    awslib.EffectAllow,
-			Actions:   append(allRDSActions, boundaryRDSConnectActions...),
+			Actions:   append(rdsInstancesActions, append(auroraActions, boundaryRDSConnectActions...)...),
+			Resources: []string{"*"},
+		},
+	}
+}
+
+// buildRDSProxyStatements returns IAM statements necessary for
+// RDS Proxy databases auto-discovery.
+func buildRDSProxyStatements() []*awslib.Statement {
+	return []*awslib.Statement{
+		{
+			Effect:    awslib.EffectAllow,
+			Actions:   rdsProxyActions,
+			Resources: []string{"*"},
+		},
+	}
+}
+
+// buildRDSProxyBoundaryStatements returns IAM boundary statements
+// necessary for RDS Proxy databases auto-discovery.
+func buildRDSProxyBoundaryStatements() []*awslib.Statement {
+	return []*awslib.Statement{
+		{
+			Effect:    awslib.EffectAllow,
+			Actions:   append(rdsProxyActions, boundaryRDSConnectActions...),
 			Resources: []string{"*"},
 		},
 	}

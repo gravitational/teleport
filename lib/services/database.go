@@ -250,6 +250,10 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	protocol, err := rdsEngineToProtocol(aws.StringValue(instance.Engine))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
@@ -257,7 +261,7 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 			Labels:      labelsFromRDSInstance(instance, metadata),
 		}, aws.StringValue(instance.DBInstanceIdentifier)),
 		types.DatabaseSpecV3{
-			Protocol: rdsEngineToProtocol(aws.StringValue(instance.Engine)),
+			Protocol: protocol,
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
 			AWS:      *metadata,
 		})
@@ -269,13 +273,17 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
 			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
 			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
 		}, aws.StringValue(cluster.DBClusterIdentifier)),
 		types.DatabaseSpecV3{
-			Protocol: rdsEngineToProtocol(aws.StringValue(cluster.Engine)),
+			Protocol: protocol,
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
 			AWS:      *metadata,
 		})
@@ -287,13 +295,17 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
 			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
 			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
 		}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
 		types.DatabaseSpecV3{
-			Protocol: rdsEngineToProtocol(aws.StringValue(cluster.Engine)),
+			Protocol: protocol,
 			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
 			AWS:      *metadata,
 		})
@@ -302,6 +314,10 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Data
 // NewDatabasesFromRDSClusterCustomEndpoints creates database resources from RDS cluster custom endpoints (Aurora).
 func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Databases, error) {
 	metadata, err := MetadataFromRDSCluster(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -327,7 +343,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 				Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
 			}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointDetails.ClusterCustomEndpointName),
 			types.DatabaseSpecV3{
-				Protocol: rdsEngineToProtocol(aws.StringValue(cluster.Engine)),
+				Protocol: protocol,
 				URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
 				AWS:      *metadata,
 
@@ -354,13 +370,17 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	protocol, err := rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
 			Description: fmt.Sprintf("RDS Proxy in %v", metadata.Region),
 			Labels:      labelsFromRDSProxy(dbProxy, metadata, tags),
 		}, aws.StringValue(dbProxy.DBProxyName)),
 		types.DatabaseSpecV3{
-			Protocol: rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily)),
+			Protocol: protocol,
 			URI:      fmt.Sprintf("%s:%d", aws.StringValue(dbProxy.Endpoint), port),
 			AWS:      *metadata,
 		})
@@ -373,13 +393,17 @@ func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	protocol, err := rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
 			Description: fmt.Sprintf("RDS Proxy endpoint in %v", metadata.Region),
 			Labels:      labelsFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, metadata, tags),
 		}, aws.StringValue(dbProxy.DBProxyName), aws.StringValue(customEndpoint.DBProxyEndpointName)),
 		types.DatabaseSpecV3{
-			Protocol: rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily)),
+			Protocol: protocol,
 			URI:      fmt.Sprintf("%s:%d", aws.StringValue(customEndpoint.Endpoint), port),
 			AWS:      *metadata,
 
@@ -558,10 +582,9 @@ func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
-		RDS: types.RDS{
-			ProxyName:  aws.StringValue(rdsProxy.DBProxyName),
+		RDSProxy: types.RDSProxy{
+			Name:       aws.StringValue(rdsProxy.DBProxyName),
 			ResourceID: resourceID,
-			IAMAuth:    true,
 		},
 	}, nil
 }
@@ -576,7 +599,7 @@ func MetadataFromRDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, customEndpoint *r
 		return nil, trace.Wrap(err)
 	}
 
-	metadata.RDS.ProxyCustomEndpointName = aws.StringValue(customEndpoint.DBProxyEndpointName)
+	metadata.RDSProxy.CustomEndpointName = aws.StringValue(customEndpoint.DBProxyEndpointName)
 	return metadata, nil
 }
 
@@ -706,27 +729,27 @@ func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSub
 }
 
 // rdsEngineToProtocol converts RDS instance engine to the database protocol.
-func rdsEngineToProtocol(engine string) string {
+func rdsEngineToProtocol(engine string) (string, error) {
 	switch engine {
 	case RDSEnginePostgres, RDSEngineAuroraPostgres:
-		return defaults.ProtocolPostgres
+		return defaults.ProtocolPostgres, nil
 	case RDSEngineMySQL, RDSEngineAurora, RDSEngineAuroraMySQL, RDSEngineMariaDB:
-		return defaults.ProtocolMySQL
+		return defaults.ProtocolMySQL, nil
 	}
-	return ""
+	return "", trace.BadParameter("unknown RDS engine type %q", engine)
 }
 
 // rdsEngineFamilyToProtocol converts RDS engine family to the database protocol.
-func rdsEngineFamilyToProtocol(engineFamily string) string {
+func rdsEngineFamilyToProtocol(engineFamily string) (string, error) {
 	switch engineFamily {
 	case rds.EngineFamilyMysql:
-		return defaults.ProtocolMySQL
+		return defaults.ProtocolMySQL, nil
 	case rds.EngineFamilyPostgresql:
-		return defaults.ProtocolPostgres
+		return defaults.ProtocolPostgres, nil
 	case rds.EngineFamilySqlserver:
-		return defaults.ProtocolSQLServer
+		return defaults.ProtocolSQLServer, nil
 	}
-	return ""
+	return "", trace.BadParameter("unknown RDS engine family type %q", engineFamily)
 }
 
 // labelsFromAzureServer creates database labels for the provided Azure DB server.

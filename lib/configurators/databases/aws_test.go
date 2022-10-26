@@ -64,7 +64,6 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -74,7 +73,6 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
@@ -95,7 +93,6 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -105,7 +102,39 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
+					"rds-db:connect",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
+			},
+		},
+		"RDS static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{
+						{
+							Name:     "aurora-1",
+							Protocol: "postgres",
+							URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
+					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
+					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
@@ -465,6 +494,64 @@ func TestAWSIAMDocuments(t *testing.T) {
 						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}},
 					},
 				},
+			},
+		},
+		"RDS Proxy discovery": {
+			target: userTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
+					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
+				}},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
+					"rds-db:connect",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
+					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
+				}},
+			},
+		},
+		"RDS Proxy static database": {
+			target: userTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{
+						{
+							Name:     "rds-proxy-1",
+							Protocol: "postgres",
+							URI:      "my-proxy.proxy-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
+					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
+				}},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets",
+					"rds-db:connect",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
+					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
+				}},
 			},
 		},
 	}

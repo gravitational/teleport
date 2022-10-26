@@ -161,7 +161,7 @@ func (m *RDSMock) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rd
 		}, nil
 	}
 
-	endpoints := []*rds.DBProxyEndpoint{}
+	var endpoints []*rds.DBProxyEndpoint
 	for _, dbProxyEndpoiont := range m.DBProxyEndpoints {
 		if inputProxyEndpointName != "" &&
 			inputProxyEndpointName != aws.StringValue(dbProxyEndpoiont.DBProxyEndpointName) {

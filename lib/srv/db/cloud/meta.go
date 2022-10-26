@@ -76,6 +76,8 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 	switch database.GetType() {
 	case types.DatabaseTypeRDS:
 		return m.updateAWS(ctx, database, m.fetchRDSMetadata)
+	case types.DatabaseTypeRDSProxy:
+		return m.updateAWS(ctx, database, m.fetchRDSProxyMetadata)
 	case types.DatabaseTypeRedshift:
 		return m.updateAWS(ctx, database, m.fetchRedshiftMetadata)
 	case types.DatabaseTypeElastiCache:
@@ -109,15 +111,8 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 		return nil, trace.Wrap(err)
 	}
 
-	awsMetadata := database.GetAWS()
-	if awsMetadata.RDS.ProxyCustomEndpointName != "" {
-		return fetchRDSProxyCustomEndpointMetadata(ctx, rds, awsMetadata.RDS.ProxyCustomEndpointName, database.GetURI())
-	}
-	if awsMetadata.RDS.ProxyName != "" {
-		return fetchRDSProxyMetadata(ctx, rds, awsMetadata.RDS.ProxyName)
-	}
-	if awsMetadata.RDS.ClusterID != "" {
-		return fetchRDSClusterMetadata(ctx, rds, awsMetadata.RDS.ClusterID)
+	if database.GetAWS().RDS.ClusterID != "" {
+		return fetchRDSClusterMetadata(ctx, rds, database.GetAWS().RDS.ClusterID)
 	}
 
 	// Try to fetch the RDS instance metadata.
@@ -140,6 +135,19 @@ func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database
 		return fetchRDSClusterMetadata(ctx, rds, metadata.RDS.ClusterID)
 	}
 	return metadata, nil
+}
+
+// fetchRDSProxyMetadata fetches metadata for the provided RDS Proxy database.
+func (m *Metadata) fetchRDSProxyMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	rds, err := m.cfg.Clients.GetAWSRDSClient(database.GetAWS().Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if database.GetAWS().RDSProxy.CustomEndpointName != "" {
+		return fetchRDSProxyCustomEndpointMetadata(ctx, rds, database.GetAWS().RDSProxy.CustomEndpointName, database.GetURI())
+	}
+	return fetchRDSProxyMetadata(ctx, rds, database.GetAWS().RDSProxy.Name)
 }
 
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.

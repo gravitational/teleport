@@ -689,10 +689,9 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			AWS: types.AWS{
 				Region:    "ca-central-1",
 				AccountID: "123456",
-				RDS: types.RDS{
+				RDSProxy: types.RDSProxy{
 					ResourceID: "prx-abcdef",
-					ProxyName:  "testproxy",
-					IAMAuth:    true,
+					Name:       "testproxy",
 				},
 			},
 		})
@@ -722,11 +721,10 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			AWS: types.AWS{
 				Region:    "ca-central-1",
 				AccountID: "123456",
-				RDS: types.RDS{
-					ResourceID:              "prx-abcdef",
-					ProxyName:               "testproxy",
-					ProxyCustomEndpointName: "custom",
-					IAMAuth:                 true,
+				RDSProxy: types.RDSProxy{
+					ResourceID:         "prx-abcdef",
+					Name:               "testproxy",
+					CustomEndpointName: "custom",
 				},
 			},
 			TLS: types.DatabaseTLS{

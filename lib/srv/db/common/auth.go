@@ -523,13 +523,11 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 			return true
 		}
 
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDSProxy:
 		// AWS RDS Proxy uses Amazon Root CAs.
 		//
 		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
-		if sessionCtx.Database.GetAWS().RDS.IsRDSProxy() {
-			return true
-		}
+		return true
 	}
 	return false
 }
