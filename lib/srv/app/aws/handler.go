@@ -19,7 +19,6 @@ package aws
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -154,9 +153,7 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// restore signedReq body since the transport closed it.
-	signedReq.Body = io.NopCloser(bytes.NewReader(payload))
-	err = sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, signedReq, resp, resolvedEndpoint)
+	err = sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, req, resp, resolvedEndpoint)
 	if err != nil {
 		s.Log.WithError(err).Warn("Failed to emit audit event.")
 	}
