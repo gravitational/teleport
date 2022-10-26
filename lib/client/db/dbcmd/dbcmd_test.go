@@ -623,14 +623,14 @@ func TestConvertCommandError(t *testing.T) {
 			opts := []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithExecer(&fakeExec{
-					commandPathBehavior: forceBasePath,
-					execOutput: map[string][]byte{
-						tt.wantBin: tt.stderr,
-					},
-				}),
 			}
 			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c.exe = &fakeExec{
+				commandPathBehavior: forceBasePath,
+				execOutput: map[string][]byte{
+					tt.wantBin: tt.stderr,
+				},
+			}
 			c.uid = utils.NewFakeUID()
 
 			cmd, err := c.GetConnectCommand()
@@ -639,7 +639,7 @@ func TestConvertCommandError(t *testing.T) {
 			// make sure the expected test bin is the command bin we got
 			require.Equal(t, cmd.Path, tt.wantBin)
 
-			out, err := c.options.exe.RunCommand(cmd.Path)
+			out, err := c.exe.RunCommand(cmd.Path)
 			require.NoError(t, err, "fakeExec.execOutput is not configured for bin %v", tt.wantBin)
 
 			peakStderr := utils.NewCaptureNBytesWriter(PeakStderrSize)
