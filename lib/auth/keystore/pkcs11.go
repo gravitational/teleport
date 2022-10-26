@@ -107,10 +107,10 @@ func (p *pkcs11KeyStore) findUnusedID() (uuid.UUID, error) {
 	return id, nil
 }
 
-// GenerateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier can be passed to GetSigner later to
+// generateRSA creates a new RSA private key and returns its identifier and a
+// crypto.Signer. The returned identifier can be passed to getSigner later to
 // get the same crypto.Signer.
-func (p *pkcs11KeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
+func (p *pkcs11KeyStore) generateRSA() ([]byte, crypto.Signer, error) {
 	p.log.Debug("Creating new HSM keypair")
 	id, err := p.findUnusedID()
 	if err != nil {
@@ -134,8 +134,8 @@ func (p *pkcs11KeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 	return keyID, signer, nil
 }
 
-// GetSigner returns a crypto.Signer for the given key identifier, if it is found.
-func (p *pkcs11KeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
+// getSigner returns a crypto.Signer for the given key identifier, if it is found.
+func (p *pkcs11KeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
 	keyType := KeyType(rawKey)
 	switch keyType {
 	case types.PrivateKeyType_PKCS11:
@@ -187,7 +187,7 @@ func (p *pkcs11KeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, cr
 		return nil, nil, trace.Wrap(err)
 	}
 
-	signer, err := p.GetSigner(keyPair.Key)
+	signer, err := p.getSigner(keyPair.Key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -217,7 +217,7 @@ func (p *pkcs11KeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error
 		return nil, trace.Wrap(err)
 	}
 
-	signer, err := p.GetSigner(keyPair.PrivateKey)
+	signer, err := p.getSigner(keyPair.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -240,7 +240,7 @@ func (p *pkcs11KeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, er
 			if keyID.HostID != p.hostUUID {
 				continue
 			}
-			signer, err := p.GetSigner(keyPair.PrivateKey)
+			signer, err := p.getSigner(keyPair.PrivateKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -320,8 +320,8 @@ func (p *pkcs11KeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
 	return p.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys())
 }
 
-// DeleteKey deletes the given key from the HSM
-func (p *pkcs11KeyStore) DeleteKey(rawKey []byte) error {
+// deleteKey deletes the given key from the HSM
+func (p *pkcs11KeyStore) deleteKey(rawKey []byte) error {
 	keyID, err := parseKeyID(rawKey)
 	if err != nil {
 		return trace.Wrap(err)
@@ -354,7 +354,7 @@ func (p *pkcs11KeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 		if keyType != types.PrivateKeyType_PKCS11 {
 			continue
 		}
-		signer, err := p.GetSigner(usedKey)
+		signer, err := p.getSigner(usedKey)
 		if trace.IsNotFound(err) {
 			// key is for different host, or truly not found in HSM. Either
 			// way, it won't be deleted below.
@@ -407,7 +407,7 @@ func (p *pkcs11KeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (
 		return nil, trace.Wrap(err)
 	}
 
-	signer, err := p.GetSigner(keyPair.PrivateKey)
+	signer, err := p.getSigner(keyPair.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -427,7 +427,7 @@ func (p *pkcs11KeyStore) GetAdditionalTrustedTLSCertAndSigner(ca types.CertAutho
 		return nil, nil, trace.Wrap(err)
 	}
 
-	signer, err := p.GetSigner(keyPair.Key)
+	signer, err := p.getSigner(keyPair.Key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

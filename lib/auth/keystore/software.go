@@ -42,16 +42,16 @@ func NewSoftwareKeyStore(config *SoftwareConfig) KeyStore {
 	}
 }
 
-// GenerateRSA creates a new RSA private key and returns its identifier and a
+// generateRSA creates a new RSA private key and returns its identifier and a
 // crypto.Signer. The returned identifier for softwareKeyStore is a pem-encoded
-// private key, and can be passed to GetSigner later to get the same
+// private key, and can be passed to getSigner later to get the same
 // crypto.Signer.
-func (s *softwareKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
+func (s *softwareKeyStore) generateRSA() ([]byte, crypto.Signer, error) {
 	priv, _, err := s.rsaKeyPairSource()
 	if err != nil {
 		return nil, nil, err
 	}
-	signer, err := s.GetSigner(priv)
+	signer, err := s.getSigner(priv)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,7 +59,7 @@ func (s *softwareKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 }
 
 // GetSigner returns a crypto.Signer for the given pem-encoded private key.
-func (s *softwareKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
+func (s *softwareKeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
 	signer, err := utils.ParsePrivateKeyPEM(rawKey)
 	return signer, trace.Wrap(err)
 }
@@ -158,9 +158,9 @@ func (s *softwareKeyStore) NewJWTKeyPair() (*types.JWTKeyPair, error) {
 	return newJWTKeyPair(s)
 }
 
-// DeleteKey deletes the given key from the KeyStore. This is a no-op for
+// deleteKey deletes the given key from the KeyStore. This is a no-op for
 // softwareKeyStore.
-func (s *softwareKeyStore) DeleteKey(rawKey []byte) error {
+func (s *softwareKeyStore) deleteKey(rawKey []byte) error {
 	return nil
 }
 

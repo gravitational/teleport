@@ -212,16 +212,16 @@ func TestKeyStore(t *testing.T) {
 			require.NoError(t, err)
 
 			// create a key
-			key, signer, err := keyStore.GenerateRSA()
+			key, signer, err := keyStore.generateRSA()
 			require.NoError(t, err)
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
 
 			// delete the key when we're done with it
-			t.Cleanup(func() { require.NoError(t, keyStore.DeleteKey(key)) })
+			t.Cleanup(func() { require.NoError(t, keyStore.deleteKey(key)) })
 
 			// get a signer from the key
-			signer, err = keyStore.GetSigner(key)
+			signer, err = keyStore.getSigner(key)
 			require.NoError(t, err)
 			require.NotNil(t, signer)
 
