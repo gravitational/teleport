@@ -85,11 +85,16 @@ The git histories of each branch will be maintained while merging. [Merging repo
   - [ ] [Transfer remaining issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/transferring-an-issue-to-another-repository) to the [Teleport repo](https://github.com/gravitational/teleport)
   - [ ] Add the [ui label](https://github.com/gravitational/teleport/labels/ui) to
         those transferred issues.
+  - [ ] Prevent new issues from being created in this repo.
 - [ ] Triage PRs.
   - [ ] Close those that are no longer relevant.
   - [ ] Merge remaining PRs.
   - [ ] Apply the necessary backports.
 - [ ] Update [the default path to tsh in dev mode](https://github.com/gravitational/webapps/blob/27c615b3ff6f317a85fac4aa28b8e73fa4aa0d28/packages/teleterm/src/mainProcess/runtimeSettings.ts#L18-L23) for Connect.
+- [ ] Update the `README.md` to indicate that this repository is no longer the
+      source of truth and instead link to the `teleport` repo. Due to us needing
+      topotentially update older releases we are not able to archive the
+      repository at this time. We can revisit this in 6mo.
 
 ### Webapps.e repository
 
@@ -101,10 +106,15 @@ The git histories of each branch will be maintained while merging. [Merging repo
   - [ ] Close those that are no longer relevant.
   - [ ] [Transfer remaining issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/transferring-an-issue-to-another-repository) to the [Teleport.e repo](https://github.com/gravitational/teleport.e)
   - [ ] Add the [ui label](https://github.com/gravitational/teleport.e/labels/ui)
+  - [ ] Prevent new issues from being created in this repo.
 - [ ] Triage PRs.
   - [ ] Close those that are no longer relevant.
   - [ ] Merge remaining PR's.
   - [ ] Apply the necessary backports.
+- [ ] Update the `README.md` to indicate that this repository is no longer the
+      source of truth and instead link to the `teleport` repo. Due to us needing
+      topotentially update older releases we are not able to archive the
+      repository at this time. We can revisit this in 6mo.
 
 ### Teleport repository
 
@@ -123,7 +133,6 @@ The git histories of each branch will be maintained while merging. [Merging repo
       the correct version in the `teleport.e/web` folder.
 - [ ] Only require teleport build processes to run on teleport paths and the webapp
       ones to run on the webapp paths
-- [ ] Archive the [Webapps repository](https://github.com/gravitational/webapps).
 - [ ] Update Connect's build pipelines (in teleport/dronegen) as webapps will no longer need to be cloned.
 
 #### CI jobs
@@ -165,8 +174,6 @@ The git histories of each branch will be maintained while merging. [Merging repo
   - [ ] This will need to be done for every respective version branch (v9, v10, v11)
 - [ ] Only require teleport build processes to run on teleport paths and the
       webapp ones to run on the webapp paths
--
-- [ ] Archive webapps.e repository
 
 #### CI jobs
 
