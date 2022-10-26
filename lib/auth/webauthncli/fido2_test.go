@@ -1237,7 +1237,6 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
 				RequireResidentKey: protocol.ResidentKeyUnrequired(),
-				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
 				UserVerification:   protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
@@ -1337,7 +1336,6 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 
 	pwdlessCC := *mfaCC
 	pwdlessCC.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyRequired()
-	pwdlessCC.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
 	pwdlessCC.Response.AuthenticatorSelection.UserVerification = protocol.VerificationRequired
 
 	// FIDO2Register interaction tests.
