@@ -19,7 +19,6 @@ limitations under the License.
 package web
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
@@ -3138,8 +3137,7 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 		r.Context(),
 		h.GetProxyClient(),
 		client.ExportAuthoritiesRequest{
-			AuthType:          r.URL.Query().Get("type"),
-			ExportPrivateKeys: false,
+			AuthType: r.URL.Query().Get("type"),
 		},
 	)
 	if err != nil {
@@ -3148,9 +3146,9 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 		return
 	}
 
-	contentsReader := bytes.NewReader([]byte(authorities))
+	reader := strings.NewReader(authorities)
 
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
-	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), contentsReader)
+	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
 }

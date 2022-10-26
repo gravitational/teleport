@@ -23,6 +23,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
@@ -2491,55 +2492,74 @@ func TestAuthExport(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil)
 
+	validateTLSCertificateDERFunc := func(t *testing.T, b []byte) {
+		cert, err := x509.ParseCertificate(b)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		require.Equal(t, cert.Subject.CommonName, "localhost", "unexpected certificate subject CN")
+	}
+
+	validateTLSCertificatePEMFunc := func(t *testing.T, b []byte) {
+		pemBlock, _ := pem.Decode(b)
+		require.NotNil(t, pemBlock)
+
+		validateTLSCertificateDERFunc(t, pemBlock.Bytes)
+	}
+
 	for _, tt := range []struct {
 		name           string
 		authType       string
 		expectedStatus int
-		assertBody     func([]byte)
+		assertBody     func(t *testing.T, bs []byte)
 	}{
 		{
 			name:           "all",
 			authType:       "",
 			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
+				require.Contains(t, string(b), "cert-authority ssh-rsa")
+			},
 		},
 		{
 			name:           "host",
 			authType:       "host",
 			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
+			},
 		},
 		{
 			name:           "user",
 			authType:       "user",
 			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				require.Contains(t, string(b), "cert-authority ssh-rsa")
+			},
 		},
 		{
 			name:           "windows",
 			authType:       "windows",
 			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
 		},
 		{
 			name:           "db",
 			authType:       "db",
 			expectedStatus: http.StatusOK,
-			assertBody: func(b []byte) {
-				pemBlock, _ := pem.Decode(b)
-				require.Contains(t, pemBlock.Type, "CERTIFICATE")
-			},
+			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
 			name:           "tls",
 			authType:       "tls",
 			expectedStatus: http.StatusOK,
-			assertBody: func(b []byte) {
-				pemBlock, _ := pem.Decode(b)
-				require.Contains(t, pemBlock.Type, "CERTIFICATE")
-			},
+			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
 			name:           "invalid",
 			authType:       "invalid",
 			expectedStatus: http.StatusBadRequest,
-			assertBody: func(b []byte) {
+			assertBody: func(t *testing.T, b []byte) {
 				require.Contains(t, string(b), `"invalid" authority type is not supported`)
 			},
 		},
@@ -2552,7 +2572,10 @@ func TestAuthExport(t *testing.T) {
 				endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, tt.authType)
 			}
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpointExport, nil)
+			reqCtx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
 			require.NoError(t, err)
 
 			anonHTTPClient := &http.Client{
@@ -2572,9 +2595,9 @@ func TestAuthExport(t *testing.T) {
 
 			require.Equal(t, tt.expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
 
-			require.NotEmpty(t, bs)
+			require.NotEmpty(t, bs, "unexpected empty body from http response")
 			if tt.assertBody != nil {
-				tt.assertBody(bs)
+				tt.assertBody(t, bs)
 			}
 		})
 	}

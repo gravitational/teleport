@@ -166,14 +166,18 @@ var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
 func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt auth.ClientI) error {
-	authorities, err := client.ExportAuthorities(
+	exportFunc := client.ExportAuthorities
+	if a.exportPrivateKeys {
+		exportFunc = client.ExportAuthoritiesWithSecrets
+	}
+
+	authorities, err := exportFunc(
 		ctx,
 		clt,
 		client.ExportAuthoritiesRequest{
 			AuthType:                   a.authType,
 			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
-			ExportPrivateKeys:          a.exportPrivateKeys,
-			CompatVersion:              a.compatVersion,
+			UseCompatVersion:           a.compatVersion == "1.0",
 		},
 	)
 	if err != nil {

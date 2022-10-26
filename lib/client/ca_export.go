@@ -39,18 +39,16 @@ import (
 //
 // You can export using the old 1.0 format where host and user
 // certificate authorities were exported in the known_hosts format.
-// To do so, set CompatVersion to "1.0".
-// No other CompatVersion value is accepted.
+// To do so, set UseCompatVersion to true.
 type ExportAuthoritiesRequest struct {
 	AuthType                   string
 	ExportAuthorityFingerprint string
-	ExportPrivateKeys          bool
-	CompatVersion              string
+	UseCompatVersion           bool
 }
 
 // ExportAuthorities returns the list of authorities in OpenSSH compatible formats as a string.
 // If the ExportAuthoritiesRequest.AuthType is present only prints keys for CAs of this type,
-// otherwise returns all keys concatenated.
+// otherwise returns host and user SSH keys.
 //
 // Exporting using "tls*", "database", "windows" AuthType:
 // Returns the certificate authority public key to be used by systems that rely on TLS.
@@ -73,6 +71,17 @@ type ExportAuthoritiesRequest struct {
 // > @cert-authority *.cluster-a ssh-rsa AAA... type=host
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
+	return exportAuth(ctx, client, req, false /* exportSecrets */)
+}
+
+// ExportAuthoritiesWithSecrets exports the Authority Certificate and its secrets (private keys).
+// It exposts the secrets first and then the certificate (separated by an empty line).
+// See ExportAuthorities for more information.
+func ExportAuthoritiesWithSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
+	return exportAuth(ctx, client, req, true /* exportSecrets */)
+}
+
+func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) (string, error) {
 	var typesToExport []types.CertAuthType
 
 	// this means to export TLS authority
@@ -84,33 +93,35 @@ func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAutho
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.HostCA,
 			UnpackPEM:         false,
-			ExportPrivateKeys: req.ExportPrivateKeys,
+			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
 	case "tls-user":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.UserCA,
 			UnpackPEM:         false,
-			ExportPrivateKeys: req.ExportPrivateKeys,
+			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
 	case "db":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.DatabaseCA,
 			UnpackPEM:         false,
-			ExportPrivateKeys: req.ExportPrivateKeys,
+			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
 	case "tls-user-der", "windows":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.UserCA,
 			UnpackPEM:         true,
-			ExportPrivateKeys: req.ExportPrivateKeys,
+			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
 	}
 
-	// If no AuthType is given, export both HostCA and UserCA.
+	// If none of the above auth-types was requested, means we are dealing with SSH HostCA or SSH UserCA.
+	// Either for adding SSH known hosts (~/.ssh/known_hosts) or authorized keys (`~/.ssh/authorized_keys`).
+	// Both are exported if AuthType is empty.
 	if req.AuthType == "" {
 		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
 	} else {
@@ -129,7 +140,7 @@ func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAutho
 	// trusted ones)
 	var authorities []types.CertAuthority
 	for _, at := range typesToExport {
-		cas, err := client.GetCertAuthorities(ctx, at, req.ExportPrivateKeys)
+		cas, err := client.GetCertAuthorities(ctx, at, exportSecrets)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -142,33 +153,40 @@ func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAutho
 
 	ret := strings.Builder{}
 	for _, ca := range authorities {
-		if req.ExportPrivateKeys {
+		if exportSecrets {
 			for _, key := range ca.GetActiveKeys().SSH {
-				fingerprint, err := sshutils.PrivateKeyFingerprint(key.PrivateKey)
-				if err != nil {
-					return "", trace.Wrap(err)
+				if req.ExportAuthorityFingerprint != "" {
+					fingerprint, err := sshutils.PrivateKeyFingerprint(key.PrivateKey)
+					if err != nil {
+						return "", trace.Wrap(err)
+					}
+
+					if fingerprint != req.ExportAuthorityFingerprint {
+						continue
+					}
 				}
-				if req.ExportAuthorityFingerprint != "" && fingerprint != req.ExportAuthorityFingerprint {
-					continue
-				}
-				ret.WriteString(string(key.PrivateKey))
+
+				ret.Write(key.PrivateKey)
 				ret.WriteString("\n")
 			}
 			continue
 		}
 
 		for _, key := range ca.GetTrustedSSHKeyPairs() {
-			fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-			if req.ExportAuthorityFingerprint != "" && fingerprint != req.ExportAuthorityFingerprint {
-				continue
+			if req.ExportAuthorityFingerprint != "" {
+				fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
+				if err != nil {
+					return "", trace.Wrap(err)
+				}
+
+				if fingerprint != req.ExportAuthorityFingerprint {
+					continue
+				}
 			}
 
 			// export certificates in the old 1.0 format where host and user
 			// certificate authorities were exported in the known_hosts format.
-			if req.CompatVersion == "1.0" {
+			if req.UseCompatVersion {
 				castr, err := hostCAFormat(ca, key.PublicKey, client)
 				if err != nil {
 					return "", trace.Wrap(err)
@@ -222,36 +240,35 @@ func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSA
 		return "", trace.Wrap(err)
 	}
 
-	if len(certAuthority.GetActiveKeys().TLS) != 1 {
-		return "", trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	if l := len(certAuthority.GetActiveKeys().TLS); l != 1 {
+		return "", trace.BadParameter("expected one TLS key pair, got %v", l)
 	}
 	keyPair := certAuthority.GetActiveKeys().TLS[0]
 
 	ret := strings.Builder{}
-	marhsalKeyPair := func(data []byte) error {
+	marshalKeyPair := func(data []byte) error {
 		if !req.UnpackPEM {
-			ret.WriteString(string(data))
-			ret.WriteString("\n")
+			ret.Write(data)
 			return nil
 		}
 
 		b, _ := pem.Decode(data)
 		if b == nil {
-			return trace.BadParameter("no PEM data in CA data: %q", data)
+			return trace.BadParameter("invalid PEM data")
 		}
-		ret.WriteString(string(b.Bytes))
-		ret.WriteString("\n")
+		ret.Write(b.Bytes)
 
 		return nil
 	}
 
 	if req.ExportPrivateKeys {
-		if err := marhsalKeyPair(keyPair.Key); err != nil {
+		if err := marshalKeyPair(keyPair.Key); err != nil {
 			return "", trace.Wrap(err)
 		}
+		ret.WriteString("\n\n")
 	}
 
-	if err := marhsalKeyPair(keyPair.Cert); err != nil {
+	if err := marshalKeyPair(keyPair.Cert); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -280,7 +297,7 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
-	roles, err := services.FetchRoles(ca.GetRoles(), client, nil)
+	roles, err := services.FetchRoles(ca.GetRoles(), client, nil /* traits */)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
