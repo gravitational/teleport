@@ -1831,6 +1831,7 @@ steps:
   - name: Download chart repo contents
     image: amazon/aws-cli
     environment:
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -1859,7 +1860,7 @@ steps:
       - cd /go/chart
       - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
     environment:
-      AWS_REGION: us-east-2
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -8052,6 +8053,7 @@ steps:
   - name: "Helm: Download chart repository"
     image: amazon/aws-cli
     environment:
+      AWS_REGION: us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -8102,7 +8104,7 @@ steps:
   - name: "Helm: Publish chart repository to S3"
     image: amazon/aws-cli
     environment:
-      AWS_REGION:  us-east-2
+      AWS_REGION:  us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -8725,6 +8727,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 91f1306b754334262518d6c90331d472c57b1793ef73f7b2df85ee7f453a9fe8
+hmac: 5f982749185382ef67eafc2d86ce4e4eb210f85868300be073ed9d6a7ab83453
 
 ...
