@@ -18,7 +18,6 @@ import React from 'react';
 import { ButtonBorder } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { dateTimeMatcher } from 'design/utils/match';
-import { displayDateTime } from 'shared/services/loc';
 
 import Icon, * as Icons from 'design/Icon/Icon';
 
@@ -67,11 +66,9 @@ export default function RecordingsList(props: Props) {
         },
         {
           key: 'createdDate',
-          headerText: 'Created',
+          headerText: 'Created (UTC)',
           isSortable: true,
-          render: ({ createdDate }) => (
-            <Cell>{displayDateTime(createdDate)}</Cell>
-          ),
+          render: ({ createdDate }) => <Cell>{createdDate}</Cell>,
         },
         {
           key: 'sid',
