@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keystore_test
+package keystore
 
 import (
 	"crypto"
@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -134,22 +133,22 @@ func TestKeyStore(t *testing.T) {
 	})
 
 	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
-	var softHSMConfig keystore.Config
+	var softHSMConfig Config
 	if !skipSoftHSM {
-		softHSMConfig = keystore.SetupSoftHSMTest(t)
+		softHSMConfig = SetupSoftHSMTest(t)
 		softHSMConfig.HostUUID = "server1"
 	}
 
 	yubiSlotNumber := 0
 	testcases := []struct {
 		desc       string
-		config     keystore.Config
+		config     Config
 		isSoftware bool
 		shouldSkip func() bool
 	}{
 		{
 			desc: "software keystore",
-			config: keystore.Config{
+			config: Config{
 				RSAKeyPairSource: native.GenerateKeyPair,
 			},
 			isSoftware: true,
@@ -168,7 +167,7 @@ func TestKeyStore(t *testing.T) {
 		},
 		{
 			desc: "yubihsm",
-			config: keystore.Config{
+			config: Config{
 				Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
 				SlotNumber: &yubiSlotNumber,
 				Pin:        "0001password",
@@ -184,7 +183,7 @@ func TestKeyStore(t *testing.T) {
 		},
 		{
 			desc: "cloudhsm",
-			config: keystore.Config{
+			config: Config{
 				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 				TokenLabel: "cavium",
 				Pin:        os.Getenv("CLOUDHSM_PIN"),
@@ -209,7 +208,7 @@ func TestKeyStore(t *testing.T) {
 			}
 
 			// create the keystore
-			keyStore, err := keystore.NewKeyStore(tc.config)
+			keyStore, err := NewKeyStore(tc.config)
 			require.NoError(t, err)
 
 			// create a key
@@ -260,7 +259,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11SSHKeyPair,
 						&types.SSHKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: keystore.KeyType(key),
+							PrivateKeyType: KeyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -268,7 +267,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11TLSKeyPair,
 						&types.TLSKeyPair{
 							Key:     key,
-							KeyType: keystore.KeyType(key),
+							KeyType: KeyType(key),
 							Cert:    tlsCert,
 						},
 					},
@@ -276,7 +275,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11JWTKeyPair,
 						&types.JWTKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: keystore.KeyType(key),
+							PrivateKeyType: KeyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -353,11 +352,11 @@ func TestLicenseRequirement(t *testing.T) {
 		t.SkipNow()
 	}
 
-	config := keystore.SetupSoftHSMTest(t)
+	config := SetupSoftHSMTest(t)
 	config.HostUUID = "server1"
 
 	// should fail to create the keystore with default modules
-	_, err := keystore.NewKeyStore(config)
+	_, err := NewKeyStore(config)
 	require.Error(t, err)
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -368,6 +367,6 @@ func TestLicenseRequirement(t *testing.T) {
 	})
 
 	// should succeed when HSM feature is enabled
-	_, err = keystore.NewKeyStore(config)
+	_, err = NewKeyStore(config)
 	require.NoError(t, err)
 }
