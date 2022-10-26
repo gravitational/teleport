@@ -44,8 +44,28 @@ type TestConnectionRequest struct {
 	// Specific to KubernetesTester.
 	KubernetesNamespace string `json:"kubernetes_namespace,omitempty"`
 
+	// KubernetesImpersonation allows to configure a subset of `kubernetes_users` and
+	// `kubernetes_groups` to impersonate.
+	// Specific to KubernetesTester.
+	KubernetesImpersonation KubernetesImpersonation `json:"kubernetes_impersonation,omitempty"`
+
 	// DialTimeout when trying to connect to the destination host
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+}
+
+// KubernetesImpersonation allows to configure a subset of `kubernetes_users` and
+// `kubernetes_groups` to impersonate.
+type KubernetesImpersonation struct {
+	// KubernetesUser is the Kubernetes user to impersonate for this request.
+	// Optional - If multiple values are configured the user must select one
+	// otherwise the request will return an error.
+	KubernetesUser string `json:"kubernetes_user,omitempty"`
+
+	// KubernetesGroups are the Kubernetes groups to impersonate for this request.
+	// Optional - If not specified it use all configured groups.
+	// When KubernetesGroups is specified, KubernetesUser must be provided
+	// as well.
+	KubernetesGroups []string `json:"kubernetes_groups,omitempty"`
 }
 
 // CheckAndSetDefaults validates the Request has the required fields.

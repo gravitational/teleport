@@ -36,7 +36,7 @@ func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 			"YUM_REPO_NEW_AWS_S3_BUCKET",
 			"YUM_REPO_NEW_AWS_ACCESS_KEY_ID",
 			"YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY",
-			"YUM_REPO_NEW_ROLE",
+			"YUM_REPO_NEW_AWS_ROLE",
 		),
 	)
 
