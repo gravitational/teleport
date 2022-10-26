@@ -108,6 +108,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
 		types.KindNode:                    rc.createNode,
+		types.KindAccessPolicy:            rc.createPolicy,
 	}
 	rc.config = config
 
@@ -639,6 +640,16 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	}
 
 	_, err = client.UpsertNode(ctx, server)
+	return trace.Wrap(err)
+}
+
+func (rc *ResourceCommand) createPolicy(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	policy, err := services.UnmarshalPolicy(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.CreatePolicy(ctx, policy)
 	return trace.Wrap(err)
 }
 
@@ -1380,6 +1391,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	case types.KindAccessPolicy:
+		if rc.ref.Name == "" {
+			policies, err := client.GetPolicies(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &policyCollection{policies: policies}, nil
+		}
+		policy, err := client.GetPolicy(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &policyCollection{policies: []types.Policy{policy}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

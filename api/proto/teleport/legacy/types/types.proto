@@ -2134,6 +2134,35 @@ message CertExtension {
   string Value = 4 [(gogoproto.jsontag) = "value"];
 }
 
+// AccessPolicyV1 is a predicate policy used for RBAC
+message AccessPolicyV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is resource metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is a policy specification.
+  AccessPolicySpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// AccessPolicySpecV1 is a predicate policy specification used for RBAC, not dissimilar to Role.
+message AccessPolicySpecV1 {
+  // Allow contains a map of authentication contexts such as "node" to a map of allow predicate expressions.
+  map<string, string> Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Deny contains scopes mapping to predicate expressions as above but the expressions are instead in deny form.
+  map<string, string> Deny = 2 [(gogoproto.jsontag) = "deny,omitempty"];
+}
+
 // RoleConditions is a set of conditions that must all match to be allowed or
 // denied access.
 message RoleConditions {

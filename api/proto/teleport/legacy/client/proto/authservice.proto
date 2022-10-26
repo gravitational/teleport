@@ -1898,6 +1898,16 @@ message AppendDiagnosticTraceRequest {
   types.ConnectionDiagnosticTrace Trace = 2 [(gogoproto.jsontag) = "trace"];
 }
 
+// GetPolicyRequest is a request for a policy resource.
+message GetPolicyRequest {
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// GetPoliciesResponse is a response containing a list of policies.
+message GetPoliciesResponse {
+  repeated types.AccessPolicyV1 Policies = 1 [(gogoproto.jsontag) = "policies"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2000,6 +2010,13 @@ service AuthService {
   rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
   // GetBotUsers gets all users with bot labels.
   rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
+
+  // CreatePolicy creates a new policy resource.
+  rpc CreatePolicy(types.AccessPolicyV1) returns (google.protobuf.Empty);
+  // GetPolicy fetches a policy resource by name.
+  rpc GetPolicy(GetPolicyRequest) returns (types.AccessPolicyV1);
+  // GetPolicies lists policies in the cluster.
+  rpc GetPolicies(google.protobuf.Empty) returns (GetPoliciesResponse);
 
   // GetUser gets a user resource by name.
   rpc GetUser(GetUserRequest) returns (types.UserV2);

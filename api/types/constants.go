@@ -276,6 +276,9 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindAccessPolicy is an RBAC policy resource.
+	KindAccessPolicy = "access_policy"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 

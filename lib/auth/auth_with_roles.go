@@ -5176,6 +5176,33 @@ func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.Au
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// CreatePolicy creates a new policy resource.
+func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.Policy) error {
+	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreatePolicy(ctx, policy)
+}
+
+// GetPolicy fetches a policy resource by name.
+func (a *ServerWithRoles) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetPolicy(ctx, name)
+}
+
+// GetPolicies lists policies in the cluster
+func (a *ServerWithRoles) GetPolicies(ctx context.Context) ([]types.Policy, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetPolicies(ctx)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {

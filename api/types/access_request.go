@@ -105,7 +105,7 @@ type AccessRequest interface {
 	SetDryRun(bool)
 }
 
-// NewAccessRequest assembles an AccessRequest resource.
+// Request assembles an AccessRequest resource.
 func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
 	return NewAccessRequestWithResources(name, user, roles, []ResourceID{})
 }

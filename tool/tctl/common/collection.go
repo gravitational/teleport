@@ -985,3 +985,19 @@ func (c *installerCollection) writeText(w io.Writer) error {
 	}
 	return nil
 }
+
+type policyCollection struct {
+	policies []types.Policy
+}
+
+func (c *policyCollection) resources() []types.Resource {
+	var r []types.Resource
+	for _, inst := range c.policies {
+		r = append(r, inst)
+	}
+	return r
+}
+
+func (c *policyCollection) writeText(w io.Writer) error {
+	return trace.NotImplemented("listing policies is not implemented")
+}

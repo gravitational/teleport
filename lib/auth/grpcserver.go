@@ -4303,6 +4303,60 @@ func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb
 	return &emptypb.Empty{}, nil
 }
 
+// CreatePolicy creates a new policy resource.
+func (g *GRPCServer) CreatePolicy(ctx context.Context, req *types.AccessPolicyV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.CreatePolicy(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// GetPolicy fetches a policy resource by name.
+func (g *GRPCServer) GetPolicy(ctx context.Context, req *proto.GetPolicyRequest) (*types.AccessPolicyV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policy, err := auth.GetPolicy(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return policy.(*types.AccessPolicyV1), nil
+}
+
+// GetPolicies lists policies in the cluster.
+func (g *GRPCServer) GetPolicies(ctx context.Context, req *emptypb.Empty) (*proto.GetPoliciesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policies, err := auth.GetPolicies(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policiesV1 := make([]*types.AccessPolicyV1, 0, len(policies))
+	for _, policy := range policies {
+		AccessPolicyV1, ok := policy.(*types.AccessPolicyV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported policy version %T", policy)
+		}
+
+		policiesV1 = append(policiesV1, AccessPolicyV1)
+	}
+
+	return &proto.GetPoliciesResponse{Policies: policiesV1}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
