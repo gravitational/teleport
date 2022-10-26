@@ -30,7 +30,6 @@ Additionally, this feature can be configured to require touch for every Teleport
     - Server Access
     - Database Access
       - Must use `tsh proxy db` instead of `tsh db connect`
-    - Application Access
   
   Not yet supported:
 
@@ -38,8 +37,17 @@ Additionally, this feature can be configured to require touch for every Teleport
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration
     - Kubernetes Access
     - Desktop Access
+    - Application Access
 
-  To navigate these incompatiblities, we recommend enabling hardware key support only when necessary, such as for roles with access to critical infrastructure. These roles can be accessed as needed with Access Requests so that users can avoid these issues for their normal login sessions.
+  The unsupported features above will not function for users that have have hardware key support
+  enforced. This is either because the user's hardware key can't be accessed within that feature
+  (WebUI) or because the protocol only supports raw private keys currently (Agent forwarding,
+  Kubernetes Access, Desktop Access). 
+
+  To navigate these incompatiblities, we recommend enabling hardware key support only when
+  necessary, such as for roles with access to critical infrastructure. These roles can be accessed
+  as needed with Access Requests so that users can avoid these issues for their normal login
+  sessions. We also recommend trying Teleport Connect as an alternative to the WebUI.
 </Admonition>
 
 ## Prerequisites
@@ -65,7 +73,7 @@ kind: role
 metadata:
   name: admin
 spec:
-  allow:
+  options:
     require_session_mfa: hardware_key_touch
 ```
 
