@@ -1899,7 +1899,7 @@ message GetPolicyRequest {
 
 // GetPoliciesResponse is a response containing a list of policies.
 message GetPoliciesResponse {
-  repeated types.PolicyV1 Policies = 1 [(gogoproto.jsontag) = "policies"];
+  repeated types.AccessPolicyV1 Policies = 1 [(gogoproto.jsontag) = "policies"];
 }
 
 // AuthService is authentication/authorization service implementation
@@ -2003,9 +2003,9 @@ service AuthService {
   rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
 
   // CreatePolicy creates a new policy resource.
-  rpc CreatePolicy(types.PolicyV1) returns (google.protobuf.Empty);
+  rpc CreatePolicy(types.AccessPolicyV1) returns (google.protobuf.Empty);
   // GetPolicy fetches a policy resource by name.
-  rpc GetPolicy(GetPolicyRequest) returns (types.PolicyV1);
+  rpc GetPolicy(GetPolicyRequest) returns (types.AccessPolicyV1);
   // GetPolicies lists policies in the cluster.
   rpc GetPolicies(google.protobuf.Empty) returns (GetPoliciesResponse);
 

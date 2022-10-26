@@ -107,7 +107,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindKubernetesCluster:       rc.createKubeCluster,
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
-		types.KindPolicy:                  rc.createPolicy,
+		types.KindAccessPolicy:            rc.createPolicy,
 	}
 	rc.config = config
 
@@ -1376,7 +1376,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
-	case types.KindPolicy:
+	case types.KindAccessPolicy:
 		if rc.ref.Name == "" {
 			policies, err := client.GetPolicies(ctx)
 			if err != nil {

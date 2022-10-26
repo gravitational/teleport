@@ -25,7 +25,7 @@ import (
 
 // UnmarshalPolicy unmarshals the Policy resource from JSON.
 func UnmarshalPolicy(data []byte, opts ...MarshalOption) (types.Policy, error) {
-	var policy types.PolicyV1
+	var policy types.AccessPolicyV1
 
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -62,7 +62,7 @@ func MarshalPolicy(policy types.Policy, opts ...MarshalOption) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	switch policy := policy.(type) {
-	case *types.PolicyV1:
+	case *types.AccessPolicyV1:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

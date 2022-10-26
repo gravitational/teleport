@@ -2871,7 +2871,7 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 
 // CreatePolicy creates a new policy resource.
 func (c *Client) CreatePolicy(ctx context.Context, policy types.Policy) error {
-	_, err := c.grpc.CreatePolicy(ctx, policy.(*types.PolicyV1), c.callOpts...)
+	_, err := c.grpc.CreatePolicy(ctx, policy.(*types.AccessPolicyV1), c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

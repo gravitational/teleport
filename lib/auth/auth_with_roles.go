@@ -5145,7 +5145,7 @@ func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.Au
 
 // CreatePolicy creates a new policy resource.
 func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.Policy) error {
-	if err := a.action(apidefaults.Namespace, types.KindPolicy, types.VerbCreate); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5154,7 +5154,7 @@ func (a *ServerWithRoles) CreatePolicy(ctx context.Context, policy types.Policy)
 
 // GetPolicy fetches a policy resource by name.
 func (a *ServerWithRoles) GetPolicy(ctx context.Context, name string) (types.Policy, error) {
-	if err := a.action(apidefaults.Namespace, types.KindPolicy, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5163,7 +5163,7 @@ func (a *ServerWithRoles) GetPolicy(ctx context.Context, name string) (types.Pol
 
 // GetPolicies lists policies in the cluster
 func (a *ServerWithRoles) GetPolicies(ctx context.Context) ([]types.Policy, error) {
-	if err := a.action(apidefaults.Namespace, types.KindPolicy, types.VerbList); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessPolicy, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
