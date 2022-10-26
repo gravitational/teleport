@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -58,7 +59,9 @@ func dynamoRequest(url string, provider client.ConfigProvider) error {
 	dynamoClient := dynamodb.New(provider, &aws.Config{
 		Endpoint: &url,
 	})
-	_, err := dynamoClient.ListTables(&dynamodb.ListTablesInput{})
+	_, err := dynamoClient.Scan(&dynamodb.ScanInput{
+		TableName: aws.String("test-table"),
+	})
 	return err
 }
 
@@ -78,14 +81,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		Name: "awsconsole",
 	}, types.AppSpecV3{
 		URI:        constants.AWSConsoleURL,
-		PublicAddr: "test.local",
-	})
-	require.NoError(t, err)
-
-	dynamoApp, err := types.NewAppV3(types.Metadata{
-		Name: "dynamo",
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL + "/dynamodb",
 		PublicAddr: "test.local",
 	})
 	require.NoError(t, err)
@@ -156,7 +151,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "DynamoDB access",
-			app:  dynamoApp,
+			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
 					AccessKeyID:     "fakeClientKeyID",
@@ -176,7 +171,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "DynamoDB access with different region",
-			app:  dynamoApp,
+			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
 					AccessKeyID:     "fakeClientKeyID",
@@ -196,7 +191,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "DynamoDB access missing credentials",
-			app:  dynamoApp,
+			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.AnonymousCredentials,
 				Region:      aws.String("us-west-1"),
@@ -237,6 +232,9 @@ func TestAWSSignerHandler(t *testing.T) {
 					require.Equal(t, tc.wantHost, appSessionEvent.AWSHost)
 					require.Equal(t, tc.wantAuthCredService, appSessionEvent.AWSService)
 					require.Equal(t, tc.wantAuthCredRegion, appSessionEvent.AWSRegion)
+					j, err := appSessionEvent.Body.MarshalJSON()
+					require.NoError(t, err)
+					require.Empty(t, cmp.Diff(`{"TableName":"test-table"}`, string(j)))
 				case *events.AppSessionRequest:
 					_, ok := tc.wantEventType.(*events.AppSessionRequest)
 					require.True(t, ok, "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
