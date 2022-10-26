@@ -234,17 +234,10 @@ type Database struct {
 func MakeDatabase(database types.Database) Database {
 	uiLabels := []Label{}
 
-	for name, value := range database.GetStaticLabels() {
+	for name, value := range database.GetAllLabels() {
 		uiLabels = append(uiLabels, Label{
 			Name:  name,
 			Value: value,
-		})
-	}
-
-	for name, cmd := range database.GetDynamicLabels() {
-		uiLabels = append(uiLabels, Label{
-			Name:  name,
-			Value: cmd.GetResult(),
 		})
 	}
 
