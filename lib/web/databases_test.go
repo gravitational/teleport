@@ -24,6 +24,7 @@ import (
 )
 
 func TestCreateDatabaseRequestParameters(t *testing.T) {
+	t.Parallel()
 
 	for _, test := range []struct {
 		desc      string
