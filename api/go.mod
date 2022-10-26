@@ -11,7 +11,7 @@ require (
 	github.com/russellhaering/gosaml2 v0.8.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.1
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.36.3
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.36.4
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.36.4
 	go.opentelemetry.io/otel v1.11.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.1
