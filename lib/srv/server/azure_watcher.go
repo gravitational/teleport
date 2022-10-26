@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
@@ -56,14 +55,11 @@ type AzureWatcher struct {
 
 // Run starts the watcher's main watch loop.
 func (w *AzureWatcher) Run() {
-	fmt.Printf("Run with %v fetchers\n", len(w.fetchers))
 	ticker := time.NewTicker(w.fetchInterval)
 	defer ticker.Stop()
 	for {
 		for _, fetcher := range w.fetchers {
-			fmt.Printf("getting vms for fetcher\n")
 			instancesColl, err := fetcher.GetAzureVMs(w.ctx)
-			fmt.Printf("got %v instance collections\n", len(instancesColl))
 			if err != nil {
 				if trace.IsNotFound(err) {
 					continue
@@ -72,7 +68,6 @@ func (w *AzureWatcher) Run() {
 				continue
 			}
 			for _, inst := range instancesColl {
-				fmt.Printf("got %v instances\n", len(inst.Instances))
 				select {
 				case w.InstancesC <- inst:
 				case <-w.ctx.Done():
