@@ -14,7 +14,10 @@
 
 package main
 
-import "path/filepath"
+import (
+	"fmt"
+	"path/filepath"
+)
 
 // awsRoleSettings contains the information necessary to assume an AWS Role
 //
@@ -30,12 +33,18 @@ type awsRoleSettings struct {
 type kubernetesRoleSettings struct {
 	awsRoleSettings
 	configVolume volumeRef
+	name         string
+	profile      string
+	append       bool
 }
 
 // macRoleSettings contains the info necessary to assume an AWS role and save the credentials to a path that later steps can use
 type macRoleSettings struct {
 	awsRoleSettings
 	configPath string
+	name       string
+	profile    string
+	append     bool
 }
 
 // kuberentesS3Settings contains all info needed to download from S3 in a kubernetes pipeline
@@ -46,29 +55,43 @@ type kubernetesS3Settings struct {
 	configVolume volumeRef
 }
 
-// assumeRoleCommands is a helper to build the role assumtipn commands on a *nix platform
-func assumeRoleCommands(configPath string) []string {
-	assumeRoleCmd := `printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s" \
+// assumeRoleCommands is a helper to build the role assumption commands on a *nix platform
+func assumeRoleCommands(profile, configPath string, appendFile bool) []string {
+	if profile == "" { // set a default profile if none is specified
+		profile = "default"
+	}
+
+	var redirect string
+	if appendFile {
+		redirect = ">>"
+	} else {
+		redirect = ">"
+	}
+
+	assumeRoleCmd := fmt.Sprintf(`printf "[%s]\naws_access_key_id = %%s\naws_secret_access_key = %%s\naws_session_token = %%s\n" \
   $(aws sts assume-role \
     --role-arn "$AWS_ROLE" \
     --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
     --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
     --output text) \
-  > ` + configPath
+  %s %s`, profile, redirect, configPath)
+
 	return []string{
 		`aws sts get-caller-identity`, // check the original identity
 		assumeRoleCmd,
-		`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`, // remove original identity from environment
-		`aws sts get-caller-identity`,                   // check the new assumed identity
+		`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY`,    // remove original identity from environment
+		`aws sts get-caller-identity --profile ` + profile, // check the new assumed identity
 	}
-
 }
 
 // kubernetesAssumeAwsRoleStep builds a step to assume an AWS role and save it to a volume that later steps can use
 func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
+	if s.name == "" {
+		s.name = "Assume AWS Role"
+	}
 	configPath := filepath.Join(s.configVolume.Path, "credentials")
 	return step{
-		Name:  "Assume AWS Role",
+		Name:  s.name,
 		Image: "amazon/aws-cli",
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyID,
@@ -76,21 +99,24 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 			"AWS_ROLE":              s.role,
 		},
 		Volumes:  []volumeRef{s.configVolume},
-		Commands: assumeRoleCommands(configPath),
+		Commands: assumeRoleCommands(s.profile, configPath, s.append),
 	}
 }
 
 // macAssumeAwsRoleStep builds a step to assume an AWS role and save it to a host path that later steps can use
 func macAssumeAwsRoleStep(s macRoleSettings) step {
+	if s.name == "" {
+		s.name = "Assume AWS Role"
+	}
 	return step{
-		Name: "Assume AWS Role",
+		Name: s.name,
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID":           s.awsAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY":       s.awsSecretAccessKey,
 			"AWS_ROLE":                    s.role,
 			"AWS_SHARED_CREDENTIALS_FILE": value{raw: s.configPath},
 		},
-		Commands: assumeRoleCommands(s.configPath),
+		Commands: assumeRoleCommands(s.profile, s.configPath, s.append),
 	}
 }
 

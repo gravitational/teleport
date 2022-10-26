@@ -45,6 +45,7 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
+	SessionService session.Service
 	AuditLog       events.IAuditLog
 	Authorizer     Authorizer
 	Emitter        apievents.Emitter
@@ -87,10 +88,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
-
-	// Operations on certificate authorities
-	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))    // DELETE IN 11.0.0 REST method replaced by gRPC
-	srv.GET("/:version/cacert", srv.withAuth(srv.getClusterCACert)) // DELETE IN 11.0.0 REST method replaced by gRPC
 
 	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.withAuth(srv.rotateCertAuthority))
@@ -153,6 +150,12 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Active sessions
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
+	// DELETE IN 12.0.0
+	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
+	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
+	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
+	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
 
 	// Namespaces
 	srv.POST("/:version/namespaces", srv.withAuth(srv.upsertNamespace))
@@ -218,6 +221,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
 			context:    *authContext,
+			sessions:   s.SessionService,
 			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
@@ -777,39 +781,6 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
-// Replaced with gRPC endpoint
-// DELETE IN 11.0.0
-func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	domain, err := auth.GetDomainName(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return domain, nil
-}
-
-// deprecatedLocalCAResponse contains the concatenated PEM-encoded TLS certs for
-// the local cluster's Host CA
-// DELETE IN 11.0.0
-type deprecatedLocalCAResponse struct {
-	// TLSCA is a PEM-encoded TLS certificate authority.
-	TLSCA []byte `json:"tls_ca"`
-}
-
-// getClusterCACert returns the PEM-encoded TLS certs for the local cluster
-// without signing keys. If the cluster has multiple TLS certs, they will all
-// be appended.
-// DELETE IN 11.0.0
-func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	localCA, err := auth.GetClusterCACert(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return deprecatedLocalCAResponse{
-		TLSCA: localCA.TLSCA,
-	}, nil
-}
-
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := types.CertAuthID{
 		DomainName: p.ByName("domain"),
@@ -819,6 +790,82 @@ func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
+}
+
+type createSessionReq struct {
+	Session session.Session `json:"session"`
+}
+
+func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *createSessionReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	namespace := p.ByName("namespace")
+	if !types.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	req.Session.Namespace = namespace
+	if err := auth.CreateSession(r.Context(), req.Session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+type updateSessionReq struct {
+	Update session.UpdateRequest `json:"update"`
+}
+
+func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req *updateSessionReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	namespace := p.ByName("namespace")
+	if !types.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	req.Update.Namespace = namespace
+	if err := auth.UpdateSession(r.Context(), req.Update); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) deleteSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteSession(r.Context(), p.ByName("namespace"), session.ID(p.ByName("id")))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	namespace := p.ByName("namespace")
+	if !types.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	sessions, err := auth.GetSessions(r.Context(), namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sessions, nil
+}
+
+func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	sid, err := session.ParseID(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	namespace := p.ByName("namespace")
+	if !types.IsValidNamespace(namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", namespace)
+	}
+	se, err := auth.GetSession(r.Context(), namespace, *sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return se, nil
 }
 
 type validateOIDCAuthCallbackReq struct {
