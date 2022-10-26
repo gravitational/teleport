@@ -734,6 +734,7 @@ func Test_chooseProxyCommandTemplate(t *testing.T) {
 	tests := []struct {
 		name             string
 		commands         []dbcmd.CommandAlternative
+		randomPort       bool
 		wantTemplate     *template.Template
 		wantTemplateArgs map[string]any
 		wantOutput       string
@@ -787,6 +788,59 @@ Use one of the following commands to connect to the database:
 
 `,
 		},
+		{
+			name: "single command, random port",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+			},
+			randomPort:       true,
+			wantTemplate:     dbProxyAuthTpl,
+			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following command to connect to the database:
+  $ echo "hello world"
+`,
+		},
+		{
+			name: "multiple commands, random port",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+				{
+					Description: "alternative",
+					Command:     exec.Command("echo", "goodbye world"),
+				},
+			},
+			randomPort:   true,
+			wantTemplate: dbProxyAuthMultiTpl,
+			wantTemplateArgs: map[string]any{
+				"commands": []templateCommandItem{
+					{Description: "default", Command: "echo \"hello world\""},
+					{Description: "alternative", Command: "echo \"goodbye world\""},
+				},
+			},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use one of the following commands to connect to the database:
+
+  * default: 
+
+  $ echo "hello world"
+
+  * alternative: 
+
+  $ echo "goodbye world"
+
+`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -801,6 +855,7 @@ Use one of the following commands to connect to the database:
 			templateArgs["cluster"] = "mycluster"
 			templateArgs["address"] = "127.0.0.1:64444"
 			templateArgs["type"] = defaults.ReadableDatabaseProtocol(defaults.ProtocolMySQL)
+			templateArgs["randomPort"] = tt.randomPort
 
 			buf := new(bytes.Buffer)
 			err := tpl.Execute(buf, templateArgs)
