@@ -41,6 +41,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/githubactions"
+
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -249,6 +251,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		inventory:       inventory.NewController(cfg.Presence),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
+		loadAllCAs:      cfg.LoadAllCAs,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -263,6 +266,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if as.ghaIDTokenValidator == nil {
+		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
+			githubactions.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
 	}
 
 	return &as, nil
@@ -443,6 +453,13 @@ type Server struct {
 
 	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	fips bool
+
+	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
+	// by the auth server. It can be overridden for the purpose of tests.
+	ghaIDTokenValidator ghaIDTokenValidator
+
+	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
+	loadAllCAs bool
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -983,6 +1000,8 @@ type certRequest struct {
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
 	attestationStatement *keys.AttestationStatement
+	// skipAttestation is a server-side flag which is used to skip the attestation check.
+	skipAttestation bool
 }
 
 // check verifies the cert request is valid.
@@ -1235,12 +1254,15 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	// verify that the required private key policy for the requesting identity
-	// is met by the provided attestation statement.
-	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	attestedKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var attestedKeyPolicy = keys.PrivateKeyPolicyNone
+	if !req.skipAttestation {
+		// verify that the required private key policy for the requesting identity
+		// is met by the provided attestation statement.
+		requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := a.GetDomainName()
@@ -2349,7 +2371,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// or auth server is out of sync, either way, for now check that
 	// cache is out of sync, this will result in higher read rate
 	// to the backend, which is a fine tradeoff
-	if !req.NoCache && req.Rotation != nil && !req.Rotation.Matches(ca.GetRotation()) {
+	if !req.NoCache && !req.Rotation.IsZero() && !req.Rotation.Matches(ca.GetRotation()) {
 		log.Debugf("Client sent rotation state %v, cache state is %v, using state from the DB.", req.Rotation, ca.GetRotation())
 		ca, err = a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,

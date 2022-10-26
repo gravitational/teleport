@@ -95,7 +95,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					ServerVersion: db.MySQL.ServerVersion,
 				},
 				AWS: types.AWS{
-					Region: db.AWS.Region,
+					AccountID: db.AWS.AccountID,
+					Region:    db.AWS.Region,
 					Redshift: types.Redshift{
 						ClusterID: db.AWS.Redshift.ClusterID,
 					},

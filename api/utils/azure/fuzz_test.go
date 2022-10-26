@@ -37,3 +37,19 @@ func FuzzParseCacheForRedisEndpoint(f *testing.F) {
 		})
 	})
 }
+
+func FuzzNormalizeLocation(f *testing.F) {
+	f.Fuzz(func(t *testing.T, location string) {
+		require.NotPanics(t, func() {
+			NormailizeLocation(location)
+		})
+	})
+}
+
+func FuzzParseMSSQLEndpoint(f *testing.F) {
+	f.Fuzz(func(t *testing.T, endpoint string) {
+		require.NotPanics(t, func() {
+			ParseMSSQLEndpoint(endpoint)
+		})
+	})
+}

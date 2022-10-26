@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
@@ -206,6 +207,12 @@ func TryRun(commands []CLICommand, args []string) error {
 			break
 		}
 	}
+
+	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
+		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
+	}
+
 	return nil
 }
 
@@ -436,6 +443,10 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 	}
 	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
+
+	if c.TLSRoutingEnabled {
+		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	}
 
 	return authConfig, nil
 }

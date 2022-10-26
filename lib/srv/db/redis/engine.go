@@ -22,12 +22,13 @@ import (
 	"errors"
 	"net"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -216,6 +217,14 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
 			defaultMode = Cluster
 		}
+
+	case types.DatabaseTypeAzure:
+		// "OSSCluster" requires client to use the OSS Cluster mode.
+		//
+		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
+		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
+			defaultMode = Cluster
+		}
 	}
 
 	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
@@ -358,7 +367,7 @@ func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session
 		return nil, trace.ConnectionProblem(err, "failed to connect to the target database")
 	default:
 		// Return value and the error. If the error is not nil we will close the connection.
-		return value, err
+		return value, common.ConvertConnectError(err, sessionCtx)
 	}
 }
 
