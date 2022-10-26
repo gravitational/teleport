@@ -251,6 +251,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		LimiterConfig:        cfg.Kube.Limiter,
 		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
 		ConnectedProxyGetter: proxyGetter,
+		Log:                  log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

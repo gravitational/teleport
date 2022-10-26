@@ -1,5 +1,26 @@
 # Changelog
 
+## 10.3.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with EC2 auto-enrollment not working on Ubuntu instances. [#17467](https://github.com/gravitational/teleport/pull/17467)
+* Fixed issue with `tctl auth sign` producing "access denied" error. [#17557](https://github.com/gravitational/teleport/pull/17557)
+* Fixed issue with agents entering permanent error loop if they had expired join tokens and the cluster had previously undergone host CA rotation. [#17599](https://github.com/gravitational/teleport/pull/17599)
+* Fixed issue with `tsh` producing auditd errors on some systems. [#17495](https://github.com/gravitational/teleport/pull/17495)
+* Fixed issue with Machine ID bots joined via IAM token not respecting requested certificate TTL. [#17371](https://github.com/gravitational/teleport/pull/17371)
+* Fixed issue with Teleport failing to initialize properly without configuration file. [#17343](https://github.com/gravitational/teleport/pull/17343)
+* Fixed desktop access clipboard sharing with newer versions of Chrome. [webapps#1266](https://github.com/gravitational/webapps/pull/1266)
+* Added license expiration alerts. [#17489](https://github.com/gravitational/teleport/pull/17489)
+* Added support for `imagePullSecret` in teleport-kube-agent Helm chart. [#16678](https://github.com/gravitational/teleport/pull/16678)
+* Added support for join parameters in teleport-kube-agent Helm chart. [#17534](https://github.com/gravitational/teleport/pull/17534)
+* Improved error when trying to connecto to a Windows desktop that is locked. [#17548](https://github.com/gravitational/teleport/pull/17548)
+* Improved SAML connectors validation upon creation. [#16854](https://github.com/gravitational/teleport/pull/16854)
+* Improved desktop access connection error handling. [#17390](https://github.com/gravitational/teleport/pull/17390)
+* Updated `tsh ls --query` to allow querying SSH nodes by hostname. [#17038](https://github.com/gravitational/teleport/pull/17038)
+* Updated Machine ID to export user CA when generating SSH host certificate. [#17525](https://github.com/gravitational/teleport/pull/17525)
+* Updated `tsh` to default to passwordless login if Touch ID is available. [#17472](https://github.com/gravitational/teleport/pull/17472)
+
 ## 10.3.2
 
 This release of Teleport contains multiple improvements and bug fixes.
