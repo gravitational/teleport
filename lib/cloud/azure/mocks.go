@@ -57,13 +57,13 @@ func (m *ARMSubscriptionsMock) NewListPager(_ *armsubscription.SubscriptionsClie
 	})
 }
 
-type ARMVirtualMachinesMock struct {
+type ARMComputeMock struct {
 	VirtualMachines map[string][]*armcompute.VirtualMachine
 	GetResult       armcompute.VirtualMachine
 	GetErr          error
 }
 
-func (m *ARMVirtualMachinesMock) NewListPager(resourceGroup string, _ *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse] {
+func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse] {
 	vms, ok := m.VirtualMachines[resourceGroup]
 	if !ok {
 		vms = []*armcompute.VirtualMachine{}
@@ -82,7 +82,7 @@ func (m *ARMVirtualMachinesMock) NewListPager(resourceGroup string, _ *armcomput
 	})
 }
 
-func (m *ARMVirtualMachinesMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
+func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
 	return armcompute.VirtualMachinesClientGetResponse{
 		VirtualMachine: m.GetResult,
 	}, m.GetErr

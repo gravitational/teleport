@@ -38,7 +38,7 @@ func TestAzureWatcher(t *testing.T) {
 	t.Parallel()
 
 	clients := mockClients{
-		azureClient: azure.NewVirtualMachinesClientByAPI(&azure.ARMVirtualMachinesMock{
+		azureClient: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
 			VirtualMachines: map[string][]*armcompute.VirtualMachine{
 				"rg1": {
 					{

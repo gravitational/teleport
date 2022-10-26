@@ -31,14 +31,14 @@ func TestGetVirtualMachine(t *testing.T) {
 	for _, tc := range []struct {
 		desc        string
 		resourceID  string
-		client      *ARMVirtualMachinesMock
+		client      *ARMComputeMock
 		assertError require.ErrorAssertionFunc
 		assertVM    require.ValueAssertionFunc
 	}{
 		{
 			desc:       "vm with valid user identities",
 			resourceID: validResourceID,
-			client: &ARMVirtualMachinesMock{
+			client: &ARMComputeMock{
 				GetResult: armcompute.VirtualMachine{
 					ID:   to.Ptr("id"),
 					Name: to.Ptr("name"),
@@ -69,7 +69,7 @@ func TestGetVirtualMachine(t *testing.T) {
 		{
 			desc:       "vm without identity",
 			resourceID: validResourceID,
-			client: &ARMVirtualMachinesMock{
+			client: &ARMComputeMock{
 				GetResult: armcompute.VirtualMachine{
 					ID:   to.Ptr("id"),
 					Name: to.Ptr("name"),
@@ -88,14 +88,14 @@ func TestGetVirtualMachine(t *testing.T) {
 		{
 			desc:        "invalid resource ID",
 			resourceID:  "random-id",
-			client:      &ARMVirtualMachinesMock{},
+			client:      &ARMComputeMock{},
 			assertError: require.Error,
 			assertVM:    require.Nil,
 		},
 		{
 			desc:       "client error",
 			resourceID: validResourceID,
-			client: &ARMVirtualMachinesMock{
+			client: &ARMComputeMock{
 				GetErr: fmt.Errorf("client error"),
 			},
 			assertError: require.Error,
@@ -114,7 +114,7 @@ func TestGetVirtualMachine(t *testing.T) {
 
 func TestListVirtualMachines(t *testing.T) {
 	t.Parallel()
-	mockAPI := &ARMVirtualMachinesMock{
+	mockAPI := &ARMComputeMock{
 		VirtualMachines: map[string][]*armcompute.VirtualMachine{
 			"rg1": {
 				{ID: to.Ptr("vm1")},

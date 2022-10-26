@@ -212,7 +212,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 					instanceType: types.InstanceMetadataTypeAzure,
 				},
-				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMVirtualMachinesMock{
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 					GetResult: generateAzureVM(t, []string{identityResourceID(t, "identity")}),
 				}),
 			},
@@ -229,7 +229,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 					instanceType: types.InstanceMetadataTypeAzure,
 				},
-				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMVirtualMachinesMock{
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 					GetResult: generateAzureVM(t, []string{identityResourceID(t, "identity")}),
 				}),
 			},
@@ -244,7 +244,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 					instanceType: types.InstanceMetadataTypeAzure,
 				},
-				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMVirtualMachinesMock{
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 					GetResult: generateAzureVM(t, []string{"identity"}),
 				}),
 			},
@@ -271,7 +271,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 					instanceType: types.InstanceMetadataTypeAzure,
 				},
-				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMVirtualMachinesMock{
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 					GetErr: errors.New("failed to get VM"),
 				}),
 			},
@@ -296,7 +296,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 	ctx := context.Background()
 	identityName := "identity"
-	virtualMachinesMock := &libcloudazure.ARMVirtualMachinesMock{
+	virtualMachinesMock := &libcloudazure.ARMComputeMock{
 		GetErr: errors.New("failed to fetch VM"),
 	}
 

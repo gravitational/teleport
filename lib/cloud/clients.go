@@ -112,10 +112,10 @@ type AzureClients interface {
 	GetAzureRedisClient(subscription string) (azure.RedisClient, error)
 	// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
 	GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error)
-	// GetAzureVirtualMachinesClient returns an Azure virtual machines client.
-	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
 	// GetAzureKubernetesClient returns an Azure AKS client for the specified subscription.
 	GetAzureKubernetesClient(subscription string) (azure.AKSClient, error)
+	// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
+	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -165,10 +165,10 @@ type azureClients struct {
 	azureRedisClients azure.ClientMap[azure.RedisClient]
 	// azureRedisEnterpriseClients contains the cached Azure Redis Enterprise clients.
 	azureRedisEnterpriseClients azure.ClientMap[azure.RedisEnterpriseClient]
-	// azureVirtualMachinesClients is the cached Azure virtual machines clients.
-	azureVirtualMachinesClients azure.ClientMap[azure.VirtualMachinesClient]
 	// azureKubernetesClient is the cached Azure Kubernetes client.
 	azureKubernetesClient map[string]azure.AKSClient
+	// azureVirtualMachinesClients contains the cached Azure Virtual Machines clients.
+	azureVirtualMachinesClients azure.ClientMap[azure.VirtualMachinesClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -349,11 +349,6 @@ func (c *cloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, 
 	return c.initAzureSubscriptionsClient()
 }
 
-// GetAzureVirtualMachinesClient returns and Azure virtual machines client for the given subscription.
-func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
-	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
-}
-
 // GetAzureRedisClient returns an Azure Redis client for the given subscription.
 func (c *cloudClients) GetAzureRedisClient(subscription string) (azure.RedisClient, error) {
 	return c.azureRedisClients.Get(subscription, c.GetAzureCredential)
@@ -373,6 +368,11 @@ func (c *cloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSC
 	}
 	c.mtx.RUnlock()
 	return c.initAzureKubernetesClient(subscription)
+}
+
+// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
+func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
+	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
 }
 
 // Close closes all initialized clients.
@@ -573,30 +573,29 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS                         rdsiface.RDSAPI
-	RDSPerRegion                map[string]rdsiface.RDSAPI
-	Redshift                    redshiftiface.RedshiftAPI
-	ElastiCache                 elasticacheiface.ElastiCacheAPI
-	MemoryDB                    memorydbiface.MemoryDBAPI
-	SecretsManager              secretsmanageriface.SecretsManagerAPI
-	IAM                         iamiface.IAMAPI
-	STS                         stsiface.STSAPI
-	GCPSQL                      GCPSQLAdminClient
-	EC2                         ec2iface.EC2API
-	SSM                         ssmiface.SSMAPI
-	InstanceMetadata            InstanceMetadata
-	EKS                         eksiface.EKSAPI
-	AzureMySQL                  azure.DBServersClient
-	AzureMySQLPerSub            map[string]azure.DBServersClient
-	AzurePostgres               azure.DBServersClient
-	AzurePostgresPerSub         map[string]azure.DBServersClient
-	AzureSubscriptionClient     *azure.SubscriptionClient
-	AzureRedis                  azure.RedisClient
-	AzureRedisEnterprise        azure.RedisEnterpriseClient
-	AzureAKSClientPerSub        map[string]azure.AKSClient
-	AzureAKSClient              azure.AKSClient
-	AzureVirtualMachinesClients map[string]azure.VirtualMachinesClient
-	AzureVirtualMachines        azure.VirtualMachinesClient
+	RDS                     rdsiface.RDSAPI
+	RDSPerRegion            map[string]rdsiface.RDSAPI
+	Redshift                redshiftiface.RedshiftAPI
+	ElastiCache             elasticacheiface.ElastiCacheAPI
+	MemoryDB                memorydbiface.MemoryDBAPI
+	SecretsManager          secretsmanageriface.SecretsManagerAPI
+	IAM                     iamiface.IAMAPI
+	STS                     stsiface.STSAPI
+	GCPSQL                  GCPSQLAdminClient
+	EC2                     ec2iface.EC2API
+	SSM                     ssmiface.SSMAPI
+	InstanceMetadata        InstanceMetadata
+	EKS                     eksiface.EKSAPI
+	AzureMySQL              azure.DBServersClient
+	AzureMySQLPerSub        map[string]azure.DBServersClient
+	AzurePostgres           azure.DBServersClient
+	AzurePostgresPerSub     map[string]azure.DBServersClient
+	AzureSubscriptionClient *azure.SubscriptionClient
+	AzureRedis              azure.RedisClient
+	AzureRedisEnterprise    azure.RedisEnterpriseClient
+	AzureAKSClientPerSub    map[string]azure.AKSClient
+	AzureAKSClient          azure.AKSClient
+	AzureVirtualMachines    azure.VirtualMachinesClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -703,11 +702,6 @@ func (c *TestCloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClie
 	return c.AzureSubscriptionClient, nil
 }
 
-// GetAzureVirtualMachinesClient returns an Azure virtual machines client.
-func (c *TestCloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
-	return c.AzureVirtualMachinesClients[subscription], nil
-}
-
 // GetAWSSSMClient returns an AWS SSM client
 func (c *TestCloudClients) GetAWSSSMClient(region string) (ssmiface.SSMAPI, error) {
 	return c.SSM, nil
@@ -721,6 +715,11 @@ func (c *TestCloudClients) GetAzureRedisClient(subscription string) (azure.Redis
 // GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
 func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error) {
 	return c.AzureRedisEnterprise, nil
+}
+
+// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
+func (c *TestCloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
+	return c.AzureVirtualMachines, nil
 }
 
 // Close closes all initialized clients.

@@ -36,7 +36,7 @@ type armCompute interface {
 type VirtualMachinesClient interface {
 	// Get returns the Virtual Machine for the given resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
-
+	// ListVirtualMachines gets all of the virtual machines in the given resource group.
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
 }
 
