@@ -550,12 +550,13 @@ func (s *Service) Stop() {
 	s.cancel()
 }
 
-// UpdateTshdEventsServerAddress allows the Electron app to provide the tshd events server address.
+// UpdateAndDialTshdEventsServerAddress allows the Electron app to provide the tshd events server
+// address.
 //
 // The startup of the app is orchestrated so that this method is called before any other method on
 // daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
 // client is available right from the beginning, without the need for nil checks.
-func (s *Service) UpdateTshdEventsServerAddress(serverAddress string) error {
+func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -595,10 +596,10 @@ type Service struct {
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
-	// tshdEventsClient is created after UpdateTshdEventsServerAddress gets called. The startup of the
-	// whole app is orchestrated in a way which ensures that is the first Service method that gets
-	// called. This lets other methods in Service assume that tshdEventsClient is available from the
-	// start, without having to perform nil checks.
+	// tshdEventsClient is created after UpdateAndDialTshdEventsServerAddress gets called. The startup
+	// of the whole app is orchestrated in a way which ensures that is the first Service method that
+	// gets called. This lets other methods in Service assume that tshdEventsClient is available from
+	// the start, without having to perform nil checks.
 	tshdEventsClient api.TshdEventsServiceClient
 }
 
