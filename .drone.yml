@@ -8071,6 +8071,7 @@ steps:
   - name: "Helm: Download chart repository"
     image: amazon/aws-cli
     environment:
+      AWS_REGION:  us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -8121,7 +8122,7 @@ steps:
   - name: "Helm: Publish chart repository to S3"
     image: amazon/aws-cli
     environment:
-      AWS_REGION:  us-east-2
+      AWS_REGION:  us-west-2
       AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
     volumes:
@@ -11579,6 +11580,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 2eddd315097e9c2a074350edaa0c38a69fdf890e7e836337e6731adf739d4adc
+hmac: f86deb7354b70a7a4d81ea62e124022ab4b5adf56100c6b3592ede958b30b988
 
 ...
