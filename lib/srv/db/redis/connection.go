@@ -62,11 +62,13 @@ type ConnectionOptions struct {
 // connection options like address and connection mode. If port is skipped
 // default Redis 6379 is used.
 // Correct inputs:
-// 	rediss://redis.example.com:6379?mode=cluster
-// 	redis://redis.example.com:6379
-// 	redis.example.com:6379
+//
+//	rediss://redis.example.com:6379?mode=cluster
+//	redis://redis.example.com:6379
+//	redis.example.com:6379
 //
 // Incorrect input:
+//
 //	redis.example.com:6379?mode=cluster
 func ParseRedisAddress(addr string) (*ConnectionOptions, error) {
 	// Default to the single mode.

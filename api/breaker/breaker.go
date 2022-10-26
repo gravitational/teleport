@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -263,7 +263,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		})
 	}
 
-	c.TrippedPeriod = utils.NewSeventhJitter()(c.TrippedPeriod)
+	c.TrippedPeriod = retryutils.NewSeventhJitter()(c.TrippedPeriod)
 
 	return nil
 }
@@ -298,10 +298,10 @@ func New(cfg Config) (*CircuitBreaker, error) {
 }
 
 // Execute calls the provided function depending on the CircuitBreaker state.
-// - StateStandby: all functions are executed.
-// - StateTripped: no functions are executed and ErrStateTripped is returned.
-// - StateRecovering: some functions are executed, some functions are not,
-//                    when not executed ErrLimitExceeded is returned.
+//   - StateStandby: all functions are executed.
+//   - StateTripped: no functions are executed and ErrStateTripped is returned.
+//   - StateRecovering: some functions are executed, some functions are not,
+//     when not executed ErrLimitExceeded is returned.
 //
 // The CircuitBreaker state is updated according to the outcome of executing the
 // provided function and the current state. See package docs for a more detailed

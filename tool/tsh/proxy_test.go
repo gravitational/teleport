@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,8 +38,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
@@ -74,7 +77,6 @@ func TestSSH(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			tc.fn(t, s)
 		})
 	}
@@ -106,9 +108,11 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.Eventually(t, func() bool {
 		err := Run(context.Background(), []string{
 			"ssh",
+			"--proxy", s.root.Config.Proxy.WebAddr.String(),
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		}, setHomePath(tshHome))
+		t.Logf("ssh to leaf failed %v", err)
 		return err == nil
 	}, 5*time.Second, time.Second)
 
@@ -188,6 +192,7 @@ func TestProxySSH(t *testing.T) {
 			name: "TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -196,6 +201,7 @@ func TestProxySSH(t *testing.T) {
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -255,6 +261,100 @@ func TestProxySSH(t *testing.T) {
 			})
 		})
 
+	}
+}
+
+// TestProxySSHJumpHost verifies "tsh proxy ssh -J" functionality.
+func TestProxySSHJumpHost(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	createAgent(t)
+
+	tests := []struct {
+		name string
+		opts []testSuiteOptionFunc
+	}{
+		{
+			name: "TLS routing enabled for root and leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+			},
+		},
+		{
+			name: "TLS routing enabled for root and disabled for leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+			},
+		},
+
+		{
+			name: "TLS routing disabled for root and enabled for leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}),
+			},
+		},
+		{
+			name: "TLS routing disabled for root and leaf",
+			opts: []testSuiteOptionFunc{
+				withRootConfigFunc(func(cfg *service.Config) {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+				withLeafConfigFunc(func(cfg *service.Config) {
+					cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
+				}),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTestSuite(t, tc.opts...)
+
+			runProxySSHJump := func(opts ...cliOption) error {
+				proxyRequest := fmt.Sprintf("%s:%d",
+					s.leaf.Config.Proxy.SSHAddr.Host(),
+					s.leaf.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
+				return Run(context.Background(), []string{
+					"--insecure", "proxy", "ssh", "-J", s.leaf.Config.Proxy.WebAddr.Addr, proxyRequest,
+				}, opts...)
+			}
+
+			// login to root
+			tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+
+			// Connect to leaf node though proxy jump host. This should automatically
+			// reissue leaf certs from the root without explicility switching clusters.
+			err := runProxySSHJump(setHomePath(tshHome))
+			require.NoError(t, err)
+
+			// Terminate root cluster.
+			err = s.root.Close()
+			require.NoError(t, err)
+
+			// Since we've already retrieved valid leaf certs, we should be able to connect without root.
+			err = runProxySSHJump(setHomePath(tshHome))
+			require.NoError(t, err)
+		})
 	}
 }
 
@@ -442,7 +542,9 @@ func createAgent(t *testing.T) string {
 	sockDir := "test"
 	sockName := "agent.sock"
 
-	keyring := agent.NewKeyring()
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(keyring), nil
 	})
@@ -549,7 +651,7 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 }
 
 func mustRunOpenSSHCommand(t *testing.T, configFile string, sshConnString string, port int, args ...string) {
-	err := utils.RetryStaticFor(time.Second*10, time.Millisecond*500, func() error {
+	err := retryutils.RetryStaticFor(time.Second*10, time.Millisecond*500, func() error {
 		err := runOpenSSHCommand(t, configFile, sshConnString, port, args...)
 		return trace.Wrap(err)
 	})
@@ -585,4 +687,180 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 		}
 	}
 	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+}
+
+func TestFormatCommand(t *testing.T) {
+	setEnv := func(command *exec.Cmd, envs ...string) *exec.Cmd {
+		command.Env = append(command.Env, envs...)
+		return command
+	}
+
+	tests := []struct {
+		name string
+		cmd  *exec.Cmd
+		want string
+	}{
+		{
+			name: "simple command",
+			cmd:  exec.Command("echo", "hello"),
+			want: "echo hello",
+		},
+		{
+			name: "whitespace arguments",
+			cmd: exec.Command("echo", "hello world", "return\n\r", `1
+2
+3`),
+			want: "echo \"hello world\" \"return\n\r\" \"1\n2\n3\"",
+		},
+		{
+			name: "args and env",
+			cmd:  setEnv(exec.Command("echo", "hello"), "DEBUG=1", "RUN=YES"),
+			want: "DEBUG=1 RUN=YES echo hello",
+		},
+		{
+			name: "args, whitespace and env",
+			cmd:  setEnv(exec.Command("echo", "hello\"\nworld"), "DEBUG=1", "RUN=YES"),
+			want: "DEBUG=1 RUN=YES echo \"hello\\\"\nworld\"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, formatCommand(tt.cmd))
+		})
+	}
+}
+
+func Test_chooseProxyCommandTemplate(t *testing.T) {
+	tests := []struct {
+		name             string
+		commands         []dbcmd.CommandAlternative
+		randomPort       bool
+		wantTemplate     *template.Template
+		wantTemplateArgs map[string]any
+		wantOutput       string
+	}{
+		{
+			name: "single command",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+			},
+			wantTemplate:     dbProxyAuthTpl,
+			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+
+Use the following command to connect to the database:
+  $ echo "hello world"
+`,
+		},
+		{
+			name: "multiple commands",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+				{
+					Description: "alternative",
+					Command:     exec.Command("echo", "goodbye world"),
+				},
+			},
+			wantTemplate: dbProxyAuthMultiTpl,
+			wantTemplateArgs: map[string]any{
+				"commands": []templateCommandItem{
+					{Description: "default", Command: "echo \"hello world\""},
+					{Description: "alternative", Command: "echo \"goodbye world\""},
+				},
+			},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+
+Use one of the following commands to connect to the database:
+
+  * default: 
+
+  $ echo "hello world"
+
+  * alternative: 
+
+  $ echo "goodbye world"
+
+`,
+		},
+		{
+			name: "single command, random port",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+			},
+			randomPort:       true,
+			wantTemplate:     dbProxyAuthTpl,
+			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following command to connect to the database:
+  $ echo "hello world"
+`,
+		},
+		{
+			name: "multiple commands, random port",
+			commands: []dbcmd.CommandAlternative{
+				{
+					Description: "default",
+					Command:     exec.Command("echo", "hello world"),
+				},
+				{
+					Description: "alternative",
+					Command:     exec.Command("echo", "goodbye world"),
+				},
+			},
+			randomPort:   true,
+			wantTemplate: dbProxyAuthMultiTpl,
+			wantTemplateArgs: map[string]any{
+				"commands": []templateCommandItem{
+					{Description: "default", Command: "echo \"hello world\""},
+					{Description: "alternative", Command: "echo \"goodbye world\""},
+				},
+			},
+			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use one of the following commands to connect to the database:
+
+  * default: 
+
+  $ echo "hello world"
+
+  * alternative: 
+
+  $ echo "goodbye world"
+
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			templateArgs := map[string]any{}
+			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands)
+			require.Equal(t, tt.wantTemplate, tpl)
+			require.Equal(t, tt.wantTemplateArgs, templateArgs)
+
+			// test resulting template
+
+			templateArgs["database"] = "mydb"
+			templateArgs["cluster"] = "mycluster"
+			templateArgs["address"] = "127.0.0.1:64444"
+			templateArgs["type"] = defaults.ReadableDatabaseProtocol(defaults.ProtocolMySQL)
+			templateArgs["randomPort"] = tt.randomPort
+
+			buf := new(bytes.Buffer)
+			err := tpl.Execute(buf, templateArgs)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantOutput, buf.String())
+		})
+	}
 }

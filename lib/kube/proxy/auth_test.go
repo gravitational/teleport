@@ -22,6 +22,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
 	authzapi "k8s.io/api/authorization/v1"
@@ -158,7 +159,7 @@ current-context: foo
 		kubeCluster        string
 		serviceType        KubeServiceType
 		impersonationCheck ImpersonationPermissionsChecker
-		want               map[string]*kubeCreds
+		want               map[string]*kubeDetails
 		assertErr          require.ErrorAssertionFunc
 	}{
 		{
@@ -166,38 +167,48 @@ current-context: foo
 			serviceType:        KubeService,
 			impersonationCheck: alwaysSucceeds,
 			assertErr:          require.Error,
+			want:               map[string]*kubeDetails{},
 		}, {
 			desc:               "proxy_service, no kube creds",
 			serviceType:        ProxyService,
 			impersonationCheck: alwaysSucceeds,
 			assertErr:          require.NoError,
-			want:               map[string]*kubeCreds{},
+			want:               map[string]*kubeDetails{},
 		}, {
 			desc:               "legacy proxy_service, no kube creds",
 			serviceType:        ProxyService,
 			impersonationCheck: alwaysSucceeds,
 			assertErr:          require.NoError,
-			want:               map[string]*kubeCreds{},
+			want:               map[string]*kubeDetails{},
 		}, {
 			desc:               "kubernetes_service, with kube creds",
 			serviceType:        KubeService,
 			kubeconfigPath:     kubeconfigPath,
 			impersonationCheck: alwaysSucceeds,
-			want: map[string]*kubeCreds{
+			want: map[string]*kubeDetails{
 				"foo": {
-					targetAddr:      "example.com:3026",
-					transportConfig: &transport.Config{},
-					kubeClient:      &kubernetes.Clientset{},
+					kubeCreds: &staticKubeCreds{
+						targetAddr:      "example.com:3026",
+						transportConfig: &transport.Config{},
+						kubeClient:      &kubernetes.Clientset{},
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
 				"bar": {
-					targetAddr:      "example.com:3026",
-					transportConfig: &transport.Config{},
-					kubeClient:      &kubernetes.Clientset{},
+					kubeCreds: &staticKubeCreds{
+						targetAddr:      "example.com:3026",
+						transportConfig: &transport.Config{},
+						kubeClient:      &kubernetes.Clientset{},
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
-					targetAddr:      "example.com:3026",
-					transportConfig: &transport.Config{},
-					kubeClient:      &kubernetes.Clientset{},
+					kubeCreds: &staticKubeCreds{
+						targetAddr:      "example.com:3026",
+						transportConfig: &transport.Config{},
+						kubeClient:      &kubernetes.Clientset{},
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
@@ -206,18 +217,21 @@ current-context: foo
 			kubeconfigPath:     kubeconfigPath,
 			serviceType:        ProxyService,
 			impersonationCheck: alwaysSucceeds,
-			want:               map[string]*kubeCreds{},
+			want:               map[string]*kubeDetails{},
 			assertErr:          require.NoError,
 		}, {
 			desc:               "legacy proxy_service, with kube creds",
 			kubeconfigPath:     kubeconfigPath,
 			serviceType:        LegacyProxyService,
 			impersonationCheck: alwaysSucceeds,
-			want: map[string]*kubeCreds{
+			want: map[string]*kubeDetails{
 				teleClusterName: {
-					targetAddr:      "example.com:3026",
-					transportConfig: &transport.Config{},
-					kubeClient:      &kubernetes.Clientset{},
+					kubeCreds: &staticKubeCreds{
+						targetAddr:      "example.com:3026",
+						transportConfig: &transport.Config{},
+						kubeClient:      &kubernetes.Clientset{},
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, teleClusterName),
 				},
 			},
 			assertErr: require.NoError,
@@ -226,21 +240,30 @@ current-context: foo
 			kubeconfigPath:     kubeconfigPath,
 			serviceType:        KubeService,
 			impersonationCheck: failsForCluster("bar"),
-			want: map[string]*kubeCreds{
+			want: map[string]*kubeDetails{
 				"foo": {
-					targetAddr:      "example.com:3026",
-					transportConfig: &transport.Config{},
-					kubeClient:      &kubernetes.Clientset{},
+					kubeCreds: &staticKubeCreds{
+						targetAddr:      "example.com:3026",
+						transportConfig: &transport.Config{},
+						kubeClient:      &kubernetes.Clientset{},
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
 				"bar": {
-					targetAddr:      "example.com:3026",
-					transportConfig: &transport.Config{},
-					kubeClient:      &kubernetes.Clientset{},
+					kubeCreds: &staticKubeCreds{
+						targetAddr:      "example.com:3026",
+						transportConfig: &transport.Config{},
+						kubeClient:      &kubernetes.Clientset{},
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
-					targetAddr:      "example.com:3026",
-					transportConfig: &transport.Config{},
-					kubeClient:      &kubernetes.Clientset{},
+					kubeCreds: &staticKubeCreds{
+						targetAddr:      "example.com:3026",
+						transportConfig: &transport.Config{},
+						kubeClient:      &kubernetes.Clientset{},
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
@@ -248,16 +271,25 @@ current-context: foo
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := getKubeCreds(ctx, utils.NewLoggerForTests(), teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
+			got, err := getKubeDetails(ctx, utils.NewLoggerForTests(), teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
 			tt.assertErr(t, err)
 			if err != nil {
 				return
 			}
 			require.Empty(t, cmp.Diff(got, tt.want,
-				cmp.AllowUnexported(kubeCreds{}),
+				cmp.AllowUnexported(staticKubeCreds{}),
+				cmp.AllowUnexported(kubeDetails{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 			))
 		})
 	}
+}
+
+func mustCreateKubernetesClusterV3(t *testing.T, name string) *types.KubernetesClusterV3 {
+	kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: name,
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+	return kubeCluster
 }

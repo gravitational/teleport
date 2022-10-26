@@ -171,6 +171,7 @@ type WindowsServiceConfig struct {
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	Labels               map[string]string
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -185,6 +186,8 @@ type LDAPConfig struct {
 	Username string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }
@@ -320,7 +323,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
 	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
-		cfg.Log.Warn("LDAP configuration specifies both der_ca_file and insecure_skip_verify." +
+		cfg.Log.Warn("LDAP configuration specifies both a CA certificate and insecure_skip_verify." +
 			"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning.")
 	}
 
@@ -482,6 +485,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 			},
 		},
 		InsecureSkipVerify: s.cfg.InsecureSkipVerify,
+		ServerName:         s.cfg.ServerName,
 	}
 
 	if s.cfg.CA != nil {
@@ -683,7 +687,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
 		if err := tdpConn.SendError(message); err != nil {
-			s.cfg.Log.Errorf("Failed to send TDP error message %v", err)
+			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
 
@@ -789,10 +793,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
-		mfaParams := services.AccessMFAParams{
-			Verified:       identity.MFAVerified != "",
-			AlwaysRequired: authPref.GetRequireSessionMFA(),
-		}
+		mfaParams := authCtx.MFAParams(authPref.GetRequireMFAType())
 		return authCtx.Checker.CheckAccess(
 			desktop,
 			mfaParams,
@@ -864,6 +865,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Tracker:           rdpc,
 		TeleportUser:      identity.Username,
 		ServerID:          s.cfg.Heartbeat.HostUUID,
+		MessageWriter: &monitorErrorSender{
+			log:     log,
+			tdpConn: tdpConn,
+		},
 	}
 	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
@@ -894,7 +899,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNGFrame), byte(tdp.TypeError):
+		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -959,7 +964,10 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 	srv, err := types.NewWindowsDesktopServiceV3(
-		s.cfg.Heartbeat.HostUUID,
+		types.Metadata{
+			Name:   s.cfg.Heartbeat.HostUUID,
+			Labels: s.cfg.Labels,
+		},
 		types.WindowsDesktopServiceSpecV3{
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
@@ -1094,18 +1102,21 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 // private key archival.
 //
 // This function is equivalent to running:
-//     certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+//
+//	certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
 //
 // You can confirm the cert is present by running:
-//     certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
+//
+//	certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
 //
 // Once the CA is published to LDAP, it should eventually sync and be present in the
 // machine's enterprise NTAuth store. You can check that with:
-//     certutil -viewstore -enterprise NTAuth
+//
+//	certutil -viewstore -enterprise NTAuth
 //
 // You can expedite the synchronization by running:
-//     certutil -pulse
 //
+//	certutil -pulse
 func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
 	// Check if our CA is already in the store. The LDAP entry for NTAuth store
 	// is constant and it should always exist.
@@ -1295,16 +1306,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.cfg.Log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionID)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1402,4 +1404,23 @@ type otherName struct {
 
 type upn struct {
 	Value string `asn1:"utf8"`
+}
+
+// monitorErrorSender implements the io.StringWriter
+// interface in order to allow us to pass connection
+// monitor disconnect messages back to the frontend
+// over the tdp.Conn
+type monitorErrorSender struct {
+	log     logrus.FieldLogger
+	tdpConn *tdp.Conn
+}
+
+func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
+	if err := m.tdpConn.SendError(s); err != nil {
+		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
+		m.log.Error(errMsg)
+		return 0, trace.Errorf(errMsg)
+	}
+
+	return len(s), nil
 }

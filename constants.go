@@ -125,6 +125,9 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDiscovery is the Discovery service.
+	ComponentDiscovery = "discovery:service"
+
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
@@ -286,13 +289,21 @@ const (
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
 
-	// SSH request type to keep the connection alive. A client and a server keep
-	// pining each other with it:
+	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// RecordingProxyReqType is the name of a global request which returns if
 	// the proxy is recording sessions or not.
+	//
+	// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+	// cluster information.
+	// TODO(tross):DELETE IN 12.0
 	RecordingProxyReqType = "recording-proxy@teleport.com"
+
+	// ClusterDetailsReqType is the name of a global request which returns cluster details like
+	// if the proxy is recording sessions or not and if FIPS is enabled.
+	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
 	// JSON means JSON serialization format
 	JSON = "json"
@@ -383,16 +394,6 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 )
 
-// OTPType is the type of the One-time Password Algorithm.
-type OTPType string
-
-const (
-	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
-	TOTP = OTPType("totp")
-	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
-	HOTP = OTPType("hotp")
-)
-
 const (
 	// These values are from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 
@@ -461,6 +462,9 @@ const (
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
+	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
+	// private key policy.
+	CertExtensionPrivateKeyPolicy = "private-key-policy"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -740,6 +744,12 @@ const (
 
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
+)
+
+const (
+	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
+	// uses to get the home directory of a remote user.
+	GetHomeDirSubsystem = "gethomedir"
 )
 
 // A principal name for use in SSH certificates.

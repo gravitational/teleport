@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
@@ -90,6 +92,69 @@ func TestLoadConfigFromProfile(t *testing.T) {
 			_, err := common.LoadConfigFromProfile(tc.ccf, tc.cfg)
 			if tc.want != nil {
 				require.Error(t, err, tc.want)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestRemoteTctlWithProfile(t *testing.T) {
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	t.Setenv(types.HomeEnvVar, tmpHomePath)
+
+	tests := []struct {
+		desc            string
+		commands        []common.CLICommand
+		args            []string
+		wantErrContains string
+	}{
+		{
+			desc:            "fails with untrusted certificate error without insecure mode",
+			commands:        []common.CLICommand{&common.StatusCommand{}},
+			args:            []string{"status"},
+			wantErrContains: "certificate is not trusted",
+		},
+		{
+			desc:     "success with insecure mode",
+			commands: []common.CLICommand{&common.StatusCommand{}},
+			args:     []string{"status", "--insecure"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			err := common.TryRun(tt.commands, tt.args)
+			if tt.wantErrContains != "" {
+				var exitError *toolcommon.ExitCodeError
+				require.True(t, errors.As(err, &exitError))
+				require.ErrorContains(t, err, tt.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
@@ -168,9 +233,9 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 
 			_, err = common.ApplyConfig(ccf, cfg)
 			require.NoError(t, err)
-			require.NotEmpty(t, cfg.AuthServers, "auth servers should be set to a non-empty default if not specified")
+			require.NotEmpty(t, cfg.AuthServerAddresses(), "auth servers should be set to a non-empty default if not specified")
 
-			require.ElementsMatch(t, tt.want, cfg.AuthServers)
+			require.ElementsMatch(t, tt.want, cfg.AuthServerAddresses())
 		})
 	}
 }

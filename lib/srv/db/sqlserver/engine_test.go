@@ -19,6 +19,7 @@ package sqlserver
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"sync"
@@ -209,6 +210,9 @@ func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEven
 
 type mockAuth struct {
 	common.Auth
+	// GetAzureIdentityResourceID mocks.
+	azureIdentityResourceID    string
+	azureIdentityResourceIDErr error
 }
 
 func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
@@ -218,8 +222,16 @@ func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		RequireSessionMFA: true,
+		RequireMFAType: types.RequireMFAType_SESSION,
 	})
+}
+
+func (m *mockAuth) GetTLSConfig(_ context.Context, _ *common.Session) (*tls.Config, error) {
+	return &tls.Config{}, nil
+}
+
+func (m *mockAuth) GetAzureIdentityResourceID(_ context.Context, _ string) (string, error) {
+	return m.azureIdentityResourceID, m.azureIdentityResourceIDErr
 }
 
 type mockChecker struct {
@@ -228,6 +240,17 @@ type mockChecker struct {
 
 func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
 	return nil
+}
+
+func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	if authPrefMFARequirement.IsSessionMFARequired() {
+		return services.AccessMFAParams{
+			Required: services.MFARequiredAlways,
+		}
+	}
+	return services.AccessMFAParams{
+		Required: services.MFARequiredNever,
+	}
 }
 
 type mockConnector struct {

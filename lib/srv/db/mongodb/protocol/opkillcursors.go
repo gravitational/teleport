@@ -29,12 +29,12 @@ import (
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_kill_cursors
 //
-// struct {
-//     MsgHeader header;            // standard message header
-//     int32     ZERO;              // 0 - reserved for future use
-//     int32     numberOfCursorIDs; // number of cursorIDs in message
-//     int64*    cursorIDs;         // sequence of cursorIDs to close
-// }
+//	struct {
+//	    MsgHeader header;            // standard message header
+//	    int32     ZERO;              // 0 - reserved for future use
+//	    int32     numberOfCursorIDs; // number of cursorIDs in message
+//	    int64*    cursorIDs;         // sequence of cursorIDs to close
+//	}
 //
 // OP_KILL_CURSORS is deprecated starting MongoDB 5.0 in favor of OP_MSG.
 type MessageOpKillCursors struct {
