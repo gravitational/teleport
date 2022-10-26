@@ -105,7 +105,7 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
-| `require_session_mfa` | Require additional MFA tap before initiating a session | Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
+| `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
 | `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
 | `request_prompt` | Prompt for the Access Request "reason" field | |
@@ -354,12 +354,12 @@ have a cluster using the legacy U2F support.
 
 Here is an explanation of the fields used in the `where` and `filter` conditions within this guide.
 
-| Field                      | Description                                         |
-|----------------------------|-----------------------------------------------------|
-| `user.roles`               | The list of roles assigned to a user              |
+| Field                      | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| `user.spec.roles`          | The list of roles assigned to a user              |
 | `session.participants`     | The list of participants from a session recording |
-| `ssh_session.participants` | The list of participants from an SSH session       |
-| `user.metadata.name`       | The user's name                                     |
+| `ssh_session.participants` | The list of participants from an SSH session      |
+| `user.metadata.name`       | The user's name                                   |
 
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.

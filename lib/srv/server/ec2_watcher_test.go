@@ -35,7 +35,7 @@ type mockClients struct {
 	cloud.Clients
 
 	ec2Client   *mockEC2Client
-	azureClient *azure.VirtualMachinesClient
+	azureClient azure.VirtualMachinesClient
 }
 
 func (c *mockClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {

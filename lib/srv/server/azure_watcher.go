@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -127,11 +127,11 @@ type azureFetcherConfig struct {
 	Matcher       services.AzureMatcher
 	Subscription  string
 	ResourceGroup string
-	AzureClient   *azure.VirtualMachinesClient
+	AzureClient   azure.VirtualMachinesClient
 }
 
 type azureInstanceFetcher struct {
-	Azure         *azure.VirtualMachinesClient
+	Azure         azure.VirtualMachinesClient
 	Regions       []string
 	Subscription  string
 	ResourceGroup string
