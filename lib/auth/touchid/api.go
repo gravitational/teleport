@@ -45,16 +45,20 @@ var (
 	ErrCredentialNotFound = errors.New("credential not found")
 	ErrNotAvailable       = errors.New("touch ID not available")
 
-	// PromptPlatformMessage is the message shown before Touch ID prompts.
-	PromptPlatformMessage = "Using platform authenticator, follow the OS prompt"
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
 )
 
-func promptPlatform() {
-	if PromptPlatformMessage != "" {
-		fmt.Fprintln(PromptWriter, PromptPlatformMessage)
-	}
+func defaultPrompt() {
+	fmt.Fprintln(PromptWriter, "Using platform authenticator, follow the OS prompt")
+}
+
+func loginPrompt() {
+	fmt.Fprintln(PromptWriter, "Using platform authenticator, follow the OS prompt and use *registered* Touch ID")
+}
+
+func registerPrompt() {
+	fmt.Fprintln(PromptWriter, "Using platform authenticator, follow the OS prompt to register *new* Touch ID")
 }
 
 // AuthContext is an optional, shared authentication context.
@@ -292,7 +296,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, trace.Wrap(err)
 	}
 
-	promptPlatform()
+	registerPrompt()
 	sig, err := native.Authenticate(nil /* actx */, credentialID, attData.digest)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -496,7 +500,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 		if prompted {
 			return
 		}
-		promptPlatform()
+		loginPrompt()
 		prompted = true
 	}
 
@@ -610,7 +614,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 		return nil, ErrNotAvailable
 	}
 
-	promptPlatform()
+	defaultPrompt()
 	infos, err := native.ListCredentials()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -637,6 +641,6 @@ func DeleteCredential(credentialID string) error {
 		return ErrNotAvailable
 	}
 
-	promptPlatform()
+	defaultPrompt()
 	return native.DeleteCredential(credentialID)
 }

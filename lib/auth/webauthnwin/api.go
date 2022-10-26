@@ -91,7 +91,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	promptPlatform()
+	loginPrompt()
 	resp, err := native.GetAssertion(origin, &getAssertionRequest{
 		rpID:                  rpid,
 		clientData:            cd,
@@ -141,7 +141,7 @@ func Register(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	promptPlatform()
+	registerPrompt()
 	resp, err := native.MakeCredential(origin, &makeCredentialRequest{
 		rp:                    rp,
 		user:                  u,
@@ -162,16 +162,16 @@ func Register(
 }
 
 var (
-	// PromptPlatformMessage is the message shown before Touch ID prompts.
-	PromptPlatformMessage = "Using platform authenticator, follow the OS dialogs"
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
 )
 
-func promptPlatform() {
-	if PromptPlatformMessage != "" {
-		fmt.Fprintln(PromptWriter, PromptPlatformMessage)
-	}
+func loginPrompt() {
+	fmt.Fprintln(PromptWriter, "Using platform authenticator, follow the OS dialogs and use *registered* device")
+}
+
+func registerPrompt() {
+	fmt.Fprintln(PromptWriter, "Using platform authenticator, follow the OS dialogs to register *new* device")
 }
 
 // CheckSupport is the result from a Windows webauthn support check.
