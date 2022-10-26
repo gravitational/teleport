@@ -6,7 +6,7 @@ description: Detailed guide and reference documentation for Teleport's command l
 Teleport is made up of four CLI tools.
 
 - [teleport](#teleport): Supports the Teleport access plane by starting and configuring various Teleport services.
-- [tsh](#tsh): Allows end users to authenicate to Teleport and access resources in a cluster.
+- [tsh](#tsh): Allows end users to authenticate to Teleport and access resources in a cluster.
 - [tctl](#tctl): Used to configure the Teleport Auth Service.
 - [tbot](#tbot): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
 
@@ -53,12 +53,8 @@ For more information on subcommands when working with the `teleport` cli, use th
 
 The `teleport start` command includes a large number of optional configuration flags.
 
-<Admonition title="Configuration Flags" type="tip">
-
 While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
 we recommend using a [configuration file](https://goteleport.com/docs/reference/config/) in production.
-
-</Admonition>
 
 #### Flags
 
@@ -916,7 +912,7 @@ in a cluster, including nodes, users, tokens, and certificates.
 creating new user roles or connecting Trusted Clusters.
 
 <Tabs>
-<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 When running `tctl` commands, administrators must authenticate to a Teleport
 cluster. This can be done in three ways:
@@ -969,8 +965,8 @@ Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
 which could result in the error,
 `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+  </TabItem>
+  <TabItem scope={["cloud"]} label="Teleport Cloud">
 
 When running `tctl` commands, administrators must authenticate to a Teleport
 cluster. This can be done in two ways:
@@ -1003,7 +999,7 @@ Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
 which could result in the error,
 `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
-</TabItem>
+  </TabItem>
 </Tabs>
 
 
@@ -2103,8 +2099,8 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 | `--oneshot`          | If set, quit after the first renewal.                                                          |
 
 #### Examples
-
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+  <TabItem scope={["Cloud"]} label="Teleport Cloud">
 
 ```code
 $ tbot start \
@@ -2116,8 +2112,8 @@ $ tbot start \
    --auth-server=example.teleport.sh:443
 ```
 
-<Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+  </TabItem>
+  <TabItem scope={["Enterprise/OSS"]} label="Enterprise/OSS">
 
 ```code
 $ tbot start \
@@ -2129,7 +2125,8 @@ $ tbot start \
    --auth-server=auth.example.com:3025
 ```
 
-</ScopedBlock>
+  </TabItem>
+</Tabs>
 
 ### tbot init
 
@@ -2302,4 +2299,4 @@ using database proxies.
 | `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
 | `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
 | `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
-| `--oneshot`          | If set, quit after the first renewal.                                   |
+| `--oneshot`          | If set, quit after the first renewal.                                                          |
