@@ -370,7 +370,8 @@ func (c *cloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSC
 	return c.initAzureKubernetesClient(subscription)
 }
 
-// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
+// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
+// the given subscription.
 func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
 }
@@ -717,7 +718,8 @@ func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (a
 	return c.AzureRedisEnterprise, nil
 }
 
-// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
+// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
+// the given subscription.
 func (c *TestCloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.AzureVirtualMachines, nil
 }

@@ -57,37 +57,6 @@ func (m *ARMSubscriptionsMock) NewListPager(_ *armsubscription.SubscriptionsClie
 	})
 }
 
-type ARMComputeMock struct {
-	VirtualMachines map[string][]*armcompute.VirtualMachine
-	GetResult       armcompute.VirtualMachine
-	GetErr          error
-}
-
-func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse] {
-	vms, ok := m.VirtualMachines[resourceGroup]
-	if !ok {
-		vms = []*armcompute.VirtualMachine{}
-	}
-	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListResponse]{
-		More: func(page armcompute.VirtualMachinesClientListResponse) bool {
-			return page.NextLink != nil && len(*page.NextLink) > 0
-		},
-		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListResponse) (armcompute.VirtualMachinesClientListResponse, error) {
-			return armcompute.VirtualMachinesClientListResponse{
-				VirtualMachineListResult: armcompute.VirtualMachineListResult{
-					Value: vms,
-				},
-			}, nil
-		},
-	})
-}
-
-func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
-	return armcompute.VirtualMachinesClientGetResponse{
-		VirtualMachine: m.GetResult,
-	}, m.GetErr
-}
-
 // ARMMySQLMock mocks Azure armmysql API.
 type ARMMySQLMock struct {
 	DBServers []*armmysql.Server
@@ -508,4 +477,36 @@ func (m *ARMKubernetesMock) BeginRunCommand(ctx context.Context, resourceGroupNa
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	return &runtime.Poller[armcontainerservice.ManagedClustersClientRunCommandResponse]{}, nil
+}
+
+// ARMComputeMock mocks armcompute.VirtualMachinesClient.
+type ARMComputeMock struct {
+	VirtualMachines map[string][]*armcompute.VirtualMachine
+	GetResult       armcompute.VirtualMachine
+	GetErr          error
+}
+
+func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse] {
+	vms, ok := m.VirtualMachines[resourceGroup]
+	if !ok {
+		vms = []*armcompute.VirtualMachine{}
+	}
+	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListResponse]{
+		More: func(page armcompute.VirtualMachinesClientListResponse) bool {
+			return page.NextLink != nil && len(*page.NextLink) > 0
+		},
+		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListResponse) (armcompute.VirtualMachinesClientListResponse, error) {
+			return armcompute.VirtualMachinesClientListResponse{
+				VirtualMachineListResult: armcompute.VirtualMachineListResult{
+					Value: vms,
+				},
+			}, nil
+		},
+	})
+}
+
+func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
+	return armcompute.VirtualMachinesClientGetResponse{
+		VirtualMachine: m.GetResult,
+	}, m.GetErr
 }
