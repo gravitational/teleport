@@ -2045,6 +2045,26 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
+
+	if h.ClusterFeatures.GetCloud() {
+		users, err := h.cfg.ProxyClient.GetUsers(false)
+
+		if err == nil && len(users) == 1 {
+			authPreference, err := ctx.clt.GetAuthPreference(r.Context())
+			if err != nil {
+				h.log.WithError(err).Warn("Failed to retrieve auth preference.")
+			} else {
+				authPreference.SetConnectorName("passwordless")
+
+				err = ctx.clt.SetAuthPreference(r.Context(), authPreference)
+
+				if err != nil {
+					h.log.WithError(err).Warn("Failed to update auth preference.")
+				}
+			}
+		}
+	}
+
 	return newSessionResponse(ctx)
 }
 
