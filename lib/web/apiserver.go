@@ -2346,6 +2346,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		ServerAddr:            tracker.GetAddress(),
 		ClusterName:           clusterName,
 		KubernetesClusterName: tracker.GetKubeCluster(),
+		DesktopName:           tracker.GetDesktopName(),
 	}
 }
 
@@ -2370,10 +2371,11 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		// Only return ssh and k8s session type.
-		isSSHOrK8s := tracker.GetSessionKind() == types.SSHSessionKind || tracker.GetSessionKind() == types.KubernetesSessionKind
-		if isSSHOrK8s && tracker.GetState() != types.SessionState_SessionStateTerminated {
-			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
+		switch tracker.GetSessionKind() {
+		case types.SSHSessionKind, types.KubernetesSessionKind, types.WindowsDesktopSessionKind:
+			if tracker.GetState() != types.SessionState_SessionStateTerminated {
+				sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
+			}
 		}
 	}
 

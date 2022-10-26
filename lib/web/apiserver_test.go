@@ -1544,6 +1544,8 @@ func TestWebAgentForward(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TODO(zmb3): create some dummy session trackers instead of starting a real session here
+
 func TestActiveSessions(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)

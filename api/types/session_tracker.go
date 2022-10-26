@@ -99,6 +99,9 @@ type SessionTracker interface {
 	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
 
+	// GetDesktopName returns the name of the Windows desktop the session is running in.
+	GetDesktopName() string
+
 	// GetHostUser fetches the user marked as the "host" of the session.
 	// Things like RBAC policies are determined from this user.
 	GetHostUser() string
@@ -314,6 +317,13 @@ func (s *SessionTrackerV1) RemoveParticipant(id string) error {
 // This is only valid for kubernetes sessions.
 func (s *SessionTrackerV1) GetKubeCluster() string {
 	return s.Spec.KubernetesCluster
+}
+
+// GetDesktopName returns the name of the Windows desktop the session is running in.
+//
+// This is only valid for Windows desktop sessions.
+func (s *SessionTrackerV1) GetDesktopName() string {
+	return s.Spec.DesktopName
 }
 
 // GetHostUser fetches the user marked as the "host" of the session.

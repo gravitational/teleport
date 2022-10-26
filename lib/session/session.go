@@ -103,6 +103,8 @@ type Session struct {
 	ClusterName string `json:"cluster_name"`
 	// KubernetesClusterName is the name of the kube cluster that this session is running in.
 	KubernetesClusterName string `json:"kubernetes_cluster_name"`
+	// DesktopName is the name of the desktop that this session is running in.
+	DesktopName string `json:"desktop_name"`
 }
 
 // Participants returns the usernames of the current session participants.
