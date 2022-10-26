@@ -53,6 +53,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -147,6 +148,9 @@ const (
 	// Server.
 	WindowsDesktopIdentityEvent = "WindowsDesktopIdentity"
 
+	// DiscoveryIdentityEvent is generated when the identity of the
+	DiscoveryIdentityEvent = "DiscoveryIdentityEvent"
+
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"
@@ -202,6 +206,10 @@ const (
 	// InstanceReady is generated when the teleport instance control handle has
 	// been set up.
 	InstanceReady = "InstanceReady"
+
+	// DiscoveryReady is generated when the Teleport database proxy service
+	// is ready to start accepting connections.
+	DiscoveryReady = "DiscoveryReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -511,10 +519,11 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 // the resulting payload as a *Connector. Returns (nil, nil) when the
 // ExitContext is done, so error checking should happen on the connector rather
 // than the error:
-//  conn, err := process.waitForConnector("FooIdentity", log)
-//  if conn == nil {
-//  	return trace.Wrap(err)
-//  }
+//
+//	conn, err := process.waitForConnector("FooIdentity", log)
+//	if conn == nil {
+//		return trace.Wrap(err)
+//	}
 func (process *TeleportProcess) waitForConnector(identityEvent string, log logrus.FieldLogger) (*Connector, error) {
 	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
 	if err != nil {
@@ -1046,6 +1055,9 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if cfg.Tracing.Enabled {
 		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
+	if cfg.Discovery.Enabled {
+		eventMapping.In = append(eventMapping.In, DiscoveryReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -1118,6 +1130,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.log)
+	}
+
+	if process.shouldInitDiscovery() {
+		process.initDiscovery()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
 	}
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
@@ -1563,6 +1582,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
+		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1973,6 +1993,19 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cache
 	}
 
 	return auth.NewDatabaseWrapper(clt, cache), nil
+}
+
+// newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
+func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cacheName []string) (auth.DiscoveryAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+	cache, err := process.newLocalCache(clt, cache.ForDiscovery, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.NewDiscoveryWrapper(clt, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
@@ -2852,10 +2885,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do four things:
-//    1. serve a web UI
-//    2. proxy SSH connections to nodes running with 'node' role
-//    3. take care of reverse tunnels
-//    4. optionally proxy kubernetes connections
+//  1. serve a web UI
+//  2. proxy SSH connections to nodes running with 'node' role
+//  3. take care of reverse tunnels
+//  4. optionally proxy kubernetes connections
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
@@ -3432,6 +3465,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessPoint:  accessPoint,
 		}
 
+		proxyKubeAddr := cfg.Proxy.Kube.ListenAddr
+		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
+			proxyKubeAddr = cfg.Proxy.Kube.PublicAddrs[0]
+		}
+
 		webConfig := web.Config{
 			Proxy:            tsrv,
 			AuthServers:      cfg.AuthServers[0],
@@ -3451,7 +3489,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterFeatures:  process.getClusterFeatures(),
 			ProxySettings:    proxySettings,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
+			PublicProxyAddr:  process.proxyPublicAddr().Addr,
+			ProxyKubeAddr:    proxyKubeAddr,
 		}
+
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3656,6 +3697,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
 			OnHeartbeat:   process.onHeartbeat(component),
+			Log:           log,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3784,6 +3826,23 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				utils.GRPCServerStreamErrorInterceptor,
 				proxyLimiter.StreamServerInterceptor,
 			),
+			grpc.KeepaliveParams(keepalive.ServerParameters{
+				// Using an aggressive idle timeout here since this gRPC server
+				// currently only hosts the join service, which has no need for
+				// long-lived idle connections.
+				//
+				// The reason for introducing this is that teleport clients
+				// before #17685 is fixed will hold connections open
+				// indefinitely if they encounter an error during the joining
+				// process, and this seems like the best way for the server to
+				// forcibly close those connections.
+				//
+				// If another gRPC service is added here in the future, it
+				// should be alright to increase or remove this idle timeout as
+				// necessary once the client fix has been released and widely
+				// available for some time.
+				MaxConnectionIdle: 10 * time.Second,
+			}),
 		)
 		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
@@ -4213,6 +4272,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *Config) {
 	if cfg.WindowsDesktop.Enabled {
 		process.setExpectedInstanceRole(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	}
+
+	if cfg.Discovery.Enabled {
+		process.setExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
+	}
 }
 
 // appDependEvents is a list of events that the application service depends on.
@@ -4616,9 +4679,9 @@ func (process *TeleportProcess) Close() error {
 }
 
 func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled {
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled && !cfg.Discovery.Enabled {
 		return trace.BadParameter(
-			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service or windows_desktop_service")
+			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service")
 	}
 
 	if cfg.DataDir == "" {

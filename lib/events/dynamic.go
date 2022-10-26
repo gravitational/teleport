@@ -211,6 +211,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLRefresh{}
 	case DatabaseSessionSQLServerRPCRequestEvent:
 		e = &events.SQLServerRPCRequest{}
+	case DatabaseSessionElasticsearchRequestEvent:
+		e = &events.ElasticsearchRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -251,6 +253,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UpgradeWindowStartUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
+	case SSMRunEvent:
+		e = &events.SSMRun{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 	default:

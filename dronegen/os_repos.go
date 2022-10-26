@@ -102,17 +102,19 @@ func artifactMigrationPipeline() []pipeline {
 	}
 }
 
-type RepoBucketSecretNames struct {
-	bucketName      string
-	accessKeyID     string
-	secretAccessKey string
+type RepoBucketSecrets struct {
+	awsRoleSettings
+	bucketName value
 }
 
-func NewRepoBucketSecretNames(bucketName, accessKeyID, secretAccessKey string) *RepoBucketSecretNames {
-	return &RepoBucketSecretNames{
-		bucketName:      bucketName,
-		accessKeyID:     accessKeyID,
-		secretAccessKey: secretAccessKey,
+func NewRepoBucketSecrets(bucketName, accessKeyID, secretAccessKey, role string) *RepoBucketSecrets {
+	return &RepoBucketSecrets{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: accessKeyID},
+			awsSecretAccessKey: value{fromSecret: secretAccessKey},
+			role:               value{fromSecret: role},
+		},
+		bucketName: value{fromSecret: bucketName},
 	}
 }
 
@@ -124,7 +126,7 @@ type OsPackageToolPipelineBuilder struct {
 	pipelineNameSuffix string
 	artifactPath       string
 	pvcMountPoint      string
-	bucketSecrets      *RepoBucketSecretNames
+	bucketSecrets      *RepoBucketSecrets
 	extraArgs          []string
 	requiredPackages   []string
 	setupCommands      []string
@@ -134,7 +136,7 @@ type OsPackageToolPipelineBuilder struct {
 // This function configures the build tool with it's requirements and sensible defaults.
 // If additional configuration required then the returned struct should be modified prior
 // to calling "build" functions on it.
-func NewOsPackageToolPipelineBuilder(claimName, packageType, packageManagerName string, bucketSecrets *RepoBucketSecretNames) *OsPackageToolPipelineBuilder {
+func NewOsPackageToolPipelineBuilder(claimName, packageType, packageManagerName string, bucketSecrets *RepoBucketSecrets) *OsPackageToolPipelineBuilder {
 	optpb := &OsPackageToolPipelineBuilder{
 		clameName:          claimName,
 		packageType:        packageType,
@@ -150,15 +152,7 @@ func NewOsPackageToolPipelineBuilder(claimName, packageType, packageManagerName 
 	}
 
 	optpb.environmentVars = map[string]value{
-		"REPO_S3_BUCKET": {
-			fromSecret: optpb.bucketSecrets.bucketName,
-		},
-		"AWS_ACCESS_KEY_ID": {
-			fromSecret: optpb.bucketSecrets.accessKeyID,
-		},
-		"AWS_SECRET_ACCESS_KEY": {
-			fromSecret: optpb.bucketSecrets.secretAccessKey,
-		},
+		"REPO_S3_BUCKET": optpb.bucketSecrets.bucketName,
 		"AWS_REGION": {
 			raw: "us-west-2",
 		},
@@ -195,7 +189,10 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	setupSteps := verifyValidPromoteRunSteps(checkoutPath, commitName, true)
+	setupSteps := []step{
+		verifyTaggedStep(),
+		cloneRepoStep(checkoutPath, commitName),
+	}
 
 	setupStepNames := make([]string, 0, len(setupSteps))
 	for _, setupStep := range setupSteps {
@@ -285,6 +282,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 			},
 		},
 		volumeTmpfs,
+		volumeAwsConfig,
 	}
 	p.Steps = []step{
 		{
@@ -357,88 +355,109 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 	}
 	toolSetupCommands = append(toolSetupCommands, optpb.setupCommands...)
 
-	downloadStepName := fmt.Sprintf("Download artifacts for %q", version)
-	buildStepDependencies := []string{}
+	assumeDownloadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		name:         "Assume Download AWS Role",
+	})
+
+	downloadStep := step{
+		Name:  fmt.Sprintf("Download artifacts for %q", version),
+		Image: "amazon/aws-cli",
+		Environment: map[string]value{
+			"AWS_S3_BUCKET": {
+				fromSecret: "AWS_S3_BUCKET",
+			},
+			"ARTIFACT_PATH": {
+				raw: optpb.artifactPath,
+			},
+		},
+		Volumes: []volumeRef{volumeRefAwsConfig},
+		Commands: []string{
+			"mkdir -pv \"$ARTIFACT_PATH\"",
+			// Clear out old versions from previous steps
+			"rm -rf \"$ARTIFACT_PATH\"/*",
+			strings.Join(
+				[]string{
+					"aws s3 sync",
+					"--no-progress",
+					"--delete",
+					"--exclude \"*\"",
+					fmt.Sprintf("--include \"*.%s*\"", optpb.packageType),
+					fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", bucketFolder),
+					"\"$ARTIFACT_PATH\"",
+				},
+				" ",
+			),
+		},
+	}
+
+	assumeUploadRoleStep := kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: optpb.bucketSecrets.awsRoleSettings,
+		configVolume:    volumeRefAwsConfig,
+		name:            "Assume Upload AWS Role",
+	})
+
+	verifyNotPrereleaseStep := verifyNotPrereleaseStep(codePath)
+
+	buildAndUploadStep := step{
+		Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
+		Image:       "golang:1.18.4-bullseye",
+		Environment: optpb.environmentVars,
+		Commands: append(
+			toolSetupCommands,
+			[]string{
+				"mkdir -pv -m0700 \"$GNUPGHOME\"",
+				"echo \"$GPG_RPM_SIGNING_ARCHIVE\" | base64 -d | tar -xzf - -C $GNUPGHOME",
+				"chown -R root:root \"$GNUPGHOME\"",
+				fmt.Sprintf("cd %q", path.Join(codePath, "build.assets", "tooling")),
+				fmt.Sprintf("export VERSION=%q", version),
+				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
+				strings.Join(
+					append(
+						[]string{
+							// This just makes the (long) command a little more readable
+							"go run ./cmd/build-os-package-repos",
+							optpb.packageManagerName,
+							"-bucket \"$REPO_S3_BUCKET\"",
+							"-local-bucket-path \"$BUCKET_CACHE_PATH\"",
+							"-artifact-version \"$VERSION\"",
+							"-release-channel \"$RELEASE_CHANNEL\"",
+							"-artifact-path \"$ARTIFACT_PATH\"",
+							"-log-level 4", // Set this to 5 for debug logging
+						},
+						optpb.extraArgs...,
+					),
+					" ",
+				),
+			}...,
+		),
+		Volumes: []volumeRef{
+			{
+				Name: optpb.volumeName,
+				Path: optpb.pvcMountPoint,
+			},
+			volumeRefTmpfs,
+			volumeRefAwsConfig,
+		},
+	}
+
 	if enableParallelism {
-		buildStepDependencies = append(buildStepDependencies, downloadStepName)
+		downloadStep.DependsOn = []string{assumeDownloadRoleStep.Name}
+		assumeUploadRoleStep.DependsOn = []string{downloadStep.Name}
+		verifyNotPrereleaseStep.DependsOn = []string{assumeUploadRoleStep.Name}
+		buildAndUploadStep.DependsOn = []string{verifyNotPrereleaseStep.Name}
 	}
 
 	return []step{
-		{
-			Name:  downloadStepName,
-			Image: "amazon/aws-cli",
-			Environment: map[string]value{
-				"AWS_S3_BUCKET": {
-					fromSecret: "AWS_S3_BUCKET",
-				},
-				"AWS_ACCESS_KEY_ID": {
-					fromSecret: "AWS_ACCESS_KEY_ID",
-				},
-				"AWS_SECRET_ACCESS_KEY": {
-					fromSecret: "AWS_SECRET_ACCESS_KEY",
-				},
-				"ARTIFACT_PATH": {
-					raw: optpb.artifactPath,
-				},
-			},
-			Commands: []string{
-				"mkdir -pv \"$ARTIFACT_PATH\"",
-				// Clear out old versions from previous steps
-				"rm -rf \"${ARTIFACT_PATH}/*\"",
-				strings.Join(
-					[]string{
-						"aws s3 sync",
-						"--no-progress",
-						"--delete",
-						"--exclude \"*\"",
-						fmt.Sprintf("--include \"*.%s*\"", optpb.packageType),
-						fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", bucketFolder),
-						"\"$ARTIFACT_PATH\"",
-					},
-					" ",
-				),
-			},
-		},
-		{
-			Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
-			Image:       "golang:1.18.4-bullseye",
-			Environment: optpb.environmentVars,
-			Commands: append(
-				toolSetupCommands,
-				[]string{
-					"mkdir -pv -m0700 \"$GNUPGHOME\"",
-					"echo \"$GPG_RPM_SIGNING_ARCHIVE\" | base64 -d | tar -xzf - -C $GNUPGHOME",
-					"chown -R root:root \"$GNUPGHOME\"",
-					fmt.Sprintf("cd %q", path.Join(codePath, "build.assets", "tooling")),
-					fmt.Sprintf("export VERSION=%q", version),
-					"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
-					strings.Join(
-						append(
-							[]string{
-								// This just makes the (long) command a little more readable
-								"go run ./cmd/build-os-package-repos",
-								optpb.packageManagerName,
-								"-bucket \"$REPO_S3_BUCKET\"",
-								"-local-bucket-path \"$BUCKET_CACHE_PATH\"",
-								"-artifact-version \"$VERSION\"",
-								"-release-channel \"$RELEASE_CHANNEL\"",
-								"-artifact-path \"$ARTIFACT_PATH\"",
-								"-log-level 4", // Set this to 5 for debug logging
-							},
-							optpb.extraArgs...,
-						),
-						" ",
-					),
-				}...,
-			),
-			Volumes: []volumeRef{
-				{
-					Name: optpb.volumeName,
-					Path: optpb.pvcMountPoint,
-				},
-				volumeRefTmpfs,
-			},
-			DependsOn: buildStepDependencies,
-		},
+		assumeDownloadRoleStep,
+		downloadStep,
+		assumeUploadRoleStep,
+		verifyNotPrereleaseStep,
+		buildAndUploadStep,
 	}
 }

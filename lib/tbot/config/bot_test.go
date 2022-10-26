@@ -21,21 +21,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -56,6 +56,10 @@ type mockAuth struct {
 	t           *testing.T
 }
 
+func (m *mockAuth) GetDomainName(ctx context.Context) (string, error) {
+	return m.clusterName, nil
+}
+
 func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: m.clusterName,
@@ -74,14 +78,12 @@ func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
 
 func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
-	require.Equal(m.t, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: m.clusterName,
-	}, id)
+	require.Equal(m.t, m.clusterName, id.DomainName)
 	require.False(m.t, loadKeys)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.HostCA,
+		// Pretend to be the correct type.
+		Type:        id.Type,
 		ClusterName: m.clusterName,
 		ActiveKeys: types.CAKeySet{
 			TLS: []*types.TLSKeyPair{
@@ -109,12 +111,12 @@ func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, lo
 
 func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
-	require.Equal(m.t, types.HostCA, caType)
 	require.False(m.t, loadKeys)
 
 	// We'll just wrap GetCertAuthority()'s dummy CA.
 	ca, err := m.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
+		// Just pretend to be whichever type of CA was requested.
+		Type:       caType,
 		DomainName: m.clusterName,
 	}, loadKeys, opts...)
 	require.NoError(m.t, err)
@@ -189,7 +191,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, sshPublicKey, err := native.GenerateKeyPair()
+	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)

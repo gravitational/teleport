@@ -19,6 +19,7 @@ package constants
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -327,4 +328,18 @@ const (
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
+)
+
+// Constants for AWS discovery
+const (
+	AWSServiceTypeEC2 = "ec2"
+)
+
+// SupportedAWSDiscoveryServices is list of AWS services currently
+// supported by the Teleport discovery service
+var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}
+
+const (
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 500
 )

@@ -21,8 +21,8 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -37,7 +37,7 @@ import (
 // awsConfig is the config for the client that configures IAM for AWS databases.
 type awsConfig struct {
 	// clients is an interface for creating AWS clients.
-	clients common.CloudClients
+	clients cloud.Clients
 	// identity is AWS identity this database agent is running as.
 	identity awslib.Identity
 	// database is the database instance to configure.

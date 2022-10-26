@@ -289,6 +289,7 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Proxy.Enabled())
 	require.True(t, conf.SSH.Enabled())
 	require.False(t, conf.Kube.Enabled())
+	require.False(t, conf.Discovery.Enabled())
 
 	// good config
 	conf, err = ReadFromFile(testConfigs.configFile)
@@ -337,6 +338,30 @@ func TestConfigReading(t *testing.T) {
 			},
 			Labels:   Labels,
 			Commands: CommandLabels,
+		},
+		Discovery: Discovery{
+			Service: Service{
+				defaultEnabled: false,
+				EnabledFlag:    "true",
+				ListenAddress:  "",
+			},
+			AWSMatchers: []AWSMatcher{
+				{
+					Types:   []string{"ec2"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					InstallParams: &InstallParams{
+						JoinParams: JoinParams{
+							TokenName: "aws-discovery-iam-token",
+							Method:    "iam",
+						},
+						ScriptName: "default-installer",
+					},
+					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+				},
+			},
 		},
 		Proxy: Proxy{
 			Service: Service{
@@ -1158,6 +1183,8 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
 
+	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: []AWSMatcher{}}, cmp.AllowUnexported(Service{})))
+
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
 	require.False(t, conf.Auth.Disabled())
@@ -1259,6 +1286,16 @@ func makeConfigFixture() string {
 	conf.SSH.ListenAddress = "tcp://ssh"
 	conf.SSH.Labels = Labels
 	conf.SSH.Commands = CommandLabels
+
+	// discovery service
+	conf.Discovery.EnabledFlag = "true"
+	conf.Discovery.AWSMatchers = []AWSMatcher{
+		{
+			Types:   []string{"ec2"},
+			Regions: []string{"us-west-1", "us-east-1"},
+			Tags:    map[string]apiutils.Strings{"a": {"b"}},
+		},
+	}
 
 	// proxy-service:
 	conf.Proxy.EnabledFlag = "yes"
@@ -1438,6 +1475,74 @@ ssh_service:
 		err := Configure(&clf, cfg)
 		require.NoError(t, err, comment)
 		require.Equal(t, tt.outPermitUserEnvironment, cfg.SSH.PermitUserEnvironment, comment)
+	}
+}
+
+func TestSetDefaultListenerAddresses(t *testing.T) {
+	tests := []struct {
+		desc string
+		fc   FileConfig
+		want service.ProxyConfig
+	}{
+		{
+			desc: "v1 config should set default proxy listen addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV1,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:                 *utils.MustParseAddr("0.0.0.0:3080"),
+				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
+				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
+				Enabled:                 true,
+				EnableProxyProtocol:     true,
+				Kube: service.KubeProxyConfig{
+					Enabled: false,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+		{
+			desc: "v2 config should not set any default listen addresses",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV2,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+					WebAddr: "0.0.0.0:9999",
+				},
+			},
+			want: service.ProxyConfig{
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+
+			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
+			require.NoError(t, Configure(&CommandLineFlags{}, cfg))
+
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+		})
 	}
 }
 
@@ -1749,32 +1854,6 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
-			},
-			checkErr: require.NoError,
-		},
-		{
-			desc: "v1 config should generate default listener addresses",
-			fc: FileConfig{
-				Version: defaults.TeleportConfigVersionV1,
-				Proxy: Proxy{
-					Service: Service{
-						defaultEnabled: true,
-					},
-				},
-			},
-			want: service.ProxyConfig{
-				Enabled:             true,
-				EnableProxyProtocol: true,
-				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
-				},
-				WebAddr: *defaults.ProxyWebListenAddr(),
-				Kube: service.KubeProxyConfig{
-					Enabled: false,
-				},
-				ReverseTunnelListenAddr: *defaults.ReverseTunnelListenAddr(),
-				SSHAddr:                 *defaults.ProxyListenAddr(),
 			},
 			checkErr: require.NoError,
 		},

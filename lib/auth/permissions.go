@@ -145,17 +145,12 @@ Loop:
 	return lockTargets
 }
 
-// UseSearchAsRoles extends the roles of the Checker on the current Context with
-// the set of roles the user is allowed to search as.
-func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName string) error {
-	if len(c.Checker.GetAllowedResourceIDs()) > 0 {
-		return trace.AccessDenied("user is currently logged in with a search-based access request, cannot further extend roles for search")
-	}
+// UseExtraRoles extends the roles of the Checker on the current Context with
+// the given extra roles.
+func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, roles []string) error {
 	var newRoleNames []string
-	// include existing roles
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
-	// extend with allowed search_as_roles
-	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleNames = append(newRoleNames, roles...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
 	// set new roles on the context user and create a new access checker
@@ -322,6 +317,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					types.NewRule(types.KindClusterAuthPreference, services.RO()),
 					types.NewRule(types.KindKubeService, services.RO()),
+					types.NewRule(types.KindInstaller, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -411,6 +407,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				types.NewRule(types.KindInstaller, services.RO()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -646,6 +643,21 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
+					},
+				},
+			})
+	case types.RoleDiscovery:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
 					},
 				},
 			})

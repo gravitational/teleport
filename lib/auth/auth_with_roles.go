@@ -274,14 +274,7 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
-func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) bool {
-	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
-
-	if len(modes) == 0 {
-		return false
-	}
-
+func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
 	// which we don't have all data for, luckily the fields we don't have aren't made available
@@ -308,12 +301,19 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		}
 
 		// Skip past it if there's a deny rule in place blocking access.
-		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb, true /* silent */); err != nil {
 			return false
 		}
 	}
 
-	return true
+	ruleCtx := &services.Context{User: a.context.User, SessionTracker: tracker}
+	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList, true /* silent */) == nil {
+		return true
+	}
+
+	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
+	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
+	return len(modes) != 0
 }
 
 const (
@@ -429,7 +429,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	ok := a.filterSessionTracker(ctx, joinerRoles, tracker)
+	ok := a.filterSessionTracker(ctx, joinerRoles, tracker, types.VerbRead)
 	if !ok {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -456,7 +456,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess)
+		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -886,20 +886,55 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 		return alerts, nil
 	}
 
-	// filter alerts by teleport.internal labels to determine whether the alert
+	// filter alerts by teleport.internal 'permit' labels to determine whether the alert
 	// was intended to be visible to the calling user.
 	filtered := alerts[:0]
+Outer:
 	for _, alert := range alerts {
 		if alert.Metadata.Labels[types.AlertPermitAll] == "yes" {
 			// alert may be shown to all authenticated users
 			filtered = append(filtered, alert)
-			continue
+			continue Outer
 		}
 
-		// TODO(fspmarshall): Support additional internal labels to help customize alert targets.
-		// maybe we could use labels to specify that an alert should only be shown to users with a
-		// specific permission (e.g. `"teleport.internal/alert-permit-permission": "node:read"`).
-		// requires further consideration.
+		// the verb-permit label permits users to view an alert if they hold
+		// one of the specified <resource>:<verb> pairs (e.g. `node:list|token:create`
+		// would be satisfied by either a user that can list nodes *or* create tokens).
+	Verbs:
+		for _, s := range strings.Split(alert.Metadata.Labels[types.AlertVerbPermit], "|") {
+			rv := strings.Split(s, ":")
+			if len(rv) != 2 {
+				continue Verbs
+			}
+
+			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, rv[0], rv[1]) == nil {
+				// user holds at least one of the resource:verb pairs specified by
+				// the verb-permit label.
+				filtered = append(filtered, alert)
+				continue Outer
+			}
+		}
+	}
+
+	// aggregate supersede directives from the filtered alerts
+	sups := make(map[string]types.AlertSeverity)
+
+	for _, alert := range filtered {
+		for _, id := range strings.Split(alert.Metadata.Labels[types.AlertSupersedes], ",") {
+			if sups[id] < alert.Spec.Severity {
+				sups[id] = alert.Spec.Severity
+			}
+		}
+	}
+
+	// perform a second round of filtering, removing superseded alerts
+	alerts = filtered
+	filtered = alerts[:0]
+	for _, alert := range alerts {
+		if sups[alert.Metadata.Name] > alert.Spec.Severity {
+			continue
+		}
+		filtered = append(filtered, alert)
 	}
 
 	return filtered, nil
@@ -1182,14 +1217,19 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	if req.UseSearchAsRoles {
+	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+		var extraRoles []string
+		if req.UseSearchAsRoles {
+			extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
+		}
+		if req.UsePreviewAsRoles {
+			extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
+		}
 		clusterName, err := a.authServer.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// For search-based access requests, replace the current roles with all
-		// roles the user is allowed to search with.
-		if err := a.context.UseSearchAsRoles(services.RoleGetter(a.authServer), clusterName.GetClusterName()); err != nil {
+		if err := a.context.UseExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
@@ -1242,7 +1282,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop:
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1325,9 +1365,11 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
 	case types.Database:
 		return r.CheckAccess(rr, mfaParams)
+	case types.Server:
+		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktop:
 		return r.CheckAccess(rr, mfaParams)
-	case types.Server:
+	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
@@ -1403,13 +1445,33 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindKubeService:
 		return newKubeChecker(a.context), nil
+	case types.KindNode:
+		return newNodeChecker(a), nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
+}
+
+type nodeChecker struct {
+	s *ServerWithRoles
+}
+
+func newNodeChecker(s *ServerWithRoles) *nodeChecker {
+	return &nodeChecker{
+		s: s,
+	}
+}
+
+func (c *nodeChecker) CanAccess(resource types.Resource) error {
+	server, ok := resource.(types.Server)
+	if !ok {
+		return trace.BadParameter("expected types.Server, got %T", resource)
+	}
+	return c.s.checkAccessToNode(server)
 }
 
 // listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
@@ -1508,6 +1570,11 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 // ListWindowsDesktops not implemented: can only be called locally.
 func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListWindowsDesktopServices not implemented: can only be called locally.
+func (a *ServerWithRoles) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -2005,6 +2072,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ServerFeatures:  modules.GetModules().Features().ToProto(),
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:      a.authServer.loadAllCAs,
 	}, nil
 }
 
@@ -3328,6 +3396,46 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	return a.authServer.GetAuthPreference(ctx)
 }
 
+// GetInstaller retrieves an installer script resource
+func (a *ServerWithRoles) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetInstaller(ctx, name)
+}
+
+// GetInstallers gets all the installer resources.
+func (a *ServerWithRoles) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetInstallers(ctx)
+}
+
+// SetInstaller sets an Installer script resource
+func (a *ServerWithRoles) SetInstaller(ctx context.Context, inst types.Installer) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbUpdate, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.SetInstaller(ctx, inst))
+}
+
+// DeleteInstaller removes an installer script resource
+func (a *ServerWithRoles) DeleteInstaller(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteInstaller(ctx, name))
+}
+
+// DeleteAllInstallers removes all installer script resources
+func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteAllInstallers(ctx))
+}
+
 // SetAuthPreference sets cluster auth preference.
 func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
 	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
@@ -3784,15 +3892,15 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//  - Cluster administrator using "tctl auth sign --format=db" command locally
-//    on the auth server to produce a certificate for configuring a self-hosted
-//    database.
-//  - Remote user using "tctl auth sign --format=db" command with a remote
-//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//    role Db.
-//  - Database service when initiating connection to a database instance to
-//    produce a client certificate.
-//  - Proxy service when generating mTLS files to a database
+//   - Cluster administrator using "tctl auth sign --format=db" command locally
+//     on the auth server to produce a certificate for configuring a self-hosted
+//     database.
+//   - Remote user using "tctl auth sign --format=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//     role Db.
+//   - Database service when initiating connection to a database instance to
+//     produce a client certificate.
+//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if the User can `create` DatabaseCertificates
 	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)

@@ -109,6 +109,9 @@ message Event {
     types.AppV3 App = 30 [(gogoproto.jsontag) = "app,omitempty"];
     // SnowflakeSession is a Snowflake web session.
     types.WebSessionV2 SnowflakeSession = 31 [(gogoproto.jsontag) = "snowflake_session,omitempty"];
+
+    // Installer is an installer resource
+    types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
   }
 }
 
@@ -485,6 +488,9 @@ message PingResponse {
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
+  // LoadAllCAs signals whether or not tsh should load all CAs when trying
+  // to ssh into a node.
+  bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
 }
 
 // Features are auth server features.
@@ -1609,6 +1615,8 @@ message PaginatedResource {
     types.WindowsDesktopV3 WindowsDesktop = 5 [(gogoproto.jsontag) = "windows_desktop,omitempty"];
     // KubeCluster represents a KubeCluster resource.
     types.KubernetesClusterV3 KubeCluster = 6 [(gogoproto.jsontag) = "kube_cluster,omitempty"];
+    // WindowsDesktopService represents a WindowsDesktopServiceV3 resource.
+    types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
   }
 }
 
@@ -1656,6 +1664,9 @@ message ListResourcesRequest {
   // UseSearchAsRoles indicates that the response should include all resources
   // the caller is able to request access to using search_as_roles
   bool UseSearchAsRoles = 11 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
+  // UsePreviewAsRoles indicates that the response should include all resources
+  // the caller would be able to access with their preview_as_roles
+  bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
 }
 
 // ListResourceResponse response of ListResources.
@@ -2569,6 +2580,19 @@ service AuthService {
   // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
   // is used to gain access to privileged actions eg: deleting/adding a MFA device.
   rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
+
+  // GetInstaller retrieves the installer script resource
+  rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);
+  // GetInstallers retrieves all of installer script resources.
+  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List);
+
+  // SetInstaller sets the installer script resource
+  rpc SetInstaller(types.InstallerV1) returns (google.protobuf.Empty);
+
+  // DeleteInstaller removes the specified installer script resource
+  rpc DeleteInstaller(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllInstallers removes all installer script resources
+  rpc DeleteAllInstallers(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // ListResources retrieves a paginated list of resources.
   rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);

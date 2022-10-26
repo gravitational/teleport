@@ -328,7 +328,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
-		identityfile.FormatRedis:
+		identityfile.FormatRedis, identityfile.FormatElasticsearch:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
 	case identityfile.FormatSnowflake:
 		return a.generateSnowflakeKey(ctx, clusterAPI)
@@ -486,11 +486,12 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
-	identityfile.FormatDatabase:  dbAuthSignTpl,
-	identityfile.FormatMongo:     mongoAuthSignTpl,
-	identityfile.FormatCockroach: cockroachAuthSignTpl,
-	identityfile.FormatRedis:     redisAuthSignTpl,
-	identityfile.FormatSnowflake: snowflakeAuthSignTpl,
+	identityfile.FormatDatabase:      dbAuthSignTpl,
+	identityfile.FormatMongo:         mongoAuthSignTpl,
+	identityfile.FormatCockroach:     cockroachAuthSignTpl,
+	identityfile.FormatRedis:         redisAuthSignTpl,
+	identityfile.FormatSnowflake:     snowflakeAuthSignTpl,
+	identityfile.FormatElasticsearch: elasticsearchAuthSignTpl,
 }
 
 func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format) error {
@@ -517,16 +518,14 @@ var (
 	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
 	dbAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
-To enable mutual TLS on your PostgreSQL server, add the following to its
-postgresql.conf configuration file:
+To enable mutual TLS on your PostgreSQL server, add the following to its postgresql.conf configuration file:
 
 ssl = on
 ssl_cert_file = '/path/to/{{.output}}.crt'
 ssl_key_file = '/path/to/{{.output}}.key'
 ssl_ca_file = '/path/to/{{.output}}.cas'
 
-To enable mutual TLS on your MySQL server, add the following to its
-mysql.cnf configuration file:
+To enable mutual TLS on your MySQL server, add the following to its mysql.cnf configuration file:
 
 [mysqld]
 require_secure_transport=ON
@@ -570,6 +569,27 @@ tls-protocols "TLSv1.2 TLSv1.3"
 
 Please add the generated key to the Snowflake users as described here:
 https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
+`))
+
+	elasticsearchAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Elasticsearch server, add the following to your elasticsearch.yml:
+
+xpack.security.http.ssl:
+  certificate_authorities: /path/to/{{.output}}.cas
+  certificate: /path/to/{{.output}}.crt
+  key: /path/to/{{.output}}.key
+  enabled: true
+  client_authentication: required
+  verification_mode: certificate
+
+xpack.security.authc.realms.pki.pki1:
+  order: 1
+  enabled: true
+  certificate_authorities: /path/to/{{.output}}.cas
+
+For more information on configuring security settings in Elasticsearch, see:
+https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
 `))
 )
 
@@ -681,15 +701,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
-	networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	// Is TLS routing enabled?
+	proxyListenerMode := types.ProxyListenerMode_Separate
+	if a.config != nil && a.config.Auth.NetworkingConfig != nil {
+		proxyListenerMode = a.config.Auth.NetworkingConfig.GetProxyListenerMode()
+	}
+	if networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx); err == nil {
+		proxyListenerMode = networkConfig.GetProxyListenerMode()
 	}
 
+	// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 	kubeTLSServerName := ""
-	// Is TLS routing enabled?
-	if networkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
+		log.Debug("Using Proxy SNI for kube TLS server name")
 		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
 	}
 

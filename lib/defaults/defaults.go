@@ -25,11 +25,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
@@ -383,6 +384,9 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// DiscoveryQueueSize is discovery service queue size.
+	DiscoveryQueueSize = 128
+
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -473,6 +477,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleDiscovery is a discovery service
+	RoleDiscovery = "discovery"
 )
 
 const (
@@ -494,6 +500,8 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolElasticsearch is the Elasticsearch database protocol.
+	ProtocolElasticsearch = "elasticsearch"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -505,6 +513,7 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolElasticsearch,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
@@ -523,6 +532,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Redis"
 	case ProtocolSnowflake:
 		return "Snowflake"
+	case ProtocolElasticsearch:
+		return "Elasticsearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
 	default:
@@ -845,3 +856,12 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time
 	}
 	return from, to, nil
 }
+
+const (
+	// AWSInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command.
+	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+	// IAMInviteTokenName is the name of the default Teleport IAM
+	// token to use when templating the script to be executed.
+	IAMInviteTokenName = "aws-discovery-iam-token"
+)

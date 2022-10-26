@@ -391,6 +391,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SQLServerRPCRequest{
 			SQLServerRPCRequest: e,
 		}
+	case *ElasticsearchRequest:
+		out.Event = &OneOf_ElasticsearchRequest{
+			ElasticsearchRequest: e,
+		}
 	case *DatabaseSessionMalformedPacket:
 		out.Event = &OneOf_DatabaseSessionMalformedPacket{
 			DatabaseSessionMalformedPacket: e,
@@ -410,6 +414,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SessionRecordingAccess:
 		out.Event = &OneOf_SessionRecordingAccess{
 			SessionRecordingAccess: e,
+		}
+	case *SSMRun:
+		out.Event = &OneOf_SSMRun{
+			SSMRun: e,
 		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{

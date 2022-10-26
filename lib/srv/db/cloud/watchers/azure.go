@@ -24,9 +24,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -54,7 +54,7 @@ func newAzureFetcher(config azureFetcherConfig) (*azureFetcher, error) {
 // azureFetcherConfig is the Azure database servers fetcher configuration.
 type azureFetcherConfig struct {
 	// AzureClients are the Azure API clients.
-	AzureClients common.AzureClients
+	AzureClients cloud.AzureClients
 	// Type is the type of DB matcher, such as "mysql" or "postgres"
 	Type string
 	// Subscription is the Azure subscription selector.

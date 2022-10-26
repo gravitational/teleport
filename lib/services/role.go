@@ -1957,6 +1957,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	case types.KindWindowsDesktop:
 		getRoleLabels = types.Role.GetWindowsDesktopLabels
 		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindWindowsDesktopService:
+		getRoleLabels = types.Role.GetWindowsDesktopLabels
 	default:
 		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}
@@ -2498,15 +2500,42 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
 }
 
-// GetSearchAsRoles returns the list of roles which the RoleSet should be able
-// to "assume" while searching for resources, and should be able to request with
-// a search-based access request.
-func (set RoleSet) GetSearchAsRoles() []string {
-	var searchAsRoles []string
+// GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
+func (set RoleSet) GetAllowedSearchAsRoles() []string {
+	denied := make(map[string]struct{})
+	var allowed []string
 	for _, role := range set {
-		searchAsRoles = append(searchAsRoles, role.GetSearchAsRoles()...)
+		for _, d := range role.GetSearchAsRoles(types.Deny) {
+			denied[d] = struct{}{}
+		}
 	}
-	return apiutils.Deduplicate(searchAsRoles)
+	for _, role := range set {
+		for _, a := range role.GetSearchAsRoles(types.Allow) {
+			if _, ok := denied[a]; !ok {
+				allowed = append(allowed, a)
+			}
+		}
+	}
+	return apiutils.Deduplicate(allowed)
+}
+
+// GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
+func (set RoleSet) GetAllowedPreviewAsRoles() []string {
+	denied := make(map[string]struct{})
+	var allowed []string
+	for _, role := range set {
+		for _, d := range role.GetPreviewAsRoles(types.Deny) {
+			denied[d] = struct{}{}
+		}
+	}
+	for _, role := range set {
+		for _, a := range role.GetPreviewAsRoles(types.Allow) {
+			if _, ok := denied[a]; !ok {
+				allowed = append(allowed, a)
+			}
+		}
+	}
+	return apiutils.Deduplicate(allowed)
 }
 
 // AccessMFAParams contains MFA-related parameters for methods that check access.

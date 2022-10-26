@@ -908,3 +908,30 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 	_, err = w.Write(data)
 	return trace.Wrap(err)
 }
+
+type installerCollection struct {
+	installers []types.Installer
+}
+
+func (c *installerCollection) resources() []types.Resource {
+	var r []types.Resource
+	for _, inst := range c.installers {
+		r = append(r, inst)
+	}
+	return r
+}
+
+func (c *installerCollection) writeText(w io.Writer) error {
+	for _, inst := range c.installers {
+		if _, err := fmt.Fprintf(w, "Script: %s\n----------\n", inst.GetName()); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(w, inst.GetScript()); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(w, "----------"); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}

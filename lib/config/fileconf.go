@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -84,6 +85,10 @@ type FileConfig struct {
 
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
+
+	// Discovery is the "discovery_service" section in the Teleport
+	// configuration file
+	Discovery Discovery `yaml:"discovery_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -430,6 +435,50 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	matchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
+
+	for _, matcher := range conf.Discovery.AWSMatchers {
+		for _, serviceType := range matcher.Types {
+			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
+				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
+					serviceType, constants.SupportedAWSDiscoveryServices)
+			}
+		}
+		if matcher.Tags == nil || len(matcher.Tags) == 0 {
+			matcher.Tags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+		}
+
+		if matcher.InstallParams == nil {
+			matcher.InstallParams = &InstallParams{
+				JoinParams: JoinParams{
+					TokenName: defaults.IAMInviteTokenName,
+					Method:    types.JoinMethodIAM,
+				},
+				ScriptName: installers.InstallerScriptName,
+			}
+		} else {
+			if method := matcher.InstallParams.JoinParams.Method; method == "" {
+				matcher.InstallParams.JoinParams.Method = types.JoinMethodIAM
+			} else if method != types.JoinMethodIAM {
+				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
+			}
+			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
+			}
+
+			if installer := matcher.InstallParams.ScriptName; installer == "" {
+				matcher.InstallParams.ScriptName = installers.InstallerScriptName
+			}
+		}
+
+		if matcher.SSM.DocumentName == "" {
+			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	conf.Discovery.AWSMatchers = matchers
+
 	return nil
 }
 
@@ -716,6 +765,10 @@ type Auth struct {
 	// should be sent. This is applicable only when using ping-wrapped
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
+
+	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
+	// to ssh into a node, instead of just the CA for the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1063,6 +1116,14 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 	return cfg, nil
 }
 
+// Discovery represents a discovery_service section in the config file.
+type Discovery struct {
+	Service `yaml:",inline"`
+
+	// AWSMatchers are used to match EC2 instances
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+}
+
 // CommandLabel is `command` section of `ssh_service` in the config file
 type CommandLabel struct {
 	Name    string        `yaml:"name"`
@@ -1189,15 +1250,38 @@ type ResourceMatcher struct {
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
-// AWSMatcher matches AWS databases.
+// AWSMatcher matches AWS EC2 instances and AWS Databases
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", "elasticache",
+	// Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
 	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// InstallParams sets the join method when installing on
+	// discovered EC2 nodes
+	InstallParams *InstallParams `yaml:"install,omitempty"`
+	// SSM provides options to use when sending a document command to
+	// an EC2 node
+	SSM AWSSSM `yaml:"ssm,omitempty"`
+}
+
+// InstallParams sets join method to use on discovered nodes
+type InstallParams struct {
+	// JoinParams sets the token and method to use when generating
+	// config on EC2 instances
+	JoinParams JoinParams `yaml:"join_params,omitempty"`
+	// ScriptName is the name of the teleport installer script
+	// resource for the EC2 instance to execute
+	ScriptName string `yaml:"script_name,omitempty"`
+}
+
+// AWSSSM provides options to use when executing SSM documents
+type AWSSSM struct {
+	// DocumentName is the name of the document to use when executing an
+	// SSM command
+	DocumentName string `yaml:"document_name,omitempty"`
 }
 
 // AzureMatcher matches Azure databases.
@@ -1606,6 +1690,8 @@ func (m *Metrics) MTLSEnabled() bool {
 // WindowsDesktopService contains configuration for windows_desktop_service.
 type WindowsDesktopService struct {
 	Service `yaml:",inline"`
+	// Labels are the configured windows deesktops service labels.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.
@@ -1641,8 +1727,12 @@ type LDAPConfig struct {
 	Username string `yaml:"username"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
 }
 
 // TracingService contains configuration for the tracing_service.

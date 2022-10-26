@@ -18,6 +18,7 @@ package keys
 
 import (
 	"crypto"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -51,20 +52,18 @@ type StandardSigner struct {
 	keyPEM []byte
 }
 
-// NewStandardSigner creates a new StandardSigner from the given *rsa.PrivateKey, *ecdsa.PrivateKey or ed25519.PrivateKey.
-func NewStandardSigner(signer crypto.Signer) (*StandardSigner, error) {
-	keyDER, err := x509.MarshalPKCS8PrivateKey(signer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+// NewStandardSigner creates a new StandardSigner from the given *rsa.PrivateKey.
+func NewRSASigner(rsaKey *rsa.PrivateKey) (*StandardSigner, error) {
+	// We encode the private key in PKCS #1, ASN.1 DER form
+	// instead of PKCS #8 to maintain compatibility with some
+	// third party clients.
 	keyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:    PKCS8PrivateKeyType,
+		Type:    PKCS1PrivateKeyType,
 		Headers: nil,
-		Bytes:   keyDER,
+		Bytes:   x509.MarshalPKCS1PrivateKey(rsaKey),
 	})
 
-	return newStandardSigner(signer, keyPEM), nil
+	return newStandardSigner(rsaKey, keyPEM), nil
 }
 
 func newStandardSigner(signer crypto.Signer, keyPEM []byte) *StandardSigner {

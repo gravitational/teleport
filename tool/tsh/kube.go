@@ -931,7 +931,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Logged into kubernetes cluster %q\n", c.kubeCluster)
+	fmt.Printf("Logged into kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
 	return nil
 }
 
@@ -1110,7 +1110,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
 	}
 
-	return trace.Wrap(kubeconfig.Update(path, *values))
+	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
 }
 
 // Required magic boilerplate to use the k8s encoder.

@@ -340,6 +340,7 @@ func (s *Server) close() {
 	if s.users != nil {
 		s.users.Shutdown()
 	}
+
 }
 
 // Close closes listening socket and stops accepting connections
@@ -819,6 +820,7 @@ func New(addr utils.NetAddr,
 		sshutils.SetKEXAlgorithms(s.kexAlgorithms),
 		sshutils.SetMACAlgorithms(s.macAlgorithms),
 		sshutils.SetFIPS(s.fips),
+		sshutils.SetClock(s.clock),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

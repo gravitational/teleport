@@ -273,6 +273,8 @@ type Context struct {
 	SSHSession *session.Session
 	// HostCert is an optional host certificate.
 	HostCert *HostCertContext
+	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
+	SessionTracker types.SessionTracker
 }
 
 // String returns user friendly representation of this context
@@ -287,7 +289,13 @@ const (
 	ResourceIdentifier = "resource"
 	// ResourceLabelsIdentifier refers to the static and dynamic labels in a resource.
 	ResourceLabelsIdentifier = "labels"
-	// ResourceNameIdentifier refers to the metadata name field for a resource.
+	// ResourceNameIdentifier refers to two different fields depending on the kind of resource:
+	//   - KindNode will refer to its resource.spec.hostname field
+	//   - All other kinds will refer to its resource.metadata.name field
+	// It refers to two different fields because the way this shorthand is being used,
+	// implies it will return the name of the resource where users identifies nodes
+	// by its hostname and all other resources that can be `ls` queried is identified
+	// by its metadata name.
 	ResourceNameIdentifier = "name"
 	// SessionIdentifier refers to a session (recording) in the rules.
 	SessionIdentifier = "session"
@@ -299,6 +307,8 @@ const (
 	ImpersonateUserIdentifier = "impersonate_user"
 	// HostCertIdentifier refers to a host certificate being created.
 	HostCertIdentifier = "host_cert"
+	// SessionTrackerIdentifier refers to a session tracker in the rules.
+	SessionTrackerIdentifier = "session_tracker"
 )
 
 // GetResource returns resource specified in the context,
@@ -348,8 +358,67 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 			hostCert = ctx.HostCert
 		}
 		return predicate.GetFieldByTag(hostCert, teleport.JSON, fields[1:])
+	case SessionTrackerIdentifier:
+		return predicate.GetFieldByTag(toCtxTracker(ctx.SessionTracker), teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+	}
+}
+
+// ctxSession represents the public contract of a session.Session, as exposed
+// to a Context rule.
+// See RFD 82: https://github.com/gravitational/teleport/blob/master/rfd/0082-session-tracker-resource-rbac.md
+type ctxTracker struct {
+	SessionID    string   `json:"session_id"`
+	Kind         string   `json:"kind"`
+	Participants []string `json:"participants"`
+	State        string   `json:"state"`
+	Hostname     string   `json:"hostname"`
+	Address      string   `json:"address"`
+	Login        string   `json:"login"`
+	Cluster      string   `json:"cluster"`
+	KubeCluster  string   `json:"kube_cluster"`
+	HostUser     string   `json:"host_user"`
+	HostRoles    []string `json:"host_roles"`
+}
+
+func toCtxTracker(t types.SessionTracker) ctxTracker {
+	if t == nil {
+		return ctxTracker{}
+	}
+
+	getParticipants := func(s types.SessionTracker) []string {
+		participants := s.GetParticipants()
+		names := make([]string, len(participants))
+		for i, participant := range participants {
+			names[i] = participant.User
+		}
+
+		return names
+	}
+
+	getHostRoles := func(s types.SessionTracker) []string {
+		policySets := s.GetHostPolicySets()
+		roles := make([]string, len(policySets))
+		for i, policySet := range policySets {
+			roles[i] = policySet.Name
+		}
+
+		return roles
+	}
+
+	return ctxTracker{
+		SessionID:    t.GetSessionID(),
+		Kind:         t.GetKind(),
+		Participants: getParticipants(t),
+		State:        string(t.GetState()),
+		Hostname:     t.GetHostname(),
+		Address:      t.GetAddress(),
+		Login:        t.GetLogin(),
+		Cluster:      t.GetClusterName(),
+		KubeCluster:  t.GetKubeCluster(),
+		HostUser:     t.GetHostUser(),
+		HostRoles:    getHostRoles(t),
 	}
 }
 
@@ -653,9 +722,11 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 // NewResourceParser returns a parser made for boolean expressions based on a
 // json-serialiable resource. Customized to allow short identifiers common in all
 // resources:
-//  - `metadata.name` can be referenced with `name` ie: `name == "jenkins"``
-//  - `metadata.labels + spec.dynamic_labels` can be referenced with `labels`
-//     ie: `labels.env == "prod"`
+//   - shorthand `name` refers to `resource.spec.hostname` for node resources or it refers
+//     to `resource.metadata.name` for all other resources eg: `name == "app-name-jenkins"`
+//   - shorthand `labels` refers to resource `resource.metadata.labels + resource.spec.dynamic_labels`
+//     eg: `labels.env == "prod"`
+//
 // All other fields can be referenced by starting expression with identifier `resource`
 // followed by the names of the json fields ie: `resource.spec.public_addr`.
 func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, error) {
@@ -722,6 +793,14 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 				if len(fields) > 1 {
 					return nil, trace.BadParameter("only one field are supported with identifier %q, got %d: %v", ResourceNameIdentifier, len(fields), fields)
 				}
+
+				// For nodes, the resource "name" that user expects is the
+				// nodes hostname, not its UUID. Currently for other resources,
+				// the metadata.name returns the name as expected.
+				if server, ok := resource.(types.Server); ok {
+					return server.GetHostname(), nil
+				}
+
 				return resource.GetName(), nil
 			case ResourceIdentifier:
 				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
