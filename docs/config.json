@@ -803,6 +803,14 @@
               "slug": "/database-access/guides/snowflake/"
             },
             {
+              "title": "Self-hosted Cassandra & ScyllaDB",
+              "slug": "/database-access/guides/cassandra-self-hosted/"
+            },
+            {
+              "title": "AWS Keyspaces (Apache Cassandra)",
+              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
+            },
+            {
               "title": "Dynamic Registration",
               "slug": "/database-access/guides/dynamic-registration/"
             },
