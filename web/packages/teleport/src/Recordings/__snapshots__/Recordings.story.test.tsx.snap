@@ -737,7 +737,7 @@ exports[`rendering of Session Recordings 1`] = `
           </th>
           <th>
             <a>
-              Created
+              Created (UTC)
               <span
                 class="c14 c17 icon icon-chevron-down "
                 color="light"
@@ -776,7 +776,7 @@ exports[`rendering of Session Recordings 1`] = `
             9 seconds
           </td>
           <td>
-            2022-07-11 14:39:33
+            2022-07-11T14:39:33.373Z
           </td>
           <td>
             8efccedd-9633-473f-bfb3-fcc07e2af345
@@ -815,7 +815,7 @@ exports[`rendering of Session Recordings 1`] = `
             2 seconds
           </td>
           <td>
-            2022-01-19 15:49:50
+            2022-01-19T15:49:50.182Z
           </td>
           <td>
             fe41659b-a611-4b08-974b-69564f766403
@@ -847,7 +847,7 @@ exports[`rendering of Session Recordings 1`] = `
             5 seconds
           </td>
           <td>
-            2022-01-19 15:19:46
+            2022-01-19T15:19:46.992Z
           </td>
           <td>
             3b8d6d4b-1096-43e8-a18c-1ce784911a8e
@@ -879,7 +879,7 @@ exports[`rendering of Session Recordings 1`] = `
             10 minutes
           </td>
           <td>
-            2021-07-27 23:20:05
+            2021-07-27T23:20:05.346Z
           </td>
           <td>
             d183ca84-dd94-434a-afee5c2c5f38
@@ -911,7 +911,7 @@ exports[`rendering of Session Recordings 1`] = `
             32 seconds
           </td>
           <td>
-            2021-05-21 22:54:27
+            2021-05-21T22:54:27.123Z
           </td>
           <td>
             9d92ad96-a45c-4add-463cc7bc48b1
@@ -943,7 +943,7 @@ exports[`rendering of Session Recordings 1`] = `
             21 seconds
           </td>
           <td>
-            2019-04-22 00:00:51
+            2019-04-22T00:00:51.543Z
           </td>
           <td>
             377875-6491-11e9-80a1-427cfde50f5a
@@ -983,7 +983,7 @@ exports[`rendering of Session Recordings 1`] = `
             19 minutes
           </td>
           <td>
-            2019-04-22 00:00:51
+            2019-04-22T00:00:51.543Z
           </td>
           <td>
             426485-6491-11e9-80a1-427cfde50f5a
