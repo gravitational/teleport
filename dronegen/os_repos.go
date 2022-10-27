@@ -242,7 +242,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 
 	for _, migrationVersion := range migrationVersions {
 		// Not enabling parallelism here so that multiple migrations don't run at once
-		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion, false)...)
+		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion, false, false)...)
 	}
 
 	setStepResourceLimits(p.Steps)
@@ -313,12 +313,12 @@ func setStepResourceLimits(steps []step) {
 }
 
 func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath string) []step {
-	return optpb.getVersionSteps(codePath, "${DRONE_TAG}", true)
+	return optpb.getVersionSteps(codePath, "${DRONE_TAG}", true, true)
 }
 
 // Version should start with a 'v', i.e. v1.2.3 or v9.0.1, or should be an environment var
 // i.e. ${DRONE_TAG}
-func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version string, enableParallelism bool) []step {
+func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version string, enableParallelism bool, enablePrereleaseCheck bool) []step {
 	var bucketFolder string
 	switch version[0:1] {
 	// If environment var
@@ -433,19 +433,20 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			volumeRefAwsConfig,
 		},
 	}
+	var steps []step
+	steps = append(steps, assumeDownloadRoleStep)
+	steps = append(steps, downloadStep)
+	steps = append(steps, assumeUploadRoleStep)
+	if enablePrereleaseCheck {
+		steps = append(steps, verifyNotPrereleaseStep)
+	}
+	steps = append(steps, buildAndUploadStep)
 
 	if enableParallelism {
-		downloadStep.DependsOn = []string{assumeDownloadRoleStep.Name}
-		assumeUploadRoleStep.DependsOn = []string{downloadStep.Name}
-		verifyNotPrereleaseStep.DependsOn = []string{assumeUploadRoleStep.Name}
-		buildAndUploadStep.DependsOn = []string{verifyNotPrereleaseStep.Name}
+		for i := 1; i < len(steps); i++ {
+			steps[i].DependsOn = []string{steps[i-1].Name}
+		}
 	}
 
-	return []step{
-		assumeDownloadRoleStep,
-		downloadStep,
-		assumeUploadRoleStep,
-		verifyNotPrereleaseStep,
-		buildAndUploadStep,
-	}
+	return steps
 }
