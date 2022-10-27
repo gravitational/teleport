@@ -1877,10 +1877,11 @@ func TestKubeConfigUpdate(t *testing.T) {
 			},
 		},
 		{
-			desc: "selected cluster with impersonation",
+			desc: "selected cluster with impersonation and namespace",
 			cf: &CLIConf{
 				executablePath:    "/bin/tsh",
 				KubernetesCluster: "dev",
+				kubeNamespace:     "namespace1",
 				kubernetesImpersonationConfig: impersonationConfig{
 					kubernetesUser:   "user1",
 					kubernetesGroups: []string{"group1", "group2"},
@@ -1908,13 +1909,14 @@ func TestKubeConfigUpdate(t *testing.T) {
 				Credentials:         creds,
 				ClusterAddr:         "https://a.example.com:3026",
 				TeleportClusterName: "a.example.com",
+				Impersonate:         "user1",
+				ImpersonateGroups:   []string{"group1", "group2"},
+				Namespace:           "namespace1",
 				Exec: &kubeconfig.ExecValues{
-					Impersonate:       "user1",
-					ImpersonateGroups: []string{"group1", "group2"},
-					TshBinaryPath:     "/bin/tsh",
-					KubeClusters:      []string{"dev"},
-					SelectCluster:     "dev",
-					Env:               make(map[string]string),
+					TshBinaryPath: "/bin/tsh",
+					KubeClusters:  []string{"dev"},
+					SelectCluster: "dev",
+					Env:           make(map[string]string),
 				},
 			},
 		},

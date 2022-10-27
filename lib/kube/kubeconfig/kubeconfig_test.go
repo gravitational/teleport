@@ -216,16 +216,24 @@ func TestUpdateWithExec(t *testing.T) {
 		kubeCluster = "my-cluster"
 		homeEnvVar  = "TELEPORT_HOME"
 		home        = "/alt/home"
+		namespace   = "kubeNamespace"
 	)
-	kubeconfigPath, initialConfig := setup(t)
+
 	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
 
 	tests := []struct {
 		name               string
+		namespace          string
 		impersonatedUser   string
 		impersonatedGroups []string
 	}{
+		{
+			name:               "config with namespace selection",
+			impersonatedUser:   "",
+			impersonatedGroups: nil,
+			namespace:          namespace,
+		},
 		{
 			name:               "config without impersonation",
 			impersonatedUser:   "",
@@ -249,15 +257,17 @@ func TestUpdateWithExec(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			kubeconfigPath, initialConfig := setup(t)
 			err = Update(kubeconfigPath, Values{
 				TeleportClusterName: clusterName,
 				ClusterAddr:         clusterAddr,
 				Credentials:         creds,
+				Impersonate:         tt.impersonatedUser,
+				ImpersonateGroups:   tt.impersonatedGroups,
+				Namespace:           tt.namespace,
 				Exec: &ExecValues{
-					Impersonate:       tt.impersonatedUser,
-					ImpersonateGroups: tt.impersonatedGroups,
-					TshBinaryPath:     tshPath,
-					KubeClusters:      []string{kubeCluster},
+					TshBinaryPath: tshPath,
+					KubeClusters:  []string{kubeCluster},
 					Env: map[string]string{
 						homeEnvVar: home,
 					},
@@ -294,6 +304,7 @@ func TestUpdateWithExec(t *testing.T) {
 				AuthInfo:         contextName,
 				LocationOfOrigin: kubeconfigPath,
 				Extensions:       map[string]runtime.Object{},
+				Namespace:        tt.namespace,
 			}
 
 			config, err := Load(kubeconfigPath)
