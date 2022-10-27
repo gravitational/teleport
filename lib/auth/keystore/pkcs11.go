@@ -17,6 +17,7 @@ limitations under the License.
 package keystore
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"encoding/json"
@@ -63,7 +64,7 @@ type pkcs11KeyStore struct {
 	log      logrus.FieldLogger
 }
 
-func newPKCS11KeyStore(config *PKCS11Config) (*pkcs11KeyStore, error) {
+func newPKCS11KeyStore(config *PKCS11Config, logger logrus.FieldLogger) (*pkcs11KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
 		Path:       config.Path,
 		TokenLabel: config.TokenLabel,
@@ -75,10 +76,12 @@ func newPKCS11KeyStore(config *PKCS11Config) (*pkcs11KeyStore, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	logger = logger.WithFields(logrus.Fields{trace.Component: "PKCS11KeyStore"})
+
 	return &pkcs11KeyStore{
 		ctx:      ctx,
 		hostUUID: config.HostUUID,
-		log:      logrus.WithFields(logrus.Fields{trace.Component: "PKCS11KeyStore"}),
+		log:      logger,
 	}, nil
 }
 
@@ -120,7 +123,7 @@ func (p *pkcs11KeyStore) findUnusedID() (uuid.UUID, error) {
 // generateRSA creates a new RSA private key and returns its identifier and a
 // crypto.Signer. The returned identifier can be passed to getSigner later to
 // get the same crypto.Signer.
-func (p *pkcs11KeyStore) generateRSA() ([]byte, crypto.Signer, error) {
+func (p *pkcs11KeyStore) generateRSA(_ ...RSAKeyOption) ([]byte, crypto.Signer, error) {
 	p.log.Debug("Creating new HSM keypair")
 	id, err := p.findUnusedID()
 	if err != nil {
@@ -146,32 +149,28 @@ func (p *pkcs11KeyStore) generateRSA() ([]byte, crypto.Signer, error) {
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
 func (p *pkcs11KeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
-	t := keyType(rawKey)
-	switch t {
-	case types.PrivateKeyType_PKCS11:
-		keyID, err := parseKeyID(rawKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if keyID.HostID != p.hostUUID {
-			return nil, trace.NotFound("given pkcs11 key is for host: %q, but this host is: %q", keyID.HostID, p.hostUUID)
-		}
-		pkcs11ID, err := keyID.pkcs11Key()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer, err := p.ctx.FindKeyPair(pkcs11ID, []byte(p.hostUUID))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if signer == nil {
-			return nil, trace.NotFound("failed to find keypair for given id")
-		}
-		return signer, nil
-	case types.PrivateKeyType_RAW:
-		return nil, trace.BadParameter("cannot get raw signer from PKCS11 KeyStore")
+	if t := keyType(rawKey); t != types.PrivateKeyType_PKCS11 {
+		return nil, trace.BadParameter("pkcs11KeyStore cannot get signer for key type %s", t.String())
 	}
-	return nil, trace.BadParameter("unrecognized key type %s", t.String())
+	keyID, err := parseKeyID(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if keyID.HostID != p.hostUUID {
+		return nil, trace.NotFound("given pkcs11 key is for host: %q, but this host is: %q", keyID.HostID, p.hostUUID)
+	}
+	pkcs11ID, err := keyID.pkcs11Key()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer, err := p.ctx.FindKeyPair(pkcs11ID, []byte(p.hostUUID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if signer == nil {
+		return nil, trace.NotFound("failed to find keypair for given id")
+	}
+	return signer, nil
 }
 
 // canSignWithKey returns true if the given key is PKCS11 and was created by
@@ -190,7 +189,7 @@ func (p *pkcs11KeyStore) canSignWithKey(raw []byte, keyType types.PrivateKeyType
 }
 
 // deleteKey deletes the given key from the HSM
-func (p *pkcs11KeyStore) deleteKey(rawKey []byte) error {
+func (p *pkcs11KeyStore) deleteKey(_ context.Context, rawKey []byte) error {
 	keyID, err := parseKeyID(rawKey)
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,7 +214,7 @@ func (p *pkcs11KeyStore) deleteKey(rawKey []byte) error {
 // DeleteUnusedKeys deletes all keys from the KeyStore if they are:
 // 1. Labeled by this KeyStore when they were created
 // 2. Not included in the argument usedKeys
-func (p *pkcs11KeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
+func (p *pkcs11KeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte) error {
 	p.log.Debug("Deleting unused keys from HSM")
 	var usedPublicKeys []*rsa.PublicKey
 	for _, usedKey := range usedKeys {
