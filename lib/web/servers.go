@@ -43,9 +43,13 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters),
+		Items:      ui.MakeKubeClusters(clusters, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil

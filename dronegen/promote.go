@@ -39,7 +39,7 @@ func buildDockerPromotionPipelineECR() pipeline {
 		volumeAwsConfig,
 	}
 
-	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
+	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedStep())
 	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
 
 	// Pull/Push Steps
@@ -68,13 +68,11 @@ func buildDockerPromotionPipelineECR() pipeline {
 			fmt.Sprintf("docker pull %s/gravitational/teleport:$${VERSION}", StagingRegistry),
 			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}", StagingRegistry),
 			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}-fips", StagingRegistry),
-			fmt.Sprintf("docker pull %s/gravitational/teleport-operator:$${VERSION}", StagingRegistry),
 			// retag images to production naming
 			"echo \"---> Tagging images for $${VERSION}\"",
 			fmt.Sprintf("docker tag %s/gravitational/teleport:$${VERSION} %s/gravitational/teleport:$${VERSION}", StagingRegistry, ProductionRegistry),
 			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION} %s/gravitational/teleport-ent:$${VERSION}", StagingRegistry, ProductionRegistry),
 			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION}-fips %s/gravitational/teleport-ent:$${VERSION}-fips", StagingRegistry, ProductionRegistry),
-			fmt.Sprintf("docker tag %s/gravitational/teleport-operator:$${VERSION} %s/gravitational/teleport-operator:$${VERSION}", StagingRegistry, ProductionRegistry),
 			// authenticate with production credentials
 			"docker logout " + StagingRegistry,
 			"aws ecr-public get-login-password --region=us-east-1 | docker login -u=\"AWS\" --password-stdin " + ProductionRegistry,
@@ -84,7 +82,6 @@ func buildDockerPromotionPipelineECR() pipeline {
 			fmt.Sprintf("docker push %s/gravitational/teleport:$${VERSION}", ProductionRegistry),
 			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}", ProductionRegistry),
 			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}-fips", ProductionRegistry),
-			fmt.Sprintf("docker push %s/gravitational/teleport-operator:$${VERSION}", ProductionRegistry),
 		},
 	})
 
@@ -106,7 +103,7 @@ func buildDockerPromotionPipelineQuay() pipeline {
 		volumeAwsConfig,
 	}
 
-	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
+	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedStep())
 	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
 
 	// Pull/Push Steps
@@ -139,13 +136,11 @@ func buildDockerPromotionPipelineQuay() pipeline {
 			fmt.Sprintf("docker pull %s/gravitational/teleport:$${VERSION}", StagingRegistry),
 			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}", StagingRegistry),
 			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}-fips", StagingRegistry),
-			fmt.Sprintf("docker pull %s/gravitational/teleport-operator:$${VERSION}", StagingRegistry),
 			// retag images to production naming
 			"echo \"---> Tagging images for $${VERSION}\"",
 			fmt.Sprintf("docker tag %s/gravitational/teleport:$${VERSION} %s/gravitational/teleport:$${VERSION}", StagingRegistry, ProductionRegistryQuay),
 			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION} %s/gravitational/teleport-ent:$${VERSION}", StagingRegistry, ProductionRegistryQuay),
 			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION}-fips %s/gravitational/teleport-ent:$${VERSION}-fips", StagingRegistry, ProductionRegistryQuay),
-			fmt.Sprintf("docker tag %s/gravitational/teleport-operator:$${VERSION} %s/gravitational/teleport-operator:$${VERSION}", StagingRegistry, ProductionRegistryQuay),
 			// authenticate with production credentials
 			"docker logout " + StagingRegistry,
 			"docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" " + ProductionRegistryQuay,
@@ -154,7 +149,6 @@ func buildDockerPromotionPipelineQuay() pipeline {
 			fmt.Sprintf("docker push %s/gravitational/teleport:$${VERSION}", ProductionRegistryQuay),
 			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}", ProductionRegistryQuay),
 			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}-fips", ProductionRegistryQuay),
-			fmt.Sprintf("docker push %s/gravitational/teleport-operator:$${VERSION}", ProductionRegistryQuay),
 		},
 	})
 
