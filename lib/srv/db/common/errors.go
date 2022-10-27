@@ -35,6 +35,7 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // ConvertError converts errors to trace errors.
@@ -147,7 +148,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 // createRDSAccessDeniedError creates an error with help message to setup IAM
 // auth for RDS.
 func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
-	policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+	policy, _, getPolicyErr := dbiam.GetAWSPolicyDocumentMarshaled(sessionCtx.Database)
 	if getPolicyErr != nil {
 		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 	}

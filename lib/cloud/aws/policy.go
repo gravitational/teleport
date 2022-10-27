@@ -26,9 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // Policy represents an AWS IAM policy.
@@ -63,40 +62,6 @@ type PolicyDocument struct {
 	Version string `json:"Version"`
 	// Statements is a list of the policy statements.
 	Statements []*Statement `json:"Statement"`
-}
-
-// SliceOrString defines a type that can be unmarshalled from either a single
-// string or a slice.
-//
-// For example, these types can be either a single string or a slice:
-// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_action.html
-// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
-//
-// Note that currently only json.Unmarshaller is implemented. When marshalling,
-// the slice format is always used.
-type SliceOrString []string
-
-// UnmarshalJSON implements json.Unmarshaller.
-func (s *SliceOrString) UnmarshalJSON(bytes []byte) error {
-	var slice []string
-	sliceErr := json.Unmarshal(bytes, &slice)
-
-	// Check if input is a slice of strings.
-	if sliceErr == nil {
-		*s = slice
-		return nil
-	}
-
-	// Check if input is a single string.
-	var str string
-	strErr := json.Unmarshal(bytes, &str)
-	if strErr == nil {
-		*s = []string{str}
-		return nil
-	}
-
-	// Failed both format.
-	return trace.NewAggregate(sliceErr, strErr)
 }
 
 // Statement is a single AWS IAM policy statement.
@@ -201,6 +166,59 @@ func (p *PolicyDocument) Marshal() (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// ForEach loops through each action and resource of each statement.
+func (p *PolicyDocument) ForEach(fn func(effect, action, resource string)) {
+	for _, statement := range p.Statements {
+		for _, action := range statement.Actions {
+			for _, resource := range statement.Resources {
+				fn(statement.Effect, action, resource)
+			}
+		}
+	}
+}
+
+// SliceOrString defines a type that can be unmarshalled from either a single
+// string or a slice.
+//
+// For example, these types can be either a single string or a slice:
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_action.html
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
+type SliceOrString []string
+
+// UnmarshalJSON implements json.Unmarshaller.
+func (s *SliceOrString) UnmarshalJSON(bytes []byte) error {
+	// Check if input is a slice of strings.
+	var slice []string
+	sliceErr := json.Unmarshal(bytes, &slice)
+	if sliceErr == nil {
+		*s = slice
+		return nil
+	}
+
+	// Check if input is a single string.
+	var str string
+	strErr := json.Unmarshal(bytes, &str)
+	if strErr == nil {
+		*s = []string{str}
+		return nil
+	}
+
+	// Failed both format.
+	return trace.NewAggregate(sliceErr, strErr)
+}
+
+// MarshalJSON implements json.Marshaler.
+func (s SliceOrString) MarshalJSON() ([]byte, error) {
+	switch len(s) {
+	case 0:
+		return json.Marshal([]string{})
+	case 1:
+		return json.Marshal(s[0])
+	default:
+		return json.Marshal([]string(s))
+	}
 }
 
 // Policies set of IAM Policy helper functions defined as an interface to make

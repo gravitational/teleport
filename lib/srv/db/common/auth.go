@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -143,7 +144,7 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, _, getPolicyErr := dbiam.GetAWSPolicyDocumentMarshaled(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
@@ -180,7 +181,7 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
-		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		policy, _, getPolicyErr := dbiam.GetAWSPolicyDocumentMarshaled(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}

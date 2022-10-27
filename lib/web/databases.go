@@ -28,22 +28,28 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
-// databaseIAMPolicyResponse is the response type for databaseGetIAMPolicy.
+// databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.
 type databaseIAMPolicyResponse struct {
-	Type string               `json:"type"`
-	AWS  databaseIAMPolicyAWS `json:"aws"`
+	// Type is the type of the IAM policy
+	Type string `json:"type"`
+	// AWS contains the IAM policy for AWS.
+	AWS *databaseIAMPolicyAWS `json:"aws,omitempty"`
 }
 
 // databaseIAMPolicyAWS contains IAM policy for AWS hosted databases.
 type databaseIAMPolicyAWS struct {
+	// PolicyDocument is the AWS IAM policy document.
 	PolicyDocument string `json:"policy_document"`
+	// Placeholders are placeholders found in the policy document.
+	Placeholders []string `json:"placeholders"`
 }
 
-// databaseGetIAMPolicy returns the required IAM policy for database.
-func (h *Handler) databaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	databaseName := p.ByName("db")
+// handleDatabaseGetIAMPolicy returns the required IAM policy for database.
+func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("missing database name")
 	}
@@ -53,31 +59,32 @@ func (h *Handler) databaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	database, err := fetchDatabase(r.Context(), clt, r, databaseName)
+	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch {
 	case database.IsAWSHosted():
-		policy, err := database.GetIAMPolicy()
+		policy, placeholders, err := dbiam.GetAWSPolicyDocumentMarshaled(database)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &databaseIAMPolicyResponse{
 			Type: "aws",
-			AWS: databaseIAMPolicyAWS{
+			AWS: &databaseIAMPolicyAWS{
 				PolicyDocument: policy,
+				Placeholders:   []string(placeholders),
 			},
 		}, nil
 
 	default:
-		return nil, trace.BadParameter("IAM policy not supported for database %q", databaseName)
+		return nil, trace.BadParameter("IAM policy not supported for database %q of type %q", databaseName, database.GetType())
 	}
 }
 
-// fetchDatabase fetch a database with provided database name.
-func fetchDatabase(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
+// fetchDatabaseWithName fetch a database with provided database name.
+func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -94,12 +101,9 @@ func fetchDatabase(ctx context.Context, clt resourcesAPIGetter, r *http.Request,
 	}
 
 	switch len(servers) {
-	case 1:
-		return servers[0].GetDatabase(), nil
 	case 0:
-		return nil, trace.BadParameter("database %q not found", databaseName)
+		return nil, trace.NotFound("database %q not found", databaseName)
 	default:
-		// Should not happen. Just in case it does happen, return an internal server error.
-		return nil, trace.Errorf("%d databases with same name %q are found", len(servers), databaseName)
+		return servers[0].GetDatabase(), nil
 	}
 }
