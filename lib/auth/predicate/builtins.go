@@ -301,11 +301,47 @@ func builtinArray(elements ...any) (any, error) {
 	return arr, nil
 }
 
+func builtinReplace(in, match, with any) (any, error) {
+	matchS, ok := match.(string)
+	if !ok {
+		return nil, trace.BadParameter("cannot replace with non-string match of type %T", match)
+	}
+
+	withS, ok := with.(string)
+	if !ok {
+		return nil, trace.BadParameter("cannot replace with non-string with of type %T", with)
+	}
+
+	switch inT := in.(type) {
+	case string:
+		return strings.Replace(inT, matchS, withS, -1), nil
+	case []string:
+		for i, s := range inT {
+			if s == matchS {
+				inT[i] = withS
+			}
+		}
+
+		return inT, nil
+	default:
+		return nil, trace.BadParameter("replace not valid for type: %T", in)
+	}
+}
+
+func builtinLen(a any) (any, error) {
+	switch aT := a.(type) {
+	case string:
+		return len(aT), nil
+	case []string:
+		return len(aT), nil
+	default:
+		return nil, trace.BadParameter("len not valid for type: %T", a)
+	}
+}
+
 // TODO(joel): implement elemental functions:
-// - replace(string, array)
 // - regex
 // - matches(string, regex, regexes?)
 // - contains_regex(array, regex, regexes?)
-// - len(array, map, string)
 // - map_insert
 // - map_remove
