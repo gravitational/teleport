@@ -2331,6 +2331,10 @@ message WebSessionSpecV2 {
     // IdleTimeout is the max time a user can be inactive in a session.
     int64 IdleTimeout = 9
         [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
+    // ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
+    // were obtained.
+    string ConsumedAccessRequestID = 10
+        [ (gogoproto.jsontag) = "consumed_access_request_id,omitempty" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -2574,6 +2578,8 @@ message OIDCConnectorSpecV3 {
         (gogoproto.jsontag) = "redirect_url",
         (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
     ];
+    // AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
+    bool AllowUnverifiedEmail = 15 [ (gogoproto.jsontag) = "allow_unverified_email,omitempty" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.

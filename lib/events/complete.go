@@ -220,6 +220,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
+		upload := upload // capture range variable
 		go func() {
 			select {
 			case <-ctx.Done():
@@ -342,6 +343,8 @@ loop:
 	}
 
 	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
+
+	sessionEndEvent.SetTime(lastEvent.GetTime())
 
 	// Check and set event fields
 	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {

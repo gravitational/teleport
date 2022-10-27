@@ -327,6 +327,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
 		sshutils.SetFIPS(cfg.FIPS),
+		sshutils.SetClock(cfg.Clock),
 	)
 	if err != nil {
 		return nil, err

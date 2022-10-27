@@ -29,6 +29,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -164,7 +165,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server := &TLSServer{
 		cfg: cfg,
 		httpServer: &http.Server{
-			Handler:           limiter,
+			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{

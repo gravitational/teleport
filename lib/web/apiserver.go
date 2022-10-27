@@ -611,6 +611,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	userContext.ConsumedAccessRequestID = c.session.GetConsumedAccessRequestID()
+
 	return userContext, nil
 }
 
