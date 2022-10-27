@@ -30,9 +30,14 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	reporting "github.com/gravitational/reporting/types"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -58,14 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	reporting "github.com/gravitational/reporting/types"
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 type testPack struct {

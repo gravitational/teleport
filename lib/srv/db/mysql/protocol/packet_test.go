@@ -24,7 +24,6 @@ import (
 	"testing/iotest"
 
 	"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
 )
 

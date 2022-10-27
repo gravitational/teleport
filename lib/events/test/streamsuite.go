@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/stretchr/testify/require"
 )
 
 // StreamParams configures parameters of a stream test suite
