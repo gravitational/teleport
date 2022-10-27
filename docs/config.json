@@ -606,6 +606,10 @@
               "slug": "/server-access/guides/vscode/"
             },
             {
+              "title": "JetBrains SFTP",
+              "slug": "/server-access/guides/jetbrains-sftp/"
+            },
+            {
               "title": "Host User Creation",
               "slug": "/server-access/guides/host-user-creation/"
             },
@@ -705,6 +709,10 @@
             {
               "title": "MongoDB Atlas",
               "slug": "/database-access/guides/mongodb-atlas/"
+            },
+            {
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
             },
             {
               "title": "Self-Hosted PostgreSQL",

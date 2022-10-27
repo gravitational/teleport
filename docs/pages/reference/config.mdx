@@ -484,6 +484,12 @@ auth_service:
     # See "TLS Routing" in Architecture section for additional information.
     proxy_listener_mode: multiplex
 
+    # Tells tsh to load the CAs of all clusters when trying to ssh into a Teleport Node,
+    # instead of just the CA for the current cluster. This may be useful for
+    # users that want to log in to a root cluster and then "tsh ssh" into a node
+    # in a leaf cluster. Defaults to false.
+    load_all_cas: false
+
     # Determines the strategy that the cluster uses for connecting clients to
     # agents through the Teleport Proxy Service.
     tunnel_strategy:
@@ -538,7 +544,7 @@ ssh_service:
 
     # Disables automatic creation of host users on this SSH node.
     # Set to false by default.
-    disable_create_host_users: true
+    disable_create_host_user: true
 
     # Enhanced Session Recording
     # see https://goteleport.com/docs/features/enhanced-session-recording/

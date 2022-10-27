@@ -1,5 +1,58 @@
 # Changelog
 
+## 10.3.5
+
+This release of Teleport contains several bug fixes.
+
+* Fixed issue with Teleport custom resources conflicting with Kubernetes resources in Helm charts. [#17718](https://github.com/gravitational/teleport/pull/17718)
+* Fixed issue with connecting to Redis 7 running in cluster mode in database access. [#17855](https://github.com/gravitational/teleport/pull/17855)
+* Fixed panic when comparing SSH public keys. [#17872](https://github.com/gravitational/teleport/pull/17872)
+* Improved error reporting from MFA devices. [#17581](https://github.com/gravitational/teleport/pull/17581)
+
+## 10.3.4
+
+This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
+
+## Block SFTP in Moderated Sessions
+
+Teleport did not block SFTP protocol in Moderated Sessions.
+
+[#17726](https://github.com/gravitational/teleport/pull/17726)
+
+## Other fixes
+
+* Fixed `tsh proxy ssh -J` command not working when root proxy is unavailable. [#17633](https://github.com/gravitational/teleport/pull/17633)
+* Fixed issue with `tctl rm windows_desktop/<name>` deleting all Windows desktops. [#17731](https://github.com/gravitational/teleport/pull/17731)
+* Fixed connection leak in IAM joining method. [#17740](https://github.com/gravitational/teleport/pull/17740)
+* Fixed panic in `tsh db ls`. [#17779](https://github.com/gravitational/teleport/pull/17779)
+* Fixed issue with `tsh mfa add` not showing OTP QR code image on Windows. [#17702](https://github.com/gravitational/teleport/pull/17702)
+* Fixed issue with Postgres connections failing when client requests GSS encryption. [#17772](https://github.com/gravitational/teleport/pull/17772)
+* Fixed issue with `tctl auth sign` not working for Snowflake in trusted cluster scenario. [#17327](https://github.com/gravitational/teleport/pull/17327)
+* Added `load_all_cas` auth service option that allows to load all CAs when connecting to a node. [#17398](https://github.com/gravitational/teleport/pull/17398)
+* Updated Helm chart with Azure database auto-discovery settings. [#17637](https://github.com/gravitational/teleport/pull/17637)
+* Updated Access Manager dialog with the new Kubernetes cluster join flow. [webapps#1268](https://github.com/gravitational/webapps/pull/1268)
+
+## 10.3.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with EC2 auto-enrollment not working on Ubuntu instances. [#17467](https://github.com/gravitational/teleport/pull/17467)
+* Fixed issue with `tctl auth sign` producing "access denied" error. [#17557](https://github.com/gravitational/teleport/pull/17557)
+* Fixed issue with agents entering permanent error loop if they had expired join tokens and the cluster had previously undergone host CA rotation. [#17599](https://github.com/gravitational/teleport/pull/17599)
+* Fixed issue with `tsh` producing auditd errors on some systems. [#17495](https://github.com/gravitational/teleport/pull/17495)
+* Fixed issue with Machine ID bots joined via IAM token not respecting requested certificate TTL. [#17371](https://github.com/gravitational/teleport/pull/17371)
+* Fixed issue with Teleport failing to initialize properly without configuration file. [#17343](https://github.com/gravitational/teleport/pull/17343)
+* Fixed desktop access clipboard sharing with newer versions of Chrome. [webapps#1266](https://github.com/gravitational/webapps/pull/1266)
+* Added license expiration alerts. [#17489](https://github.com/gravitational/teleport/pull/17489)
+* Added support for `imagePullSecret` in teleport-kube-agent Helm chart. [#16678](https://github.com/gravitational/teleport/pull/16678)
+* Added support for join parameters in teleport-kube-agent Helm chart. [#17534](https://github.com/gravitational/teleport/pull/17534)
+* Improved error when trying to connecto to a Windows desktop that is locked. [#17548](https://github.com/gravitational/teleport/pull/17548)
+* Improved SAML connectors validation upon creation. [#16854](https://github.com/gravitational/teleport/pull/16854)
+* Improved desktop access connection error handling. [#17390](https://github.com/gravitational/teleport/pull/17390)
+* Updated `tsh ls --query` to allow querying SSH nodes by hostname. [#17038](https://github.com/gravitational/teleport/pull/17038)
+* Updated Machine ID to export user CA when generating SSH host certificate. [#17525](https://github.com/gravitational/teleport/pull/17525)
+* Updated `tsh` to default to passwordless login if Touch ID is available. [#17472](https://github.com/gravitational/teleport/pull/17472)
+
 ## 10.3.2
 
 This release of Teleport contains multiple improvements and bug fixes.
