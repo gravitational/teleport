@@ -75,7 +75,7 @@ func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAutho
 }
 
 // ExportAuthoritiesWithSecrets exports the Authority Certificate and its secrets (private keys).
-// It exposts the secrets first and then the certificate (separated by an empty line).
+// It exports the secrets first and then the certificate (separated by an empty line).
 // See ExportAuthorities for more information.
 func ExportAuthoritiesWithSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
 	return exportAuth(ctx, client, req, true /* exportSecrets */)
