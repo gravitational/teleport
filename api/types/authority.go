@@ -71,8 +71,8 @@ type CertAuthority interface {
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
-	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
-	AllKeyTypesMatch() bool
+	// AllKeyTypes returns the set of all different key types in the CA.
+	AllKeyTypes() []string
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -350,8 +350,8 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AllKeyTypesMatch returns true if all private keys in the given CA are of the same type.
-func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
+// AllKeyTypes returns the set of all different key types in the CA.
+func (ca *CertAuthorityV2) AllKeyTypes() []string {
 	keyTypes := make(map[PrivateKeyType]struct{})
 	for _, keySet := range []CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
 		for _, keyPair := range keySet.SSH {
@@ -364,7 +364,11 @@ func (ca *CertAuthorityV2) AllKeyTypesMatch() bool {
 			keyTypes[keyPair.PrivateKeyType] = struct{}{}
 		}
 	}
-	return len(keyTypes) == 1
+	var strs []string
+	for k := range keyTypes {
+		strs = append(strs, k.String())
+	}
+	return strs
 }
 
 const (

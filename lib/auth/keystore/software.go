@@ -15,6 +15,7 @@
 package keystore
 
 import (
+	"context"
 	"crypto"
 
 	"github.com/gravitational/trace"
@@ -51,7 +52,7 @@ func newSoftwareKeyStore(config *SoftwareConfig) *softwareKeyStore {
 // crypto.Signer. The returned identifier for softwareKeyStore is a pem-encoded
 // private key, and can be passed to getSigner later to get the same
 // crypto.Signer.
-func (s *softwareKeyStore) generateRSA() ([]byte, crypto.Signer, error) {
+func (s *softwareKeyStore) generateRSA(_ ...RSAKeyOption) ([]byte, crypto.Signer, error) {
 	priv, _, err := s.rsaKeyPairSource()
 	if err != nil {
 		return nil, nil, err
@@ -76,7 +77,7 @@ func (s *softwareKeyStore) canSignWithKey(_ []byte, keyType types.PrivateKeyType
 
 // deleteKey deletes the given key from the KeyStore. This is a no-op for
 // softwareKeyStore.
-func (s *softwareKeyStore) deleteKey(rawKey []byte) error {
+func (s *softwareKeyStore) deleteKey(_ context.Context, _ []byte) error {
 	return nil
 }
 
@@ -84,6 +85,6 @@ func (s *softwareKeyStore) deleteKey(rawKey []byte) error {
 // 1. Labeled by this KeyStore when they were created
 // 2. Not included in the argument usedKeys
 // This is a no-op for rawKeyStore.
-func (s *softwareKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
+func (s *softwareKeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte) error {
 	return nil
 }

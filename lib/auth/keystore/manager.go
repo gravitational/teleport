@@ -18,6 +18,7 @@ package keystore
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/x509/pkix"
 
@@ -37,24 +38,38 @@ type Manager struct {
 	backend
 }
 
+// RSAKeyOptions configure options for RSA key generation.
+type RSAKeyOptions struct {
+	DigestAlgorithm crypto.Hash
+}
+
+// RSAKeyOption is a functional option for RSA key generation.
+type RSAKeyOption func(*RSAKeyOptions)
+
+func WithDigestAlgorithm(alg crypto.Hash) RSAKeyOption {
+	return func(opts *RSAKeyOptions) {
+		opts.DigestAlgorithm = alg
+	}
+}
+
 // backend is an interface that holds private keys and provides signing
 // operations.
 type backend interface {
 	// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
 	// 1. Labeled by this KeyStore when they were created
 	// 2. Not included in the argument usedKeys
-	DeleteUnusedKeys(usedKeys [][]byte) error
+	DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte) error
 
 	// generateRSA creates a new RSA private key and returns its identifier and
 	// a crypto.Signer. The returned identifier can be passed to getSigner
 	// later to get the same crypto.Signer.
-	generateRSA() (keyID []byte, signer crypto.Signer, err error)
+	generateRSA(...RSAKeyOption) (keyID []byte, signer crypto.Signer, err error)
 
 	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
 	getSigner(keyID []byte) (crypto.Signer, error)
 
 	// deleteKey deletes the given key from the KeyStore.
-	deleteKey(keyID []byte) error
+	deleteKey(ctx context.Context, keyID []byte) error
 
 	// canSignWithKey returns true if this KeyStore is able to sign with the
 	// given key.
@@ -69,14 +84,19 @@ type backend interface {
 type Config struct {
 	// Software holds configuration parameters specific to software keystores.
 	Software SoftwareConfig
-
-	// PKCS11 hold configuration parameters specific to PKCS#11 keystores.
+	// PKCS11 holds configuration parameters specific to PKCS#11 keystores.
 	PKCS11 PKCS11Config
+	// GCPKMS holds configuration parameters specific to GCP KMS keystores.
+	GCPKMS GCPKMSConfig
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
+	// We check for mutual exclusion when parsing the file config.
 	if (cfg.PKCS11 != PKCS11Config{}) {
 		return trace.Wrap(cfg.PKCS11.CheckAndSetDefaults())
+	}
+	if (cfg.GCPKMS != GCPKMSConfig{}) {
+		return trace.Wrap(cfg.GCPKMS.CheckAndSetDefaults())
 	}
 	return trace.Wrap(cfg.Software.CheckAndSetDefaults())
 }
@@ -91,6 +111,13 @@ func NewManager(cfg Config) (*Manager, error) {
 			return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
 		}
 		backend, err := newPKCS11KeyStore(&cfg.PKCS11)
+		return &Manager{backend: backend}, trace.Wrap(err)
+	}
+	if (cfg.GCPKMS != GCPKMSConfig{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, trace.AccessDenied("GCP KMS support is only available with an enterprise license")
+		}
+		backend, err := newGCPKMSKeyStore(&cfg.GCPKMS)
 		return &Manager{backend: backend}, trace.Wrap(err)
 	}
 	return &Manager{backend: newSoftwareKeyStore(&cfg.Software)}, nil
@@ -180,7 +207,8 @@ func (m *Manager) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
 
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
 func (m *Manager) NewSSHKeyPair() (*types.SSHKeyPair, error) {
-	sshKey, cryptoSigner, err := m.backend.generateRSA()
+	// The default hash length for SSH signers is 512 bits.
+	sshKey, cryptoSigner, err := m.backend.generateRSA(WithDigestAlgorithm(crypto.SHA512))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,6 +312,9 @@ func (m *Manager) hasUsableKeys(keySet types.CAKeySet) (bool, error) {
 func keyType(key []byte) types.PrivateKeyType {
 	if bytes.HasPrefix(key, pkcs11Prefix) {
 		return types.PrivateKeyType_PKCS11
+	}
+	if bytes.HasPrefix(key, []byte(gcpkmsPrefix)) {
+		return types.PrivateKeyType_GCP_KMS
 	}
 	return types.PrivateKeyType_RAW
 }

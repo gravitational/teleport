@@ -197,6 +197,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if cfg.KeyStoreConfig.PKCS11 != (keystore.PKCS11Config{}) {
 		cfg.KeyStoreConfig.PKCS11.HostUUID = cfg.HostUUID
+	} else if cfg.KeyStoreConfig.GCPKMS != (keystore.GCPKMSConfig{}) {
+		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
 	} else {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
@@ -3824,14 +3826,15 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return trace.Wrap(err)
 	}
 
-	err = a.addAdditionalTrustedKeysAtomic(ctx, ca, newKeySet, func(ca types.CertAuthority) (bool, error) {
+	updateRequired := func(ca types.CertAuthority) (bool, error) {
 		hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ca)
-		return hasUsableKeys, trace.Wrap(err)
-	})
+		return !hasUsableKeys, trace.Wrap(err)
+	}
+	err = a.addAdditionalTrustedKeysAtomic(ctx, ca, newKeySet, updateRequired)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Successfully added local additional trusted keys to %s CA.", ca.GetType())
+	log.Infof("Successfully added locally usable additional trusted keys to %s CA.", ca.GetType())
 	return nil
 }
 
@@ -3883,7 +3886,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 			}
 		}
 	}
-	return trace.Wrap(a.keyStore.DeleteUnusedKeys(usedKeys))
+	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
 }
 
 // authKeepAliver is a keep aliver using auth server directly
