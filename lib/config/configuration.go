@@ -35,10 +35,11 @@ import (
 	"time"
 	"unicode"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -48,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -57,9 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/sirupsen/logrus"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -137,6 +134,8 @@ type CommandLineFlags struct {
 	DatabaseCACertFile string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
+	DatabaseAWSAccountID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseAWSRDSInstanceID is RDS instance identifier.
@@ -216,6 +215,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc == nil {
 		return nil
 	}
+
+	applyConfigVersion(fc, cfg)
+
 	// merge file-based config with defaults in 'cfg'
 	if fc.Auth.Disabled() {
 		cfg.Auth.Enabled = false
@@ -253,20 +255,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.PIDFile = fc.PIDFile
 
-	// config file has auth servers in there?
-	if len(fc.AuthServers) > 0 {
-		cfg.AuthServers = make([]utils.NetAddr, 0, len(fc.AuthServers))
-		for _, as := range fc.AuthServers {
-			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err != nil {
-				return trace.Errorf("cannot parse auth server address: '%v'", as)
-			}
-			cfg.AuthServers = append(cfg.AuthServers, *addr)
-		}
+	if err := applyAuthOrProxyAddress(fc, cfg); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := applyTokenConfig(fc, cfg); err != nil {
@@ -284,13 +274,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
-		// If the alternative name "cockroachdb" is given, update it to "postgres".
-		if fc.Storage.Type == postgres.AlternativeName {
-			fc.Storage.Type = postgres.GetName()
-		}
-
-		// Fix yamlv2 issue with nested storage sections.
-		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -391,8 +374,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	applyConfigVersion(fc, cfg)
-
 	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
 	// and "app_service" if they are enabled.
 	if fc.Auth.Enabled() {
@@ -446,6 +427,72 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	if fc.Discovery.Enabled() {
 		applyDiscoveryConfig(fc, cfg)
+	}
+
+	return nil
+}
+
+func applyAuthOrProxyAddress(fc *FileConfig, cfg *service.Config) error {
+	switch cfg.Version {
+	// For config versions v1 and v2, the auth_servers field can point to an auth
+	// server or a proxy server
+	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
+		// config file has auth servers in there?
+		if len(fc.AuthServers) > 0 {
+			var parsedAddresses []utils.NetAddr
+
+			for _, as := range fc.AuthServers {
+				addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				parsedAddresses = append(parsedAddresses, *addr)
+			}
+
+			if err := cfg.SetAuthServerAddresses(parsedAddresses); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if fc.AuthServer != "" {
+			return trace.BadParameter("auth_server is supported from config version v3 onwards")
+		}
+
+		if fc.ProxyServer != "" {
+			return trace.BadParameter("proxy_server is supported from config version v3 onwards")
+		}
+
+	// From v3 onwards, either auth_server or proxy_server should be set
+	case defaults.TeleportConfigVersionV3:
+		if len(fc.AuthServers) > 0 {
+			return trace.BadParameter("config v3 has replaced auth_servers with either auth_server or proxy_server")
+		}
+
+		haveAuthServer := fc.AuthServer != ""
+		haveProxyServer := fc.ProxyServer != ""
+
+		if haveProxyServer && haveAuthServer {
+			return trace.BadParameter("only one of auth_server or proxy_server should be set")
+		}
+
+		if haveAuthServer {
+			addr, err := utils.ParseHostPortAddr(fc.AuthServer, defaults.AuthListenPort)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			cfg.SetAuthServerAddress(*addr)
+		}
+
+		if haveProxyServer {
+			addr, err := utils.ParseHostPortAddr(fc.ProxyServer, defaults.HTTPListenPort)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			cfg.ProxyServer = *addr
+		}
 	}
 
 	return nil
@@ -544,7 +591,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.ListenAddr = *addr
-		cfg.AuthServers = append(cfg.AuthServers, *addr)
+		if len(cfg.AuthServerAddresses()) == 0 {
+			cfg.SetAuthServerAddress(*addr)
+		}
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
 		tun, err := t.ConvertAndValidate()
@@ -649,6 +698,8 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, licenseFile)
 		}
 	}
+
+	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
 
 	return nil
 }
@@ -857,8 +908,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		if fc.Version == defaults.TeleportConfigVersionV2 {
-			// Always enable kube service if using config V2 (TLS routing is supported)
+		if fc.Version != "" && fc.Version != defaults.TeleportConfigVersionV1 {
 			cfg.Proxy.Kube.Enabled = true
 		}
 	}
@@ -931,8 +981,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
-	applyDefaultProxyListenerAddresses(cfg)
-
 	return nil
 }
 
@@ -955,8 +1003,8 @@ func getPostgresDefaultPort(cfg *service.Config) int {
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
-	if cfg.Version == defaults.TeleportConfigVersionV2 {
-		// For v2 configuration if an address is not provided don't fallback to the default values.
+	// From v2 onwards if an address is not provided don't fall back to the default values.
+	if cfg.Version != "" && cfg.Version != defaults.TeleportConfigVersionV1 {
 		return
 	}
 
@@ -1080,6 +1128,20 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
+
+	for _, matcher := range fc.Discovery.AzureMatchers {
+		cfg.Discovery.AzureMatchers = append(
+			cfg.Discovery.AzureMatchers,
+			services.AzureMatcher{
+				Subscriptions:  matcher.Subscriptions,
+				ResourceGroups: matcher.ResourceGroups,
+				Types:          matcher.Types,
+				Regions:        matcher.Regions,
+				ResourceTags:   matcher.ResourceTags,
+			},
+		)
+	}
+
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
@@ -1097,6 +1159,13 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Kube.PublicAddrs = addrs
+	}
+
+	for _, matcher := range fc.Kube.ResourceMatchers {
+		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
+			services.ResourceMatcher{
+				Labels: matcher.Labels,
+			})
 	}
 
 	if fc.Kube.KubeconfigFile != "" {
@@ -1194,7 +1263,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Mode:       service.TLSMode(database.TLS.Mode),
 			},
 			AWS: service.DatabaseAWS{
-				Region: database.AWS.Region,
+				AccountID: database.AWS.AccountID,
+				Region:    database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -1222,6 +1292,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Krb5File:   database.AD.Krb5File,
 				Domain:     database.AD.Domain,
 				SPN:        database.AD.SPN,
+			},
+			Azure: service.DatabaseAzure{
+				ResourceID: database.Azure.ResourceID,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1495,6 +1568,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			Regexp: r,
 			Labels: rule.Labels,
 		})
+	}
+
+	if fc.WindowsDesktop.Labels != nil {
+		cfg.WindowsDesktop.Labels = make(map[string]string)
+		for k, v := range fc.WindowsDesktop.Labels {
+			cfg.WindowsDesktop.Labels[k] = v
+		}
 	}
 
 	return nil
@@ -1851,7 +1931,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				CACert: caBytes,
 			},
 			AWS: service.DatabaseAWS{
-				Region: clf.DatabaseAWSRegion,
+				Region:    clf.DatabaseAWSRegion,
+				AccountID: clf.DatabaseAWSAccountID,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},
@@ -1964,13 +2045,18 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
 		}
-		cfg.AuthServers = make([]utils.NetAddr, 0, len(clf.AuthServerAddr))
+
+		authServerAddresses := make([]utils.NetAddr, 0, len(clf.AuthServerAddr))
 		for _, as := range clf.AuthServerAddr {
 			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
 			if err != nil {
 				return trace.BadParameter("cannot parse auth server address: '%v'", as)
 			}
-			cfg.AuthServers = append(cfg.AuthServers, *addr)
+			authServerAddresses = append(authServerAddresses, *addr)
+		}
+
+		if err := cfg.SetAuthServerAddresses(authServerAddresses); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -2018,8 +2104,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
-	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
+	if len(cfg.AuthServerAddresses()) == 0 && cfg.Auth.Enabled {
+		cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
 	}
 
 	// add data_dir to the backend config:
@@ -2031,6 +2117,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+
+	// set the default proxy listener addresses for config v1, if not already set
+	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
 }
@@ -2174,23 +2263,24 @@ func splitRoles(roles string) []string {
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
-		cfg.JoinMethod = types.JoinMethodToken
-		cfg.SetToken(fc.AuthToken)
-	}
-
-	if fc.JoinParams != (JoinParams{}) {
-		if cfg.HasToken() {
+		if fc.JoinParams != (JoinParams{}) {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
+		cfg.JoinMethod = types.JoinMethodToken
+		cfg.SetToken(fc.AuthToken)
+
+		return nil
+	}
+
+	if fc.JoinParams != (JoinParams{}) {
 		cfg.SetToken(fc.JoinParams.TokenName)
 
-		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
-			cfg.JoinMethod = fc.JoinParams.Method
-		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
+		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
+			return trace.Wrap(err)
 		}
+
+		cfg.JoinMethod = fc.JoinParams.Method
 	}
 
 	return nil

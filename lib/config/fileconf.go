@@ -160,6 +160,8 @@ type SampleFlags struct {
 	Roles string
 	// AuthServer is the address of the auth server
 	AuthServer string
+	// ProxyAddress is the address of the proxy
+	ProxyAddress string
 	// AppName is the name of the application to start
 	AppName string
 	// AppURI is the internal address of the application to proxy
@@ -219,7 +221,11 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	}
 
 	if flags.AuthServer != "" {
-		g.AuthServers = []string{flags.AuthServer}
+		g.AuthServer = flags.AuthServer
+	}
+
+	if flags.ProxyAddress != "" {
+		g.ProxyServer = flags.ProxyAddress
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
@@ -311,7 +317,8 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 			a.LicenseFile = flags.LicensePath
 		}
 
-		if flags.Version == defaults.TeleportConfigVersionV2 {
+		// from config v2 onwards, we support `proxy_listener_mode`, so we set it to `multiplex`
+		if flags.Version != defaults.TeleportConfigVersionV1 {
 			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
 		}
 	} else {
@@ -442,9 +449,20 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	matchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
+	if err := checkAndSetDefaultsForAWSMatchers(conf.Discovery.AWSMatchers); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkAndSetDefaultsForAzureMatchers(conf.Discovery.AzureMatchers); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
-	for _, matcher := range conf.Discovery.AWSMatchers {
+// checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
+// and validates the provided types.
+func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
+	for i := range matcherInput {
+		matcher := &matcherInput[i]
 		for _, serviceType := range matcher.Types {
 			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
 				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
@@ -452,7 +470,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			}
 		}
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
-			matcher.Tags = map[string]apiutils.Strings{"*": apiutils.Strings{"*"}}
+			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
 
 		if matcher.InstallParams == nil {
@@ -481,11 +499,47 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		if matcher.SSM.DocumentName == "" {
 			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
 		}
-		matchers = append(matchers, matcher)
 	}
+	return nil
+}
 
-	conf.Discovery.AWSMatchers = matchers
+// checkAndSetDefaultsForAzureMatchers sets the default values for discovery Azure matchers
+// and validates the provided types.
+func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
+	for i := range matcherInput {
+		matcher := &matcherInput[i]
 
+		if len(matcher.Types) == 0 {
+			return trace.BadParameter("At least one Azure discovery service type must be specified, the supported resource types are: %v",
+				constants.SupportedAzureDiscoveryServices)
+		}
+
+		for _, serviceType := range matcher.Types {
+			if !apiutils.SliceContainsStr(constants.SupportedAzureDiscoveryServices, serviceType) {
+				return trace.BadParameter("Azure discovery service type does not support %q resource type; supported resource types are: %v",
+					serviceType, constants.SupportedAzureDiscoveryServices)
+			}
+		}
+
+		if apiutils.SliceContainsStr(matcher.Regions, types.Wildcard) || len(matcher.Regions) == 0 {
+			matcher.Regions = []string{types.Wildcard}
+		}
+
+		if apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) || len(matcher.Subscriptions) == 0 {
+			matcher.Subscriptions = []string{types.Wildcard}
+		}
+
+		if apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) || len(matcher.ResourceGroups) == 0 {
+			matcher.ResourceGroups = []string{types.Wildcard}
+		}
+
+		if len(matcher.ResourceTags) == 0 {
+			matcher.ResourceTags = map[string]apiutils.Strings{
+				types.Wildcard: {types.Wildcard},
+			}
+		}
+
+	}
 	return nil
 }
 
@@ -574,12 +628,19 @@ type Global struct {
 	DataDir  string `yaml:"data_dir,omitempty"`
 	PIDFile  string `yaml:"pid_file,omitempty"`
 
+	JoinParams JoinParams `yaml:"join_params,omitempty"`
+
+	// v1, v2
+	AuthServers []string `yaml:"auth_servers,omitempty"`
 	// AuthToken is the old way of configuring the token to be used by the
 	// node to join the Teleport cluster. `JoinParams.TokenName` should be
 	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
-	AuthToken   string           `yaml:"auth_token,omitempty"`
-	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
-	AuthServers []string         `yaml:"auth_servers,omitempty"`
+	AuthToken string `yaml:"auth_token,omitempty"`
+
+	// v3
+	AuthServer  string `yaml:"auth_server,omitempty"`
+	ProxyServer string `yaml:"proxy_server,omitempty"`
+
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
@@ -771,6 +832,10 @@ type Auth struct {
 	// should be sent. This is applicable only when using ping-wrapped
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
+
+	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
+	// to ssh into a node, instead of just the CA for the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -953,9 +1018,8 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
-	// Disabled has no effect, it is kept solely to not break existing
+	// Deprecated: Disabled has no effect, it is kept solely to not break existing
 	// configurations.
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
 	Disabled bool `yaml:"disabled,omitempty"`
 }
 
@@ -1124,6 +1188,9 @@ type Discovery struct {
 
 	// AWSMatchers are used to match EC2 instances
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+
+	// AzureMatchers are used to match Azure resources.
+	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1292,7 +1359,7 @@ type AzureMatcher struct {
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure database types to match: "mysql", "postgres"
+	// Types are Azure types to match: "mysql", "postgres", "aks"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`
@@ -1327,6 +1394,8 @@ type Database struct {
 	GCP DatabaseGCP `yaml:"gcp"`
 	// AD contains Active Directory database configuration.
 	AD DatabaseAD `yaml:"ad"`
+	// Azure contains Azure database configuration.
+	Azure DatabaseAzure `yaml:"azure"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
@@ -1381,6 +1450,8 @@ type DatabaseAWS struct {
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
+	// AccountID is the AWS account ID.
+	AccountID string `yaml:"account_id,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1415,6 +1486,12 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
+}
+
+// DatabaseAzure contains Azure database configuration.
+type DatabaseAzure struct {
+	// ResourceID is the Azure fully qualified ID for the resource.
+	ResourceID string `yaml:"resource_id,omitempty"`
 }
 
 // Apps represents the configuration for the collection of applications this
@@ -1624,9 +1701,12 @@ type Kube struct {
 	// running in. If set, this proxy will handle kubernetes requests for the
 	// cluster.
 	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
-	// Static and dynamic labels for RBAC on kubernetes clusters.
-	StaticLabels  map[string]string `yaml:"labels,omitempty"`
-	DynamicLabels []CommandLabel    `yaml:"commands,omitempty"`
+	// StaticLabels are the static labels for RBAC on kubernetes clusters.
+	StaticLabels map[string]string `yaml:"labels,omitempty"`
+	// DynamicLabels are the dynamic labels for RBAC on kubernetes clusters.
+	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
+	// ResourceMatchers match cluster kube_cluster resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
@@ -1695,6 +1775,8 @@ func (m *Metrics) MTLSEnabled() bool {
 // WindowsDesktopService contains configuration for windows_desktop_service.
 type WindowsDesktopService struct {
 	Service `yaml:",inline"`
+	// Labels are the configured windows deesktops service labels.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// PublicAddr is a list of advertised public addresses of this service.
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 	// LDAP is the LDAP connection parameters.

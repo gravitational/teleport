@@ -289,13 +289,21 @@ const (
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
 
-	// SSH request type to keep the connection alive. A client and a server keep
-	// pining each other with it:
+	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// RecordingProxyReqType is the name of a global request which returns if
 	// the proxy is recording sessions or not.
+	//
+	// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+	// cluster information.
+	// TODO(tross):DELETE IN 12.0
 	RecordingProxyReqType = "recording-proxy@teleport.com"
+
+	// ClusterDetailsReqType is the name of a global request which returns cluster details like
+	// if the proxy is recording sessions or not and if FIPS is enabled.
+	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
 	// JSON means JSON serialization format
 	JSON = "json"
@@ -454,6 +462,9 @@ const (
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
+	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
+	// private key policy.
+	CertExtensionPrivateKeyPolicy = "private-key-policy"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -733,6 +744,12 @@ const (
 
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
+)
+
+const (
+	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
+	// uses to get the home directory of a remote user.
+	GetHomeDirSubsystem = "gethomedir"
 )
 
 // A principal name for use in SSH certificates.

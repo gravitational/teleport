@@ -19,14 +19,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
 // WaitForTunnelConnections waits for remote tunnels connections
@@ -102,7 +103,7 @@ func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 		iterWaitTime = time.Second
 	)
 
-	err := utils.RetryStaticFor(deadline, iterWaitTime, func() error {
+	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
 			return trace.Wrap(err)

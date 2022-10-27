@@ -73,8 +73,12 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.AuthServers, err = utils.ParseAddrs([]string{opts.Addr})
+	authServers, err := utils.ParseAddrs([]string{opts.Addr})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.SetAuthServerAddresses(authServers); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -99,7 +103,7 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
 	return authConfig, nil

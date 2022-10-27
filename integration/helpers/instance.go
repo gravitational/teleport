@@ -28,6 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -46,11 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -508,7 +509,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			tconf.Proxy.MongoAddr.Addr = i.Mongo
 		}
 	}
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   lite.GetName(),
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
@@ -618,8 +619,18 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	tconf.DataDir = dataDir
 
-	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
-	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	if tconf.Version == defaults.TeleportConfigVersionV3 {
+		if tconf.ProxyServer.IsEmpty() {
+			authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
+			tconf.SetAuthServerAddress(*authServer)
+		}
+	} else {
+		authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
+		if err := tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer)); err != nil {
+			return nil, err
+		}
+	}
+
 	tconf.SetToken("token")
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = service.CachePolicy{
@@ -671,12 +682,10 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
-	}
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
+	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
@@ -723,12 +732,10 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 			}
 
 			cfg.DataDir = dataDir
-			cfg.AuthServers = []utils.NetAddr{
-				{
-					AddrNetwork: "tcp",
-					Addr:        i.Web,
-				},
-			}
+			cfg.SetAuthServerAddress(utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        i.Web,
+			})
 			cfg.SetToken("token")
 			cfg.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
@@ -787,12 +794,10 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
-	}
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
+	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
@@ -850,12 +855,10 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
-	}
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
+	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
@@ -903,7 +906,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
-	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.SetAuthServerAddress(*authServer)
 	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
@@ -994,7 +997,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	tconf.Console = nil
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
-	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.SetAuthServerAddress(*authServer)
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
@@ -1212,8 +1215,7 @@ func (i *TeleInstance) NewClientWithCreds(cfg ClientConfig, creds UserCreds) (tc
 	return clt, nil
 }
 
-// NewUnauthenticatedClient returns a fully configured and pre-authenticated client
-// (pre-authenticated with server CAs and signed session key)
+// NewUnauthenticatedClient returns a fully configured and un-authenticated client
 func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.TeleportClient, err error) {
 	keyDir, err := os.MkdirTemp(i.Config.DataDir, "tsh")
 	if err != nil {
@@ -1272,7 +1274,12 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return i.AddClientCredentials(tc, cfg)
+}
 
+// AddClientCredentials adds authenticated credentials to a client.
+// (server CAs and signed session key).
+func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
 	// Generate certificates for the user simulating login.
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,

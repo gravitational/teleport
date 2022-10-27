@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -141,6 +142,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
+		Traits:   identity.Traits,
 		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
@@ -171,12 +173,14 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		return trace.Wrap(err)
 	}
 
+	delegate := forward.NewHeaderRewriter()
 	sess.fwd, err = forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
-		forward.WebsocketRewriter(transport.ws),
+		forward.WebsocketRewriter(common.NewHeaderRewriter(transport.ws, delegate)),
 		forward.WebsocketDial(transport.ws.dialer),
+		forward.Rewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -357,16 +361,7 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) err
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)
 	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.c.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
-		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session chunk %v", sess.id)
-		return nil
-	default: // aka err != nil
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

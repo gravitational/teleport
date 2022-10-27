@@ -44,10 +44,10 @@ resource "aws_launch_configuration" "auth" {
   lifecycle {
     create_before_destroy = true
   }
-  name_prefix                 = "${var.cluster_name}-auth-"
-  image_id                    = data.aws_ami.base.id
-  instance_type               = var.auth_instance_type
-  user_data                   = templatefile(
+  name_prefix   = "${var.cluster_name}-auth-"
+  image_id      = data.aws_ami.base.id
+  instance_type = var.auth_instance_type
+  user_data = templatefile(
     "${path.module}/auth-user-data.tpl",
     {
       region                   = var.region
@@ -66,10 +66,15 @@ resource "aws_launch_configuration" "auth" {
       use_acm                  = var.use_acm
     }
   )
+  metadata_options {
+    http_tokens = "required"
+  }
+  root_block_device {
+    encrypted = true
+  }
   key_name                    = var.key_name
   ebs_optimized               = true
   associate_public_ip_address = false
   security_groups             = [aws_security_group.auth.id]
   iam_instance_profile        = aws_iam_instance_profile.auth.id
 }
-

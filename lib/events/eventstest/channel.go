@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -50,4 +51,28 @@ func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event events.AuditE
 
 func (e *ChannelEmitter) C() <-chan events.AuditEvent {
 	return e.events
+}
+
+func (e *ChannelEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+	return e, nil
+}
+
+func (e *ChannelEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+	return e, nil
+}
+
+func (e *ChannelEmitter) Status() <-chan events.StreamStatus {
+	return nil
+}
+
+func (e *ChannelEmitter) Done() <-chan struct{} {
+	return nil
+}
+
+func (e *ChannelEmitter) Close(ctx context.Context) error {
+	return nil
+}
+
+func (e *ChannelEmitter) Complete(ctx context.Context) error {
+	return nil
 }
