@@ -92,6 +92,13 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ResetCount resets the count of connections proxied.
+func (p *ProxyHandler) ResetCount() {
+	p.Lock()
+	defer p.Unlock()
+	p.count = 0
+}
+
 // Count returns the number of connections that have been proxied.
 func (p *ProxyHandler) Count() int {
 	p.Lock()
@@ -145,7 +152,8 @@ func (p *ProxyAuthorizer) SetError(err error) {
 	p.errCond.Signal()
 }
 
-func (p *ProxyAuthorizer) LastError() error {
+// WaitForConnection resets the last error to nil, waits for a new connection to set the error to something, and then returns that error.
+func (p *ProxyAuthorizer) WaitForConnection() error {
 	p.errCond.L.Lock()
 	p.lastError = nil
 	p.errCond.Wait()

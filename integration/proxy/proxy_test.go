@@ -1165,21 +1165,21 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	t.Setenv("http_proxy", proxyURL.Host)
 	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
 	require.Error(t, err)
-	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("missing Proxy-Authorization header"))
+	require.ErrorIs(t, authorizer.WaitForConnection(), trace.AccessDenied("missing Proxy-Authorization header"))
 	require.Zero(t, ph.Count())
 
 	// proxy url is user:password@host with incorrect password
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
 	require.Error(t, err)
-	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("bad credentials"))
+	require.ErrorIs(t, authorizer.WaitForConnection(), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
 	// proxy url is user:password@host with correct password
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, validPass, proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("third-root-node", rcProxyAddr))
 	require.NoError(t, err)
-	require.NoError(t, authorizer.LastError())
+	require.NoError(t, authorizer.WaitForConnection())
 	require.NotZero(t, ph.Count())
 	// with env set correctly, all 3 nodes should register.
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 3))
