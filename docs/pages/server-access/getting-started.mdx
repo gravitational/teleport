@@ -90,12 +90,15 @@ Start the Node. Change `tele.example.com` to the address of your Teleport Proxy
 Service. Assign the `--token` flag to the path where you saved
 `token.file`.
 
+If you intend to connect your Node directly to your Teleport Auth Service,
+substitute `--proxy` with `--auth-server`.
+
 ```code
 # Join cluster
 $ sudo teleport start \
    --roles=node \
    --token=/path/to/token.file \
-   --auth-server=tele.example.com:443
+   --proxy=tele.example.com:443
 ```
 
 </ScopedBlock>
@@ -109,7 +112,7 @@ address. Assign the `--token` flag to the path where you saved `token.file`.
 $ sudo teleport start \
    --roles=node \
    --token=/path/to/token.file \
-   --auth-server=mytenant.teleport.sh:443
+   --proxy=mytenant.teleport.sh:443
 ```
 
 </ScopedBlock>
