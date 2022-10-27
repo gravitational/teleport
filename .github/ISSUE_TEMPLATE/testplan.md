@@ -263,6 +263,29 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   * [ ] Verify searching for `name` or `labels` in the search bar works
   * [ ] Verify you can sort by `name` colum
+* [ ] Test Kubernetes exec via WebSockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
+### Kubernetes auto-discovery
+
+* [ ] Test Kubernetes auto-discovery:
+  * [ ] Verify that Azure AKS clusters are discovered and enrolled for different Azure Auth configs:
+    * [ ] Local Accounts only
+    * [ ] Azure AD
+    * [ ] Azure RBAC
+  * [ ] Verify that AWS EKS clusters are discovered and enrolled
+* [ ] Verify dynamic registration.
+  * [ ] Can register a new Kubernetes cluster using `tctl create`.
+  * [ ] Can update registered Kubernetes cluster using `tctl create -f`.
+  * [ ] Can delete registered Kubernetes cluster using `tctl rm`.
+
+### Kubernetes Secret Storage
+
+* [ ] Kubernetes Secret storage for Agent's Identity
+    * [ ] Install Teleport agent with a short-lived token  
+      * [ ] Validate if the Teleport is installed as a Kubernetes `Statefulset`
+      * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
+    * [ ] Force cluster CA rotation
+
 
 ### Teleport with FIPS mode
 
