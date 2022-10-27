@@ -30,3 +30,8 @@ type deviceRef struct {
 type devicesRef struct {
 	Devices []*deviceRef `json:"devices,omitempty"`
 }
+
+// storedEnrollToken represents a devicepb.DeviceEnrollToken in storage.
+type storedEnrollToken struct {
+	HashedToken []byte `json:"hashed_token"` // Required.
+}

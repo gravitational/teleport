@@ -3,12 +3,15 @@ package storage
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -17,6 +20,10 @@ import (
 )
 
 const currentAPIVersion = "v1"
+
+// DeviceEnrollTokenExpireDuration is the default expiration for enrollment
+// tokens.
+const DeviceEnrollTokenExpireDuration = 1 * time.Hour
 
 // GetBackendFunc is a function that returns a backend.Backend implementation.
 type GetBackendFunc func() backend.Backend
@@ -39,6 +46,10 @@ func New(getBackend GetBackendFunc) (*S, error) {
 	}, nil
 }
 
+func (s *S) nowUTC() time.Time {
+	return s.backend().Clock().Now().UTC()
+}
+
 // CreateDevice creates a new Device in storage and updates the necessary
 // indexes (such as the asset tag index).
 // Returns the stored device.
@@ -48,7 +59,7 @@ func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.D
 	}
 
 	// Marshal device to start, just in the extremely unlikely case that it fails.
-	now := time.Now().UTC()
+	now := s.nowUTC()
 	stored := &storedDevice{
 		OSType:     int(dev.OsType),
 		AssetTag:   dev.AssetTag,
@@ -272,6 +283,87 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 	return res, nil
 }
 
+// CreateDeviceEnrollToken creates or replaces the existing enrollment token for
+// a device. Only one enrollment token is allowed at a time.
+//
+// Enrollment tokens are tied to a particular device and expire in a reasonably
+// short (for a human) amount of time.
+//
+// The plain token is not stored, instead it is meant to be sent out-of-band (as
+// in outside of Teleport) to the person responsible for enrolling the device.
+// SpendDeviceEnrollToken spends the token for the enrollment ceremony.
+func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
+	// Device must exist, the easiest way to check is to read the key.
+	if _, err := s.backend().Get(ctx, deviceKey(deviceID)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Draw a few random bytes, base64 encode into a valid string and use the
+	// resulting string as the password.
+	// tokenPlain is sent to the client.
+	// tokenHashed is written to storage.
+	const tokenLen = 32
+	tokenRaw := make([]byte, tokenLen)
+	if _, err := rand.Read(tokenRaw); err != nil {
+		return nil, trace.Wrap(err, "generating a new enrollment token")
+	}
+	tokenPlain := base64.RawStdEncoding.EncodeToString(tokenRaw)
+	tokenHashed, err := bcrypt.GenerateFromPassword([]byte(tokenPlain), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, trace.Wrap(err, "hashing enrollment token as a password")
+	}
+
+	val, err := json.Marshal(&storedEnrollToken{
+		HashedToken: tokenHashed,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "marshal enrollment token")
+	}
+
+	if _, err := s.backend().Put(ctx, backend.Item{
+		Key:     deviceTokenKey(deviceID),
+		Value:   val,
+		Expires: s.nowUTC().Add(DeviceEnrollTokenExpireDuration),
+	}); err != nil {
+		return nil, trace.Wrap(err, "writing enrollment token")
+	}
+
+	return &devicepb.DeviceEnrollToken{
+		Token: tokenPlain,
+	}, nil
+}
+
+// SpendDeviceEnrollToken spends an existing enrollment token, allowing the
+// enrollment ceremony to proceed.
+// The token is immediately spent in a positive match.
+// Callers are encouraged to "erase" the resulting errors with a constant
+// type/message, as to avoid leaking information about storage state.
+func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) error {
+	// Device must exist, the easiest way to check is to read the key.
+	if _, err := s.backend().Get(ctx, deviceKey(deviceID)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	key := deviceTokenKey(deviceID)
+	item, err := s.backend().Get(ctx, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	stored := &storedEnrollToken{}
+	if err := json.Unmarshal(item.Value, stored); err != nil {
+		return trace.Wrap(err, "unmarshal enrollment token")
+	}
+
+	if err := bcrypt.CompareHashAndPassword(stored.HashedToken, []byte(token)); err != nil {
+		return trace.BadParameter("invalid token")
+	}
+	if err := s.backend().Delete(ctx, key); err != nil {
+		return trace.Wrap(err, "failed to spend enrollment token")
+	}
+
+	return nil
+}
+
 func deviceIDFromKey(key []byte) string {
 	idx := bytes.LastIndexByte(key, backend.Separator)
 	return string(key[idx+1:])
@@ -297,10 +389,19 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 	}
 }
 
+// deviceKeyChild creates a key under "devices/id/<ID>/".
+func deviceKeyChild(deviceID string, child ...string) []byte {
+	return backend.Key(append([]string{"devices", "id", deviceID}, child...)...)
+}
+
 func deviceKey(deviceID string) []byte {
-	return backend.Key("devices", "id", deviceID)
+	return deviceKeyChild(deviceID)
 }
 
 func devicesByAssetTagKey(assetTag string) []byte {
 	return backend.Key("devices", "byTag", assetTag)
+}
+
+func deviceTokenKey(deviceID string) []byte {
+	return deviceKeyChild(deviceID, "enroll_token")
 }

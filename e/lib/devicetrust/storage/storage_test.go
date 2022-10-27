@@ -2,11 +2,14 @@ package storage_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -18,8 +21,9 @@ import (
 )
 
 func TestS_CreateDevice(t *testing.T) {
-	s, closer := mustNewS()
-	defer closer()
+	env := mustNewEnv()
+	defer env.Close()
+	s := env.S
 
 	ctx := context.Background()
 
@@ -96,8 +100,9 @@ func TestS_CreateDevice(t *testing.T) {
 }
 
 func TestS_CreateDevice_reusedAssetTags(t *testing.T) {
-	s, closer := mustNewS()
-	defer closer()
+	env := mustNewEnv()
+	defer env.Close()
+	s := env.S
 
 	devMac := &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
@@ -137,8 +142,9 @@ func TestS_CreateDevice_reusedAssetTags(t *testing.T) {
 }
 
 func TestS_CreateDevice_errors(t *testing.T) {
-	s, closer := mustNewS()
-	defer closer()
+	env := mustNewEnv()
+	defer env.Close()
+	s := env.S
 
 	// Prepare and register a valid device to serve as the basis for tests.
 	const knownTag = "llama"
@@ -210,8 +216,9 @@ func TestS_CreateDevice_errors(t *testing.T) {
 }
 
 func TestS_GetDeviceByID_notFound(t *testing.T) {
-	s, closer := mustNewS()
-	defer closer()
+	env := mustNewEnv()
+	defer env.Close()
+	s := env.S
 
 	ctx := context.Background()
 	if _, err := s.GetDeviceByID(ctx, "unknown"); !trace.IsNotFound(err) {
@@ -220,8 +227,9 @@ func TestS_GetDeviceByID_notFound(t *testing.T) {
 }
 
 func TestS_GetDevicesByAssetTag_noDevices(t *testing.T) {
-	s, closer := mustNewS()
-	defer closer()
+	env := mustNewEnv()
+	defer env.Close()
+	s := env.S
 
 	ctx := context.Background()
 	got, err := s.GetDevicesByAssetTag(ctx, "unknown")
@@ -233,24 +241,200 @@ func TestS_GetDevicesByAssetTag_noDevices(t *testing.T) {
 	}
 }
 
-func mustNewS() (*storage.S, func() error) {
-	s, closer, err := newS()
+func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+	clock := env.Clock
+	s := env.S
+
+	// Create a couple devices for the test.
+	ctx := context.Background()
+	var devs []*devicepb.Device
+	for _, asset := range []string{"llama", "alpaca"} {
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: asset,
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		devs = append(devs, dev)
+	}
+	dev1 := devs[0]
+	dev2 := devs[1]
+	deviceID := dev1.Id
+
+	tests := []struct {
+		name            string
+		deviceID        string
+		createToken     func(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error)
+		spendToken      func(ctx context.Context, deviceID, token string) error
+		assertCreateErr func(err error) bool
+		assertSpendErr  func(err error) bool
+	}{
+		{
+			name:        "create and spend token",
+			deviceID:    deviceID,
+			createToken: s.CreateDeviceEnrollToken,
+			spendToken:  s.SpendDeviceEnrollToken,
+		},
+		{
+			name:     "replace token",
+			deviceID: deviceID,
+			createToken: func(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
+				first, err := s.CreateDeviceEnrollToken(ctx, deviceID)
+				if err != nil {
+					return nil, err
+				}
+
+				// Immediately replace initial token.
+				second, err := s.CreateDeviceEnrollToken(ctx, deviceID)
+				if err != nil {
+					return nil, err
+				}
+				// Sanity check that tokens are different.
+				if first.Token == second.Token {
+					return nil, errors.New("first and second tokens are equal")
+				}
+
+				// First token cannot be spent anymore.
+				if err := s.SpendDeviceEnrollToken(ctx, deviceID, first.Token); !trace.IsBadParameter(err) {
+					// Original error type erased on purpose (%v instead of %w)
+					return nil, fmt.Errorf("unexpected error attempting to spend first token: %v", err)
+				}
+
+				return second, nil
+			},
+			spendToken: s.SpendDeviceEnrollToken,
+		},
+		{
+			name:     "token expires",
+			deviceID: deviceID,
+			createToken: func(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
+				token, err := s.CreateDeviceEnrollToken(ctx, deviceID)
+				if err != nil {
+					return nil, err
+				}
+
+				// Fast-forward to after the token is expired.
+				clock.Advance(storage.DeviceEnrollTokenExpireDuration + 1)
+
+				return token, nil
+			},
+			spendToken:     s.SpendDeviceEnrollToken,
+			assertSpendErr: trace.IsNotFound,
+		},
+		{
+			name:        "token is tied to device",
+			deviceID:    deviceID,
+			createToken: s.CreateDeviceEnrollToken,
+			spendToken: func(ctx context.Context, _, token string) error {
+				return s.SpendDeviceEnrollToken(ctx, dev2.Id /* wrong device */, token)
+			},
+			assertSpendErr: trace.IsNotFound,
+		},
+		{
+			name:        "token must match",
+			deviceID:    deviceID,
+			createToken: s.CreateDeviceEnrollToken,
+			spendToken: func(ctx context.Context, deviceID, token string) error {
+				return s.SpendDeviceEnrollToken(ctx, deviceID, token+"bad")
+			},
+			assertSpendErr: trace.IsBadParameter,
+		},
+		{
+			name:            "unknown device fails create",
+			deviceID:        "unknown",
+			createToken:     s.CreateDeviceEnrollToken,
+			assertCreateErr: trace.IsNotFound,
+		},
+		{
+			name:        "unknown device fails spend",
+			deviceID:    deviceID,
+			createToken: s.CreateDeviceEnrollToken,
+			spendToken: func(ctx context.Context, _, token string) error {
+				return s.SpendDeviceEnrollToken(ctx, "unknown", token)
+			},
+			assertSpendErr: trace.IsNotFound,
+		},
+		{
+			name:        "double spend fails",
+			deviceID:    deviceID,
+			createToken: s.CreateDeviceEnrollToken,
+			spendToken: func(ctx context.Context, deviceID string, token string) error {
+				if err := s.SpendDeviceEnrollToken(ctx, deviceID, token); err != nil {
+					return errors.New("first spend failed")
+				}
+
+				return s.SpendDeviceEnrollToken(ctx, deviceID, token)
+			},
+			assertSpendErr: trace.IsNotFound,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			token, err := test.createToken(ctx, test.deviceID)
+			switch {
+			case test.assertCreateErr != nil:
+				if !test.assertCreateErr(err) {
+					t.Errorf("CreateDeviceEnrollToken: assert failed, err=%v", err)
+				}
+				return
+			case err != nil:
+				t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
+			}
+
+			switch err := test.spendToken(ctx, test.deviceID, token.GetToken()); {
+			case test.assertSpendErr != nil:
+				if !test.assertSpendErr(err) {
+					t.Errorf("SpendDeviceEnrollmentToken: assert failed, err=%v", err)
+				}
+			case err != nil:
+				t.Fatalf("SpendDeviceEnrollmentToken failed: %v", err)
+			}
+		})
+	}
+}
+
+// storageEnv groups the necessary components to test storage.
+type storageEnv struct {
+	Clock clockwork.FakeClock
+	S     *storage.S
+	mem   *memory.Memory
+}
+
+func (e *storageEnv) Close() error {
+	if e.mem != nil {
+		return e.mem.Close()
+	}
+	return nil
+}
+
+func mustNewEnv() *storageEnv {
+	env, err := newEnv()
 	if err != nil {
 		panic(err)
 	}
-	return s, closer
+	return env
 }
 
-func newS() (*storage.S, func() error, error) {
-	mem, err := memory.New(memory.Config{})
+func newEnv() (*storageEnv, error) {
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Clock: clock,
+	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	s, err := storage.New(func() backend.Backend { return mem })
 	if err != nil {
 		mem.Close()
-		return nil, nil, err
+		return nil, err
 	}
-	return s, mem.Close, err
+	return &storageEnv{
+		Clock: clock,
+		S:     s,
+		mem:   mem,
+	}, nil
 }
