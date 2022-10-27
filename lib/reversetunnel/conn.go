@@ -73,6 +73,9 @@ type remoteConn struct {
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
+
+	// sessions counts the number of active sessions being serviced by this connection
+	sessions int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -155,13 +158,33 @@ func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
 	return sshutils.NewChConn(c.sconn, channel)
 }
 
+func (c *remoteConn) incrementActiveSessions() {
+	atomic.AddInt64(&c.sessions, 1)
+}
+
+func (c *remoteConn) decrementActiveSessions() {
+	atomic.AddInt64(&c.sessions, -1)
+}
+
+func (c *remoteConn) activeSessions() int64 {
+	return atomic.LoadInt64(&c.sessions)
+}
+
 func (c *remoteConn) markInvalid(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.lastError = err
 	atomic.StoreInt32(&c.invalid, 1)
-	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+	c.log.Warnf("Unhealthy connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+}
+
+func (c *remoteConn) markValid() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.lastError = nil
+	atomic.StoreInt32(&c.invalid, 0)
 }
 
 func (c *remoteConn) isInvalid() bool {
@@ -170,6 +193,10 @@ func (c *remoteConn) isInvalid() bool {
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
 	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
+}
+
+func (c *remoteConn) getLastHeartbeat() time.Time {
+	return time.Unix(0, atomic.LoadInt64(&c.lastHeartbeat))
 }
 
 // isReady returns true when connection is ready to be tried,
