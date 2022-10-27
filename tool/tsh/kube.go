@@ -886,6 +886,7 @@ type kubeLoginCommand struct {
 	siteName          string
 	impersonateUser   string
 	impersonateGroups []string
+	namespace         string
 	all               bool
 }
 
@@ -897,6 +898,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
+	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
 	return c
 }
@@ -909,6 +911,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		kubernetesUser:   c.impersonateUser,
 		kubernetesGroups: c.impersonateGroups,
 	}
+	cf.kubeNamespace = c.kubeCluster
 	cf.ListAll = c.all
 
 	tc, err := makeClient(cf, true)
@@ -1023,6 +1026,9 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		Credentials:         kubeStatus.credentials,
 		ProxyAddr:           cf.Proxy,
 		TLSServerName:       kubeStatus.tlsServerName,
+		Impersonate:         cf.kubernetesImpersonationConfig.kubernetesUser,
+		ImpersonateGroups:   cf.kubernetesImpersonationConfig.kubernetesGroups,
+		Namespace:           cf.kubeNamespace,
 	}
 
 	if cf.executablePath == "" {
@@ -1055,9 +1061,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		KubeClusters:      clusterNames,
 		Env:               make(map[string]string),
 		// Only switch the current context if kube-cluster is explicitly set on the command line.
-		SelectCluster:     cf.KubernetesCluster,
-		Impersonate:       cf.kubernetesImpersonationConfig.kubernetesUser,
-		ImpersonateGroups: cf.kubernetesImpersonationConfig.kubernetesGroups,
+		SelectCluster: cf.KubernetesCluster,
 	}
 
 	if cf.HomePath != "" {
