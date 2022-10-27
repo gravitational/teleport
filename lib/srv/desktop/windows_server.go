@@ -687,7 +687,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
 		if err := tdpConn.SendError(message); err != nil {
-			s.cfg.Log.Errorf("Failed to send TDP error message %v", err)
+			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
 
@@ -865,6 +865,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Tracker:           rdpc,
 		TeleportUser:      identity.Username,
 		ServerID:          s.cfg.Heartbeat.HostUUID,
+		MessageWriter: &monitorErrorSender{
+			log:     log,
+			tdpConn: tdpConn,
+		},
 	}
 	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
@@ -1400,4 +1404,23 @@ type otherName struct {
 
 type upn struct {
 	Value string `asn1:"utf8"`
+}
+
+// monitorErrorSender implements the io.StringWriter
+// interface in order to allow us to pass connection
+// monitor disconnect messages back to the frontend
+// over the tdp.Conn
+type monitorErrorSender struct {
+	log     logrus.FieldLogger
+	tdpConn *tdp.Conn
+}
+
+func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
+	if err := m.tdpConn.SendError(s); err != nil {
+		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
+		m.log.Error(errMsg)
+		return 0, trace.Errorf(errMsg)
+	}
+
+	return len(s), nil
 }
