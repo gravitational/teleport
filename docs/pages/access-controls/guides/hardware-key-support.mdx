@@ -30,7 +30,6 @@ Additionally, this feature can be configured to require touch for every Teleport
     - Server Access
     - Database Access
       - Must use `tsh proxy db` instead of `tsh db connect`
-    - Application Access
   
   Not yet supported:
 
@@ -38,6 +37,7 @@ Additionally, this feature can be configured to require touch for every Teleport
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration
     - Kubernetes Access
     - Desktop Access
+    - Application Access
 
   The unsupported features above will not function for users that have have hardware key support
   enforced. This is either because the user's hardware key can't be accessed within that feature
@@ -73,7 +73,7 @@ kind: role
 metadata:
   name: admin
 spec:
-  allow:
+  options:
     require_session_mfa: hardware_key_touch
 ```
 
