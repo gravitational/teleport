@@ -104,7 +104,8 @@ func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 	section.NewKey("sslrootcert", profile.CACertPath)
 	section.NewKey("sslcert", profile.CertPath)
 	section.NewKey("sslkey", profile.KeyPath)
-	ini.PrettyFormat = false // Pretty format breaks psql.
+	section.NewKey("gssencmode", "disable") // we dont support GSS encryption.
+	ini.PrettyFormat = false                // Pretty format breaks psql.
 	return s.iniFile.SaveTo(s.path)
 }
 
@@ -163,6 +164,13 @@ func (s *ServiceFile) Env(serviceName string) (map[string]string, error) {
 			return nil, trace.Wrap(err)
 		}
 		env["PGDATABASE"] = database.Value()
+	}
+	if section.HasKey("gssencmode") {
+		gssEncMode, err := section.GetKey("gssencmode")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		env["PGGSSENCMODE"] = gssEncMode.Value()
 	}
 	return env, nil
 }
