@@ -73,7 +73,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Success, we're proxying data now.
 	p.Lock()
-	p.count = p.count + 1
+	p.count += 1
 	p.Unlock()
 
 	// Copy from src to dst and dst to src.
@@ -100,58 +100,61 @@ func (p *ProxyHandler) Count() int {
 }
 
 type ProxyAuthorizer struct {
-	next http.Handler
-	sync.Mutex
+	next      http.Handler
+	errCond   sync.Cond
 	lastError error
 	authDB    map[string]string
 }
 
 func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *ProxyAuthorizer {
-	return &ProxyAuthorizer{next: handler, authDB: authDB}
+	return &ProxyAuthorizer{next: handler, authDB: authDB, errCond: *sync.NewCond(&sync.Mutex{})}
 }
 
 func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Proxy-Authorization")
 	if auth == "" {
-		err := trace.AccessDenied("missing Proxy-Authorization header")
-		p.SetError(err)
-		trace.WriteError(w, err)
+		p.WriteError(w, trace.AccessDenied("missing Proxy-Authorization header"))
 		return
 	}
 	user, password, ok := parseProxyAuth(auth)
 	if !ok {
-		err := trace.AccessDenied("bad Proxy-Authorization header")
-		p.SetError(err)
-		trace.WriteError(w, err)
+		p.WriteError(w, trace.AccessDenied("bad Proxy-Authorization header"))
 		return
 	}
 
-	if p.isAuthorized(user, password) {
-		p.SetError(nil)
-		p.next.ServeHTTP(w, r)
+	if !p.isAuthorized(user, password) {
+		p.WriteError(w, trace.AccessDenied("bad credentials"))
 		return
 	}
 
-	err := trace.AccessDenied("bad credentials")
-	p.SetError(err)
+	// request is authorized, send it to the next handler
+	p.next.ServeHTTP(w, r)
+	p.SetError(nil)
+	return
+}
+
+func (p *ProxyAuthorizer) WriteError(w http.ResponseWriter, err error) {
 	trace.WriteError(w, err)
+	p.SetError(err)
 }
 
 func (p *ProxyAuthorizer) SetError(err error) {
-	p.Lock()
-	defer p.Unlock()
+	p.errCond.L.Lock()
 	p.lastError = err
+	p.errCond.L.Unlock()
+	p.errCond.Signal()
 }
 
 func (p *ProxyAuthorizer) LastError() error {
-	p.Lock()
-	defer p.Unlock()
-	return p.lastError
+	p.errCond.L.Lock()
+	p.lastError = nil
+	p.errCond.Wait()
+	err := p.lastError
+	p.errCond.L.Unlock()
+	return err
 }
 
 func (p *ProxyAuthorizer) isAuthorized(user, pass string) bool {
-	p.Lock()
-	defer p.Unlock()
 	expectedPass, ok := p.authDB[user]
 	return ok && pass == expectedPass
 }
