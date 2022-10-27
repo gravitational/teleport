@@ -1,5 +1,193 @@
 # Changelog
 
+## 11.0.1
+
+This release of Teleport contains a security fix and multiple bug fixes.
+
+## Block SFTP in Moderated Sessions
+
+Teleport did not block SFTP protocol in Moderated Sessions.
+
+[#17727](https://github.com/gravitational/teleport/pull/17727)
+
+## Other fixes
+
+* Fixed issue with agent forwarding not working for auto-created users. [#17586](https://github.com/gravitational/teleport/pull/17586)
+* Fixed "traits missing" error in Application Access. [#17737](https://github.com/gravitational/teleport/pull/17737)
+* Fixed connection leak issue in IAM joining. [#17737](https://github.com/gravitational/teleport/pull/17737)
+* Fixed panic in "tsh db ls". [#17780](https://github.com/gravitational/teleport/pull/17780)
+* Fixed issue with "tsh mfa add" not displaying OTP QR code image on Windows. [#17703](https://github.com/gravitational/teleport/pull/17703)
+* Fixed issue with `tctl rm windows_desktop/<name>` removing all desktops. [#17732](https://github.com/gravitational/teleport/pull/17732)
+* Fixed issue connecting to Redis 7.0 in cluster mode. [#17849](https://github.com/gravitational/teleport/pull/17849)
+* Fixed "failed to open user account database" error after exiting SSH session. [#17825](https://github.com/gravitational/teleport/pull/17825)
+* Improved `tctl` UX when using hardware-backed private keys. [#17681](https://github.com/gravitational/teleport/pull/17681)
+* Improved `tsh mfa add` error reporting. [#17580](https://github.com/gravitational/teleport/pull/17580)
+
+## 11.0.0
+
+Teleport 11 brings the following new major features and improvements:
+
+- Hardware-backed private keys support for Server Access (Enterprise only).
+- Replacement of obsolete SCP protocol with SFTP for Server Access.
+- Removal of persistent storage requirement for Helm charts.
+- Automatic discovery and enrollment of EKS/AKS clusters for Kubernetes Access.
+- Richer Azure integrations for Server and Database Access.
+- Cassandra and Scylla support for Database Access, including AWS Keyspaces.
+- GitHub Actions and Terraform support for Machine ID.
+- Access Requests and file upload/download support for Teleport Connect.
+
+### Hardware-backed private keys (Enterprise Only)
+
+Teleport 11 clients (such as tsh or Connect) support storing their private key
+material on Yubikey devices instead of filesystem which helps prevent
+credentials exfiltration attacks.
+
+See how to enable it in this guide:
+
+https://goteleport.com/docs/access-controls/guides/hardware-key-support/
+
+Hardware-backed private keys is an enterprise only feature, and is currently
+supported for Server Access only.
+
+### SFTP protocol
+
+Teleport 11 adds server-side support for SFTP protocol which many IDEs such as
+VSCode or JetBrains PyCharm, GoLand and others use for browsing, copying, and
+editing files on remote systems.
+
+The following guides explain how to use IDEs to connect to a remote machine via
+Teleport:
+
+https://goteleport.com/docs/server-access/guides/vscode/
+https://goteleport.com/docs/server-access/guides/jetbrains-sftp/
+
+In addition, Teleport 11 clients will use SFTP protocol for file transfer under
+the hood instead of the obsolete scp protocol. Server-side scp is still
+supported so existing clients aren’t affected.
+
+### Helm charts persistent storage
+
+In Teleport 11 users no longer need to use persistent storage when deploying
+Helm charts. When running on Kubernetes, Teleport services will now store their
+identities in Kubernetes Secrets which removes the need for using persistent
+storage or static join tokens.
+
+For existing deployments, this change involves migration from Deployment to
+StatefulSet which is performed automatically during Helm upgrade to Teleport 11.
+
+### EKS/AKS discovery
+
+Teleport 11 adds support for automatic discovery and enrollment of AWS Elastic
+Kubernetes Service (EKS) and Azure Kubernetes Service (AKS) clusters.
+
+### Azure integrations
+
+Teleport 11 improves Azure support in multiple areas.
+
+Teleport agents running on Azure VMs will now automatically import Azure tags to
+label resources.
+
+Teleport Database Access now supports auto-discovery for Azure-hosted PostgreSQL
+and MySQL databases. See the updated Azure guide for more details:
+https://goteleport.com/docs/ver/11.0/database-access/guides/azure-postgres-mysql/.
+
+In addition, Teleport Database Access will now use Azure AD managed identity
+authentication for Azure-hosted SQL Server databases.
+
+### Cassandra/ScyllaDB
+
+Teleport 11 adds support for Cassandra and ScyllaDB databases in Database
+Access. This includes support for AWS Keyspaces.
+
+### Machine ID
+
+Teleport 11 adds support for secret-less joining of Machine ID agents in GitHub
+Actions workflows. See the guide for more details: TODO
+
+We have also released a GitHub Action for setting up the Teleport binaries
+within a GitHub workflow environment. More details regarding this can be found
+at the Teleport GitHub Actions repository:
+
+https://github.com/gravitational/teleport-actions
+
+In addition, the Teleport Terraform plugin now supports the creation of Machine
+ID Bots and Bot Tokens.
+
+### tsh MFA on Windows
+
+tsh 11 adds support for MFA and passwordless logins via Windows Hello and
+FIDO2 devices.
+
+### Teleport Connect
+
+Teleport Connect has added support for Access Requests and file upload/download.
+
+### Breaking Changes
+
+Please familiarize yourself with the following potentially disruptive changes in
+Teleport 11 before upgrading.
+
+#### Removed Github external SSO
+
+Beginning in Teleport 11, GitHub SAML SSO will only be available in our
+Enterprise Edition. GitHub SSO without SAML will continue to work with OSS
+Teleport.
+
+To keep using GitHub SSO with the OSS Teleport, SAML SSO needs to be disabled
+for your GitHub organization. OSS Teleport users can continue to use GitHub SSO
+if using a Github Free or Team GitHub Plan.
+
+#### Changed Terraform OIDC connector redirect_url type to array
+
+In Teleport Plugins 11, `redirect_url` property in OIDC connectors created via
+a Terraform module expects an array:
+
+```
+redirect_url = [ "http://example.com" ]
+```
+
+#### Deprecated Quay.io registry
+
+Starting with Teleport 11, Quay.io as a container registry has been deprecated.
+Customers should use the new AWS ECR registry to pull Teleport Docker images:
+https://goteleport.com/docs/installation/#docker.
+
+Quay.io registry support will be removed in a future release.
+
+#### Deprecated old deb/rpm repositories
+
+In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
+rpm.releases.teleport.dev) have been deprecated. Customers should use the new
+repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
+install Teleport: https://goteleport.com/docs/installation/#linux.
+
+Support for our old deb/rpm repositories will be removed in a future release.
+
+#### Changed teleport-kube-agent Helm chart to StatefulSet
+
+Teleport 11 agents will now store their identities in Kubernetes Secrets when
+deployed via a Helm chart which eliminates the need for using persistent storage
+or static join tokens. Due to this change, Teleport agents are now always
+deployed as part of StatefulSet regardless of whether persistent storage is
+enabled or not.
+
+Existing agents that were deployed as Kubernetes Deployments (i.e. without
+persistent storage) will be automatically converted to StatefulSets during
+Teleport 11 Helm upgrade.
+
+#### Removed PostgreSQL backend
+
+The preview PostgreSQL backend was deleted due to performance and scalability
+concerns.
+
+#### Removed Desktop Access support for 32-bit ARM and 386 architectures
+
+32-bit support for Desktop Access on ARM and 386 architectures has been removed
+due to performance issues on these devices.
+
+This also reduces the binary size for these builds, making them slightly more
+convenient for smaller resource-constrained devices.
+
 ## 10.0.0
 
 Teleport 10 is a major release that brings the following new features.

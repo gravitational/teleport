@@ -180,7 +180,7 @@ func (s *SessionRegistry) Close() {
 	s.log.Debug("Closing Session Registry.")
 }
 
-func (s *SessionRegistry) tryCreateHostUser(ctx *ServerContext) (*user.User, error) {
+func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) (*user.User, error) {
 	if !ctx.srv.GetCreateHostUser() || s.users == nil {
 		return nil, nil // not an error to not be able to create a host user
 	}
@@ -256,13 +256,9 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	s.addSession(sess)
 	scx.Infof("Creating (interactive) session %v.", sid)
 
-	tempUser, err := s.tryCreateHostUser(scx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	if err := sess.startInteractive(ctx, ch, scx, tempUser); err != nil {
+	if err := sess.startInteractive(ctx, ch, scx); err != nil {
 		sess.Close()
 		return trace.Wrap(err)
 	}
@@ -289,19 +285,14 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 
 	if !canStart {
-		return trace.AccessDenied("lacking privileges to start unattended session")
+		return errCannotStartUnattendedSession
 	}
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
 	scx.setSession(sess)
 
-	tempUser, err := s.tryCreateHostUser(scx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = sess.startExec(ctx, channel, scx, tempUser)
+	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
 		sess.Close()
 		return trace.Wrap(err)
@@ -930,7 +921,7 @@ func (s *session) launch(ctx *ServerContext) error {
 
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
-func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *ServerContext, tempUser *user.User) error {
+func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
 	inReader, inWriter := io.Pipe()
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
@@ -984,17 +975,6 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	}
 
 	scx.Debug("Waiting for continue signal")
-
-	if tempUser != nil {
-		sessionUser, err := user.Lookup(scx.Identity.Login)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if sessionUser.Uid != tempUser.Uid {
-			return trace.Errorf("UID changed between session start and terminal start: start(%s) != now(%s)",
-				tempUser.Uid, sessionUser.Uid)
-		}
-	}
 
 	// Process has been placed in a cgroup, continue execution.
 	s.term.Continue()
@@ -1130,7 +1110,7 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 	return rec, nil
 }
 
-func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext, tempUser *user.User) error {
+func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
@@ -1174,17 +1154,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
 		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
-	}
-
-	if tempUser != nil {
-		sessionUser, err := user.Lookup(scx.Identity.Login)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if sessionUser.Uid != tempUser.Uid {
-			return trace.Errorf("UID changed between session start and terminal start: start(%s) != now(%s)",
-				tempUser.Uid, sessionUser.Uid)
-		}
 	}
 
 	// Process has been placed in a cgroup, continue execution.
