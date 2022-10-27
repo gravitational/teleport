@@ -1,12 +1,23 @@
-import { Server } from '@grpc/grpc-js';
+import { Server, ServerCredentials } from '@grpc/grpc-js';
 
 import createLoggerService from 'teleterm/services/logger';
-import { getServerCredentials } from 'teleterm/services/grpcCredentials';
+import {
+  createInsecureServerCredentials,
+  createServerCredentials,
+  generateAndSaveGrpcCert,
+  GrpcCertName,
+  readGrpcCert,
+  shouldEncryptConnection,
+} from 'teleterm/services/grpcCredentials';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import Logger from 'teleterm/logger';
 
 import { PtyHostService } from './api/protogen/ptyHostService_grpc_pb';
 import { createPtyHostService } from './ptyHost/ptyHostService';
+
+const runtimeSettings = getRuntimeSettings();
+initializeLogger(runtimeSettings);
+initializeServer(runtimeSettings);
 
 function getRuntimeSettings(): RuntimeSettings {
   const args = process.argv.slice(2);
@@ -52,19 +63,17 @@ async function initializeServer(
   const grpcServerAddress = address.replace('tcp://', '');
 
   try {
-    server.bindAsync(
-      grpcServerAddress,
-      (await getServerCredentials(runtimeSettings)).shared,
-      (error, port) => {
-        sendBoundNetworkPortToStdout(port);
+    const credentials = await createGrpcCredentials(runtimeSettings);
 
-        if (error) {
-          return logger.error(error.message);
-        }
+    server.bindAsync(grpcServerAddress, credentials, (error, port) => {
+      sendBoundNetworkPortToStdout(port);
 
-        server.start();
+      if (error) {
+        return logger.error(error.message);
       }
-    );
+
+      server.start();
+    });
   } catch (e) {
     logger.error('Could not start shared server', e);
   }
@@ -78,6 +87,21 @@ function sendBoundNetworkPortToStdout(port: number) {
   console.log(`{CONNECT_GRPC_PORT: ${port}}`);
 }
 
-const runtimeSettings = getRuntimeSettings();
-initializeLogger(runtimeSettings);
-initializeServer(runtimeSettings);
+/**
+ * Creates credentials for the gRPC server running in the shared process.
+ */
+async function createGrpcCredentials(
+  runtimeSettings: RuntimeSettings
+): Promise<ServerCredentials> {
+  if (!shouldEncryptConnection(runtimeSettings)) {
+    return createInsecureServerCredentials();
+  }
+
+  const { certsDir } = runtimeSettings;
+  const [sharedKeyPair, rendererCert] = await Promise.all([
+    generateAndSaveGrpcCert(certsDir, GrpcCertName.Shared),
+    readGrpcCert(certsDir, GrpcCertName.Renderer),
+  ]);
+
+  return createServerCredentials(sharedKeyPair, rendererCert);
+}

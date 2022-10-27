@@ -8,26 +8,11 @@ export class MockAppContext extends AppContext {
     const mainProcessClient = new MockMainProcessClient();
     const tshdClient = new MockTshClient();
     const ptyServiceClient = new MockPtyServiceClient();
-    const loggerService = createLoggerService();
 
     super({
-      loggerService,
       mainProcessClient,
       tshClient: tshdClient,
       ptyServiceClient,
     });
   }
-}
-
-function createLoggerService() {
-  return {
-    pipeProcessOutputIntoLogger() {},
-    createLogger() {
-      return {
-        error: () => {},
-        warn: () => {},
-        info: () => {},
-      };
-    },
-  };
 }
