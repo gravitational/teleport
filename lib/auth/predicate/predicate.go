@@ -148,7 +148,10 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 
 // Node describes a Server Access node.
 type Node struct {
-	Login  string            `json:"login"`
+	// The UNIX login of the login request.
+	Login string `json:"login"`
+
+	// The labels on the target node.
 	Labels map[string]string `json:"labels"`
 }
 
@@ -159,7 +162,10 @@ func (n *Node) GetName() string {
 
 // User describes a Teleport user.
 type User struct {
-	Name   string              `json:"name"`
+	// The name of the Teleport user.
+	Name string `json:"name"`
+
+	// The traits associated with the user.
 	Traits map[string][]string `json:"traits"`
 }
 
