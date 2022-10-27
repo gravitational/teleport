@@ -19,8 +19,10 @@ package discovery
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +32,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/gravitational/teleport/api/defaults"
@@ -38,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/sirupsen/logrus"
@@ -345,7 +350,7 @@ func TestDiscoveryServer(t *testing.T) {
 				Clients:     &testClients,
 				AccessPoint: tlsServer.Auth(),
 				AWSMatchers: []services.AWSMatcher{{
-					Types:   []string{"EC2"},
+					Types:   []string{"ec2"},
 					Regions: []string{"eu-central-1"},
 					Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 					SSM:     &services.AWSSSM{DocumentName: "document"},
@@ -388,4 +393,431 @@ func TestDiscoveryServer(t *testing.T) {
 		})
 	}
 
+}
+
+func TestDiscoveryKube(t *testing.T) {
+	t.Parallel()
+	tcs := []struct {
+		name                          string
+		existingKubeClusters          []types.KubeCluster
+		awsMatchers                   []services.AWSMatcher
+		azureMatchers                 []services.AzureMatcher
+		expectedClustersToExistInAuth []types.KubeCluster
+		clustersNotUpdated            []string
+	}{
+		{
+			name:                 "no clusters in auth server, import 2 prod clusters from EKS",
+			existingKubeClusters: []types.KubeCluster{},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+			},
+		},
+		{
+			name:                 "no clusters in auth server, import 2 stg clusters from EKS",
+			existingKubeClusters: []types.KubeCluster{},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"stg"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[2]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3]),
+			},
+		},
+		{
+			name: "1 cluster in auth server not updated + import 1 prod cluster from EKS",
+			existingKubeClusters: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+			},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+			},
+			clustersNotUpdated: []string{"eks-cluster1"},
+		},
+		{
+			name: "1 cluster in auth that no longer matches (deleted) + import 2 prod clusters from EKS",
+			existingKubeClusters: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3]),
+			},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+			},
+			clustersNotUpdated: []string{},
+		},
+		{
+			name: "1 cluster in auth that matches but must be updated + import 1 prod clusters from EKS",
+			existingKubeClusters: []types.KubeCluster{
+				// add an extra static label to force update in auth server
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1])),
+			},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+			},
+			clustersNotUpdated: []string{},
+		},
+		{
+			name: "2 clusters in auth that matches but one must be updated +  import 2 prod clusters, 1 from EKS and other from AKS",
+			existingKubeClusters: []types.KubeCluster{
+				// add an extra static label to force update in auth server
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1])),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0]),
+			},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			azureMatchers: []services.AzureMatcher{
+				{
+					Types:          []string{"aks"},
+					ResourceTags:   map[string]utils.Strings{"env": {"prod"}},
+					Regions:        []string{types.Wildcard},
+					ResourceGroups: []string{types.Wildcard},
+					Subscriptions:  []string{"sub1"},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0]),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1]),
+			},
+			clustersNotUpdated: []string{"aks-cluster1"},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			testClients := cloud.TestCloudClients{
+				AzureAKSClient: newPopulatedAKSMock(),
+				EKS:            newPopulatedEKSMock(),
+			}
+
+			ctx := context.Background()
+			// Create and start test auth server.
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			for _, kubeCluster := range tc.existingKubeClusters {
+				err := tlsServer.Auth().CreateKubernetesCluster(ctx, kubeCluster)
+				require.NoError(t, err)
+			}
+			// we analyze the logs emitted by discovery service to detect clusters that were not updated
+			// because their state didn't change.
+			r, w := io.Pipe()
+			t.Cleanup(func() {
+				require.NoError(t, r.Close())
+				require.NoError(t, w.Close())
+			})
+
+			logger := logrus.New()
+			logger.SetOutput(w)
+			logger.SetLevel(logrus.DebugLevel)
+			clustersNotUpdated := make(chan string, 10)
+			go func() {
+				// reconcileRegexp is the regex extractor of a log message emitted by reconciler when
+				// the current state of the cluster is equal to the previous.
+				// [r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetName())]
+				// lib/services/reconciler.go
+				var reconcileRegexp = regexp.MustCompile("kube_cluster (.*) is already registered")
+
+				scanner := bufio.NewScanner(r)
+				for scanner.Scan() {
+					text := scanner.Text()
+					// we analyze the logs emitted by discovery service to detect clusters that were not updated
+					// because their state didn't change.
+					if reconcileRegexp.MatchString(text) {
+						result := reconcileRegexp.FindStringSubmatch(text)
+						if len(result) != 2 {
+							continue
+						}
+						clustersNotUpdated <- result[1]
+					}
+				}
+			}()
+
+			discServer, err := New(
+				ctx,
+				&Config{
+					Clients:       &testClients,
+					AccessPoint:   tlsServer.Auth(),
+					AWSMatchers:   tc.awsMatchers,
+					AzureMatchers: tc.azureMatchers,
+					Emitter:       authClient,
+					Log:           logger,
+				})
+
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				discServer.Stop()
+			})
+			go discServer.Start()
+
+			clustersNotUpdatedMap := sliceToSet(tc.clustersNotUpdated)
+			clustersFoundInAuth := false
+			require.Eventually(t, func() bool {
+			loop:
+				for {
+					select {
+					case cluster := <-clustersNotUpdated:
+						if _, ok := clustersNotUpdatedMap[cluster]; !ok {
+							require.Failf(t, "expected Action for cluster %s but got no action from reconciler", cluster)
+						}
+						delete(clustersNotUpdatedMap, cluster)
+					default:
+						kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
+						require.NoError(t, err)
+						if len(kubeClusters) == len(tc.expectedClustersToExistInAuth) {
+							c1 := types.KubeClusters(kubeClusters).ToMap()
+							c2 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
+							for k := range c1 {
+								if services.CompareResources(c1[k], c2[k]) != services.Equal {
+									return false
+								}
+							}
+							clustersFoundInAuth = true
+						}
+						break loop
+					}
+
+				}
+				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
+			}, 5*time.Second, 200*time.Millisecond)
+
+		})
+	}
+}
+
+type mockAKSAPI struct {
+	azure.AKSClient
+	group map[string][]*azure.AKSCluster
+}
+
+func (m *mockAKSAPI) ListAll(ctx context.Context) ([]*azure.AKSCluster, error) {
+	result := make([]*azure.AKSCluster, 0, 10)
+	for _, v := range m.group {
+		result = append(result, v...)
+	}
+	return result, nil
+}
+
+func (m *mockAKSAPI) ListWithinGroup(ctx context.Context, group string) ([]*azure.AKSCluster, error) {
+	return m.group[group], nil
+}
+
+func newPopulatedAKSMock() *mockAKSAPI {
+	return &mockAKSAPI{
+		group: aksMockClusters,
+	}
+}
+
+var aksMockClusters = map[string][]*azure.AKSCluster{
+	"group1": {
+		{
+			Name:           "aks-cluster1",
+			GroupName:      "group1",
+			TenantID:       "tenantID",
+			Location:       "uswest1",
+			SubscriptionID: "subID",
+			Tags: map[string]string{
+				"env":      "prod",
+				"location": "uswest1",
+			},
+			Properties: azure.AKSClusterProperties{},
+		},
+		{
+			Name:           "aks-cluster2",
+			GroupName:      "group1",
+			TenantID:       "tenantID",
+			Location:       "uswest2",
+			SubscriptionID: "subID",
+			Tags: map[string]string{
+				"env":      "prod",
+				"location": "uswest1",
+			},
+			Properties: azure.AKSClusterProperties{},
+		},
+	},
+	"group2": {
+		{
+			Name:           "aks-cluster3",
+			GroupName:      "group1",
+			TenantID:       "tenantID",
+			Location:       "uswest1",
+			SubscriptionID: "subID",
+			Tags: map[string]string{
+				"env":      "stg",
+				"location": "uswest1",
+			},
+			Properties: azure.AKSClusterProperties{},
+		},
+		{
+			Name:           "aks-cluster4",
+			GroupName:      "group1",
+			TenantID:       "tenantID",
+			Location:       "uswest2",
+			SubscriptionID: "subID",
+			Tags: map[string]string{
+				"env":      "stg",
+				"location": "uswest1",
+			},
+			Properties: azure.AKSClusterProperties{},
+		},
+	},
+}
+
+type mockEKSAPI struct {
+	eksiface.EKSAPI
+	clusters []*eks.Cluster
+}
+
+func (m *mockEKSAPI) ListClustersPagesWithContext(ctx aws.Context, req *eks.ListClustersInput, f func(*eks.ListClustersOutput, bool) bool, _ ...request.Option) error {
+	var names []*string
+	for _, cluster := range m.clusters {
+		names = append(names, cluster.Name)
+	}
+	f(&eks.ListClustersOutput{
+		Clusters: names[:len(names)/2],
+	}, false)
+
+	f(&eks.ListClustersOutput{
+		Clusters: names[len(names)/2:],
+	}, true)
+	return nil
+}
+
+func (m *mockEKSAPI) DescribeClusterWithContext(_ aws.Context, req *eks.DescribeClusterInput, _ ...request.Option) (*eks.DescribeClusterOutput, error) {
+	for _, cluster := range m.clusters {
+		if aws.StringValue(cluster.Name) == aws.StringValue(req.Name) {
+			return &eks.DescribeClusterOutput{
+				Cluster: cluster,
+			}, nil
+		}
+	}
+	return nil, errors.New("cluster not found")
+}
+
+func newPopulatedEKSMock() *mockEKSAPI {
+	return &mockEKSAPI{
+		clusters: eksMockClusters,
+	}
+}
+
+var eksMockClusters = []*eks.Cluster{
+
+	{
+		Name:   aws.String("eks-cluster1"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
+		Status: aws.String(eks.ClusterStatusActive),
+		Tags: map[string]*string{
+			"env":      aws.String("prod"),
+			"location": aws.String("eu-west-1"),
+		},
+	},
+	{
+		Name:   aws.String("eks-cluster2"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
+		Status: aws.String(eks.ClusterStatusActive),
+		Tags: map[string]*string{
+			"env":      aws.String("prod"),
+			"location": aws.String("eu-west-1"),
+		},
+	},
+
+	{
+		Name:   aws.String("eks-cluster3"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster3"),
+		Status: aws.String(eks.ClusterStatusActive),
+		Tags: map[string]*string{
+			"env":      aws.String("stg"),
+			"location": aws.String("eu-west-1"),
+		},
+	},
+	{
+		Name:   aws.String("eks-cluster4"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
+		Status: aws.String(eks.ClusterStatusActive),
+		Tags: map[string]*string{
+			"env":      aws.String("stg"),
+			"location": aws.String("eu-west-1"),
+		},
+	},
+}
+
+func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster) types.KubeCluster {
+	cluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
+	require.NoError(t, err)
+	return cluster
+}
+
+func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster) types.KubeCluster {
+	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
+	require.NoError(t, err)
+	return cluster
+}
+
+func modifyKubeCluster(cluster types.KubeCluster) types.KubeCluster {
+	cluster.GetStaticLabels()["test"] = "test"
+	return cluster
+}
+
+func sliceToSet[T comparable](slice []T) map[T]struct{} {
+	set := map[T]struct{}{}
+	for _, v := range slice {
+		set[v] = struct{}{}
+	}
+	return set
 }
