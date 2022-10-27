@@ -210,21 +210,22 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
-		log.WithError(err).Errorf("failed to send user start event to auditd: %v", err)
+		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
+		log.WithError(err).Debugf("failed to send user start event to auditd: %v", err)
 	}
 
 	defer func() {
 		if err != nil {
 			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-					log.WithError(err).Errorf("failed to send UserErr event to auditd: %v", err)
+					log.WithError(err).Debugf("failed to send UserErr event to auditd: %v", err)
 				}
 				return
 			}
 		}
 
 		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
-			log.WithError(err).Errorf("failed to send UserEnd event to auditd: %v", err)
+			log.WithError(err).Debugf("failed to send UserEnd event to auditd: %v", err)
 		}
 	}()
 

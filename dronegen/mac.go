@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 )
 
 const (
@@ -49,6 +50,7 @@ func darwinConnectDmgPipeline() pipeline {
 	artifactConfig := onlyConnectWithBundledTshApp
 
 	p := newDarwinPipeline("build-darwin-amd64-connect")
+	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64-pkg-tsh"}
 	p.Steps = []step{
@@ -65,15 +67,22 @@ func darwinConnectDmgPipeline() pipeline {
 	p.Steps = append(p.Steps,
 		installToolchains(p.Workspace.Path, toolchainConfig)...)
 	p.Steps = append(p.Steps, []step{
+		macAssumeAwsRoleStep(macRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configPath: awsConfigPath,
+		}),
 		{
 			Name: "Download tsh.pkg artifact from S3",
 			Environment: map[string]value{
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"GITHUB_PRIVATE_KEY":    {fromSecret: "GITHUB_PRIVATE_KEY"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"GITHUB_PRIVATE_KEY":          {fromSecret: "GITHUB_PRIVATE_KEY"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
 			},
 			Commands: darwinConnectDownloadArtifactCommands(),
 		},
@@ -88,11 +97,10 @@ func darwinConnectDmgPipeline() pipeline {
 		{
 			Name: "Upload to S3",
 			Environment: map[string]value{
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
 			},
 			Commands: darwinUploadToS3Commands(),
 		},
@@ -173,6 +181,7 @@ func darwinTagPipeline() pipeline {
 	artifactConfig := onlyBinaries
 
 	p := newDarwinPipeline("build-darwin-amd64")
+	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Steps = []step{
@@ -198,14 +207,21 @@ func darwinTagPipeline() pipeline {
 			},
 			Commands: darwinTagCopyPackageArtifactCommands(),
 		},
+		macAssumeAwsRoleStep(macRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configPath: awsConfigPath,
+		}),
 		{
 			Name: "Upload to S3",
 			Environment: map[string]value{
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
 			},
 			Commands: darwinUploadToS3Commands(),
 		},
@@ -233,6 +249,11 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 		`git checkout ${DRONE_TAG:-$DRONE_COMMIT}`,
+		// suppressing the newline on the end of the private key makes git operations fail on MacOS
+		// with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
+		`mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa`,
+		`ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null`,
+		`chmod 600 $WORKSPACE_DIR/.ssh/known_hosts`,
 	}
 
 	// clone github.com/gravitational/webapps for the Teleport Connect source code
@@ -242,17 +263,13 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`git clone https://github.com/gravitational/webapps.git .`,
 			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
+			`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init packages/webapps.e`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		)
 	}
 
 	commands = append(commands,
 		// fetch enterprise submodules
-		// suppressing the newline on the end of the private key makes git operations fail on MacOS
-		// with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
-		`mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa`,
-		`ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null`,
-		`chmod 600 $WORKSPACE_DIR/.ssh/known_hosts`,
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
@@ -520,7 +537,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			`build.assets/build-fido2-macos.sh build`,
 			`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
-			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
+			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes`,
 		)
 	}
 
