@@ -1117,6 +1117,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
+	defer rc.StopAll()
 	log.Info("Teleport root cluster instance created")
 
 	username := helpers.MustGetCurrentUser(t).Username
@@ -1143,9 +1144,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, err)
 	defer rc.StopAll()
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
-	defer cancel()
-
 	validUser := "aladdin"
 	validPass := "open sesame"
 
@@ -1162,6 +1160,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 
+	require.Zero(t, ph.Count())
 	// proxy url is just the host with no auth credentials
 	t.Setenv("http_proxy", proxyURL.Host)
 	_, err = rc.StartNode(makeNodeConfig("first-root-node", rcProxyAddr))
@@ -1180,8 +1179,8 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, validPass, proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("third-root-node", rcProxyAddr))
 	require.NoError(t, err)
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 1)
-	require.NoError(t, err)
 	require.NoError(t, authorizer.LastError())
 	require.NotZero(t, ph.Count())
+	// with env set correctly, all 3 nodes should register.
+	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 3))
 }
