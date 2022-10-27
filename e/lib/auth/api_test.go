@@ -4,15 +4,15 @@ import (
 	"context"
 	"testing"
 
+	reporting "github.com/gravitational/reporting/types"
+	check "gopkg.in/check.v1"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/utils"
-
-	reporting "github.com/gravitational/reporting/types"
-	check "gopkg.in/check.v1"
 )
 
 func TestAPI(t *testing.T) { check.TestingT(t) }

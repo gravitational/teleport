@@ -3,8 +3,9 @@ package ui
 import (
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // AccessRequest describes a request's current state.

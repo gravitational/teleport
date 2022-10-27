@@ -5,6 +5,10 @@ import (
 	"testing"
 	"time"
 
+	reporting "github.com/gravitational/reporting/types"
+	"github.com/jonboulle/clockwork"
+	check "gopkg.in/check.v1"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
@@ -12,10 +16,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-
-	reporting "github.com/gravitational/reporting/types"
-	"github.com/jonboulle/clockwork"
-	check "gopkg.in/check.v1"
 )
 
 func TestPro(t *testing.T) { check.TestingT(t) }

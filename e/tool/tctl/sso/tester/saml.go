@@ -3,6 +3,8 @@ package tester
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -10,8 +12,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
-
-	"github.com/gravitational/trace"
 )
 
 func handleSAMLConnector(c auth.ClientI, connBytes []byte) (*tester.AuthRequestInfo, error) {

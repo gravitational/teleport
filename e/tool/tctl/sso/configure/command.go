@@ -3,11 +3,11 @@ package configure
 import (
 	"context"
 
+	"github.com/gravitational/kingpin"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
-
-	"github.com/gravitational/kingpin"
 )
 
 // SSOConfigureCommandE implements common.CLICommand interface.

@@ -5,13 +5,12 @@ import (
 	"io"
 	"sync/atomic"
 
-	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
-
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 )
 
 // ClientConfig is the Teleport Pro (Enterprise) config

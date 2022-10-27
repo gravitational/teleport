@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // claimsToRolesParser parsers 'claim,value,role1,role2,...' values into types.ClaimMapping entries. Cumulative, can handle multiple entries.

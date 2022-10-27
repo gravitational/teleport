@@ -3,13 +3,13 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 )
 
 func (p *Plugin) listBillingCyclesHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {

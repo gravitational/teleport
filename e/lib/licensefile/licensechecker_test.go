@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/constants"
+	liblicense "github.com/gravitational/license"
 	"github.com/stretchr/testify/require"
 
-	liblicense "github.com/gravitational/license"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/constants"
 )
 
 type mockStatusInternal struct {

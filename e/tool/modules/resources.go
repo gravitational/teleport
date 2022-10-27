@@ -1,9 +1,10 @@
 package modules
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // register marshaler/unmarshaler pairs for enterprise-only resources.

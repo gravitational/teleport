@@ -11,12 +11,13 @@ import (
 	"fmt"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common"
-	"github.com/gravitational/trace"
 )
 
 // ResourceCommandE implements common.CLICommand interface

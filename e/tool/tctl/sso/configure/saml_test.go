@@ -6,10 +6,10 @@ import (
 	"path"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func Test_processEntityDescriptorFlag(t *testing.T) {

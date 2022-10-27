@@ -1,10 +1,10 @@
 package ui
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
 )
 
 // NewOIDCConnectors creates resource item for each given OIDC connector.

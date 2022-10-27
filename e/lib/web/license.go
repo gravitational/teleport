@@ -3,12 +3,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/trace"
-
-	"github.com/julienschmidt/httprouter"
 )
 
 // getLicenseCheckStatusHandle is GET handle that returns the license check status

@@ -8,6 +8,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -17,12 +22,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/oidc"
-	"github.com/sirupsen/logrus"
 )
 
 type oidcPreset struct {

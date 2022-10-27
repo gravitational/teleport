@@ -3,9 +3,9 @@ package flags
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func Test_claimsToRolesParser_Set(t *testing.T) {

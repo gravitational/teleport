@@ -5,13 +5,14 @@ import (
 	"net/http"
 
 	"github.com/gravitational/form"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params httprouter.Params) string {

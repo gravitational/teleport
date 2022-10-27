@@ -4,6 +4,10 @@ import (
 	"os"
 	"time"
 
+	liblicense "github.com/gravitational/license"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud/usagereporter"
@@ -14,11 +18,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-
-	liblicense "github.com/gravitational/license"
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 var (

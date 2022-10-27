@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	check "gopkg.in/check.v1"
+
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/fixtures"
-
-	check "gopkg.in/check.v1"
 )
 
 func TestAPI(t *testing.T) { check.TestingT(t) }

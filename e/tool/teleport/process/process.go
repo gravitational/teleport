@@ -3,6 +3,8 @@ package process
 import (
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -12,8 +14,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
-
-	"github.com/gravitational/trace"
 )
 
 // NewTeleport initializes a new Teleport Enterprise process

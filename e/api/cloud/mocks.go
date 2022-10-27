@@ -3,11 +3,10 @@ package cloud
 import (
 	"context"
 
-	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
-
 	"github.com/gravitational/trace"
-
 	"google.golang.org/grpc"
+
+	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 )
 
 // MockedClient mocks cloud client APIs

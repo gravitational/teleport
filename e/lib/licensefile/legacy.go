@@ -3,10 +3,10 @@ package licensefile
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
-
-	"github.com/gravitational/trace"
 )
 
 // LegacyLicense represents legacy license information

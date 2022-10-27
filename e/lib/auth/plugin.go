@@ -3,17 +3,16 @@ package auth
 import (
 	"net/http"
 
+	"github.com/gravitational/reporting/types"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
-
-	"github.com/gravitational/reporting/types"
-	"github.com/gravitational/trace"
-
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 )
 
 const (

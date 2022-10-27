@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 )
 
 type updateUpgradeWindowStartHourReq struct {

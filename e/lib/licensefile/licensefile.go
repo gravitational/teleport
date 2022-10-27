@@ -5,14 +5,13 @@ import (
 	"os"
 	"time"
 
+	liblicense "github.com/gravitational/license"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws"
 	"github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib/services"
-
-	liblicense "github.com/gravitational/license"
-
-	"github.com/gravitational/trace"
 )
 
 // LicenseFile describes license file

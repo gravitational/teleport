@@ -5,9 +5,10 @@ import (
 	"fmt"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/trace"
 )
 
 // implements common.CLICommand interface

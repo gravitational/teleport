@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	"github.com/gravitational/kingpin"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 type osType = string

@@ -6,21 +6,20 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
-	"github.com/gravitational/teleport/lib/web/ui"
-
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-
-	"github.com/julienschmidt/httprouter"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // getAccountRecoveryTokenHandle retrieves a recovery token.

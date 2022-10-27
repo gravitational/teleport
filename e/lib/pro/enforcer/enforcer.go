@@ -7,19 +7,18 @@ import (
 	"net/http"
 	"time"
 
+	liblicense "github.com/gravitational/license"
+	"github.com/gravitational/reporting/types"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-
-	liblicense "github.com/gravitational/license"
-	"github.com/gravitational/reporting/types"
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Enforcer is responsible for making sure that cluster doesn't lose

@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestLicenseLegacyEnterprise(t *testing.T) {

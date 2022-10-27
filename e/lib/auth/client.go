@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/url"
 
-	"github.com/gravitational/teleport/lib/auth"
-
 	"github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 // ProClient describes an auth client for Teleport Pro methods

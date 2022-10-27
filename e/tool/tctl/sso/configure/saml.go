@@ -6,6 +6,10 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tool/tctl/sso/configure/flags"
@@ -16,11 +20,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 type samlPreset struct {
