@@ -37,34 +37,16 @@ func buildEnv(objects ...NamedParameter) map[string]any {
 	return env
 }
 
-// PredicateAccessChecker checks access/permissions to access certain resources by evaluating AccessPolicy resources.
-type PredicateAccessChecker struct {
-	polices []types.Policy
-}
-
-// NewPredicateAccessChecker creates a new PredicateAccessChecker with a set of policies describing the permissions.
-func NewPredicateAccessChecker(policies []types.Policy) *PredicateAccessChecker {
-	return &PredicateAccessChecker{policies}
-}
-
-// CheckAccessToNode checks if a given user has access to a Server Access node.
-func (c *PredicateAccessChecker) CheckAccessToNode(node *Node, user *User) (bool, error) {
-	env := buildEnv(node, user)
-	return c.checkPolicyExprs("node", env)
-}
-
-// checkPolicyExprs is the internal routine that evaluates expressions in a given scope from all policies
-// with a provided execution environment containing input values.
-func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]any) (bool, error) {
+func newParser(env map[string]any) (predicate.Parser, error) {
 	getIdentifierInEnv := func(selector []string) (any, error) {
 		return getIdentifier(env, selector)
 	}
 
-	parser, err := predicate.NewParser(predicate.Def{
+	return predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
-			AND: predicate.And,
-			OR:  predicate.Or,
-			NOT: predicate.Not,
+			AND: builtinOpAnd,
+			OR:  builtinOpOr,
+			NOT: builtinOpNot,
 			EQ:  builtinOpEquals,
 			LT:  builtinOpLT,
 			GT:  builtinOpGT,
@@ -95,6 +77,28 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 		GetIdentifier: getIdentifierInEnv,
 		GetProperty:   getProperty,
 	})
+}
+
+// PredicateAccessChecker checks access/permissions to access certain resources by evaluating AccessPolicy resources.
+type PredicateAccessChecker struct {
+	polices []types.Policy
+}
+
+// NewPredicateAccessChecker creates a new PredicateAccessChecker with a set of policies describing the permissions.
+func NewPredicateAccessChecker(policies []types.Policy) *PredicateAccessChecker {
+	return &PredicateAccessChecker{policies}
+}
+
+// CheckAccessToNode checks if a given user has access to a Server Access node.
+func (c *PredicateAccessChecker) CheckAccessToNode(node *Node, user *User) (bool, error) {
+	env := buildEnv(node, user)
+	return c.checkPolicyExprs("node", env)
+}
+
+// checkPolicyExprs is the internal routine that evaluates expressions in a given scope from all policies
+// with a provided execution environment containing input values.
+func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]any) (bool, error) {
+	parser, err := newParser(env)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -105,12 +109,12 @@ func (c *PredicateAccessChecker) checkPolicyExprs(scope string, env map[string]a
 			return false, trace.Wrap(err)
 		}
 
-		fn, ok := ifn.(predicate.BoolPredicate)
+		b, ok := ifn.(bool)
 		if !ok {
 			return false, trace.BadParameter("unsupported type: %T", ifn)
 		}
 
-		return fn(), nil
+		return b, nil
 	}
 
 	for _, policy := range c.polices {

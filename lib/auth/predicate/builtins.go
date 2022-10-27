@@ -22,10 +22,16 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 func getIdentifier(obj any, selectors []string) (any, error) {
+	switch selectors[0] {
+	case "false":
+		return false, nil
+	case "true":
+		return true, nil
+	}
+
 	for _, s := range selectors {
 		if obj == nil || reflect.ValueOf(obj).IsNil() {
 			return nil, trace.BadParameter("cannot take field of nil")
@@ -76,53 +82,61 @@ func getProperty(m any, k any) (any, error) {
 	}
 }
 
-func builtinOpEquals(a, b any) predicate.BoolPredicate {
-	return func() bool { return reflect.DeepEqual(a, b) }
+func builtinOpAnd(a, b bool) any {
+	return a && b
 }
 
-func builtinOpLT(a, b any) predicate.BoolPredicate {
-	return func() bool {
-		if reflect.TypeOf(a) != reflect.TypeOf(b) {
-			return false
-		}
+func builtinOpOr(a, b bool) any {
+	return a || b
+}
 
-		switch aT := a.(type) {
-		case string:
-			return aT < b.(string)
-		case int:
-			return aT < b.(int)
-		case float32:
-			return aT < b.(float32)
-		default:
-			return false
-		}
+func builtinOpNot(a bool) any {
+	return !a
+}
+
+func builtinOpEquals(a, b any) any {
+	return reflect.DeepEqual(a, b)
+}
+
+func builtinOpLT(a, b any) any {
+	if reflect.TypeOf(a) != reflect.TypeOf(b) {
+		return false
+	}
+
+	switch aT := a.(type) {
+	case string:
+		return aT < b.(string)
+	case int:
+		return aT < b.(int)
+	case float32:
+		return aT < b.(float32)
+	default:
+		return false
 	}
 }
 
-func builtinOpGT(a, b any) predicate.BoolPredicate {
+func builtinOpGT(a, b any) any {
 	return builtinOpLT(b, a)
 }
 
-func builtinOpLE(a, b any) predicate.BoolPredicate {
-	return func() bool {
-		if reflect.TypeOf(a) != reflect.TypeOf(b) {
-			return false
-		}
+func builtinOpLE(a, b any) any {
+	if reflect.TypeOf(a) != reflect.TypeOf(b) {
+		return false
+	}
 
-		switch aT := a.(type) {
-		case string:
-			return aT <= b.(string)
-		case int:
-			return aT <= b.(int)
-		case float32:
-			return aT <= b.(float32)
-		default:
-			return false
-		}
+	switch aT := a.(type) {
+	case string:
+		return aT <= b.(string)
+	case int:
+		return aT <= b.(int)
+	case float32:
+		return aT <= b.(float32)
+	default:
+		return false
 	}
 }
 
-func builtinOpGE(a, b any) predicate.BoolPredicate {
+func builtinOpGE(a, b any) any {
 	return builtinOpLE(b, a)
 }
 
@@ -203,52 +217,25 @@ func builtinXor(a, b any) (any, error) {
 	}
 }
 
-func builtinSplit(a, b any) (any, error) {
-	aS, ok := a.(string)
-	if !ok {
-		return nil, trace.BadParameter("cannot split type: %T", a)
-	}
-
-	bS, ok := b.(string)
-	if !ok {
-		return nil, trace.BadParameter("cannot split by type: %T", b)
-	}
-
-	return strings.Split(aS, bS), nil
+func builtinSplit(a, b string) (any, error) {
+	return strings.Split(a, b), nil
 }
 
-func builtinUpper(a any) (any, error) {
-	aS, ok := a.(string)
-	if !ok {
-		return nil, trace.BadParameter("upper not valid for type: %T", a)
-	}
-
-	return strings.ToUpper(aS), nil
+func builtinUpper(a string) (any, error) {
+	return strings.ToUpper(a), nil
 }
 
-func builtinLower(a any) (any, error) {
-	aS, ok := a.(string)
-	if !ok {
-		return nil, trace.BadParameter("lower not valid for type: %T", a)
-	}
-
-	return strings.ToLower(aS), nil
+func builtinLower(a string) (any, error) {
+	return strings.ToLower(a), nil
 }
 
-func builtinContains(a, b any) (any, error) {
-	var bS string
-	if bT, ok := b.(string); ok {
-		bS = bT
-	} else {
-		return nil, trace.BadParameter("cannot check if type: %T contains type: %T", a, b)
-	}
-
+func builtinContains(a any, b string) (any, error) {
 	switch aT := a.(type) {
 	case string:
-		return strings.Contains(aT, bS), nil
+		return strings.Contains(aT, b), nil
 	case []string:
 		for _, s := range aT {
-			if s == bS {
+			if s == b {
 				return true, nil
 			}
 		}
@@ -259,30 +246,18 @@ func builtinContains(a, b any) (any, error) {
 	}
 }
 
-func builtinFirst(a any) (any, error) {
-	switch aT := a.(type) {
-	case []string:
-		if len(aT) == 0 {
-			return nil, nil
-		}
-
-		return aT[0], nil
-	default:
-		return nil, trace.BadParameter("first not valid for type: %T", a)
+func builtinFirst(a []string) (any, error) {
+	if len(a) == 0 {
+		return nil, nil
 	}
+
+	return a[0], nil
 }
 
-func builtinAppend(a, b any) (any, error) {
-	var bS string
-	if bT, ok := b.(string); ok {
-		bS = bT
-	} else {
-		return nil, trace.BadParameter("cannot append type %T", b)
-	}
-
+func builtinAppend(a any, b string) (any, error) {
 	switch aT := a.(type) {
 	case []string:
-		return append(aT, bS), nil
+		return append(aT, b), nil
 	default:
 		return nil, trace.BadParameter("append not valid for type: %T", a)
 	}
@@ -302,24 +277,14 @@ func builtinArray(elements ...any) (any, error) {
 	return arr, nil
 }
 
-func builtinReplace(in, match, with any) (any, error) {
-	matchS, ok := match.(string)
-	if !ok {
-		return nil, trace.BadParameter("cannot replace with non-string match of type %T", match)
-	}
-
-	withS, ok := with.(string)
-	if !ok {
-		return nil, trace.BadParameter("cannot replace with non-string with of type %T", with)
-	}
-
+func builtinReplace(in any, match, with string) (any, error) {
 	switch inT := in.(type) {
 	case string:
-		return strings.Replace(inT, matchS, withS, -1), nil
+		return strings.Replace(inT, match, with, -1), nil
 	case []string:
 		for i, s := range inT {
-			if s == matchS {
-				inT[i] = withS
+			if s == match {
+				inT[i] = with
 			}
 		}
 
@@ -340,42 +305,17 @@ func builtinLen(a any) (any, error) {
 	}
 }
 
-func builtinRegex(a any) (any, error) {
-	aS, ok := a.(string)
-	if !ok {
-		return nil, trace.BadParameter("regex not valid for type: %T", a)
-	}
-
-	return regexp.Compile(aS)
+func builtinRegex(a string) (any, error) {
+	return regexp.Compile(a)
 }
 
-func builtinMatches(to, against any) (any, error) {
-	againstS, ok := against.(string)
-	if !ok {
-		return nil, trace.BadParameter("cannot match against non-string of type %T", against)
-	}
-
-	switch toT := to.(type) {
-	case *regexp.Regexp:
-		return toT.MatchString(againstS), nil
-	default:
-		return nil, trace.BadParameter("matches not valid for type: %T", to)
-	}
+func builtinMatches(to *regexp.Regexp, against string) any {
+	return to.MatchString(against)
 }
 
-func builtinContainsRegex(arr, regex any) (any, error) {
-	arrS, ok := arr.([]string)
-	if !ok {
-		return nil, trace.BadParameter("contains not valid for type %T", arr)
-	}
-
-	regexR, ok := regex.(*regexp.Regexp)
-	if !ok {
-		return nil, trace.BadParameter("cannot match with non-regex type %T", regex)
-	}
-
-	for _, s := range arrS {
-		if regexR.MatchString(s) {
+func builtinContainsRegex(arr []string, regex *regexp.Regexp) (any, error) {
+	for _, s := range arr {
+		if regex.MatchString(s) {
 			return true, nil
 		}
 	}
@@ -383,6 +323,7 @@ func builtinContainsRegex(arr, regex any) (any, error) {
 	return false, nil
 }
 
+// type-generic for future extensibility
 func builtinMapInsert(m, k, v any) (any, error) {
 	mT, ok := m.(map[string]string)
 	if !ok {
@@ -403,6 +344,7 @@ func builtinMapInsert(m, k, v any) (any, error) {
 	return nil, nil
 }
 
+// type-generic for future extensibility
 func builtinMapRemove(m, k any) (any, error) {
 	mT, ok := m.(map[string]string)
 	if !ok {
