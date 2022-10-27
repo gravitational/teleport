@@ -18,6 +18,7 @@ package predicate
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -339,9 +340,80 @@ func builtinLen(a any) (any, error) {
 	}
 }
 
-// TODO(joel): implement elemental functions:
-// - regex
-// - matches(string, regex, regexes?)
-// - contains_regex(array, regex, regexes?)
-// - map_insert
-// - map_remove
+func builtinRegex(a any) (any, error) {
+	aS, ok := a.(string)
+	if !ok {
+		return nil, trace.BadParameter("regex not valid for type: %T", a)
+	}
+
+	return regexp.Compile(aS)
+}
+
+func builtinMatches(to, against any) (any, error) {
+	againstS, ok := against.(string)
+	if !ok {
+		return nil, trace.BadParameter("cannot match against non-string of type %T", against)
+	}
+
+	switch toT := to.(type) {
+	case *regexp.Regexp:
+		return toT.MatchString(againstS), nil
+	default:
+		return nil, trace.BadParameter("matches not valid for type: %T", to)
+	}
+}
+
+func builtinContainsRegex(arr, regex any) (any, error) {
+	arrS, ok := arr.([]string)
+	if !ok {
+		return nil, trace.BadParameter("contains not valid for type %T", arr)
+	}
+
+	regexR, ok := regex.(*regexp.Regexp)
+	if !ok {
+		return nil, trace.BadParameter("cannot match with non-regex type %T", regex)
+	}
+
+	for _, s := range arrS {
+		if regexR.MatchString(s) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func builtinMapInsert(m, k, v any) (any, error) {
+	mT, ok := m.(map[string]string)
+	if !ok {
+		return nil, trace.BadParameter("cannot insert into map of type: %T", m)
+	}
+
+	kS, ok := k.(string)
+	if !ok {
+		return nil, trace.BadParameter("cannot use non-string key of type: %T", k)
+	}
+
+	vS, ok := v.(string)
+	if !ok {
+		return nil, trace.BadParameter("cannot use non-string value of type: %T", k)
+	}
+
+	mT[kS] = vS
+	return nil, nil
+}
+
+func builtinMapRemove(m, k any) (any, error) {
+	mT, ok := m.(map[string]string)
+	if !ok {
+		return nil, trace.BadParameter("cannot remove from map of type: %T", m)
+	}
+
+	kS, ok := k.(string)
+	if !ok {
+		return nil, trace.BadParameter("cannot remove non-string key of type: %T", k)
+	}
+
+	delete(mT, kS)
+	return nil, nil
+}
