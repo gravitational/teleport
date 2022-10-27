@@ -357,3 +357,17 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 func (s *SessionTrackerV1) GetDesktopName() string {
 	return s.Spec.DesktopName
 }
+
+// Match checks if a given session tracker matches this filter.
+func (f *SessionTrackerFilter) Match(s SessionTracker) bool {
+	if f.Kind != "" && string(s.GetSessionKind()) != f.Kind {
+		return false
+	}
+	if f.State != nil && s.GetState() != f.State.State {
+		return false
+	}
+	if f.DesktopName != "" && s.GetDesktopName() != f.DesktopName {
+		return false
+	}
+	return true
+}
