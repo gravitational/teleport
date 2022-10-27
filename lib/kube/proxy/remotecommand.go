@@ -55,13 +55,13 @@ type remoteCommandRequest struct {
 	pingPeriod         time.Duration
 }
 
-func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCreds) apievents.KubernetesPodMetadata {
+func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
 	meta := apievents.KubernetesPodMetadata{
 		KubernetesPodName:       req.podName,
 		KubernetesPodNamespace:  req.podNamespace,
 		KubernetesContainerName: req.containerName,
 	}
-	if creds == nil || creds.kubeClient == nil {
+	if creds == nil || creds.getKubeClient() == nil {
 		return meta
 	}
 
@@ -69,7 +69,7 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 	//
 	// This can fail if a user has set tight RBAC rules for teleport. Failure
 	// here shouldn't prevent a session from starting.
-	pod, err := creds.kubeClient.CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
+	pod, err := creds.getKubeClient().CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
 		return meta
