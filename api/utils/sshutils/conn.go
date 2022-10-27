@@ -43,7 +43,7 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 
 	channel, discard, err := sconn.OpenChannel(constants.ChanTransport, nil)
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, true, trace.Wrap(err)
 	}
 
 	// DiscardRequests will return when the channel or underlying connection is closed.
@@ -55,7 +55,7 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (*ChCon
 	// this SSH channel.
 	ok, err := channel.SendRequest(constants.ChanTransportDialReq, true, payload)
 	if err != nil {
-		return nil, true, trace.Wrap(err)
+		return nil, true, trace.NewAggregate(trace.Wrap(err), channel.Close())
 	}
 	if !ok {
 		defer channel.Close()
