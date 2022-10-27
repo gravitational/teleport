@@ -30,10 +30,19 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
+	triggerPromote = trigger{
+		Event:  triggerRef{Include: []string{"promote"}},
+		Target: triggerRef{Include: []string{"production"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
 		Temp: &volumeTemp{},
+	}
+	volumeRefDocker = volumeRef{
+		Name: "dockersock",
+		Path: "/var/run",
 	}
 	volumeTmpfs = volume{
 		Name: "tmpfs",
@@ -44,9 +53,13 @@ var (
 		Name: "tmpfs",
 		Path: "/tmpfs",
 	}
-	volumeRefDocker = volumeRef{
-		Name: "dockersock",
-		Path: "/var/run",
+	volumeAwsConfig = volume{
+		Name: "awsconfig",
+		Temp: &volumeTemp{},
+	}
+	volumeRefAwsConfig = volumeRef{
+		Name: "awsconfig",
+		Path: "/root/.aws",
 	}
 
 	// TODO(gus): Set this from `make -C build.assets print-runtime-version` or similar rather
@@ -149,18 +162,6 @@ func dockerService(v ...volumeRef) service {
 	}
 }
 
-// dockerVolumes returns a slice of volumes
-// It includes the Docker socket volume by default, plus any extra volumes passed in
-func dockerVolumes(v ...volume) []volume {
-	return append(v, volumeDocker)
-}
-
-// dockerVolumeRefs returns a slice of volumeRefs
-// It includes the Docker socket volumeRef as a default, plus any extra volumeRefs passed in
-func dockerVolumeRefs(v ...volumeRef) []volumeRef {
-	return append(v, volumeRefDocker)
-}
-
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos6 combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
@@ -185,6 +186,6 @@ func waitForDockerStep() step {
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
-		Volumes: dockerVolumeRefs(),
+		Volumes: []volumeRef{volumeRefDocker},
 	}
 }
