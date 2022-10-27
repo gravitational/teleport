@@ -33,6 +33,10 @@ message Cluster {
   bool leaf = 5;
   // User is the cluster access control list of the logged-in user
   LoggedInUser logged_in_user = 7;
+  // features describes the auth servers features
+  // Only present in situations where detailed
+  // information is queried from the auth server.
+  Features features = 8;
 }
 
 // LoggedInUser describes a logged-in user
@@ -89,4 +93,10 @@ message ResourceAccess {
   bool create = 4;
   // delete determines "delete" access
   bool delete = 5;
+}
+
+// Features describes the auth servers features
+message Features {
+  // AdvancedAccessWorkflows enables search-based access requests
+  bool advanced_access_workflows = 1;
 }

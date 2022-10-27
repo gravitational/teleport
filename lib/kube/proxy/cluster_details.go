@@ -16,8 +16,13 @@ package proxy
 
 import (
 	"context"
+	"encoding/base64"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -78,13 +83,14 @@ func (k *kubeDetails) Close() {
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
-// TODO(tigrato): add support for aws logins via token
 func getKubeClusterCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (kubeCreds, error) {
 	switch {
 	case cluster.IsKubeconfig():
 		return getStaticCredentialsFromKubeconfig(ctx, cluster, log, checker)
 	case cluster.IsAzure():
 		return getAzureCredentials(ctx, cloudClients, cluster, log, checker)
+	case cluster.IsAWS():
+		return getAWSCredentials(ctx, cloudClients, cluster, log, checker)
 	default:
 		return nil, trace.BadParameter("authentication method provided for cluster %q not supported", cluster.GetName())
 	}
@@ -114,6 +120,92 @@ func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
 		})
 		return cfg, exp, trace.Wrap(err)
 	}
+}
+
+// getAWSCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a EKS kubernetes cluster.
+func getAWSCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+	// create a client that returns the credentials for kubeCluster
+	client := getAWSClientRestConfig(cloudClients)
+	creds, err := newDynamicKubeCreds(ctx, cluster, log, client, checker)
+	return creds, trace.Wrap(err)
+}
+
+// getAWSClientRestConfig creates a dynamicCredsClient that generates returns credentials to EKS clusters.
+func getAWSClientRestConfig(cloudClients cloud.Clients) dynamicCredsClient {
+	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
+		regionalClient, err := cloudClients.GetAWSEKSClient(cluster.GetAWSConfig().Region)
+		if err != nil {
+			return nil, time.Time{}, trace.Wrap(err)
+		}
+
+		eksCfg, err := regionalClient.DescribeClusterWithContext(ctx, &eks.DescribeClusterInput{
+			Name: aws.String(cluster.GetAWSConfig().Name),
+		})
+		if err != nil {
+			return nil, time.Time{}, trace.Wrap(err)
+		}
+
+		ca, err := base64.StdEncoding.DecodeString(aws.StringValue(eksCfg.Cluster.CertificateAuthority.Data))
+		if err != nil {
+			return nil, time.Time{}, trace.Wrap(err)
+		}
+
+		apiEndpoint := aws.StringValue(eksCfg.Cluster.Endpoint)
+		if len(apiEndpoint) == 0 {
+			return nil, time.Time{}, trace.BadParameter("invalid api endpoint for cluster %q", cluster.GetAWSConfig().Name)
+		}
+
+		stsClient, err := cloudClients.GetAWSSTSClient(cluster.GetAWSConfig().Region)
+		if err != nil {
+			return nil, time.Time{}, trace.Wrap(err)
+		}
+
+		token, exp, err := genAWSToken(stsClient, cluster.GetAWSConfig().Name)
+		if err != nil {
+			return nil, time.Time{}, trace.Wrap(err)
+		}
+
+		return &rest.Config{
+			Host:        apiEndpoint,
+			BearerToken: token,
+			TLSClientConfig: rest.TLSClientConfig{
+				CAData: ca,
+			},
+		}, exp, nil
+	}
+}
+
+// genAWSToken creates an AWS token to access EKS clusters.
+// Logic from https://github.com/aws/aws-cli/blob/6c0d168f0b44136fc6175c57c090d4b115437ad1/awscli/customizations/eks/get_token.py#L211-L229
+func genAWSToken(stsClient stsiface.STSAPI, clusterID string) (string, time.Time, error) {
+	const (
+		// The sts GetCallerIdentity request is valid for 15 minutes regardless of this parameters value after it has been
+		// signed.
+		requestPresignParam = 60
+		// The actual token expiration (presigned STS urls are valid for 15 minutes after timestamp in x-amz-date).
+		presignedURLExpiration = 15 * time.Minute
+		v1Prefix               = "k8s-aws-v1."
+		clusterIDHeader        = "x-k8s-aws-id"
+	)
+
+	// generate an sts:GetCallerIdentity request and add our custom cluster ID header
+	request, _ := stsClient.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
+	request.HTTPRequest.Header.Add(clusterIDHeader, clusterID)
+
+	// Sign the request.  The expires parameter (sets the x-amz-expires header) is
+	// currently ignored by STS, and the token expires 15 minutes after the x-amz-date
+	// timestamp regardless.  We set it to 60 seconds for backwards compatibility (the
+	// parameter is a required argument to Presign(), and authenticators 0.3.0 and older are expecting a value between
+	// 0 and 60 on the server side).
+	// https://github.com/aws/aws-sdk-go/issues/2167
+	presignedURLString, err := request.Presign(requestPresignParam)
+	if err != nil {
+		return "", time.Time{}, trace.Wrap(err)
+	}
+
+	// Set token expiration to 1 minute before the presigned URL expires for some cushion
+	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
+	return v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString)), tokenExpiration, nil
 }
 
 // getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.

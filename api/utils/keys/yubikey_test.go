@@ -1,4 +1,4 @@
-//go:build !linux || libpcsclite
+//go:build piv
 
 /*
 Copyright 2022 Gravitational, Inc.
@@ -35,7 +35,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	resetYubikey(ctx, t)
 
 	// Generate a new YubiKeyPrivateKey.
-	priv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
+	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 
 	// Test creating a self signed certificate with the key.
@@ -43,7 +43,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
-	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
+	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 	require.Equal(t, priv, retrievePriv)
 
@@ -56,7 +56,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 // resetYubikey connects to the first yubiKey and resets it to defaults.
 func resetYubikey(ctx context.Context, t *testing.T) {
 	t.Helper()
-	y, err := findYubiKey(ctx, 0)
+	y, err := findYubiKey(0)
 	require.NoError(t, err)
 	yk, err := y.open()
 	require.NoError(t, err)

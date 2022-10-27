@@ -107,44 +107,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		cancelfn: cancelfn,
 	}
 
-	var err error
-	if len(cfg.AWSMatchers) > 0 {
-		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, cfg.AWSMatchers, s.Clients)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter: cfg.Emitter,
-		})
+	if err := s.initAWSWatchers(cfg.AWSMatchers); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	for _, matcher := range cfg.AzureMatchers {
-		subscriptions, err := s.getAzureSubscriptions(ctx, matcher.Subscriptions)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, subscription := range subscriptions {
-			for _, t := range matcher.Types {
-				switch t {
-				case constants.AzureServiceTypeKubernetes:
-					kubeClient, err := s.Clients.GetAzureKubernetesClient(subscription)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					fetcher, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
-						Client:         kubeClient,
-						Regions:        matcher.Regions,
-						FilterLabels:   matcher.ResourceTags,
-						ResourceGroups: matcher.ResourceGroups,
-						Log:            s.Log,
-					})
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					s.kubeFetchers = append(s.kubeFetchers, fetcher)
-				}
-			}
-		}
+	if err := s.initAzureWatchers(ctx, cfg.AzureMatchers); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if s.cloudWatcher != nil {
@@ -154,6 +122,84 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+// initAWSWatchers starts AWS resource watchers based on types provided.
+func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
+	ec2Matchers, otherMatchers := splitAWSMatchers(matchers)
+
+	// start ec2 watchers
+	var err error
+	if len(ec2Matchers) > 0 {
+		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, ec2Matchers, s.Clients)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+			Emitter: s.Emitter,
+		})
+	}
+
+	for _, matcher := range otherMatchers {
+		for _, t := range matcher.Types {
+			for _, region := range matcher.Regions {
+				switch t {
+				case constants.AWSServiceTypeEKS:
+					client, err := s.Clients.GetAWSEKSClient(region)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					fetcher, err := fetchers.NewEKSFetcher(
+						fetchers.EKSFetcherConfig{
+							Client:       client,
+							Region:       region,
+							FilterLabels: matcher.Tags,
+							Log:          s.Log,
+						},
+					)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					s.kubeFetchers = append(s.kubeFetchers, fetcher)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// initAzureWatchers starts Azure resource watchers based on types provided.
+func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.AzureMatcher) error {
+	for _, matcher := range matchers {
+		subscriptions, err := s.getAzureSubscriptions(ctx, matcher.Subscriptions)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, subscription := range subscriptions {
+			for _, t := range matcher.Types {
+				switch t {
+				case constants.AzureServiceTypeKubernetes:
+					kubeClient, err := s.Clients.GetAzureKubernetesClient(subscription)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					fetcher, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
+						Client:         kubeClient,
+						Regions:        matcher.Regions,
+						FilterLabels:   matcher.ResourceTags,
+						ResourceGroups: matcher.ResourceGroups,
+						Log:            s.Log,
+					})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					s.kubeFetchers = append(s.kubeFetchers, fetcher)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Server) filterExistingNodes(instances *server.EC2Instances) {
@@ -191,7 +237,7 @@ func genInstancesLogStr(instances []*ec2.Instance) string {
 		logInstances.WriteString(aws.StringValue(inst.InstanceId) + ", ")
 	}
 	if len(instances) > 10 {
-		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunacted", len(instances)-10))
+		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs truncated", len(instances)-10))
 	}
 
 	return fmt.Sprintf("[%s]", logInstances.String())
@@ -299,4 +345,39 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 	})
 
 	return trace.Wrap(err)
+}
+
+// splitAWSMatchers splits the matchers between EC2 matchers and others.
+func splitAWSMatchers(matchers []services.AWSMatcher) (ec2 []services.AWSMatcher, other []services.AWSMatcher) {
+	for _, matcher := range matchers {
+		if utils.SliceContainsStr(matcher.Types, constants.AWSServiceTypeEC2) {
+			ec2 = append(ec2,
+				copyAWSMatcherWithNewTypes(matcher, []string{constants.AWSServiceTypeEC2}),
+			)
+		}
+
+		otherTypes := excludeFromSlice(matcher.Types, constants.AWSServiceTypeEC2)
+		if len(otherTypes) > 0 {
+			other = append(other, copyAWSMatcherWithNewTypes(matcher, otherTypes))
+		}
+	}
+	return
+}
+
+// excludeFromSlice excludes entry from the slice.
+func excludeFromSlice[T comparable](slice []T, entry T) []T {
+	newSlice := make([]T, 0, len(slice))
+	for _, val := range slice {
+		if val != entry {
+			newSlice = append(newSlice, val)
+		}
+	}
+	return newSlice
+}
+
+// copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes
+func copyAWSMatcherWithNewTypes(matcher services.AWSMatcher, newTypes []string) services.AWSMatcher {
+	newMatcher := matcher
+	newMatcher.Types = newTypes
+	return newMatcher
 }

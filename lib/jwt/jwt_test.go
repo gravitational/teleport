@@ -50,11 +50,8 @@ func TestSignAndVerify(t *testing.T) {
 	token, err := key.Sign(SignParams{
 		Username: "foo@example.com",
 		Roles:    []string{"foo", "bar"},
-		Traits: wrappers.Traits{
-			"trait1": []string{"value-1", "value-2"},
-		},
-		Expires: clock.Now().Add(1 * time.Minute),
-		URI:     "http://127.0.0.1:8080",
+		Expires:  clock.Now().Add(1 * time.Minute),
+		URI:      "http://127.0.0.1:8080",
 	})
 	require.NoError(t, err)
 
