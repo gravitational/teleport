@@ -54,27 +54,31 @@ func TestExportAuthorities(t *testing.T) {
 		ClusterName: localClusterName,
 		Dir:         t.TempDir(),
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "failed to create auth.NewTestAuthServer")
 
 	validateTLSCertificateDERFunc := func(t *testing.T, s string) {
 		cert, err := x509.ParseCertificate([]byte(s))
-		require.NoError(t, err)
-		require.NotNil(t, cert)
-		require.Equal(t, cert.Subject.CommonName, localClusterName, "unexpected certificate subject CN")
+		require.NoError(t, err, "failed to x509.ParseCertificate")
+		require.NotNil(t, cert, "x509.ParseCertificate returned a nil certificate")
+		require.Equal(t, localClusterName, cert.Subject.CommonName, "unexpected certificate subject CN")
 	}
 
 	validateTLSCertificatePEMFunc := func(t *testing.T, s string) {
 		pemBlock, _ := pem.Decode([]byte(s))
-		require.NotNil(t, pemBlock)
+		require.NotNil(t, pemBlock, "pem.Decode failed")
 
 		validateTLSCertificateDERFunc(t, string(pemBlock.Bytes))
 	}
 
 	validatePrivateKeyPEMFunc := func(t *testing.T, s string) {
 		pemBlock, _ := pem.Decode([]byte(s))
-		require.NotNil(t, pemBlock)
+		require.NotNil(t, pemBlock, "pem.Decode failed")
 
-		require.Equal(t, pemBlock.Type, "RSA PRIVATE KEY", "unexpected private key type")
+		require.Equal(t, "RSA PRIVATE KEY", pemBlock.Type, "unexpected private key type")
+
+		privKey, err := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
+		require.NoError(t, err, "x509.ParsePKCS1PrivateKey failed")
+		require.NotNil(t, privKey, "x509.ParsePKCS1PrivateKey returned a nil certificate")
 	}
 
 	validatePrivateKeyDERFunc := func(t *testing.T, s string) {
@@ -82,8 +86,8 @@ func TestExportAuthorities(t *testing.T) {
 		require.Len(t, res, 2, "expected private key and certificate separated by one empty line")
 
 		privKey, err := x509.ParsePKCS1PrivateKey([]byte(res[0]))
-		require.NoError(t, err)
-		require.NotNil(t, privKey)
+		require.NoError(t, err, "x509.ParsePKCS1PrivateKey failed")
+		require.NotNil(t, privKey, "x509.ParsePKCS1PrivateKey returned a nil certificate")
 
 		validateTLSCertificateDERFunc(t, res[1])
 	}
@@ -106,9 +110,7 @@ func TestExportAuthorities(t *testing.T) {
 					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
 					require.Contains(t, output, "cert-authority ssh-rsa")
 				},
-				assertSecrets: func(t *testing.T, output string) {
-
-				},
+				assertSecrets: func(t *testing.T, output string) {},
 			},
 			{
 				name: "user",

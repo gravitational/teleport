@@ -2495,13 +2495,13 @@ func TestAuthExport(t *testing.T) {
 	validateTLSCertificateDERFunc := func(t *testing.T, b []byte) {
 		cert, err := x509.ParseCertificate(b)
 		require.NoError(t, err)
-		require.NotNil(t, cert)
-		require.Equal(t, cert.Subject.CommonName, "localhost", "unexpected certificate subject CN")
+		require.NotNil(t, cert, "ParseCertificate failed")
+		require.Equal(t, "localhost", cert.Subject.CommonName, "unexpected certificate subject CN")
 	}
 
 	validateTLSCertificatePEMFunc := func(t *testing.T, b []byte) {
 		pemBlock, _ := pem.Decode(b)
-		require.NotNil(t, pemBlock)
+		require.NotNil(t, pemBlock, "pem.Decode failed")
 
 		validateTLSCertificateDERFunc(t, pemBlock.Bytes)
 	}
