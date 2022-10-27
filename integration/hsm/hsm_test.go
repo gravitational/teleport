@@ -180,7 +180,11 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if t.process.GetAuthServer().GetKeyStore().HasLocalAdditionalKeys(ca) {
+		hasUsableKeys, err := t.process.GetAuthServer().GetKeyStore().HasUsableAdditionalKeys(ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if hasUsableKeys {
 			break
 		}
 	}

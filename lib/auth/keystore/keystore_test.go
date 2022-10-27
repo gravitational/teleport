@@ -213,8 +213,8 @@ func TestKeyStore(t *testing.T) {
 				return
 			}
 
-			// create the keystore
-			keyStore, err := NewKeyStore(tc.config)
+			// create the keystore manager
+			keyStore, err := NewManager(tc.config)
 			require.NoError(t, err)
 
 			// create a key
@@ -265,7 +265,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11SSHKeyPair,
 						&types.SSHKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: KeyType(key),
+							PrivateKeyType: keyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -273,7 +273,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11TLSKeyPair,
 						&types.TLSKeyPair{
 							Key:     key,
-							KeyType: KeyType(key),
+							KeyType: keyType(key),
 							Cert:    tlsCert,
 						},
 					},
@@ -281,7 +281,7 @@ func TestKeyStore(t *testing.T) {
 						testPKCS11JWTKeyPair,
 						&types.JWTKeyPair{
 							PrivateKey:     key,
-							PrivateKeyType: KeyType(key),
+							PrivateKeyType: keyType(key),
 							PublicKey:      sshPublicKey,
 						},
 					},
@@ -361,8 +361,8 @@ func TestLicenseRequirement(t *testing.T) {
 	config := SetupSoftHSMTest(t)
 	config.PKCS11.HostUUID = "server1"
 
-	// should fail to create the keystore with default modules
-	_, err := NewKeyStore(config)
+	// should fail to create the keystore manager with default modules
+	_, err := NewManager(config)
 	require.Error(t, err)
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -373,6 +373,6 @@ func TestLicenseRequirement(t *testing.T) {
 	})
 
 	// should succeed when HSM feature is enabled
-	_, err = NewKeyStore(config)
+	_, err = NewManager(config)
 	require.NoError(t, err)
 }
