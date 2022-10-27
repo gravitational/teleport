@@ -1,6 +1,6 @@
 ---
-title: Database Access with Cassandra and ScyllaDB
-description: How to configure Teleport Database Access with Azure Database for Cassandra and ScyllaDB.
+title: Database Access with AWS Keyspaces (Apache Cassandra)
+description: How to configure Teleport Database Access with Azure Database for AWS Keyspaces (Apache Cassandra)
 ---
 
 <Details
@@ -10,14 +10,14 @@ description: How to configure Teleport Database Access with Azure Database for C
   scopeOnly={true}
   min="11.0"
 >
-  Database access for Cassandra & ScyllaDB is available starting from Teleport `v11.0`.
+  Database access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
 </Details>
 
 
 This guide will help you to:
 
 - Install and configure Teleport.
-- Set up Teleport to access your self-hosted Cassandra or ScyllaDB.
+- Set up Teleport to access your AWS Keyspaces (Apache Cassandra)..
 - Connect to your database through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -29,11 +29,11 @@ This guide will help you to:
 
 ## Prerequisites
 
-- Self-hosted Cassandra or ScyllaDB instance.
-- cqlsh cassandra client installed and added to your system's `PATH` environment variable.
-- - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
-Service.
+- AWS Account with AWS Keyspaces database and permissions to create and attach IAM policies
+- cqlsh Cassandra client installed and added to your system's `PATH` environment variable.
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
 
+See [Installation](../../installation.mdx) for details.
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
@@ -58,7 +58,7 @@ Start the Teleport Database Service, pointing the `--auth-server` flag to the
 address of your Teleport Proxy Service:
 
 ```code
-$teleport db start \
+$ teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:443 \
   --name=keyspaces \
@@ -123,7 +123,7 @@ Enter a role name and press create role.
 ## Step 4/5. Give Teleport permissions to assume roles
 
 Next, attach the following policy to the IAM role or IAM user the Teleport
-Application Service instance is using, which allows the Application Service to
+Database Service instance is using, which allows the Database Service to
 assume the IAM roles:
 
 ```yaml
@@ -191,7 +191,7 @@ $ tsh db logout example
 $ tsh db logout
 ```
 
-## Further reading:
+## Further reading
 * [How Amazon Keyspaces works with IAM](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_service-with-iam.html)
 * [What is Amazon Keyspaces (for Apache Cassandra)?](https://docs.aws.amazon.com/keyspaces/latest/devguide/what-is-keyspaces.html)
 

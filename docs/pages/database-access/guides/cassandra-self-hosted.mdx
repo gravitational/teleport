@@ -137,8 +137,6 @@ which Teleport will be connecting to it.
     - `server.crt` with a generated user certificate
   </TabItem>
 </Tabs>
-For example, if your Cassandra server is accessible at `cassandra.example.com`,
-run:
 
 ## Step 4/5. Configure Cassandra/Scylla
 
@@ -160,7 +158,7 @@ run:
       store_type: JKS
       cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
     ```
-    Where the `password`is the value generated in previous 4/5. step by `tctl auth sign` command.
+    Where the `password` is the value generated in the previous. step by `tctl auth sign` command.
 
   </TabItem>
   <TabItem label="Scylla">
