@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.3.5
+
+This release of Teleport contains several bug fixes.
+
+* Fixed issue with Teleport custom resources conflicting with Kubernetes resources in Helm charts. [#17718](https://github.com/gravitational/teleport/pull/17718)
+* Fixed issue with connecting to Redis 7 running in cluster mode in database access. [#17855](https://github.com/gravitational/teleport/pull/17855)
+* Fixed panic when comparing SSH public keys. [#17872](https://github.com/gravitational/teleport/pull/17872)
+* Improved error reporting from MFA devices. [#17581](https://github.com/gravitational/teleport/pull/17581)
+
 ## 10.3.4
 
 This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
