@@ -2484,6 +2484,32 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
+		{
+			desc: "AWS Keyspaces",
+			inFlags: CommandLineFlags{
+				DatabaseName:         "keyspace",
+				DatabaseProtocol:     defaults.ProtocolCassandra,
+				DatabaseURI:          "cassandra.us-east-1.amazonaws.com:9142",
+				DatabaseAWSAccountID: "123456789012",
+				DatabaseAWSRegion:    "us-east-1",
+			},
+			outDatabase: service.Database{
+				Name:     "keyspace",
+				Protocol: defaults.ProtocolCassandra,
+				URI:      "cassandra.us-east-1.amazonaws.com:9142",
+				AWS: service.DatabaseAWS{
+					Region:    "us-east-1",
+					AccountID: "123456789012",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: service.DatabaseTLS{
+					Mode: service.VerifyFull,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
