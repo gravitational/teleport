@@ -29,6 +29,10 @@ readonly CBOR_PATH="$LIB_CACHE/cbor-$CBOR_VERSION"
 readonly CRYPTO_PATH="$LIB_CACHE/crypto-$CRYPTO_VERSION"
 readonly FIDO2_PATH="$LIB_CACHE/fido2-$FIDO2_VERSION"
 
+# List of folders/files to remove on exit.
+# See cleanup and main.
+CLEANUPS=()
+
 fetch_and_build() {
   local name="$1"      # eg, cbor
   local version="$2"   # eg, v0.9.0
@@ -40,9 +44,7 @@ fetch_and_build() {
   mkdir -p "$LIB_CACHE"
   local tmp=''
   tmp="$(mktemp -d "$LIB_CACHE/build.XXXXXX")"
-  # Early expansion on purpose.
-  #shellcheck disable=SC2064
-  trap "rm -fr '$tmp'" EXIT
+  CLEANUPS+=("$tmp")
 
   local fullname="$name-$version"
   local install_path="$tmp/$fullname"
@@ -156,9 +158,7 @@ fido2_fetch_and_build() {
 fido2_compile_toy() {
   local toydir=''
   toydir="$(mktemp -d)"
-  # Early expansion on purpose.
-  #shellcheck disable=SC2064
-  trap "rm -fr '$toydir'" EXIT
+  CLEANUPS+=("$toydir")
 
   cat >"$toydir/toy.c" <<EOF
 #include <fido.h>
@@ -199,9 +199,7 @@ build() {
   if [[ ! -f "$pkgfile" ]]; then
     local tmp=''
     tmp="$(mktemp)"  # file, not dir!
-    # Early expansion on purpose.
-    #shellcheck disable=SC2064
-    trap "rm -f '$tmp'" EXIT
+    CLEANUPS+=("$tmp")
 
     # Write libfido2-static.pc to tmp.
     cat >"$tmp" <<EOF
@@ -227,11 +225,19 @@ EOF
   fi
 }
 
+cleanup() {
+  for path in "${CLEANUPS[@]}"; do
+    echo "Removing: $path" >&2
+    rm -fr "$path"
+  done
+}
+
 main() {
   if [[ $# -ne 1 ]]; then
     usage
     exit 1
   fi
+  trap cleanup EXIT
 
   case "$1" in
     build)
