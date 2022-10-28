@@ -104,35 +104,32 @@ type ProxyAuthorizer struct {
 	authUser string
 	authPass string
 	authMu   sync.Mutex
-	reqC     chan struct{}
-	errC     chan error
+	waitersC chan chan error
 }
 
 func NewProxyAuthorizer(handler http.Handler, user, pass string) *ProxyAuthorizer {
 	return &ProxyAuthorizer{
 		next:     handler,
-		reqC:     make(chan struct{}),
-		errC:     make(chan error),
 		authUser: user,
 		authPass: pass,
+		waitersC: make(chan chan error),
 	}
 }
 
 func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we detect if someone is waiting for a new request to come in.
-	var someoneWaiting bool
+	var waiter chan error
 	var err error
 	defer func() {
 		if err != nil {
 			trace.WriteError(w, err)
 		}
-		if someoneWaiting {
-			p.notifyWaiter(err)
+		if waiter != nil {
+			p.notifyWaiter(waiter, err)
 		}
 	}()
 	select {
-	case p.reqC <- struct{}{}:
-		someoneWaiting = true
+	case waiter = <-p.waitersC:
 	default:
 	}
 
@@ -162,26 +159,27 @@ func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *ProxyAuthorizer) WaitForRequest(timeout time.Duration) error {
 	timeoutC := time.After(timeout)
 
+	errC := make(chan error)
 	// wait for a new request to come in.
 	select {
 	case <-timeoutC:
 		return trace.BadParameter("timed out waiting for request to proxy authorizer")
-	case <-p.reqC:
+	case p.waitersC <- errC:
 	}
 
 	// get some error that occurred after the new request came in.
 	select {
 	case <-timeoutC:
 		return trace.BadParameter("timed out waiting for proxy authorizer request error")
-	case err := <-p.errC:
+	case err := <-errC:
 		return err
 	}
 }
 
-func (p *ProxyAuthorizer) notifyWaiter(err error) {
+func (p *ProxyAuthorizer) notifyWaiter(waiter chan error, err error) {
 	// notify waiter, but don't block if they left already.
 	select {
-	case p.errC <- err:
+	case waiter <- err:
 	default:
 	}
 }
