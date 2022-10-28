@@ -50,7 +50,7 @@ func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clie
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		fetchInterval: time.Minute,
-		InstancesC:    make(chan AzureInstances, 2),
+		InstancesC:    make(chan AzureInstances),
 	}
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {

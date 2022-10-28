@@ -61,7 +61,7 @@ func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients 
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		fetchInterval: time.Minute,
-		InstancesC:    make(chan EC2Instances, 2),
+		InstancesC:    make(chan EC2Instances),
 	}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
