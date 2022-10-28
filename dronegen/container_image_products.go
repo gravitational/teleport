@@ -283,6 +283,7 @@ func assumeS3DownloadRoleStep(productName string) (step, string) {
 		configVolume: volumeRefAwsConfig,
 		profile:      profileName,
 		name:         fmt.Sprintf("Assume S3 Download AWS Role for %s", productName),
+		append:       true,
 	}), profileName
 }
 

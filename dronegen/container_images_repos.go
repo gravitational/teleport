@@ -61,8 +61,6 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 
 	loginCommands := []string{
 		"apk add --no-cache aws-cli",
-		"ls /root/.aws/",
-		"cat /root/.aws/*",
 		"aws configure list",
 		fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 	}
@@ -89,6 +87,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 				configVolume: volumeRefAwsConfig,
 				profile:      profileName,
 				name:         fmt.Sprintf("Assume %s AWS Role", repoName),
+				append:       true,
 			}),
 		},
 		LoginCommands: loginCommands,
