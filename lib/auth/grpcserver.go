@@ -2617,12 +2617,13 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 }
 
 // UpsertGithubConnector upserts a Github connector.
-func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, GithubConnector *types.GithubConnectorV3) (*emptypb.Empty, error) {
+func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types.GithubConnectorV3) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, GithubConnector); err != nil {
+	githubConnector := services.InitGithubConnector(connector)
+	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, githubConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

@@ -18,6 +18,7 @@ package services
 
 import (
 	"encoding/json"
+	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -25,8 +26,71 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// githubConnectorMutex is a mutex for the Github auth connector creator.
+var githubConnectorMutex sync.RWMutex
+
+// GithubAuthCreator creates a new Github connector.
+type GithubAuthCreator func(string, types.GithubConnectorSpecV3) (types.GithubConnector, error)
+
+// githubAuthCreator is the factory function that will create Github auth connectors.
+var githubAuthCreator GithubAuthCreator
+
+// RegisterGithubAuthCreator registers a function to create Github auth connectors.
+func RegisterGithubAuthCreator(creator GithubAuthCreator) {
+	githubConnectorMutex.Lock()
+	defer githubConnectorMutex.Unlock()
+	githubAuthCreator = creator
+}
+
+// NewGithubConnector creates a new Github auth connector.
+func NewGithubConnector(name string, spec types.GithubConnectorSpecV3) (types.GithubConnector, error) {
+	githubConnectorMutex.RLock()
+	defer githubConnectorMutex.RUnlock()
+	return githubAuthCreator(name, spec)
+}
+
+// GithubAuthInitializer creates a new Github connector.
+type GithubAuthInitializer func(*types.GithubConnectorV3) types.GithubConnector
+
+// githubAuthInitializer
+var githubAuthInitializer GithubAuthInitializer
+
+// RegisterGithubAuthCreator registers a function to create Github auth connectors.
+func RegisterGithubAuthInitializer(init GithubAuthInitializer) {
+	githubConnectorMutex.Lock()
+	defer githubConnectorMutex.Unlock()
+	githubAuthInitializer = init
+}
+
+// InitGithubConnector creates a new Github auth connector.
+func InitGithubConnector(c *types.GithubConnectorV3) types.GithubConnector {
+	githubConnectorMutex.RLock()
+	defer githubConnectorMutex.RUnlock()
+	return githubAuthInitializer(c)
+}
+
+func init() {
+	RegisterGithubAuthCreator(types.NewGithubConnector)
+	RegisterGithubAuthInitializer(func(c *types.GithubConnectorV3) types.GithubConnector {
+		return c
+	})
+}
+
 // UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
 func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
+	r, err := UnmarshalResource(types.KindGithubConnector, bytes, nil)
+	if err != nil {
+		return nil, err
+	}
+	connector, ok := r.(types.GithubConnector)
+	if !ok {
+		return nil, trace.BadParameter("expected GithubConnector, got %T", r)
+	}
+
+	return connector, nil
+}
+
+func unmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
 	var h types.ResourceHeader
 	if err := json.Unmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
@@ -47,7 +111,11 @@ func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
 }
 
 // MarshalGithubConnector marshals the GithubConnector resource to JSON.
-func MarshalGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
+func MarshalGithubConnector(connector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
+	return MarshalResource(connector, opts...)
+}
+
+func marshalGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
 	if err := githubConnector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

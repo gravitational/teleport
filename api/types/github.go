@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-const githubURL = "github.com"
+const githubURL = "https://github.com"
 
 // ErrGitHubEndpointURLUsed results from endpoint_url field being set in Teleport OSS.
 var ErrGitHubEndpointURLUsed = trace.BadParameter("endpoint_url is an enterprise only feature")
@@ -261,7 +261,11 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 
 // GetEndpointURL returns the endpoint URL
 func (c *GithubConnectorV3) GetEndpointURL() string {
-	return githubURL
+	if c.Spec.EndpointURL == "" {
+		return githubURL
+	}
+
+	return c.Spec.EndpointURL
 }
 
 // MapClaims returns a list of logins based on the provided claims,

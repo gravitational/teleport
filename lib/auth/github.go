@@ -24,7 +24,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
@@ -46,29 +45,6 @@ import (
 
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
-
-// githubConnectorMutex is a mutex for the Github auth connector creator.
-var githubConnectorMutex sync.RWMutex
-
-// GithubAuthCreator creates a new Github connector.
-type GithubAuthCreator func(string, types.GithubConnectorSpecV3) (types.GithubConnector, error)
-
-// githubAuthCreator is the factory function that will create Github auth connectors.
-var githubAuthCreator GithubAuthCreator
-
-// RegisterGithubAuthCreator registers a function to create Github auth connectors.
-func RegisterGithubAuthCreator(creator GithubAuthCreator) {
-	githubConnectorMutex.Lock()
-	defer githubConnectorMutex.Unlock()
-	githubAuthCreator = creator
-}
-
-// NewGithubConnector creates a new Github auth connector.
-func NewGithubConnector(name string, spec types.GithubConnectorSpecV3) (types.GithubConnector, error) {
-	githubConnectorMutex.RLock()
-	defer githubConnectorMutex.RUnlock()
-	return githubAuthCreator(name, spec)
-}
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
@@ -190,7 +166,7 @@ func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client htt
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
 	// Github organization, so check if this exists instead.
-	ssoURL := fmt.Sprintf("https://%s/orgs/%s/sso", endpointURL, url.PathEscape(org))
+	ssoURL := fmt.Sprintf("%s/orgs/%s/sso", endpointURL, url.PathEscape(org))
 
 	const retries = 3
 	var resp *http.Response
@@ -387,7 +363,7 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 		}
 
 		// stateless test flow
-		connector, err := NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
+		connector, err := services.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -424,8 +400,8 @@ func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
 		},
 		RedirectURL: connector.GetRedirectURL(),
 		Scope:       GithubScopes,
-		AuthURL:     GithubAuthURL,
-		TokenURL:    GithubTokenURL,
+		AuthURL:     fmt.Sprintf("%s/%s", connector.GetEndpointURL(), GithubAuthPath),
+		TokenURL:    fmt.Sprintf("%s/%s", connector.GetEndpointURL(), GithubTokenPath),
 	}
 }
 
@@ -516,9 +492,14 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// Get the Github organizations the user is a member of so we don't
 	// make unnecessary API requests
+	endpointUrl, err := url.Parse(connector.GetEndpointURL())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ghClient := &githubAPIClient{
-		token:      token.AccessToken,
-		authServer: a,
+		token:            token.AccessToken,
+		authServer:       a,
+		endpointHostname: endpointUrl.Host,
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
@@ -778,6 +759,8 @@ type githubAPIClient struct {
 	token string
 	// authServer points to the Auth Server.
 	authServer *Server
+
+	endpointHostname string
 }
 
 // userResponse represents response from "user" API call
@@ -789,7 +772,7 @@ type userResponse struct {
 // getEmails retrieves a list of emails for authenticated user
 func (c *githubAPIClient) getUser() (*userResponse, error) {
 	// Ignore pagination links, we should never get more than a single user here.
-	bytes, _, err := c.get("/user")
+	bytes, _, err := c.get("user")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -821,7 +804,7 @@ type orgResponse struct {
 func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 	var result []teamResponse
 
-	bytes, nextPage, err := c.get("/user/teams")
+	bytes, nextPage, err := c.get("user/teams")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -889,7 +872,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 // get makes a GET request to the provided URL using the client's token for auth
 func (c *githubAPIClient) get(url string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("%v%v", GithubAPIURL, url), nil)
+	request, err := http.NewRequest("GET", fmt.Sprintf("https://api.%s/%s", c.endpointHostname, url), nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -916,14 +899,11 @@ func (c *githubAPIClient) get(url string) ([]byte, string, error) {
 }
 
 const (
-	// GithubAuthURL is the Github authorization endpoint
-	GithubAuthURL = "https://github.com/login/oauth/authorize"
+	// GithubAuthPath is the Github authorization endpoint
+	GithubAuthPath = "login/oauth/authorize"
 
-	// GithubTokenURL is the Github token exchange endpoint
-	GithubTokenURL = "https://github.com/login/oauth/access_token"
-
-	// GithubAPIURL is the Github base API URL
-	GithubAPIURL = "https://api.github.com"
+	// GithubTokenPath is the Github token exchange endpoint
+	GithubTokenPath = "login/oauth/access_token"
 
 	// MaxPages is the maximum number of pagination links that will be followed.
 	MaxPages = 99

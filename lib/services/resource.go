@@ -480,14 +480,14 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", resource)
 		}
-		bytes, err := MarshalGithubConnector(githubConnector, opts...)
+		bytes, err := marshalGithubConnector(githubConnector, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return bytes, nil
 	})
 	RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		githubConnector, err := UnmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
+		githubConnector, err := unmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
