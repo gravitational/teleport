@@ -226,10 +226,22 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
 		} else if flags.AuthServer != "" {
 			// For Teleport 11, if `--auth-server` is provided, we generate a V2
-			// configuration and in `onConfigDump` output a stern warning.
+			// configuration and in `onConfigDump` output a stern warning if
+			// there is a chance that this is a Proxy.
 			// This ensures we do not break people relying on `--auth-server`.
-			g.AuthServers = []string{flags.AuthServer}
-			version = defaults.TeleportConfigVersionV2
+			addr, err := utils.ParseAddr(flags.AuthServer)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Check port to determine if this is obviously a auth server
+			// and if not, downgrade to config v2.
+			if addr.Port(0) == defaults.AuthListenPort {
+				g.AuthServer = flags.AuthServer
+			} else {
+				g.AuthServers = []string{flags.AuthServer}
+				version = defaults.TeleportConfigVersionV2
+			}
 		} else if flags.ProxyAddress != "" {
 			g.ProxyServer = flags.ProxyAddress
 		}

@@ -550,8 +550,9 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
-	if flags.Version == defaults.TeleportConfigVersionV3 && flags.AuthServer != "" {
-		fmt.Fprintf(os.Stderr, "---BREAKING CHANGE IMPENDING---\nFrom Teleport 12, you will no longer be able to specify a Proxy address with --auth-server when using teleport configure. If you are connecting your node to a Proxy, switch to using --proxy before Teleport 12.\n\n")
+	// Detect automatic downgrade behaviour and output warning
+	if flags.Version == defaults.TeleportConfigVersionV3 && sfc.Version == defaults.TeleportConfigVersionV2 {
+		fmt.Fprintf(os.Stderr, "---BREAKING CHANGE IMPENDING---\nConfiguration version 'v3' (introduced in Teleport 11) requires that '--proxy' is used instead of '--auth-server' when connecting a Node to a Proxy rather than directly to the Auth Server.\nWe have detected that you may have provided a proxy address with '--auth-server' and have downgraded the generated config to 'v2' to ensure continuity of service.\nThis behaviour will cease in Teleport 12! Begin using '--proxy' when providing the proxy address as soon as possible.\n\n")
 	}
 
 	entries, err := os.ReadDir(flags.DataDir)
