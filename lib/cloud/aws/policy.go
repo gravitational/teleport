@@ -90,9 +90,10 @@ func ParsePolicyDocument(document string) (*PolicyDocument, error) {
 }
 
 // NewPolicyDocument returns new empty AWS IAM policy document.
-func NewPolicyDocument() *PolicyDocument {
+func NewPolicyDocument(statements ...*Statement) *PolicyDocument {
 	return &PolicyDocument{
-		Version: PolicyVersion,
+		Version:    PolicyVersion,
+		Statements: statements,
 	}
 }
 

@@ -51,7 +51,7 @@ func GetAWSPolicyDocumentMarshaled(db types.Database) (string, Placeholders, err
 	return marshaled, placeholders, nil
 }
 
-func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, []string, error) {
+func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
 	aws := db.GetAWS()
 	partition := awsutils.GetPartitionFromRegion(aws.Region)
 	region := aws.Region
@@ -59,23 +59,22 @@ func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, []string, 
 	resourceID := aws.RDS.ResourceID
 
 	placeholders := Placeholders(nil).
-		setPlaceholderIfEmpty(&region, "<region>").
-		setPlaceholderIfEmpty(&partition, "<partition>").
-		setPlaceholderIfEmpty(&accountID, "<account_id>").
-		setPlaceholderIfEmpty(&resourceID, "<resource_id>")
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&resourceID, "{resource_id}")
 
-	policy := awslib.NewPolicyDocument()
-	policy.Statements = append(policy.Statements, &awslib.Statement{
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
 		Effect:  awslib.EffectAllow,
 		Actions: awslib.SliceOrString{"rds-db:connect"},
 		Resources: awslib.SliceOrString{
 			fmt.Sprintf("arn:%v:rds-db:%v:%v:dbuser:%v/*", partition, region, accountID, resourceID),
 		},
 	})
-	return policy, placeholders, nil
+	return policyDoc, placeholders, nil
 }
 
-func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, []string, error) {
+func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
 	aws := db.GetAWS()
 	partition := awsutils.GetPartitionFromRegion(aws.Region)
 	region := aws.Region
@@ -83,13 +82,12 @@ func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, []str
 	clusterID := aws.Redshift.ClusterID
 
 	placeholders := Placeholders(nil).
-		setPlaceholderIfEmpty(&region, "<region>").
-		setPlaceholderIfEmpty(&partition, "<partition>").
-		setPlaceholderIfEmpty(&accountID, "<account_id>").
-		setPlaceholderIfEmpty(&clusterID, "<cluster_id>")
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&clusterID, "{cluster_id}")
 
-	policy := awslib.NewPolicyDocument()
-	policy.Statements = append(policy.Statements, &awslib.Statement{
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
 		Effect:  awslib.EffectAllow,
 		Actions: awslib.SliceOrString{"redshift:GetClusterCredentials"},
 		Resources: awslib.SliceOrString{
@@ -98,7 +96,7 @@ func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, []str
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbgroup:%v/*", partition, region, accountID, clusterID),
 		},
 	})
-	return policy, placeholders, nil
+	return policyDoc, placeholders, nil
 }
 
 // Placeholders defines a slice of strings used as placeholders.

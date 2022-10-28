@@ -81,6 +81,28 @@ func TestSliceOrString(t *testing.T) {
 	})
 }
 
+func TestParsePolicyDocument(t *testing.T) {
+	policyDoc, err := ParsePolicyDocument(`{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "rds-db:connect",
+	  "Resource": ["arn:aws:rds-db:us-west-1:12345:dbuser:id/*"]
+    }
+  ]
+}`)
+	require.NoError(t, err)
+	require.Equal(t, PolicyDocument{
+		Version: PolicyVersion,
+		Statements: []*Statement{{
+			Effect:    EffectAllow,
+			Actions:   SliceOrString{"rds-db:connect"},
+			Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
+		}},
+	}, *policyDoc)
+}
+
 // TestIAMPolicy verifies AWS IAM policy manipulations.
 func TestIAMPolicy(t *testing.T) {
 	policy := NewPolicyDocument()

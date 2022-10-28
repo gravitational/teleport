@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/aws"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
@@ -44,17 +43,6 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: "postgres",
 		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5438",
-		AWS: types.AWS{
-			AccountID: "account-id",
-		},
-	})
-	require.NoError(t, err)
-
-	rds, err := types.NewDatabaseV3(types.Metadata{
-		Name: "aws-rds-with-placeholders",
-	}, types.DatabaseSpecV3{
-		Protocol: "postgres",
-		URI:      "instance-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com:5438",
 	})
 	require.NoError(t, err)
 
@@ -67,7 +55,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add database servers for above databases.
-	for _, db := range []*types.DatabaseV3{redshift, rds, selfHosted} {
+	for _, db := range []*types.DatabaseV3{redshift, selfHosted} {
 		_, err = env.server.Auth().UpsertDatabaseServer(context.TODO(), mustCreateDatabaseServer(t, db))
 		require.NoError(t, err)
 	}
@@ -81,15 +69,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 			verifyResponse: func(t *testing.T, resp *roundtrip.Response, err error) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.Code())
-				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), redshift, 0)
-			},
-		},
-		{
-			inputDatabaseName: "aws-rds-with-placeholders",
-			verifyResponse: func(t *testing.T, resp *roundtrip.Response, err error) {
-				require.NoError(t, err)
-				require.Equal(t, http.StatusOK, resp.Code())
-				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), rds, 2)
+				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), redshift)
 			},
 		},
 		{
@@ -128,20 +108,15 @@ func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.Database
 	return databaseServer
 }
 
-func requireDatabaseIAMPolicyAWS(t *testing.T, respBody []byte, database types.Database, numPlaceholders int) {
+func requireDatabaseIAMPolicyAWS(t *testing.T, respBody []byte, database types.Database) {
 	t.Helper()
 
 	var resp databaseIAMPolicyResponse
 	require.NoError(t, json.Unmarshal(respBody, &resp))
 	require.Equal(t, "aws", resp.Type)
 
-	actualPolicyDocument, err := aws.ParsePolicyDocument(resp.AWS.PolicyDocument)
+	expectedPolicyDocument, expectedPlaceholders, err := dbiam.GetAWSPolicyDocumentMarshaled(database)
 	require.NoError(t, err)
-
-	expectedPolicyDocument, expectPlaceholders, err := dbiam.GetAWSPolicyDocument(database)
-	require.NoError(t, err)
-
-	require.Equal(t, expectedPolicyDocument, actualPolicyDocument)
-	require.Len(t, resp.AWS.Placeholders, numPlaceholders)
-	require.Equal(t, []string(expectPlaceholders), resp.AWS.Placeholders)
+	require.Equal(t, expectedPolicyDocument, resp.AWS.PolicyDocument)
+	require.Equal(t, []string(expectedPlaceholders), resp.AWS.Placeholders)
 }

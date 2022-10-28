@@ -35,16 +35,16 @@ import (
 type databaseIAMPolicyResponse struct {
 	// Type is the type of the IAM policy
 	Type string `json:"type"`
-	// AWS contains the IAM policy for AWS.
+	// AWS contains the IAM policy for AWS-hosted databases.
 	AWS *databaseIAMPolicyAWS `json:"aws,omitempty"`
 }
 
-// databaseIAMPolicyAWS contains IAM policy for AWS hosted databases.
+// databaseIAMPolicyAWS contains IAM policy for AWS-hosted databases.
 type databaseIAMPolicyAWS struct {
 	// PolicyDocument is the AWS IAM policy document.
 	PolicyDocument string `json:"policy_document"`
 	// Placeholders are placeholders found in the policy document.
-	Placeholders []string `json:"placeholders"`
+	Placeholders []string `json:"placeholders,omitempty"`
 }
 
 // handleDatabaseGetIAMPolicy returns the required IAM policy for database.
@@ -86,7 +86,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 // fetchDatabaseWithName fetch a database with provided database name.
 func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-		Limit:               defaults.MaxIterationLimit,
+		Limit:               defaults.IterationLimit,
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
 		UseSearchAsRoles:    r.URL.Query().Get("searchAsRoles") == "yes",
