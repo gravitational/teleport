@@ -26,10 +26,10 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -37,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/sirupsen/logrus"
 )
 
 // LocalKeyAgent holds Teleport certificates for a user connected to a cluster.

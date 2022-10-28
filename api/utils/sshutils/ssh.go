@@ -24,10 +24,10 @@ import (
 	"io"
 	"net"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 const (

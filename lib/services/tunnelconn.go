@@ -19,12 +19,12 @@ package services
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // LatestTunnelConnection returns latest tunnel connection from the list

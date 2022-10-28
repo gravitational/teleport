@@ -17,10 +17,10 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // CompareResources compares two resources by all significant fields.

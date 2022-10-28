@@ -24,15 +24,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // KubeConnectionTesterConfig defines the config fields for KubeConnectionTester.

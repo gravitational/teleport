@@ -22,13 +22,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 const iamJoinRequestTimeout = time.Minute

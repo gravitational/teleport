@@ -19,11 +19,10 @@ package sshutils
 import (
 	"crypto"
 
-	"github.com/gravitational/teleport/api/utils/sshutils"
-
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // NewSigner returns new ssh Signer from private key + certificate pair.  The
