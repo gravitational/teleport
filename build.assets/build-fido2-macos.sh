@@ -15,7 +15,7 @@ readonly MACOS_VERSION_MIN=10.13
 
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.9.0
-readonly CRYPTO_VERSION=OpenSSL_1_1_1q
+readonly CRYPTO_VERSION=OpenSSL_1_1_1r
 readonly FIDO2_VERSION=1.12.0
 
 readonly LIB_CACHE="/tmp/teleport-fido2-cache"
