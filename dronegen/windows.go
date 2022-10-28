@@ -48,6 +48,7 @@ func windowsTagPipeline() pipeline {
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
+		signTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		{
 			Name: "Assume AWS Role",
@@ -111,6 +112,7 @@ func windowsPushPipeline() pipeline {
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
+		signTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
 		{
@@ -220,8 +222,7 @@ func buildWindowsTshStep(workspace string) step {
 	return step{
 		Name: "Build tsh",
 		Environment: map[string]value{
-			"WORKSPACE_DIR":        {raw: workspace},
-			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
+			"WORKSPACE_DIR": {raw: workspace},
 		},
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
@@ -232,7 +233,34 @@ func buildWindowsTshStep(workspace string) step {
 			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$Env:GCO_ENABLED=1`,
-			`go build -o build/tsh.exe ./tool/tsh`,
+			`go build -o build/tsh-unsigned.exe ./tool/tsh`,
+		},
+	}
+}
+
+func signTshStep(workspace string) step {
+	return step{
+		Name: "Build tsh",
+		Environment: map[string]value{
+			"WORKSPACE_DIR":        {raw: workspace},
+			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
+		},
+		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`cd $TeleportSrc`,
+			`echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx`,
+			`osslsigncode sign -pkcs12 "windows-signing-cert.pfx" \
+				-n "Teleport" \
+				-i https://goteleport.com \
+				-t http://timestamp.digicert.com \
+				-h sha2 \
+				-in build/tsh-unsigned.exe \
+				-out build/tsh.exe;`,
+			`rm -r build/tsh-unsigned.exe`,
+			`rm -r windows-signing-cert.pfx`,
 		},
 	}
 }
