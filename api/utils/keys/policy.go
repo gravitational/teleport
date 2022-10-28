@@ -52,7 +52,7 @@ func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 			return nil
 		}
 	}
-	return NewPrivateKeyPolicyError(p)
+	return newPrivateKeyPolicyError(p)
 }
 
 func (p PrivateKeyPolicy) validate() error {
@@ -65,7 +65,7 @@ func (p PrivateKeyPolicy) validate() error {
 
 var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not met: (\w+)`)
 
-func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
+func newPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
 }
 

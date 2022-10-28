@@ -16,10 +16,7 @@ limitations under the License.
 
 package webclient
 
-import (
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/keys"
-)
+import "github.com/gravitational/teleport/api/constants"
 
 const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type
@@ -85,6 +82,4 @@ type WebConfigAuthSettings struct {
 	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
 	// LocalConnectorName is the name of the local connector.
 	LocalConnectorName string `json:"localConnectorName,omitempty"`
-	// PrivateKeyPolicy is the configured private key policy for the cluster.
-	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"privateKeyPolicy,omitempty"`
 }

@@ -18,14 +18,10 @@ package ui
 
 import "time"
 
-// ResetPasswordToken describes a reset password token UI object.
-type ResetPasswordToken struct {
-	// TokenID is token ID
-	TokenID string `json:"tokenId"`
-	// User is user name associated with this token
-	User string `json:"user"`
-	// QRCode is a QR code value
-	QRCode []byte `json:"qrCode,omitempty"`
-	// Expiry is token expiration time
-	Expiry time.Time `json:"expiry,omitempty"`
+// RecoveryCodes describes RecoveryCodes UI object.
+type RecoveryCodes struct {
+	// Codes are user's new recovery codes.
+	Codes []string `json:"codes,omitempty"`
+	// Created is when the codes were created.
+	Created *time.Time `json:"created,omitempty"`
 }
