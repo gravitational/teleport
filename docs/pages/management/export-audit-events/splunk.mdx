@@ -53,8 +53,8 @@ generate credentials that the plugin will use for authentication.
 Follow the instructions for your environment to install the Event Handler plugin
 on your Universal Forwarder host:
 
-<Tabs dropdownCaption="Method" dropdownSelected="Executable">
-  <TabItem options="Executable" label="Latest Release">
+<Tabs dropdownCaption="Version" dropdownSelected="Latest Release">
+  <TabItem options="Latest Release" label="Download the Binary">
 
   On the host where you are running the Universal Forwarder, execute the
   following commands:
@@ -67,7 +67,7 @@ on your Universal Forwarder host:
   Move the `teleport-event-handler` binary into your `PATH`.
   </TabItem>
 
-  <TabItem options="Docker" label="Latest Release ">
+  <TabItem options="Latest Release" label="Pull via Docker">
 
   On the host where you are running the Universal Forwarder, execute the
   following command:
@@ -78,8 +78,8 @@ on your Universal Forwarder host:
 
   </TabItem>
 
-  <TabItem options="Docker" label="From Source">
-  You must have Docker Desktop installed on your Universal Forwarder host. 
+  <TabItem options="From Source" label="Build via Docker">
+  You must have Docker installed on your Universal Forwarder host. 
 
   Log in to the host and execute the following commands to build the plugin:
 
@@ -94,7 +94,7 @@ on your Universal Forwarder host:
   this into your `PATH`.
 
   </TabItem>
-  <TabItem options="Executable" label="From Source ">
+  <TabItem options="From Source" label="Build via Go">
 
   You will need Go >= (=teleport.golang=) installed.
 
@@ -114,10 +114,6 @@ on your Universal Forwarder host:
 </Tabs>
 
 ### Generate a starter config file
-
-Generate a configuration file with placeholder values for the Teleport Event
-Handler plugin. Later in this guide, we will edit the configuration file for
-your environment.
 
 On the host where you are running the Universal Forwarder and the Event Handler
 plugin, execute the following command to generate a sample configuration that we
@@ -209,7 +205,7 @@ spec:
 Next, create the role:
 
 ```code
-$ tctl create teleport-event-handler-impersonator.yaml
+$ tctl create -f teleport-event-handler-impersonator.yaml
 ```
 
 Assign this role to your Teleport user by running the following commands,
@@ -222,16 +218,21 @@ depending on whether you authenticate as a local Teleport user or via the
 Retrieve your local user's configuration resource:
 
 ```code
-$ tctl get users/$(tsh status -f json | jq -r '.active.username') > out.yaml
+$ tctl get users/$(tsh status -f json | jq -r '.active.username') > myuser.yaml
 ```
 
-Edit `out.yaml`, adding `teleport-event-handler-impersonator` to the list of
+<Details title='Getting a "command not found" error?'>
+This command requires `jq` to be installed on your workstation, which you can do
+via the [`jq` download page](https://stedolan.github.io/jq/download/).
+</Details>
+
+Edit `myuser.yaml`, adding `teleport-event-handler-impersonator` to the list of
 existing roles.
 
 Apply your changes:
 
 ```code
-$ tctl create -f out.yaml
+$ tctl create -f myuser.yaml
 ```
 </TabItem>
 <TabItem label="GitHub">
@@ -338,9 +339,9 @@ command to request these credentials for the plugin.
 
 <ScopedBlock scope={["enterprise", "oss"]}>
 
-The format of the credentials depends on whether you have set up your network to
-give the plugin direct access to the Teleport Auth Service, or if all Teleport
-clients and services connect to the Teleport Proxy Service instead.
+The format of the credentials depends on whether you have set up your Teleport
+cluster so clients and services connect to the Teleport Proxy Service or to the
+Teleport Auth Service instead.
 
 <Tabs>
 <TabItem label="Connect to the Proxy Service">
@@ -437,9 +438,9 @@ installing the Universal Forwarder.
 
 <Details title="Finding your $SPLUNK_HOME">
 
-To find your `$SPLUNK_HOME`, run the following command to see the location your
-Universal Forwarder service definition, which the init system systemd uses to
-run the Universal Forwarder:
+To find your `$SPLUNK_HOME`, run the following command to see the location of
+your Universal Forwarder service definition, which the init system systemd uses
+to run the Universal Forwarder:
 
 ```code
 $ sudo systemctl status SplunkForwarder.service
@@ -455,7 +456,12 @@ $ sudo systemctl status SplunkForwarder.service
 ```
 
 View the file at the path shown in the `Loaded:` field. Your `$SPLUNK_HOME`
-will include the filepath segments in `ExecStart` before `bin`.
+will include the filepath segments in `ExecStart` before `/bin`. In this case,
+`$SPLUNK_HOME` is `/opt/splunkforwarder/`:
+
+```text
+ExecStart=/opt/splunkforwarder/bin/splunk _internal_launch_under_systemd
+```
 
 </Details>
 
@@ -472,7 +478,7 @@ The values of the remaining fields, **Max raw data size** and **Searchable
 retention (days)** depend on your organization's resources and practices for log
 management.
 
-Click "Save".
+Click **Save**
 
 ### Create a token for the Universal Forwarder
 
@@ -484,16 +490,18 @@ click **Add new**
 Enter a name you can use to recognize the token later so you can
 manage it, e.g., `Teleport Audit Events`. Click **Next**.
 
-Next to the **Source type** field, click **Select**. In the **Select Source
-Type** dropdown menu, click **Structured**, then **_json**. Splunk will index
-incoming logs as JSON, which is the format the Event Handler uses to send logs
-to the Universal Forwarder.
-
 ![Create a Token](../../../../docs/img/enterprise/plugins/splunk/new-token.png)
 
-Beside **Index** select the `teleport-audit-logs` index you created earlier.
-Click **Review** then view the summary and click **Submit** Copy the **Token
-Value** field and keep it somewhere safe so you can use it later in this guide.
+In the **Input Settings** view (above), next to the **Source type** field, click
+**Select**. In the **Select Source Type** dropdown menu, click **Structured**,
+then **_json**. Splunk will index incoming logs as JSON, which is the format the
+Event Handler uses to send logs to the Universal Forwarder.
+
+
+In the **Index** section, select the `teleport-audit-logs` index you created
+earlier. Click **Review** then view the summary and click **Submit**. Copy the
+**Token Value** field and keep it somewhere safe so you can use it later in this
+guide.
 
 ### Prepare a certificate file for the Universal Forwarder
 
