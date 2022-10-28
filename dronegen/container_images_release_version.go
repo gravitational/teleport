@@ -87,15 +87,12 @@ func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 		waitForDockerRegistryStep(),
 		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
 		rv.buildSplitSemverSteps(flags.ShouldOnlyPublishFullSemver),
-		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
-			awsRoleSettings: awsRoleSettings{
-				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
-				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				role:               value{fromSecret: "AWS_ROLE"},
-			},
-			configVolume: volumeRefAwsConfig,
-		}),
 	}
+
+	for _, containerRepo := range getReposUsedByPipeline(flags) {
+		setupSteps = append(setupSteps, containerRepo.SetupSteps...)
+	}
+
 	for _, setupStep := range setupSteps {
 		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
 		steps = append(steps, setupStep)
@@ -107,6 +104,14 @@ func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 	}
 
 	return steps
+}
+
+func getReposUsedByPipeline(flags *TriggerFlags) []*ContainerRepo {
+	if !flags.ShouldAffectProductionImages {
+		return []*ContainerRepo{GetStagingContainerRepo(flags.UseUniqueStagingTag)}
+	}
+
+	return append(GetProductionContainerRepos(), GetStagingContainerRepo(flags.UseUniqueStagingTag))
 }
 
 type Semver struct {

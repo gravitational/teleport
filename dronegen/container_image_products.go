@@ -53,8 +53,8 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
-	setupSteps, dockerfilePath := getTeleportSetupSteps(name, workingDirectory, downloadURL)
-	archSetupSteps, debPaths := getTeleportArchsSetupSteps(supportedArches, workingDirectory, version, isEnterprise, isFips)
+	setupSteps, dockerfilePath, downloadProfileName := getTeleportSetupSteps(name, workingDirectory, downloadURL)
+	archSetupSteps, debPaths := getTeleportArchsSetupSteps(supportedArches, workingDirectory, downloadProfileName, version, isEnterprise, isFips)
 
 	return &Product{
 		Name:             name,
@@ -130,23 +130,27 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	}
 }
 
-func getTeleportSetupSteps(productName, workingPath, downloadURL string) ([]step, string) {
+// Builds all the steps required to prepare the pipeline for building Teleport images.
+// Returns the setup steps, the path to the downloaded Teleport dockerfile, and the name of the
+// AWS profile that can be used to download artifacts from S3.
+func getTeleportSetupSteps(productName, workingPath, downloadURL string) ([]step, string, string) {
+	assumeS3DownloadRoleStep, profileName := assumeS3DownloadRoleStep(productName)
 	downloadDockerfileStep, dockerfilePath := downloadTeleportDockerfileStep(productName, workingPath, downloadURL)
 	// Additional setup steps in the future should go here
 
-	return []step{downloadDockerfileStep}, dockerfilePath
+	return []step{assumeS3DownloadRoleStep, downloadDockerfileStep}, dockerfilePath, profileName
 }
 
 // Generates steps that download a deb for each supported arch to the working directory.
 // Returns maps keyed by the supported arches, with the generated setup steps and deb paths.
-func getTeleportArchsSetupSteps(supportedArchs []string, workingDirectory string, version *ReleaseVersion,
+func getTeleportArchsSetupSteps(supportedArchs []string, workingDirectory, profile string, version *ReleaseVersion,
 	isEnterprise, isFips bool) (map[string][]step, map[string]string) {
 
 	archSetupSteps := make(map[string][]step, len(supportedArchs))
 	debPaths := make(map[string]string, len(supportedArchs))
 
 	for _, supportedArch := range supportedArchs {
-		archSetupStep, debPath := getTeleportArchSetupStep(supportedArch, workingDirectory, version, isEnterprise, isFips)
+		archSetupStep, debPath := getTeleportArchSetupStep(supportedArch, workingDirectory, profile, version, isEnterprise, isFips)
 		archSetupSteps[supportedArch] = []step{archSetupStep}
 		debPaths[supportedArch] = debPath
 	}
@@ -156,26 +160,29 @@ func getTeleportArchsSetupSteps(supportedArchs []string, workingDirectory string
 
 // Generates steps that download a deb for each supported arch to the working directory.
 // Returns the generated step, and the path to the downloaded deb.
-func getTeleportArchSetupStep(arch, workingDirectory string, version *ReleaseVersion, isEnterprise, isFips bool) (step, string) {
+func getTeleportArchSetupStep(arch, workingDirectory, profile string, version *ReleaseVersion, isEnterprise, isFips bool) (step, string) {
 	shellDebName := buildTeleportDebName(version, arch, isEnterprise, isFips, false)
 	humanDebName := buildTeleportDebName(version, arch, isEnterprise, isFips, true)
-	commands := generateDownloadCommandsForArch(shellDebName, version.GetFullSemver().GetSemverValue(), workingDirectory)
+	commands := generateDownloadCommandsForArch(shellDebName, version.GetFullSemver().GetSemverValue(), workingDirectory, profile)
 
-	return step{
+	downloadStep := step{
 		Name:  fmt.Sprintf("Download %q artifacts from S3", humanDebName),
 		Image: "amazon/aws-cli",
 		Environment: map[string]value{
 			"AWS_REGION":    {raw: "us-west-2"},
 			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
+			"AWS_PROFILE":   {raw: profile},
 		},
 		Commands: commands,
 		Volumes:  []volumeRef{volumeRefAwsConfig},
-	}, shellDebName
+	}
+
+	return downloadStep, shellDebName
 }
 
 // Generates the commands to download `debName` from s3 to `workingDirectory`.
 // Returns the commands as well as the path where the deb will be downloaded to.
-func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory string) []string {
+func generateDownloadCommandsForArch(debName, trimmedTag, workingDirectory, profile string) []string {
 	bucketPath := fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", trimmedTag)
 	checkCommands := []string{
 		"SUCCESS=true",
@@ -265,6 +272,20 @@ func downloadTeleportDockerfileStep(productName, workingPath, downloadURL string
 	}, dockerfilePath
 }
 
+func assumeS3DownloadRoleStep(productName string) (step, string) {
+	profileName := fmt.Sprintf("s3-download-%s", productName)
+	return kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
+		awsRoleSettings: awsRoleSettings{
+			awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+			awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			role:               value{fromSecret: "AWS_ROLE"},
+		},
+		configVolume: volumeRefAwsConfig,
+		profile:      profileName,
+		name:         fmt.Sprintf("Assume S3 Download AWS Role for %s", productName),
+	}), profileName
+}
+
 func (p *Product) getBaseImage(arch string, version *ReleaseVersion, containerRepo *ContainerRepo) *Image {
 	return p.ImageBuilder(
 		containerRepo,
@@ -277,7 +298,7 @@ func (p *Product) getBaseImage(arch string, version *ReleaseVersion, containerRe
 }
 
 func (p *Product) GetLocalRegistryImage(arch string, version *ReleaseVersion) *Image {
-	return p.getBaseImage(arch, version, NewLocalContainerRepo())
+	return p.getBaseImage(arch, version, GetLocalContainerRepo())
 }
 
 func (p *Product) GetStagingRegistryImage(arch string, version *ReleaseVersion, stagingRepo *ContainerRepo) *Image {
@@ -287,16 +308,20 @@ func (p *Product) GetStagingRegistryImage(arch string, version *ReleaseVersion, 
 func (p *Product) buildSteps(version *ReleaseVersion, parentStepNames []string, flags *TriggerFlags) []step {
 	steps := make([]step, 0)
 
+	// Get the container repos images will be pushed to
 	stagingRepo := GetStagingContainerRepo(flags.UseUniqueStagingTag)
+	publicEcrPullRegistry := GetPublicEcrPullRegistry()
 	productionRepos := GetProductionContainerRepos()
 
-	// Collect the name of the steps that are required before build
+	// Collect the name of the steps that are required before build/retrieval
 	productSetupStepNames := make([]string, 0)
-	for _, setupStep := range p.SetupSteps {
-		// Wait for the parent steps before starting on the product setup steps
-		setupStep.DependsOn = append(setupStep.DependsOn, parentStepNames...)
-		steps = append(steps, setupStep)
-		productSetupStepNames = append(productSetupStepNames, setupStep.Name)
+	if flags.ShouldBuildNewImages {
+		for _, setupStep := range p.SetupSteps {
+			// Wait for the parent steps before starting on the product setup steps
+			setupStep.DependsOn = append(setupStep.DependsOn, parentStepNames...)
+			steps = append(steps, setupStep)
+			productSetupStepNames = append(productSetupStepNames, setupStep.Name)
+		}
 	}
 	if len(productSetupStepNames) == 0 {
 		// Cover the case where there are no product setup steps
@@ -305,10 +330,11 @@ func (p *Product) buildSteps(version *ReleaseVersion, parentStepNames []string, 
 
 	archBuildStepDetails := make([]*buildStepOutput, 0, len(p.SupportedArchs))
 
+	// Add image build/retrieval steps
 	for _, supportedArch := range p.SupportedArchs {
 		// Include steps for building images from scratch
 		if flags.ShouldBuildNewImages {
-			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version)
+			archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version, publicEcrPullRegistry)
 
 			// Collect the name of steps that are required before build, taking into account arch-specific steps
 			setupStepNames := make([]string, 0)
@@ -341,8 +367,17 @@ func (p *Product) buildSteps(version *ReleaseVersion, parentStepNames []string, 
 		}
 	}
 
+	// Add publish steps
 	for _, containerRepo := range getReposToPublishTo(productionRepos, stagingRepo, flags) {
-		steps = append(steps, containerRepo.buildSteps(archBuildStepDetails, flags)...)
+		buildSteps := containerRepo.buildSteps(archBuildStepDetails, flags)
+
+		// Add repo setup step dependency to the build steps
+		setupStepNames := getStepNames(containerRepo.SetupSteps)
+		for _, buildStep := range buildSteps {
+			buildStep.DependsOn = append(buildStep.DependsOn, setupStepNames...)
+		}
+
+		steps = append(steps, buildSteps...)
 	}
 
 	return steps
@@ -374,7 +409,7 @@ func cleanBuilderName(builderName string) string {
 	return invalidBuildxCharExpression.ReplaceAllString(builderName, "-")
 }
 
-func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *buildStepOutput) {
+func (p *Product) createBuildStep(arch string, version *ReleaseVersion, publicEcrPullRegistry *ContainerRepo) (step, *buildStepOutput) {
 	localRegistryImage := p.GetLocalRegistryImage(arch, version)
 	builderName := cleanBuilderName(fmt.Sprintf("%s-builder", localRegistryImage.GetDisplayName()))
 
@@ -404,12 +439,9 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 	}
 	buildCommand += " " + p.WorkingDirectory
 
-	// Allows container images to be pulled from our staging repo if needed.
-	// Note that this has an important side effect: it increases the `docker pull` rate limit
-	// from one layer per second to ten. When running `docker buildx build` in parallel
-	// this is important to prevent AWS from throwing 429 errors due to parallel pulls.
-	publicEcrRegistry := GetProductionEcrRepo()
-	authenticatedBuildCommands := publicEcrRegistry.buildCommandsWithLogin([]string{buildCommand})
+	// This is important to prevent pull rate limiting. See `GetPublicEcrPullRegistry` doc comment
+	// for details.
+	authenticatedBuildCommands := publicEcrPullRegistry.buildCommandsWithLogin([]string{buildCommand})
 
 	commands := []string{
 		"docker run --privileged --rm tonistiigi/binfmt --install all",
@@ -425,7 +457,7 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 		fmt.Sprintf("rm -rf %q", buildxConfigFileDir),
 	)
 
-	envVars := maps.Clone(publicEcrRegistry.EnvironmentVars)
+	envVars := maps.Clone(publicEcrPullRegistry.EnvironmentVars)
 	envVars["DOCKER_BUILDKIT"] = value{
 		raw: "1",
 	}
@@ -433,9 +465,10 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion) (step, *
 	step := step{
 		Name:        p.GetBuildStepName(arch, version),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(),
+		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
 		Environment: envVars,
 		Commands:    commands,
+		DependsOn:   getStepNames(publicEcrPullRegistry.SetupSteps),
 	}
 
 	return step, &buildStepOutput{
