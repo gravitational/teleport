@@ -221,7 +221,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if flags.Version == defaults.TeleportConfigVersionV3 {
+	if version == defaults.TeleportConfigVersionV3 {
 		if flags.AuthServer != "" && flags.ProxyAddress != "" {
 			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
 		} else if flags.AuthServer != "" {
