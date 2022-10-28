@@ -1156,7 +1156,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
 	// set http_proxy to user:password@host
-	// this credentials will be rejected by the auth proxy (initially).
+	// these credentials will be rejected by the auth proxy (initially).
 	user := "aladdin"
 	pass := "open sesame"
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(user, pass, proxyURL.Host))
