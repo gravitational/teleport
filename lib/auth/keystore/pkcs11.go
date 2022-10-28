@@ -21,15 +21,14 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 
+	"github.com/ThalesIgnite/crypto11"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-
-	"github.com/ThalesIgnite/crypto11"
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // PKCS11Config is used to pass PKCS11 HSM client configuration parameters.
@@ -45,6 +44,16 @@ type PKCS11Config struct {
 
 	// HostUUID is the UUID of the local auth server this HSM is connected to.
 	HostUUID string
+}
+
+func (cfg *PKCS11Config) CheckAndSetDefaults() error {
+	if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
+		return trace.BadParameter("must provide one of SlotNumber or TokenLabel")
+	}
+	if cfg.HostUUID == "" {
+		return trace.BadParameter("must provide HostUUID")
+	}
+	return nil
 }
 
 type pkcs11KeyStore struct {

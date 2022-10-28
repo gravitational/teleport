@@ -17,12 +17,11 @@ package keystore
 import (
 	"crypto"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 type softwareKeyStore struct {
@@ -34,6 +33,13 @@ type RSAKeyPairSource func() (priv []byte, pub []byte, err error)
 
 type SoftwareConfig struct {
 	RSAKeyPairSource RSAKeyPairSource
+}
+
+func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
+	if cfg.RSAKeyPairSource == nil {
+		return trace.BadParameter("must provide RSAKeyPairSource")
+	}
+	return nil
 }
 
 func NewSoftwareKeyStore(config *SoftwareConfig) KeyStore {
