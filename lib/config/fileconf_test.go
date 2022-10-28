@@ -1145,7 +1145,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("v2 - auth server", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			Version:    defaults.TeleportConfigVersionV3,
+			Version:    defaults.TeleportConfigVersionV2,
 			AuthServer: "auth-server",
 		})
 		require.NoError(t, err)
