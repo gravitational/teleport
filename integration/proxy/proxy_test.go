@@ -1171,11 +1171,8 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.Zero(t, ph.Count())
 
 	authorizer.SetCredentials(user, pass)
-	_, err = rc.StartNode(makeNodeConfig("node2", rcProxyAddr))
-	require.NoError(t, err, "node2 should be able to start")
-	// authorize the credentials we have in the environment
 	require.NoError(t, authorizer.WaitForRequest(timeout))
 	require.Greater(t, ph.Count(), 0)
-	// with env set correctly and authorized, both nodes should register.
-	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 2))
+	// with env set correctly and authorized, the node should register.
+	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 }
