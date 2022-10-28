@@ -106,6 +106,7 @@ $ teleport db start \
 
 
 ## Step 3/5. [Optional] Create AWS Keyspaces role:
+Create an AWS IAM Role that will be used as Keyspaces user. If you already have a custom IAM Keyspaces role, you can skip this step.
 Go to the IAM -> Access Management -> [Roles](https://console.aws.amazon.com/iamv2/home#/roles).
 Press Create Role.
 
@@ -173,7 +174,7 @@ databases:
 
 </ScopedBlock>
 
-To connect to a particular database instance :
+To connect to a particular database instance using the `KeyspacesReader`  AWS IAM Keyspaces role as a database user:
 ```code
 $ tsh db connect --db-user=KeyspacesReader keyspaces
 # Connected to Amazon Keyspaces at localhost:55084
