@@ -669,7 +669,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Teleport node %s (in instance %s) finished waiting: %v/%v expected events received.",
+	log.Debugf("Teleport node %s (in instance %s) started: %v/%v expected events received.",
 		process.Config.Hostname, i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, nil
 }
