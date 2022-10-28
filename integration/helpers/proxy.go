@@ -107,14 +107,17 @@ func (p *ProxyHandler) Count() int {
 }
 
 type ProxyAuthorizer struct {
-	next      http.Handler
-	errCond   sync.Cond
-	lastError error
-	authDB    map[string]string
+	next   http.Handler
+	errC   chan error
+	authDB map[string]string
 }
 
 func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *ProxyAuthorizer {
-	return &ProxyAuthorizer{next: handler, authDB: authDB, errCond: *sync.NewCond(&sync.Mutex{})}
+	return &ProxyAuthorizer{
+		next:   handler,
+		authDB: authDB,
+		errC:   make(chan error),
+	}
 }
 
 func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -136,30 +139,30 @@ func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// request is authorized, send it to the next handler
 	p.next.ServeHTTP(w, r)
-	p.SetError(nil)
+	p.AfterConnection(nil)
 	return
 }
 
 func (p *ProxyAuthorizer) WriteError(w http.ResponseWriter, err error) {
 	trace.WriteError(w, err)
-	p.SetError(err)
+	p.AfterConnection(err)
 }
 
-func (p *ProxyAuthorizer) SetError(err error) {
-	p.errCond.L.Lock()
-	p.lastError = err
-	p.errCond.L.Unlock()
-	p.errCond.Signal()
+func (p *ProxyAuthorizer) AfterConnection(err error) {
+	select {
+	case p.errC <- err:
+	default:
+	}
 }
 
-// WaitForConnection resets the last error to nil, waits for a new connection to set the error to something, and then returns that error.
-func (p *ProxyAuthorizer) WaitForConnection() error {
-	p.errCond.L.Lock()
-	p.lastError = nil
-	p.errCond.Wait()
-	err := p.lastError
-	p.errCond.L.Unlock()
-	return err
+// WaitForConnection waits (with a configured timeout) for a new connection to be handled and returns the error.
+func (p *ProxyAuthorizer) WaitForConnection(timeout time.Duration) error {
+	select {
+	case <-time.After(timeout):
+		return trace.BadParameter("timed out waiting for connection to proxy authorizer")
+	case err := <-p.errC:
+		return err
+	}
 }
 
 func (p *ProxyAuthorizer) isAuthorized(user, pass string) bool {
