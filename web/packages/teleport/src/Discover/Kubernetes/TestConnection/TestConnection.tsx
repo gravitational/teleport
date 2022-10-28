@@ -26,6 +26,7 @@ import { Option } from 'shared/components/Select';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import useTeleport from 'teleport/useTeleport';
+import { generateTshLoginCommand } from 'teleport/lib/util';
 
 import {
   Header,
@@ -70,12 +71,6 @@ export function TestConnection({
   const [selectedUser, setSelectedUser] = useState(
     () => userOpts[0] || { value: username, label: username }
   );
-
-  const { hostname, port } = window.document.location;
-  const host = `${hostname}:${port || '443'}`;
-  const authSpec =
-    authType === 'local' ? `--auth=${authType} --user=${username} ` : '';
-  const tshLoginCmd = `tsh login --proxy=${host} ${authSpec}${clusterId}`;
 
   let $diagnosisStateComponent;
   if (attempt.status === 'processing') {
@@ -263,7 +258,14 @@ export function TestConnection({
             </Text>
             <Box mb={2}>
               Log into your Teleport cluster
-              <TextSelectCopy mt="1" text={tshLoginCmd} />
+              <TextSelectCopy
+                mt="1"
+                text={generateTshLoginCommand({
+                  authType,
+                  username,
+                  clusterId,
+                })}
+              />
             </Box>
             <Box mb={2}>
               Log into your Kubernetes cluster

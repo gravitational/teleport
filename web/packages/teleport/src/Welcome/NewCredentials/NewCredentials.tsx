@@ -21,6 +21,7 @@ import { PrimaryAuthType } from 'shared/services';
 import { StepSlider, NewFlow, StepComponentProps } from 'design/StepSlider';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
+import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 
 import useToken, { State } from '../useToken';
 
@@ -54,6 +55,7 @@ export function NewCredentials(props: State & Props) {
     primaryAuthType,
     success,
     finishedRegister,
+    privateKeyPolicyEnabled,
   } = props;
 
   if (fetchAttempt.status === 'failed') {
@@ -62,6 +64,14 @@ export function NewCredentials(props: State & Props) {
 
   if (fetchAttempt.status !== 'success') {
     return null;
+  }
+
+  if (success && privateKeyPolicyEnabled) {
+    return (
+      <PrivateKeyLoginDisabledCard
+        title={resetMode ? 'Reset Complete' : 'Registration Complete'}
+      />
+    );
   }
 
   if (success) {

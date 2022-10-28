@@ -40,6 +40,11 @@ export type RecoveryCodes = {
   createdDate: Date;
 };
 
+export type ChangedUserAuthn = {
+  recovery: RecoveryCodes;
+  privateKeyPolicyEnabled?: boolean;
+};
+
 export type NewCredentialRequest = {
   tokenId: string;
   password?: string;

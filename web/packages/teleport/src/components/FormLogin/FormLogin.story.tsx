@@ -34,6 +34,7 @@ const props: Props = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: false,
+  privateKeyPolicyEnabled: false,
 };
 
 export default {
@@ -105,6 +106,10 @@ export const LocalWithSsoAndPwdless = () => {
     />
   );
 };
+
+export const PrivateKeyPolicyEnabled = () => (
+  <FormLogin {...props} privateKeyPolicyEnabled={true} />
+);
 
 export const LocalDisabledWithSso = () => {
   const ssoProvider = [

@@ -25,6 +25,7 @@ import { Text, Box, ButtonSecondary } from 'design';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { AuthType } from 'teleport/services/user';
+import { generateTshLoginCommand } from 'teleport/lib/util';
 
 function ConnectDialog(props: Props) {
   const {
@@ -35,15 +36,6 @@ function ConnectDialog(props: Props) {
     clusterId,
     accessRequestId,
   } = props;
-  const { hostname, port } = window.document.location;
-  const host = `${hostname}:${port || '443'}`;
-  const authSpec =
-    authType === 'local' ? `--auth=${authType} --user=${username} ` : '';
-  const text = `tsh login --proxy=${host} ${authSpec}${clusterId}`;
-
-  const requestIdFlag = accessRequestId
-    ? ` --request-id=${accessRequestId}`
-    : '';
 
   return (
     <Dialog
@@ -61,7 +53,10 @@ function ConnectDialog(props: Props) {
             Step 1
           </Text>
           {' - Login to Teleport'}
-          <TextSelectCopy mt="2" text={`${text}${requestIdFlag}`} />
+          <TextSelectCopy
+            mt="2"
+            text={generateTshLoginCommand({ authType, username, clusterId })}
+          />
         </Box>
         <Box mb={4}>
           <Text bold as="span">

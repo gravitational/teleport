@@ -19,7 +19,7 @@ import cfg from 'teleport/config';
 import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
 import makePasswordToken from './makePasswordToken';
-import { makeRecoveryCodes } from './makeRecoveryCodes';
+import { makeChangedUserAuthn } from './make';
 import {
   makeMfaAuthenticateChallenge,
   makeMfaRegistrationChallenge,
@@ -145,7 +145,7 @@ const auth = {
 
         return api.put(cfg.getPasswordTokenUrl(), request);
       })
-      .then(makeRecoveryCodes);
+      .then(makeChangedUserAuthn);
   },
 
   resetPassword(req: NewCredentialRequest) {
@@ -156,7 +156,9 @@ const auth = {
       deviceName: req.deviceName,
     };
 
-    return api.put(cfg.getPasswordTokenUrl(), request).then(makeRecoveryCodes);
+    return api
+      .put(cfg.getPasswordTokenUrl(), request)
+      .then(makeChangedUserAuthn);
   },
 
   changePassword(oldPass: string, newPass: string, token: string) {
