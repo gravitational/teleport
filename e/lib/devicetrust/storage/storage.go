@@ -211,6 +211,10 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 // GetDeviceByID reads a device by ID.
 // Returns the stored device or trace.NotFound.
 func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, error) {
+	if deviceID == "" {
+		return nil, trace.BadParameter("device ID required")
+	}
+
 	item, err := s.backend().Get(ctx, deviceKey(deviceID))
 	if err != nil {
 		return nil, trace.Wrap(err)
