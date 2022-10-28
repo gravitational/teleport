@@ -5,6 +5,10 @@ state: draft
 
 # RFD 89 - Merge Webapps into Teleport
 
+## Required Approvers
+
+- Engineering: `@kimlisa`, `@ravicious`, `@nklaassen`
+
 ## What
 
 - Merge the [webapps](https://github.com/gravitational/webapps) repo into the
