@@ -1144,13 +1144,10 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, err)
 	defer rc.StopAll()
 
-	validUser := "aladdin"
-	validPass := "open sesame"
-
 	// Create and start http_proxy server.
 	log.Info("Creating HTTP Proxy server...")
 	ph := &helpers.ProxyHandler{}
-	authorizer := helpers.NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
+	authorizer := helpers.NewProxyAuthorizer(ph, "alice", "rosebud")
 	ts := httptest.NewServer(authorizer)
 	defer ts.Close()
 
@@ -1158,30 +1155,27 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, err)
 	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
-	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
+	// set http_proxy to user:password@host
+	// this credentials will be rejected by the auth proxy (initially).
+	user := "aladdin"
+	pass := "open sesame"
+	t.Setenv("http_proxy", helpers.MakeProxyAddr(user, pass, proxyURL.Host))
 
+	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 	require.Zero(t, ph.Count())
-	// proxy url is just the host with no auth credentials
-	t.Setenv("http_proxy", proxyURL.Host)
 	_, err = rc.StartNode(makeNodeConfig("node1", rcProxyAddr))
 	require.Error(t, err)
 
 	timeout := time.Second * 60
-	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("missing Proxy-Authorization header"))
-	require.Zero(t, ph.Count())
-	// proxy url is user:password@host with incorrect password
-	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
-	ts.CloseClientConnections()
 	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
-	// proxy url is user:password@host with correct password
-	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, validPass, proxyURL.Host))
+	authorizer.SetCredentials(user, pass)
 	_, err = rc.StartNode(makeNodeConfig("node2", rcProxyAddr))
 	require.NoError(t, err, "node2 should be able to start")
-	ts.CloseClientConnections()
+	// authorize the credentials we have in the environment
 	require.NoError(t, authorizer.WaitForRequest(timeout))
 	require.Greater(t, ph.Count(), 0)
-	// with env set correctly, both nodes should register.
+	// with env set correctly and authorized, both nodes should register.
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 2))
 }

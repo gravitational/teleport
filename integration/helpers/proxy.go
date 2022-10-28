@@ -100,18 +100,21 @@ func (p *ProxyHandler) Count() int {
 }
 
 type ProxyAuthorizer struct {
-	next   http.Handler
-	authDB map[string]string
-	reqC   chan struct{}
-	errC   chan error
+	next     http.Handler
+	authUser string
+	authPass string
+	authMu   sync.Mutex
+	reqC     chan struct{}
+	errC     chan error
 }
 
-func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *ProxyAuthorizer {
+func NewProxyAuthorizer(handler http.Handler, user, pass string) *ProxyAuthorizer {
 	return &ProxyAuthorizer{
-		next:   handler,
-		authDB: authDB,
-		reqC:   make(chan struct{}),
-		errC:   make(chan error),
+		next:     handler,
+		reqC:     make(chan struct{}),
+		errC:     make(chan error),
+		authUser: user,
+		authPass: pass,
 	}
 }
 
@@ -183,9 +186,17 @@ func (p *ProxyAuthorizer) notifyWaiter(err error) {
 	}
 }
 
+func (p *ProxyAuthorizer) SetCredentials(user, pass string) {
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+	p.authUser = user
+	p.authPass = pass
+}
+
 func (p *ProxyAuthorizer) isAuthorized(user, pass string) bool {
-	expectedPass, ok := p.authDB[user]
-	return ok && pass == expectedPass
+	p.authMu.Lock()
+	defer p.authMu.Unlock()
+	return p.authUser == user && p.authPass == pass
 }
 
 // parse "Proxy-Authorization" header by leveraging the stdlib basic auth parsing for "Authorization" header
