@@ -1,10 +1,27 @@
 # Changelog
 
+## 7.3.26
+
+This release of Teleport contains a security fix as well as bug fixes and stability improvements.
+
+### Non-interactive SSH commands audit escape
+
+Some non-interactive SSH commands could escape audit log.
+
+[#16825](https://github.com/gravitational/teleport/pull/16825)
+
+### Other fixes
+
+* Fixed issue with terminal not always being cleared in FIPS mode. [#10095](https://github.com/gravitational/teleport/pull/10095)
+* Fixed issue with connection blocking when transport channel fails to open. [#16510](https://github.com/gravitational/teleport/pull/16510)
+* Fixed panic when comparing SSH public keys. [#17875](https://github.com/gravitational/teleport/pull/17875)
+* Improved data consistency when using etcd backend. [#17052](https://github.com/gravitational/teleport/pull/17052)
+
 ## 7.3.25
 
 This release of Teleport contains a security fix as well as bug fixes and stability improvements.
 
-## RCE in SSH agent install script
+### RCE in SSH agent install script
 
 Token value provided via HTTP request to download the node join script wasn't
 properly validated. This could allow an attacker to generate a node join script
