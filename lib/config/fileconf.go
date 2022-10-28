@@ -220,12 +220,49 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if flags.AuthServer != "" {
-		g.AuthServer = flags.AuthServer
+	if flags.AuthServer != "" && flags.ProxyAddress != "" {
+		return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
 	}
+	if flags.Version == defaults.TeleportConfigVersionV3 {
+		// User has specifically asked for version 3 so we should trust their
+		// specified values.
+		if flags.ProxyAddress != "" {
+			g.ProxyServer = flags.ProxyAddress
+		} else if flags.AuthServer != "" {
+			g.AuthServer = flags.AuthServer
+		}
+	} else if flags.Version == "" {
+		// User has not requested a specific version, so we should try for v3
+		// and fallback to v2.
+		if flags.ProxyAddress != "" {
+			g.ProxyServer = flags.ProxyAddress
+		} else if flags.AuthServer != "" {
+			// For Teleport 11, if `--auth-server` is provided, we generate a V2
+			// configuration and in `onConfigDump` output a stern warning if
+			// there is a chance that this is a Proxy.
+			// This ensures we do not break people relying on `--auth-server`.
+			addr, err := utils.ParseAddr(flags.AuthServer)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-	if flags.ProxyAddress != "" {
-		g.ProxyServer = flags.ProxyAddress
+			// Check port to determine if this is obviously an auth server
+			// and if not, downgrade to config v2.
+			if addr.Port(0) == defaults.AuthListenPort {
+				g.AuthServer = flags.AuthServer
+			} else {
+				g.AuthServers = []string{flags.AuthServer}
+				flags.Version = defaults.TeleportConfigVersionV2
+			}
+		}
+	} else {
+		// User has requested a version prior to v3, so we should only accept
+		// --auth-server.
+		if flags.ProxyAddress != "" {
+			return nil, trace.BadParameter("--proxy cannot be used with configuration versions older than v3")
+		} else if flags.AuthServer != "" {
+			g.AuthServers = []string{flags.AuthServer}
+		}
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
@@ -269,8 +306,14 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		d.EnabledFlag = "no"
 	}
 
+	// If user via params or logic has suggested a version, then use that,
+	// otherwise default to the latest version.
+	version := flags.Version
+	if version == "" {
+		version = defaults.TeleportConfigVersionV3
+	}
 	fc = &FileConfig{
-		Version:        flags.Version,
+		Version:        version,
 		Global:         g,
 		Proxy:          p,
 		SSH:            s,
