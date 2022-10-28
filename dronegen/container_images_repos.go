@@ -61,7 +61,6 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 
 	loginCommands := []string{
 		"apk add --no-cache aws-cli",
-		"aws configure list",
 		fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 	}
 
@@ -330,7 +329,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushSte
 	return step{
 		Name:        fmt.Sprintf("Create manifest and push %q to %s", manifestImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(),
+		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
 		Environment: cr.EnvironmentVars,
 		Commands:    cr.buildCommandsWithLogin(commands),
 		DependsOn:   pushStepNames,

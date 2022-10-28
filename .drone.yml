@@ -8288,7 +8288,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
@@ -8350,7 +8349,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
@@ -8412,7 +8410,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
@@ -8438,7 +8435,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -8462,7 +8458,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -8486,7 +8481,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -8509,7 +8503,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -8524,6 +8517,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8613,7 +8608,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
@@ -8675,7 +8669,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
@@ -8737,7 +8730,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
@@ -8763,7 +8755,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -8787,7 +8778,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -8811,7 +8801,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -8834,7 +8823,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -8849,6 +8837,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -8938,7 +8928,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-fips-amd64-builder" --config "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
@@ -8964,7 +8953,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -8987,7 +8975,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -9000,6 +8987,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9015,7 +9004,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
@@ -9052,7 +9040,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
@@ -9089,7 +9076,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
@@ -9120,7 +9106,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -9144,7 +9129,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -9168,7 +9152,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -9191,7 +9174,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker manifest inspect 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -9206,6 +9188,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9361,7 +9345,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -9389,7 +9372,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -9417,7 +9399,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -9541,6 +9522,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9563,6 +9546,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9586,6 +9571,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9597,7 +9584,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
@@ -9625,7 +9611,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
@@ -9653,7 +9638,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
@@ -9680,7 +9664,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")
@@ -9692,6 +9675,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9702,7 +9687,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")
@@ -9714,6 +9698,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9724,7 +9710,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")
@@ -9737,6 +9722,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9747,7 +9734,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -9775,7 +9761,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -9803,7 +9788,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -9927,6 +9911,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9949,6 +9935,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9973,6 +9961,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9984,7 +9974,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
@@ -10012,7 +10001,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
@@ -10040,7 +10028,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
@@ -10067,7 +10054,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")
@@ -10079,6 +10065,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10089,7 +10077,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")
@@ -10101,6 +10088,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10111,7 +10100,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")
@@ -10125,6 +10113,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10135,7 +10125,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -10202,6 +10191,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10220,6 +10211,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10240,6 +10233,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10249,7 +10244,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
@@ -10277,7 +10271,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips
@@ -10287,6 +10280,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10295,7 +10290,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips
@@ -10305,6 +10299,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10313,7 +10309,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips
@@ -10325,6 +10320,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10333,7 +10330,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -10362,7 +10358,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -10391,7 +10386,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -10516,6 +10510,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10538,6 +10534,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10562,6 +10560,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10573,7 +10573,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
@@ -10602,7 +10601,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
@@ -10630,7 +10628,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
@@ -10658,7 +10655,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
@@ -10670,6 +10666,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10680,7 +10678,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
@@ -10692,6 +10689,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10702,7 +10701,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
@@ -10716,6 +10714,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10959,7 +10959,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-amd64-builder" --config "/tmp/teleport-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
@@ -11021,7 +11020,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm-builder" --config "/tmp/teleport-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
@@ -11083,7 +11081,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v11-arm64-builder" --config "/tmp/teleport-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
@@ -11109,7 +11106,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11146,7 +11142,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11183,7 +11178,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11219,7 +11213,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11235,6 +11228,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11245,7 +11240,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11261,6 +11255,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11271,7 +11267,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11287,6 +11282,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11393,6 +11390,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11415,6 +11414,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11438,6 +11439,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11449,7 +11452,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
@@ -11477,7 +11479,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
@@ -11505,7 +11506,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
@@ -11532,7 +11532,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")
@@ -11544,6 +11543,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11554,7 +11555,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")
@@ -11566,6 +11566,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11576,7 +11578,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")
@@ -11589,6 +11590,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11682,7 +11685,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-amd64-builder" --config "/tmp/teleport-ent-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
@@ -11744,7 +11746,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm-builder" --config "/tmp/teleport-ent-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
@@ -11806,7 +11807,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-arm64-builder" --config "/tmp/teleport-ent-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
@@ -11832,7 +11832,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11869,7 +11868,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11906,7 +11904,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11942,7 +11939,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11958,6 +11954,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11968,7 +11966,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -11984,6 +11981,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -11994,7 +11993,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12010,6 +12008,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12116,6 +12116,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12138,6 +12140,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12162,6 +12166,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12173,7 +12179,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
@@ -12201,7 +12206,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
@@ -12229,7 +12233,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
@@ -12256,7 +12259,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")
@@ -12268,6 +12270,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12278,7 +12282,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")
@@ -12290,6 +12293,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12300,7 +12305,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")
@@ -12314,6 +12318,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12407,7 +12413,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v11-fips-amd64-builder" --config "/tmp/teleport-ent-v11-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
@@ -12433,7 +12438,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12469,7 +12473,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12483,6 +12486,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12491,7 +12496,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12505,6 +12509,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12513,7 +12519,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12527,6 +12532,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12573,6 +12580,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12591,6 +12600,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12611,6 +12622,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12620,7 +12633,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
@@ -12648,7 +12660,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips
@@ -12658,6 +12669,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12666,7 +12679,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips
@@ -12676,6 +12688,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12684,7 +12698,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips
@@ -12696,6 +12709,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12711,7 +12726,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-amd64-builder" --config "/tmp/teleport-operator-v11-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
@@ -12750,7 +12764,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm-builder" --config "/tmp/teleport-operator-v11-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
@@ -12789,7 +12802,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v11-arm64-builder" --config "/tmp/teleport-operator-v11-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
@@ -12822,7 +12834,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12859,7 +12870,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12896,7 +12906,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12932,7 +12941,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12948,6 +12956,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12958,7 +12968,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -12974,6 +12983,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -12984,7 +12995,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -13000,6 +13010,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13106,6 +13118,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13128,6 +13142,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13152,6 +13168,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13163,7 +13181,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
@@ -13192,7 +13209,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
@@ -13220,7 +13236,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
@@ -13248,7 +13263,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
@@ -13260,6 +13274,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13270,7 +13286,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
@@ -13282,6 +13297,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13292,7 +13309,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
@@ -13306,6 +13322,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13549,7 +13567,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
@@ -13611,7 +13628,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
@@ -13673,7 +13689,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
@@ -13699,7 +13714,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -13736,7 +13750,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -13773,7 +13786,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -13809,7 +13821,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -13825,6 +13836,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13835,7 +13848,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -13851,6 +13863,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13861,7 +13875,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -13877,6 +13890,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -13983,6 +13998,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14005,6 +14022,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14028,6 +14047,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14039,7 +14060,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
@@ -14067,7 +14087,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
@@ -14095,7 +14114,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
@@ -14122,7 +14140,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")
@@ -14134,6 +14151,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14144,7 +14163,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")
@@ -14156,6 +14174,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14166,7 +14186,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")
@@ -14179,6 +14198,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14272,7 +14293,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
@@ -14334,7 +14354,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
@@ -14396,7 +14415,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
@@ -14422,7 +14440,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -14459,7 +14476,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -14496,7 +14512,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -14532,7 +14547,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -14548,6 +14562,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14558,7 +14574,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -14574,6 +14589,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14584,7 +14601,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -14600,6 +14616,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14706,6 +14724,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14728,6 +14748,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14752,6 +14774,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14763,7 +14787,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
@@ -14791,7 +14814,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
@@ -14819,7 +14841,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
@@ -14846,7 +14867,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")
@@ -14858,6 +14878,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14868,7 +14890,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")
@@ -14880,6 +14901,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14890,7 +14913,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")
@@ -14904,6 +14926,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -14997,7 +15021,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v10-fips-amd64-builder" --config "/tmp/teleport-ent-v10-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-fips-amd64-builder" --target
@@ -15023,7 +15046,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15059,7 +15081,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15073,6 +15094,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15081,7 +15104,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15095,6 +15117,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15103,7 +15127,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15117,6 +15140,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15163,6 +15188,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15181,6 +15208,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15201,6 +15230,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15210,7 +15241,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
@@ -15238,7 +15268,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips
@@ -15248,6 +15277,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15256,7 +15287,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips
@@ -15266,6 +15296,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15274,7 +15306,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips
@@ -15286,6 +15317,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15301,7 +15334,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-amd64-builder" --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
@@ -15340,7 +15372,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-arm-builder" --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
@@ -15379,7 +15410,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v10-arm64-builder" --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
@@ -15412,7 +15442,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15449,7 +15478,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15486,7 +15514,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15522,7 +15549,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15538,6 +15564,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15548,7 +15576,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15564,6 +15591,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15574,7 +15603,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -15590,6 +15618,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15696,6 +15726,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15718,6 +15750,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15742,6 +15776,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15753,7 +15789,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
@@ -15782,7 +15817,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
@@ -15810,7 +15844,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
@@ -15838,7 +15871,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
@@ -15850,6 +15882,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15860,7 +15894,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
@@ -15872,6 +15905,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -15882,7 +15917,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
@@ -15896,6 +15930,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16138,7 +16174,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v9-amd64-builder" --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
@@ -16200,7 +16235,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v9-arm-builder" --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
@@ -16262,7 +16296,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-v9-arm64-builder" --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
@@ -16288,7 +16321,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -16325,7 +16357,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -16362,7 +16393,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -16398,7 +16428,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -16414,6 +16443,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16424,7 +16455,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -16440,6 +16470,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16450,7 +16482,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -16466,6 +16497,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16572,6 +16605,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16594,6 +16629,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16617,6 +16654,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16628,7 +16667,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
@@ -16656,7 +16694,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
@@ -16684,7 +16721,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
@@ -16711,7 +16747,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")
@@ -16723,6 +16758,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16733,7 +16770,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")
@@ -16745,6 +16781,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16755,7 +16793,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")
@@ -16768,6 +16805,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -16861,7 +16900,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v9-amd64-builder" --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
@@ -16923,7 +16961,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v9-arm-builder" --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
@@ -16985,7 +17022,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v9-arm64-builder" --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
@@ -17011,7 +17047,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17048,7 +17083,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17085,7 +17119,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17121,7 +17154,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17137,6 +17169,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17147,7 +17181,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17163,6 +17196,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17173,7 +17208,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17189,6 +17223,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17295,6 +17331,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17317,6 +17355,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17341,6 +17381,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17352,7 +17394,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
@@ -17380,7 +17421,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
@@ -17408,7 +17448,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
@@ -17435,7 +17474,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")
@@ -17447,6 +17485,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17457,7 +17497,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")
@@ -17469,6 +17508,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17479,7 +17520,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")
@@ -17493,6 +17533,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17586,7 +17628,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-ent-v9-fips-amd64-builder" --config "/tmp/teleport-ent-v9-fips-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-fips-amd64-builder" --target
@@ -17612,7 +17653,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17648,7 +17688,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17662,6 +17701,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17670,7 +17711,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17684,6 +17724,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17692,7 +17734,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -17706,6 +17747,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17752,6 +17795,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17770,6 +17815,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17790,6 +17837,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17799,7 +17848,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
@@ -17827,7 +17875,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips
@@ -17837,6 +17884,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17845,7 +17894,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips
@@ -17855,6 +17903,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17863,7 +17913,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips
@@ -17875,6 +17924,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -17890,7 +17941,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-amd64-builder" --config "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v9-amd64-builder" --platform
@@ -17929,7 +17979,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-arm-builder" --config "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v9-arm-builder" --platform
@@ -17968,7 +18017,6 @@ steps:
   - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
     "teleport-operator-v9-arm64-builder" --config "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v9-arm64-builder" --platform
@@ -18001,7 +18049,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -18038,7 +18085,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -18075,7 +18121,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -18111,7 +18156,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -18127,6 +18171,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18137,7 +18183,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -18153,6 +18198,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18163,7 +18210,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
@@ -18179,6 +18225,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18285,6 +18333,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18307,6 +18357,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18331,6 +18383,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18342,7 +18396,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
@@ -18371,7 +18424,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
@@ -18399,7 +18451,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
@@ -18427,7 +18478,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
@@ -18439,6 +18489,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18449,7 +18501,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
@@ -18461,6 +18512,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18471,7 +18524,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
@@ -18485,6 +18537,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18639,7 +18693,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -18667,7 +18720,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -18695,7 +18747,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:$(cat
@@ -18819,6 +18870,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18841,6 +18894,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18864,6 +18919,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18875,7 +18932,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-amd64
@@ -18903,7 +18959,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm
@@ -18931,7 +18986,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")-arm64
@@ -18958,7 +19012,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/major-version")
@@ -18970,6 +19023,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18980,7 +19035,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/minor-version")
@@ -18992,6 +19046,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19002,7 +19058,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport:$(cat "/go/var/full-version")
@@ -19015,6 +19070,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19025,7 +19082,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -19053,7 +19109,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -19081,7 +19136,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -19205,6 +19259,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19227,6 +19283,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19251,6 +19309,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19262,7 +19322,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-amd64
@@ -19290,7 +19349,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm
@@ -19318,7 +19376,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-arm64
@@ -19345,7 +19402,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")
@@ -19357,6 +19413,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19367,7 +19425,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")
@@ -19379,6 +19436,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19389,7 +19448,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")
@@ -19403,6 +19461,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19413,7 +19473,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:$(cat
@@ -19480,6 +19539,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19498,6 +19559,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19518,6 +19581,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19527,7 +19592,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips-amd64
@@ -19555,7 +19619,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/major-version")-fips
@@ -19565,6 +19628,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19573,7 +19638,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/minor-version")-fips
@@ -19583,6 +19647,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19591,7 +19657,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-ent:$(cat "/go/var/full-version")-fips
@@ -19603,6 +19668,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19611,7 +19678,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -19640,7 +19706,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -19669,7 +19734,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
   - docker pull 278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:$(cat
@@ -19794,6 +19858,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19816,6 +19882,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19840,6 +19908,8 @@ steps:
     QUAY_USERNAME:
       from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19851,7 +19921,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-amd64
@@ -19880,7 +19949,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm
@@ -19908,7 +19976,6 @@ steps:
   commands:
   - docker pull drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")-arm64
@@ -19936,7 +20003,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/major-version")
@@ -19948,6 +20014,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19958,7 +20026,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest create public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/minor-version")
@@ -19970,6 +20037,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19980,7 +20049,6 @@ steps:
   image: docker
   commands:
   - apk add --no-cache aws-cli
-  - aws configure list
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - docker manifest inspect public.ecr.aws/u8j2q1d9/teleport-operator:$(cat "/go/var/full-version")
@@ -19994,6 +20062,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-production
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -20018,6 +20088,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 9a18cafc6b4a3e2a54f1ed06884848d6fb136061d5e89546971c0b896c90198a
+hmac: 40ecf225491daf68b5cedfde44abd1fa3bfc8b9824fa5162ccf6feed2def2889
 
 ...
