@@ -763,7 +763,7 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
-  - echo -n "$WINDOWS_SIGNING_CERT" > windows-signing-cert.tmp
+  - echo -n $ENV:WINDOWS_SIGNING_CERT > windows-signing-cert.tmp
   - certutil -decode windows-signing-cert.tmp windows-signing-cert.pfx
   - rm -r windows-signing-cert.tmp
   - osslsigncode sign -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
@@ -1050,7 +1050,7 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
-  - echo -n "$WINDOWS_SIGNING_CERT" > windows-signing-cert.tmp
+  - echo -n $ENV:WINDOWS_SIGNING_CERT > windows-signing-cert.tmp
   - certutil -decode windows-signing-cert.tmp windows-signing-cert.pfx
   - rm -r windows-signing-cert.tmp
   - osslsigncode sign -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
@@ -11611,6 +11611,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 603521fcc70a943c13c05fb950c23b1ddeeb6d51121215a3eb68eeea1bf4202f
+hmac: 7ed00164925db03c3a47d3d5c2fc168f9ea108fa4b8d1747015a24f873d345fa
 
 ...
