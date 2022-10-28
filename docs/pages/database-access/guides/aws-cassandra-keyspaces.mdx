@@ -110,7 +110,7 @@ Go to the IAM -> Access Management -> [Roles](https://console.aws.amazon.com/iam
 Press Create Role.
 
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step1.png)
-Create custom [IAM Keyspaces Policy](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html) or select already existed `AmazonKeyspacesReadOnlyAccess` policy.
+Create custom [IAM Keyspaces Policy](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html) or select an AWS-managed policy like `AmazonKeyspacesReadOnlyAccess` policy.
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step2.png)
 <Admonition type="tip">
   You can make the policy more strict by providing specific IAM role cassandra action and specifying the cassandra keyspace and table [Amazon Keyspaces identity-based policy examples](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html).
@@ -153,7 +153,7 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
-  $ tsh login --proxy=teleport.example.com --user=testuser
+  $ tsh login --proxy=teleport.example.com --user=alice
   $ tsh db ls
   # Name      Description Allowed Users Labels  Connect
   # --------- ----------- ------------- ------- -------
@@ -164,7 +164,7 @@ databases:
 <ScopedBlock scope={["cloud"]}>
 
   ```code
-  $ tsh login --proxy=mytenant.teleport.sh --user=testuser
+  $ tsh login --proxy=mytenant.teleport.sh --user=alice
   $ tsh db ls
   # Name      Description Allowed Users Labels  Connect
   # --------- ----------- ------------- ------- -------
@@ -186,7 +186,7 @@ To log out of the database and remove credentials:
 
 ```code
 # Remove credentials for a particular database instance.
-$ tsh db logout example
+$ tsh db logout keyspaces
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
