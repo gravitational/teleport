@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"mime"
 	"net"
 	"net/http"
