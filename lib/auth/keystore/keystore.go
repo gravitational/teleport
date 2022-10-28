@@ -88,36 +88,18 @@ type KeyStore interface {
 
 // Config is used to pass KeyStore configuration to NewKeyStore.
 type Config struct {
-	// RSAKeyPairSource is a function which returns raw keypairs to be used if
-	// an hsm is not configured
-	RSAKeyPairSource RSAKeyPairSource
+	// Software holds configuration parameters specific to software KeyStores
+	Software SoftwareConfig
 
-	// Path is the path to the PKCS11 module.
-	Path string
-	// SlotNumber points to the PKCS11 slot to use, or nil if slot is unused.
-	SlotNumber *int
-	// TokenLabel is the label of the PKCS11 token to use.
-	TokenLabel string
-	// Pin is the PKCS11 pin for the given token.
-	Pin string
-	// HostUUID is the UUID of the local auth server this HSM is connected to.
-	HostUUID string
+	// PKCS11 hold configuration parameters specific to PKCS11 KeyStores.
+	PKCS11 PKCS11Config
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
-	if cfg.Path == "" && cfg.RSAKeyPairSource == nil {
-		return trace.BadParameter("must provide one of Path or RSAKeyPairSource in keystore.Config")
+	if (cfg.PKCS11 != PKCS11Config{}) {
+		return trace.Wrap(cfg.PKCS11.CheckAndSetDefaults())
 	}
-	if cfg.Path != "" {
-		// HSM is configured, check the rest of the required params
-		if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
-			return trace.BadParameter("must provide one of SlotNumber or TokenLabel in keystore.Config")
-		}
-		if cfg.HostUUID == "" {
-			return trace.BadParameter("must provide HostUUID in keystore.Config")
-		}
-	}
-	return nil
+	return trace.Wrap(cfg.Software.CheckAndSetDefaults())
 }
 
 // NewKeyStore returns a new KeyStore
@@ -125,19 +107,14 @@ func NewKeyStore(cfg Config) (KeyStore, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.Path == "" {
-		return NewSoftwareKeyStore(&SoftwareConfig{cfg.RSAKeyPairSource}), nil
+	if (cfg.PKCS11 != PKCS11Config{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
+		}
+		keyStore, err := NewPKCS11KeyStore(&cfg.PKCS11)
+		return keyStore, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().HSM {
-		return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
-	}
-	return NewPKCS11KeyStore(&PKCS11Config{
-		Path:       cfg.Path,
-		SlotNumber: cfg.SlotNumber,
-		TokenLabel: cfg.TokenLabel,
-		Pin:        cfg.Pin,
-		HostUUID:   cfg.HostUUID,
-	})
+	return NewSoftwareKeyStore(&cfg.Software), nil
 }
 
 // KeyType returns the type of the given private key.

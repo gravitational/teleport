@@ -136,7 +136,7 @@ func TestKeyStore(t *testing.T) {
 	var softHSMConfig Config
 	if !skipSoftHSM {
 		softHSMConfig = SetupSoftHSMTest(t)
-		softHSMConfig.HostUUID = "server1"
+		softHSMConfig.PKCS11.HostUUID = "server1"
 	}
 
 	yubiSlotNumber := 0
@@ -149,7 +149,9 @@ func TestKeyStore(t *testing.T) {
 		{
 			desc: "software keystore",
 			config: Config{
-				RSAKeyPairSource: native.GenerateKeyPair,
+				Software: SoftwareConfig{
+					RSAKeyPairSource: native.GenerateKeyPair,
+				},
 			},
 			isSoftware: true,
 			shouldSkip: func() bool { return false },
@@ -168,10 +170,12 @@ func TestKeyStore(t *testing.T) {
 		{
 			desc: "yubihsm",
 			config: Config{
-				Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
-				SlotNumber: &yubiSlotNumber,
-				Pin:        "0001password",
-				HostUUID:   "server1",
+				PKCS11: PKCS11Config{
+					Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
+					SlotNumber: &yubiSlotNumber,
+					Pin:        "0001password",
+					HostUUID:   "server1",
+				},
 			},
 			shouldSkip: func() bool {
 				if os.Getenv("YUBIHSM_PKCS11_CONF") == "" || os.Getenv("YUBIHSM_PKCS11_PATH") == "" {
@@ -184,10 +188,12 @@ func TestKeyStore(t *testing.T) {
 		{
 			desc: "cloudhsm",
 			config: Config{
-				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
-				TokenLabel: "cavium",
-				Pin:        os.Getenv("CLOUDHSM_PIN"),
-				HostUUID:   "server1",
+				PKCS11: PKCS11Config{
+					Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
+					TokenLabel: "cavium",
+					Pin:        os.Getenv("CLOUDHSM_PIN"),
+					HostUUID:   "server1",
+				},
 			},
 			shouldSkip: func() bool {
 				if os.Getenv("CLOUDHSM_PIN") == "" {
@@ -353,7 +359,7 @@ func TestLicenseRequirement(t *testing.T) {
 	}
 
 	config := SetupSoftHSMTest(t)
-	config.HostUUID = "server1"
+	config.PKCS11.HostUUID = "server1"
 
 	// should fail to create the keystore with default modules
 	_, err := NewKeyStore(config)

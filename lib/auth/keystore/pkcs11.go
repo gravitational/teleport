@@ -46,6 +46,16 @@ type PKCS11Config struct {
 	HostUUID string
 }
 
+func (cfg *PKCS11Config) CheckAndSetDefaults() error {
+	if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
+		return trace.BadParameter("must provide one of SlotNumber or TokenLabel")
+	}
+	if cfg.HostUUID == "" {
+		return trace.BadParameter("must provide HostUUID")
+	}
+	return nil
+}
+
 type pkcs11KeyStore struct {
 	ctx      *crypto11.Context
 	hostUUID string

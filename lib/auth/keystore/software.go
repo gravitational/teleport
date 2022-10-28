@@ -35,6 +35,13 @@ type SoftwareConfig struct {
 	RSAKeyPairSource RSAKeyPairSource
 }
 
+func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
+	if cfg.RSAKeyPairSource == nil {
+		return trace.BadParameter("must provide RSAKeyPairSource")
+	}
+	return nil
+}
+
 func NewSoftwareKeyStore(config *SoftwareConfig) KeyStore {
 	return &softwareKeyStore{
 		rsaKeyPairSource: config.RSAKeyPairSource,
