@@ -73,7 +73,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Success, we're proxying data now.
 	p.Lock()
-	p.count += 1
+	p.count++
 	p.Unlock()
 
 	// Copy from src to dst and dst to src.
