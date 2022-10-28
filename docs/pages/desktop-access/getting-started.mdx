@@ -19,10 +19,16 @@ This guide will help you configure Teleport and your Active Directory domain con
 
 ## Prerequisites
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+- One or more hosts to run the Teleport Auth and Proxy services on.
+
+</ScopedBlock>
 - A server or virtual machine running a Windows Server operating system.
+
 - A host where you will run the Teleport Desktop Service.
-- <ScopedBlock scope={["oss", "enterprise"]}> This **can not** be the same instance
-  of Teleport running your Auth and/or Proxy service(s). To install Desktop Access into an existing Teleport instance running other services, see the [Getting Started](getting-started.mdx) guide for Desktop Access.</ScopedBlock>
+  <ScopedBlock scope={["oss", "enterprise"]}> This **can not** be the same instance
+  of Teleport running your Auth and/or Proxy service(s). To install Desktop Access into an existing Teleport instance running other services, see the [Manual Setup](manual-setup.mdx) guide for Desktop Access.</ScopedBlock>
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection). Typically this means installing
