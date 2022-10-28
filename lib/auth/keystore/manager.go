@@ -90,10 +90,10 @@ func NewManager(cfg Config) (*Manager, error) {
 		if !modules.GetModules().Features().HSM {
 			return nil, trace.AccessDenied("HSM support is only available with an enterprise license")
 		}
-		backend, err := NewPKCS11KeyStore(&cfg.PKCS11)
+		backend, err := newPKCS11KeyStore(&cfg.PKCS11)
 		return &Manager{backend: backend}, trace.Wrap(err)
 	}
-	return &Manager{backend: NewSoftwareKeyStore(&cfg.Software)}, nil
+	return &Manager{backend: newSoftwareKeyStore(&cfg.Software)}, nil
 }
 
 // GetSSHSigner selects a usable SSH keypair from the given CA ActiveKeys and

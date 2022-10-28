@@ -41,7 +41,7 @@ func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-func NewSoftwareKeyStore(config *SoftwareConfig) *softwareKeyStore {
+func newSoftwareKeyStore(config *SoftwareConfig) *softwareKeyStore {
 	return &softwareKeyStore{
 		rsaKeyPairSource: config.RSAKeyPairSource,
 	}

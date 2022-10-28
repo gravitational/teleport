@@ -63,7 +63,7 @@ type pkcs11KeyStore struct {
 	log      logrus.FieldLogger
 }
 
-func NewPKCS11KeyStore(config *PKCS11Config) (*pkcs11KeyStore, error) {
+func newPKCS11KeyStore(config *PKCS11Config) (*pkcs11KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
 		Path:       config.Path,
 		TokenLabel: config.TokenLabel,
