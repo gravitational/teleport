@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
 	// Register Snowflake database driver.
 	_ "github.com/snowflakedb/gosnowflake"
 
