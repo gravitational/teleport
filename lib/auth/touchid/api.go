@@ -37,8 +37,9 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gravitational/trace"
 
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	log "github.com/sirupsen/logrus"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 var (
@@ -49,6 +50,8 @@ var (
 	PromptWriter io.Writer = os.Stderr
 )
 
+// TODO(tobiaszheller): define new platform propmpt in webauthnprompt package and use it here
+// based on promptOpts.
 func defaultPrompt() {
 	fmt.Fprintln(PromptWriter, "Using platform authenticator, follow the OS prompt")
 }
@@ -546,7 +549,8 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 func pickCredential(
 	actx AuthContext,
 	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
-	picker CredentialPicker, promptOnce func(), userRequested bool) (*CredentialInfo, error) {
+	picker CredentialPicker, promptOnce func(), userRequested bool,
+) (*CredentialInfo, error) {
 	// Handle early exits.
 	switch l := len(infos); {
 	// MFA.

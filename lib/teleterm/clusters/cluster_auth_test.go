@@ -20,9 +20,10 @@ import (
 	"context"
 	"testing"
 
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/auth/webauthncli/webauthnprompt"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -39,7 +40,8 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
 		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{
 			Pin: &api.LoginPasswordlessRequest_LoginPasswordlessPINResponse{
-				Pin: "1234"},
+				Pin: "1234",
+			},
 		}}, nil
 	}
 
@@ -52,7 +54,8 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
 		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{
 			Pin: &api.LoginPasswordlessRequest_LoginPasswordlessPINResponse{
-				Pin: ""},
+				Pin: "",
+			},
 		}}, nil
 	}
 
@@ -76,11 +79,11 @@ func TestPwdlessLoginPrompt_PromptTouch(t *testing.T) {
 func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 	stream := &mockLoginPwdlessStream{}
 
-	unsortedCreds := []*wancli.CredentialInfo{
-		{User: wancli.UserInfo{Name: "foo"}}, // will select
-		{User: wancli.UserInfo{Name: "bar"}},
-		{User: wancli.UserInfo{Name: "ape"}},
-		{User: wancli.UserInfo{Name: "llama"}},
+	unsortedCreds := []*webauthnprompt.CredentialInfo{
+		{User: webauthnprompt.UserInfo{Name: "foo"}}, // will select
+		{User: webauthnprompt.UserInfo{Name: "bar"}},
+		{User: webauthnprompt.UserInfo{Name: "ape"}},
+		{User: webauthnprompt.UserInfo{Name: "llama"}},
 	}
 
 	expectedCredResponse := []*api.CredentialInfo{
@@ -99,7 +102,8 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
 		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Credential{
 			Credential: &api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{
-				Index: 2},
+				Index: 2,
+			},
 		}}, nil
 	}
 
@@ -112,7 +116,8 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
 		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Credential{
 			Credential: &api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{
-				Index: 4},
+				Index: 4,
+			},
 		}}, nil
 	}
 	_, err = prompt.PromptCredential(unsortedCreds)

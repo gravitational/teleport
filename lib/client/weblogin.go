@@ -47,6 +47,7 @@ import (
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthncli/webauthnprompt"
 )
 
 const (
@@ -248,7 +249,7 @@ type SSHLoginPasswordless struct {
 
 	// CustomPrompt defines a custom webauthn login prompt.
 	// It's an optional field that when nil, it will use the wancli.DefaultPrompt.
-	CustomPrompt wancli.LoginPrompt
+	CustomPrompt webauthnprompt.LoginPrompt
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -426,13 +427,14 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 	if stderr == nil {
 		stderr = os.Stderr
 	}
-
-	prompt := login.CustomPrompt
-	if prompt == nil {
-		prompt = wancli.NewDefaultPrompt(ctx, stderr)
+	promptOpts := webauthnprompt.PromptOptions{}
+	if login.CustomPrompt != nil {
+		promptOpts.CustomLoginPrompt = login.CustomPrompt
+	} else {
+		promptOpts.Out = stderr
 	}
 
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, promptOpts, &wancli.LoginOpts{
 		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})

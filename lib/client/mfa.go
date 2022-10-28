@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthncli/webauthnprompt"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -39,7 +40,7 @@ var promptWebauthn = wancli.Login
 // MFA, but the implementation exists in case we find some unusual
 // authenticators out there.
 type mfaPrompt struct {
-	wancli.LoginPrompt
+	webauthnprompt.LoginPrompt
 	otpCancelAndWait func()
 }
 
@@ -213,24 +214,20 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
-			prompt := wancli.NewDefaultPrompt(ctx, writer)
-			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
-			switch {
-			case quiet:
-				// Do not prompt.
-				prompt.FirstTouchMessage = ""
-				prompt.SecondTouchMessage = ""
-			case hasTOTP: // Webauthn + OTP
-				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", promptDevicePrefix, promptDevicePrefix)
-			default: // Webauthn only
-				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
+			promptOpts := webauthnprompt.PromptOptions{
+				HasTOTP:          hasTOTP,
+				Quiet:            quiet,
+				WithDevicePrefix: promptDevicePrefix,
 			}
-			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
-				otpCancel()
-				otpWait.Wait()
-			}}
+			// prompt := webauthnprompt.NewDefaultPrompt(ctx, writer, &)
+			// mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
+			// 	otpCancel()
+			// 	otpWait.Wait()
+			// }}
 
-			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+			// TODO(tobiaszheller): pass otp cancel
+
+			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), promptOpts, &wancli.LoginOpts{
 				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}

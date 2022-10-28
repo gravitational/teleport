@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthncli/webauthnprompt"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -315,7 +315,7 @@ func (p *pwdlessLoginPrompt) PromptTouch() error {
 }
 
 // PromptCredential prompts the user to select a login name in the list of logins.
-func (p *pwdlessLoginPrompt) PromptCredential(deviceCreds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {
+func (p *pwdlessLoginPrompt) PromptCredential(deviceCreds []*webauthnprompt.CredentialInfo) (*webauthnprompt.CredentialInfo, error) {
 	// Shouldn't happen, but let's check just in case.
 	if len(deviceCreds) == 0 {
 		return nil, errors.New("attempted to prompt credential with empty credentials")

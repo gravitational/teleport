@@ -37,6 +37,7 @@ import (
 
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthncli/webauthnprompt"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -93,7 +94,7 @@ func isLibfido2Enabled() bool {
 // fido2Login implements FIDO2Login.
 func fido2Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wanlib.CredentialAssertion, prompt webauthnprompt.LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	switch {
 	case origin == "":
@@ -275,7 +276,7 @@ func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, all
 }
 
 func pickAssertion(
-	assertions []*libfido2.Assertion, prompt LoginPrompt, user string, passwordless bool) (*libfido2.Assertion, error) {
+	assertions []*libfido2.Assertion, prompt webauthnprompt.LoginPrompt, user string, passwordless bool) (*libfido2.Assertion, error) {
 	switch l := len(assertions); {
 	// Shouldn't happen, but let's be safe and handle it anyway.
 	case l == 0:
@@ -300,12 +301,12 @@ func pickAssertion(
 	}
 
 	// Prepare credentials and show picker.
-	creds := make([]*CredentialInfo, len(assertions))
-	credToAssertion := make(map[*CredentialInfo]*libfido2.Assertion)
+	creds := make([]*webauthnprompt.CredentialInfo, len(assertions))
+	credToAssertion := make(map[*webauthnprompt.CredentialInfo]*libfido2.Assertion)
 	for i, assertion := range assertions {
-		cred := &CredentialInfo{
+		cred := &webauthnprompt.CredentialInfo{
 			ID: assertion.CredentialID,
-			User: UserInfo{
+			User: webauthnprompt.UserInfo{
 				UserHandle: assertion.User.ID,
 				Name:       assertion.User.Name,
 			},

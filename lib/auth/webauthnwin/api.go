@@ -27,9 +27,10 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/trace"
 )
 
 // LoginOpts groups non-mandatory options for Login.
@@ -161,11 +162,11 @@ func Register(
 	}, nil
 }
 
-var (
-	// PromptWriter is the writer used for prompt messages.
-	PromptWriter io.Writer = os.Stderr
-)
+// PromptWriter is the writer used for prompt messages.
+var PromptWriter io.Writer = os.Stderr
 
+// TODO(tobiaszheller): define new platform propmpt in webauthnprompt package and use it here
+// based on promptOpts.
 func loginPrompt() {
 	fmt.Fprintln(PromptWriter, "Using platform authenticator, follow the OS dialogs and use *registered* device")
 }

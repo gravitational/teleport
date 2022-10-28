@@ -21,10 +21,12 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
+
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthncli/webauthnprompt"
 )
 
 // FIDO2PollInterval is the poll interval used to check for new FIDO2 devices.
@@ -41,7 +43,7 @@ var FIDO2PollInterval = 200 * time.Millisecond
 // IsFIDO2Available.
 func FIDO2Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wanlib.CredentialAssertion, prompt webauthnprompt.LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	return fido2Login(ctx, origin, assertion, prompt, opts)
 }
@@ -99,7 +101,9 @@ func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, erro
 			Attestation: protocol.PreferNoAttestation,
 		},
 	}
-	prompt := NewDefaultPrompt(ctx, promptOut)
+	prompt := webauthnprompt.NewDefaultPrompt(ctx, webauthnprompt.PromptOptions{
+		Out: promptOut,
+	})
 	ccr, err := FIDO2Register(ctx, origin, cc, prompt)
 	if err != nil {
 		return res, trace.Wrap(err)
@@ -120,7 +124,9 @@ func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, erro
 			UserVerification: protocol.VerificationDiscouraged,
 		},
 	}
-	prompt = NewDefaultPrompt(ctx, promptOut) // Avoid reusing prompts
+	prompt = webauthnprompt.NewDefaultPrompt(ctx, webauthnprompt.PromptOptions{
+		Out: promptOut,
+	}) // Avoid reusing prompts
 	if _, _, err := FIDO2Login(ctx, origin, assertion, prompt, nil /* opts */); err != nil {
 		return res, trace.Wrap(err)
 	}

@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
+	"github.com/gravitational/teleport/lib/auth/webauthncli/webauthnprompt"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/trace"
 
@@ -49,37 +50,6 @@ func (a AuthenticatorAttachment) String() string {
 	return ""
 }
 
-// CredentialInfo holds information about a WebAuthn credential, typically a
-// resident public key credential.
-type CredentialInfo struct {
-	ID   []byte
-	User UserInfo
-}
-
-// UserInfo holds information about a credential owner.
-type UserInfo struct {
-	// UserHandle is the WebAuthn user handle (also referred as user ID).
-	UserHandle []byte
-	Name       string
-}
-
-// LoginPrompt is the user interface for FIDO2Login.
-//
-// Prompts can have remote implementations, thus all methods may error.
-type LoginPrompt interface {
-	// PromptPIN prompts the user for their PIN.
-	PromptPIN() (string, error)
-	// PromptTouch prompts the user for a security key touch.
-	// In certain situations multiple touches may be required (PIN-protected
-	// devices, passwordless flows, etc).
-	PromptTouch() error
-	// PromptCredential prompts the user to choose a credential, in case multiple
-	// credentials are available.
-	// Callers are free to modify the slice, such as by sorting the credentials,
-	// but must return one of the pointers contained within.
-	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
-}
-
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
@@ -103,7 +73,7 @@ type LoginOpts struct {
 // authentication and connected devices.
 func Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wanlib.CredentialAssertion, promptOpts webauthnprompt.PromptOptions, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	// origin vs RPID sanity check.
 	// Doesn't necessarily means a failure, but it's likely to be one.
@@ -133,26 +103,27 @@ func Login(
 	switch attachment {
 	case AttachmentCrossPlatform:
 		log.Debug("Cross-platform login")
-		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
+		return crossPlatformLogin(ctx, origin, assertion, promptOpts, opts)
 	case AttachmentPlatform:
 		log.Debug("Platform login")
-		return platformLogin(origin, user, assertion, prompt)
+		return platformLogin(origin, user, assertion, promptOpts)
 	default:
 		log.Debug("Attempting platform login")
-		resp, credentialUser, err := platformLogin(origin, user, assertion, prompt)
+		resp, credentialUser, err := platformLogin(origin, user, assertion, promptOpts)
 		if !errors.Is(err, &touchid.ErrAttemptFailed{}) {
 			return resp, credentialUser, trace.Wrap(err)
 		}
 
 		log.WithError(err).Debug("Platform login failed, falling back to cross-platform")
-		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
+		return crossPlatformLogin(ctx, origin, assertion, promptOpts, opts)
 	}
 }
 
 func crossPlatformLogin(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wanlib.CredentialAssertion, promptOpts webauthnprompt.PromptOptions, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
+	prompt := webauthnprompt.NewDefaultPrompt(ctx, promptOpts)
 	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
@@ -165,7 +136,8 @@ func crossPlatformLogin(
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, promptOpts webauthnprompt.PromptOptions) (*proto.MFAAuthenticateResponse, string, error) {
+	// TODO(tobiaszheller): setup proper platfornm prompt.
 	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
