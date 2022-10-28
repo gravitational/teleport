@@ -134,6 +134,8 @@ type CommandLineFlags struct {
 	DatabaseCACertFile string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
+	DatabaseAWSAccountID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseAWSRDSInstanceID is RDS instance identifier.
@@ -1929,7 +1931,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 				CACert: caBytes,
 			},
 			AWS: service.DatabaseAWS{
-				Region: clf.DatabaseAWSRegion,
+				Region:    clf.DatabaseAWSRegion,
+				AccountID: clf.DatabaseAWSAccountID,
 				Redshift: service.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},
