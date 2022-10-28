@@ -230,6 +230,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
