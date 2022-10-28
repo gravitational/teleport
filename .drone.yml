@@ -756,17 +756,18 @@ steps:
   - go build -o build/tsh-unsigned.exe ./tool/tsh
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
-- name: Build tsh
+- name: Sign tsh
   commands:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
-  - echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx
-  - "osslsigncode sign -pkcs12 \"windows-signing-cert.pfx\" \\\n\t\t\t\t-n \"Teleport\"
-    \\\n\t\t\t\t-i https://goteleport.com \\\n\t\t\t\t-t http://timestamp.digicert.com
-    \\\n\t\t\t\t-h sha2 \\\n\t\t\t\t-in build/tsh-unsigned.exe \\\n\t\t\t\t-out build/tsh.exe;"
+  - echo -n "$WINDOWS_SIGNING_CERT" > windows-signing-cert.tmp
+  - certutil -decode windows-signing-cert.tmp windows-signing-cert.pfx
+  - rm -r windows-signing-cert.tmp
+  - osslsigncode sign -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
+    -t http://timestamp.digicert.com -h sha2 -in build\tsh-unsigned.exe -out build\tsh.exe;
   - rm -r build/tsh-unsigned.exe
   - rm -r windows-signing-cert.pfx
   environment:
@@ -1042,17 +1043,18 @@ steps:
   - go build -o build/tsh-unsigned.exe ./tool/tsh
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-- name: Build tsh
+- name: Sign tsh
   commands:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
-  - echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx
-  - "osslsigncode sign -pkcs12 \"windows-signing-cert.pfx\" \\\n\t\t\t\t-n \"Teleport\"
-    \\\n\t\t\t\t-i https://goteleport.com \\\n\t\t\t\t-t http://timestamp.digicert.com
-    \\\n\t\t\t\t-h sha2 \\\n\t\t\t\t-in build/tsh-unsigned.exe \\\n\t\t\t\t-out build/tsh.exe;"
+  - echo -n "$WINDOWS_SIGNING_CERT" > windows-signing-cert.tmp
+  - certutil -decode windows-signing-cert.tmp windows-signing-cert.pfx
+  - rm -r windows-signing-cert.tmp
+  - osslsigncode sign -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
+    -t http://timestamp.digicert.com -h sha2 -in build\tsh-unsigned.exe -out build\tsh.exe;
   - rm -r build/tsh-unsigned.exe
   - rm -r windows-signing-cert.pfx
   environment:
@@ -11609,6 +11611,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 65a524011448a6e95687a9ca59589b28077872b19376371f7e5eb5c86064b570
+hmac: 603521fcc70a943c13c05fb950c23b1ddeeb6d51121215a3eb68eeea1bf4202f
 
 ...

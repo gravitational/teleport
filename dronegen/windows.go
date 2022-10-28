@@ -240,7 +240,7 @@ func buildWindowsTshStep(workspace string) step {
 
 func signTshStep(workspace string) step {
 	return step{
-		Name: "Build tsh",
+		Name: "Sign tsh",
 		Environment: map[string]value{
 			"WORKSPACE_DIR":        {raw: workspace},
 			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
@@ -251,14 +251,10 @@ func signTshStep(workspace string) step {
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`cd $TeleportSrc`,
-			`echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx`,
-			`osslsigncode sign -pkcs12 "windows-signing-cert.pfx" \
-				-n "Teleport" \
-				-i https://goteleport.com \
-				-t http://timestamp.digicert.com \
-				-h sha2 \
-				-in build/tsh-unsigned.exe \
-				-out build/tsh.exe;`,
+			`echo -n "$WINDOWS_SIGNING_CERT" > windows-signing-cert.tmp`,
+			`certutil -decode windows-signing-cert.tmp windows-signing-cert.pfx`,
+			`rm -r windows-signing-cert.tmp`,
+			`osslsigncode sign -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com -t http://timestamp.digicert.com -h sha2 -in build\tsh-unsigned.exe -out build\tsh.exe;`,
 			`rm -r build/tsh-unsigned.exe`,
 			`rm -r windows-signing-cert.pfx`,
 		},
