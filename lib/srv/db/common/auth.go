@@ -144,7 +144,7 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
-		policy, _, getPolicyErr := dbiam.GetAWSPolicyDocumentMarshaled(sessionCtx.Database)
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}
@@ -181,7 +181,7 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
-		policy, _, getPolicyErr := dbiam.GetAWSPolicyDocumentMarshaled(sessionCtx.Database)
+		policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 		if getPolicyErr != nil {
 			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 		}

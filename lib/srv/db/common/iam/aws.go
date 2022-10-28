@@ -26,7 +26,8 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
-// GetAWSPolicyDocument returns AWS IAM policy for provided database.
+// GetAWSPolicyDocument returns the AWS IAM policy document for provided
+// database.
 func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
 	switch db.GetType() {
 	case types.DatabaseTypeRDS:
@@ -38,17 +39,18 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 	}
 }
 
-// GetAWSPolicyDocumentMarshaled returns the marshaled AWS IAM policy for provided database.
-func GetAWSPolicyDocumentMarshaled(db types.Database) (string, Placeholders, error) {
-	policyDoc, placeholders, err := GetAWSPolicyDocument(db)
+// GetReadableAWSPolicyDocument returns the indented JSON string of the AWS IAM
+// policy document for provided database.
+func GetReadableAWSPolicyDocument(db types.Database) (string, error) {
+	policyDoc, _, err := GetAWSPolicyDocument(db)
 	if err != nil {
-		return "", nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	marshaled, err := policyDoc.Marshal()
 	if err != nil {
-		return "", nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	return marshaled, placeholders, nil
+	return marshaled, nil
 }
 
 func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {

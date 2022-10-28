@@ -148,7 +148,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 // createRDSAccessDeniedError creates an error with help message to setup IAM
 // auth for RDS.
 func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
-	policy, _, getPolicyErr := dbiam.GetAWSPolicyDocumentMarshaled(sessionCtx.Database)
+	policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
 	if getPolicyErr != nil {
 		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
 	}

@@ -22,9 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
-func TestGetAWSPolicyDocumentMarshaled(t *testing.T) {
+func TestGetAWSPolicyDocument(t *testing.T) {
 	redshift, err := types.NewDatabaseV3(types.Metadata{
 		Name: "aws-redshift",
 	}, types.DatabaseSpecV3{
@@ -100,14 +101,24 @@ func TestGetAWSPolicyDocumentMarshaled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.inputDatabase.GetName(), func(t *testing.T) {
-			policyDoc, placeholders, err := GetAWSPolicyDocumentMarshaled(test.inputDatabase)
-
+			policyDoc, placeholders, err := GetAWSPolicyDocument(test.inputDatabase)
 			if test.expectError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectPolicyDocument, policyDoc)
 				require.Equal(t, test.expectPlaceholders, placeholders)
+			}
+
+			readablePolicyDoc, err := GetReadableAWSPolicyDocument(test.inputDatabase)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectPolicyDocument, readablePolicyDoc)
+
+				readablePolicyDocParsed, err := awslib.ParsePolicyDocument(readablePolicyDoc)
+				require.NoError(t, err)
+				require.Equal(t, policyDoc, readablePolicyDocParsed)
 			}
 		})
 	}

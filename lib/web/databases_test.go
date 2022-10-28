@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
@@ -117,8 +118,11 @@ func requireDatabaseIAMPolicyAWS(t *testing.T, respBody []byte, database types.D
 	require.NoError(t, json.Unmarshal(respBody, &resp))
 	require.Equal(t, "aws", resp.Type)
 
-	expectedPolicyDocument, expectedPlaceholders, err := dbiam.GetAWSPolicyDocumentMarshaled(database)
+	actualPolicyDocument, err := awslib.ParsePolicyDocument(resp.AWS.PolicyDocument)
 	require.NoError(t, err)
-	require.Equal(t, expectedPolicyDocument, resp.AWS.PolicyDocument)
+
+	expectedPolicyDocument, expectedPlaceholders, err := dbiam.GetAWSPolicyDocument(database)
+	require.NoError(t, err)
+	require.Equal(t, expectedPolicyDocument, actualPolicyDocument)
 	require.Equal(t, []string(expectedPlaceholders), resp.AWS.Placeholders)
 }

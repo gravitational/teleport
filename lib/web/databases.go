@@ -18,6 +18,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -66,14 +67,18 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 
 	switch {
 	case database.IsAWSHosted():
-		policy, placeholders, err := dbiam.GetAWSPolicyDocumentMarshaled(database)
+		policy, placeholders, err := dbiam.GetAWSPolicyDocument(database)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		policyJSON, err := json.Marshal(policy)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &databaseIAMPolicyResponse{
 			Type: "aws",
 			AWS: &databaseIAMPolicyAWS{
-				PolicyDocument: policy,
+				PolicyDocument: string(policyJSON),
 				Placeholders:   []string(placeholders),
 			},
 		}, nil
