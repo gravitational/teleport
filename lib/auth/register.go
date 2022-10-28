@@ -271,11 +271,14 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 	var certs *proto.Certs
 	if params.JoinMethod == types.JoinMethodIAM {
 		// IAM join method requires gRPC client
-		client, err := proxyJoinServiceClient(params)
+		conn, err := proxyJoinServiceConn(params)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		certs, err = registerUsingIAMMethod(client, token, params)
+		defer conn.Close()
+
+		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
+		certs, err = registerUsingIAMMethod(joinServiceClient, token, params)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -359,10 +362,10 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 	return certs, trace.Wrap(err)
 }
 
-// proxyJoinServiceClient attempts to connect to the join service running on the
+// proxyJoinServiceConn attempts to connect to the join service running on the
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
-func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
+func proxyJoinServiceConn(params RegisterParams) (*grpc.ClientConn, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
@@ -379,11 +382,7 @@ func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, e
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return client.NewJoinServiceClient(proto.NewJoinServiceClient(conn)), nil
+	return conn, trace.Wrap(err)
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -621,6 +620,13 @@ type ReRegisterParams struct {
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
 func ReRegister(params ReRegisterParams) (*Identity, error) {
+	var rotation *types.Rotation
+	if !params.Rotation.IsZero() {
+		// older auths didn't distinguish between empty and nil rotation
+		// structs, so we go out of our way to only send non-nil rotation
+		// if it is truly non-empty.
+		rotation = &params.Rotation
+	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
 			HostID:                        params.ID.HostID(),
@@ -630,7 +636,7 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 			DNSNames:                      params.DNSNames,
 			PublicTLSKey:                  params.PublicTLSKey,
 			PublicSSHKey:                  params.PublicSSHKey,
-			Rotation:                      &params.Rotation,
+			Rotation:                      rotation,
 			SystemRoles:                   params.SystemRoles,
 			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
 		})
