@@ -22,8 +22,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // KubeServer represents a single Kubernetes server.

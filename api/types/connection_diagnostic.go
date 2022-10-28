@@ -17,8 +17,9 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 const (
