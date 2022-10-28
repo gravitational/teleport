@@ -1127,10 +1127,31 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("Auth server", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			AuthServer: "auth-server",
+			AuthServer: "auth-server:3025",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-server", fc.AuthServer)
+		require.Equal(t, "auth-server:3025", fc.AuthServer)
+		// If it is clearly an auth server, we should expect a v3 config.
+		require.Equal(t, defaults.TeleportConfigVersionV3, fc.Version)
+	})
+
+	t.Run("Downgrade to V2 if unsure of auth server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthServer: "could.be.a.proxy:443",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"could.be.a.proxy:443"}, fc.AuthServers)
+		require.Equal(t, defaults.TeleportConfigVersionV2, fc.Version)
+	})
+
+	t.Run("If explicitly V3, ignore suspicious auth-server parameter", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Version:    defaults.TeleportConfigVersionV3,
+			AuthServer: "could.be.a.proxy:443",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "could.be.a.proxy:443", fc.AuthServer)
+		require.Equal(t, defaults.TeleportConfigVersionV3, fc.Version)
 	})
 
 	t.Run("Data dir", func(t *testing.T) {
