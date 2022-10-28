@@ -9347,6 +9347,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9372,6 +9374,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9397,6 +9401,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9718,6 +9724,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9743,6 +9751,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -9768,6 +9778,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10092,6 +10104,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10283,6 +10297,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10309,6 +10325,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -10335,6 +10353,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18407,6 +18427,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18432,6 +18454,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18457,6 +18481,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18778,6 +18804,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18803,6 +18831,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -18828,6 +18858,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19152,6 +19184,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19343,6 +19377,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19369,6 +19405,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19395,6 +19433,8 @@ steps:
   environment:
     AWS_PROFILE: ecr-staging
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   depends_on:
@@ -19723,6 +19763,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 8cbdca3ef73899278354adf25685dda426e87eca7e0569b45e418ab5b891fc44
+hmac: 82c326b33d19f8f9487c32fce9e5ca32d5ce33369f1b717f97088026eaaf7e95
 
 ...

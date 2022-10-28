@@ -251,7 +251,7 @@ func (cr *ContainerRepo) pullPushStep(image *Image, dependencySteps []string) (s
 	return step{
 		Name:        fmt.Sprintf("Pull %s and push it to %s", image.GetDisplayName(), localRepo.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(),
+		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
 		Environment: cr.EnvironmentVars,
 		Commands:    commands,
 		DependsOn:   dependencySteps,
