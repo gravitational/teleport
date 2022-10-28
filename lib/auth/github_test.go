@@ -75,7 +75,9 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 	tt.a, err = NewServer(authConfig)

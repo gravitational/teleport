@@ -95,7 +95,9 @@ func newTestPack(
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 	p.a, err = NewServer(authConfig, opts...)
@@ -876,7 +878,9 @@ func TestUpdateConfig(t *testing.T) {
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 	authServer, err := NewServer(authConfig)
@@ -2057,10 +2061,11 @@ func TestCAGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{
-		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
-			return privKey, pubKey, nil
+		Software: keystore.SoftwareConfig{
+			RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+				return privKey, pubKey, nil
+			},
 		},
-		HostUUID: HostUUID,
 	}
 	keyStore, err := keystore.NewKeyStore(ksConfig)
 	require.NoError(t, err)

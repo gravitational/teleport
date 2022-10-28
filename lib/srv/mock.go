@@ -125,7 +125,9 @@ func newMockServer(t *testing.T) *mockServer {
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 
