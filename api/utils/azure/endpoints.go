@@ -48,6 +48,12 @@ func IsRedisEnterpriseEndpoint(endpoint string) bool {
 	return strings.Contains(endpoint, RedisEnterpriseEndpointSuffix)
 }
 
+// IsMSSQLServerEndpoint returns true if provided endpoint is a valid SQL server
+// database endpoint.
+func IsMSSQLServerEndpoint(endpoint string) bool {
+	return strings.Contains(endpoint, MSSQLEndpointSuffix)
+}
+
 // ParseDatabaseEndpoint extracts database server name from Azure endpoint.
 func ParseDatabaseEndpoint(endpoint string) (name string, err error) {
 	host, _, err := net.SplitHostPort(endpoint)
@@ -109,6 +115,26 @@ func GetHostFromRedisURI(uri string) (string, error) {
 	return parsed.Hostname(), nil
 }
 
+// ParseMSSQLEndpoint extracts database server name from Azure endpoint.
+func ParseMSSQLEndpoint(endpoint string) (name string, err error) {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// Azure endpoint looks like this:
+	// name.database.windows.net
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, MSSQLEndpointSuffix) || len(parts) != 4 {
+		return "", trace.BadParameter("failed to parse %v as Azure MSSQL endpoint", endpoint)
+	}
+
+	if parts[0] == "" {
+		return "", trace.BadParameter("endpoint %v must contain database name", endpoint)
+	}
+
+	return parts[0], nil
+}
+
 const (
 	// DatabaseEndpointSuffix is the Azure database endpoint suffix. Used for
 	// MySQL, PostgresSQL, etc.
@@ -119,4 +145,7 @@ const (
 
 	// RedisEnterpriseEndpointSuffix is the endpoint suffix for Redis Enterprise.
 	RedisEnterpriseEndpointSuffix = ".redisenterprise.cache.azure.net"
+
+	// MSSQLEndpointSuffix is the Azure SQL Server endpoint suffix.
+	MSSQLEndpointSuffix = ".database.windows.net"
 )

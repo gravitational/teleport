@@ -2269,9 +2269,10 @@ message AccessRequestConditions {
   // that is not a requirement.
   repeated string SuggestedReviewers = 5 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 
-  // SearchAsRoles is a list of roles which the user should be able to "assume"
-  // while searching for resources, and should be able to request with a
-  // search-based access request.
+  // SearchAsRoles is a list of extra roles which should apply to a user while
+  // they are searching for resources as part of a Resource Access Request, and
+  // defines the underlying roles which will be requested as part of any
+  // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
 }
 
@@ -2290,6 +2291,11 @@ message AccessReviewConditions {
   // Where is an optional predicate which further limits which requests are
   // reviewable.
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
+
+  // PreviewAsRoles is a list of extra roles which should apply to a reviewer
+  // while they are viewing a Resource Access Request for the purposes of
+  // viewing details such as the hostname and labels of requested resources.
+  repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
 }
 
 // ClaimMapping maps a claim to teleport roles.
