@@ -156,8 +156,7 @@ The git histories of each branch will be maintained while merging. [Merging repo
 - **Code scanning results / CodeQL**
   - No changes
 - **webapps-build**
-  - Instead of having this job build webassets and push it, it should ensure
-    that it can be built.
+  - This will need updates to work within the new folder structure.
 - **webapps-test**
   - Migrate from the webapps repository to the teleport repository
   - Only run for changes in the `/web` path.
