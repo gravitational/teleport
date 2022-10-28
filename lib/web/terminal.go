@@ -90,23 +90,29 @@ type AuthProvider interface {
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
-func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext) (*TerminalHandler, error) {
+func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProvider, sessCtx *SessionContext, servers []types.Server, sessionData session.Session) (*TerminalHandler, error) {
 	// Make sure whatever session is requested is a valid session.
-	_, err := session.ParseID(string(req.SessionID))
+	_, err := session.ParseID(string(sessionData.ID))
 	if err != nil {
 		return nil, trace.BadParameter("sid: invalid session id")
 	}
 
 	if req.Login == "" {
-		return nil, trace.BadParameter("login: missing login")
-	}
-	if req.Term.W <= 0 || req.Term.H <= 0 {
-		return nil, trace.BadParameter("term: bad term dimensions")
+		if sessionData.Login == "" {
+			return nil, trace.BadParameter("login: missing login")
+		}
+		req.Login = sessionData.Login
 	}
 
-	servers, err := authProvider.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.Server == "" {
+		if sessionData.ServerID == "" {
+			return nil, trace.BadParameter("server: missing server")
+		}
+		req.Server = sessionData.ServerID
+	}
+
+	if req.Term.W <= 0 || req.Term.H <= 0 {
+		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
 	// DELETE IN: 5.0
@@ -143,6 +149,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
 		join:         join,
+		sessionData:  sessionData,
 	}, nil
 }
 
@@ -195,6 +202,8 @@ type TerminalHandler struct {
 
 	// join is set if we're joining an existing session
 	join bool
+
+	sessionData session.Session
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -221,6 +230,9 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+
+	ws.WriteJSON(siteSessionGenerateResponse{Session: t.sessionData})
+
 	t.handler(ws, r)
 }
 

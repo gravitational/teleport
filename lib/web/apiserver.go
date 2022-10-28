@@ -2142,8 +2142,56 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	// Fetching nodes is quite slow when many nodes exist so fetch it once and
+	// pass the value to the methods that require it.
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	namespace := apidefaults.Namespace
+	if req.Namespace != "" {
+		namespace = req.Namespace
+	}
+	servers, err := clt.GetNodes(r.Context(), namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var sessionData session.Session
+
+	if req.SessionID.IsZero() {
+		// An existing session ID was not provided so we need to create a new one.
+		clusterName := p.ByName("site")
+		h.log.Infof("Generating new session for %s\n", clusterName)
+		sessionData, err = h.generateSession(req, servers, clusterName)
+		req.SessionID = sessionData.ID
+		if err != nil {
+			h.log.WithError(err).Debug("Unable to generate new ssh session.")
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Fetch the session data from the supplied SID.
+		sessionID, err := session.ParseID(req.SessionID.String())
+		h.log.Infof("Connecting to existing session: %s\n", sessionID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
+			return nil, trace.NotFound("session %v not found", sessionID)
+		}
+
+		sessionData = trackerToLegacySession(tracker, site.GetName())
+	}
+
 	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s, websid=%s.",
-		req.Namespace, req.Server, req.Login, req.SessionID, ctx.GetSessionID())
+		req.Namespace, req.Server, req.Login, sessionData.ID, ctx.GetSessionID())
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -2162,12 +2210,7 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	term, err := NewTerminal(r.Context(), *req, clt, ctx)
+	term, err := NewTerminal(r.Context(), *req, clt, ctx, servers, sessionData)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -2178,6 +2221,26 @@ func (h *Handler) siteNodeConnect(
 	term.Serve(w, r)
 
 	return nil, nil
+}
+
+func (h *Handler) generateSession(termReq *TerminalRequest, servers []types.Server, clusterName string) (session.Session, error) {
+	var sess session.Session
+	sess.Login = termReq.Login
+	sess.ServerID = termReq.Server
+	sess.ClusterName = clusterName
+
+	hostname, _, err := resolveServerHostPort(termReq.Server, servers)
+	if err != nil {
+		return session.Session{}, trace.Wrap(err)
+	}
+	sess.ServerHostname = hostname
+
+	sess.ID = session.NewID()
+	sess.Created = time.Now().UTC()
+	sess.LastActive = time.Now().UTC()
+	sess.Namespace = apidefaults.Namespace
+
+	return sess, nil
 }
 
 type siteSessionGenerateReq struct {
