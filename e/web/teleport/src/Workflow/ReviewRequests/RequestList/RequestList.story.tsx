@@ -26,6 +26,22 @@ export const Loaded = () => {
   );
 };
 
+export const LoadedWithPrivateKeyRequired = () => {
+  return (
+    <MemoryRouter>
+      <RequestList
+        {...sample}
+        privateKeyRequirement={{
+          accessRequestId: 'request-id-1234',
+          username: 'llama',
+          clusterId: 'cluster-id-1234',
+          authType: 'local',
+        }}
+      />
+    </MemoryRouter>
+  );
+};
+
 export const Failed = () => {
   return (
     <RequestList
@@ -69,4 +85,6 @@ const sample = {
   },
   requests: requestRows,
   assumeRole: () => null,
+  privateKeyRequirement: null,
+  clearPrivateKeyRequirement: () => null,
 };

@@ -1,17 +1,25 @@
 import React from 'react';
 import useAttempt from 'shared/hooks/useAttempt';
 import historyService from 'teleport/services/history';
-import { AccessStrategy } from 'teleport/services/user';
+import { UserContext } from 'teleport/services/user';
+import cfg from 'teleport/config';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import TeleportContextE from 'e-teleport/teleportContextE';
+import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
 
 export default function useWaitingRoom(ctx: TeleportContextE) {
   const workflowService = ctx.workflowService;
   const userService = ctx.userService;
   const accessRequest = ctx.storeAccessRequests.getWaitingRoom();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
-  const [strategy, setStrategy] = React.useState<AccessStrategy>(null);
+  const [userCtx, setUserCtx] = React.useState<UserContext>();
+  const {
+    privateKeyRequirement,
+    updatePrivateKeyRequirement,
+    clearPrivateKeyRequirement,
+    isPrivateKeyRequiredError,
+  } = usePrivateKeyAccessRequest();
 
   React.useEffect(() => {
     attemptActions.do(() =>
@@ -24,7 +32,7 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
           return;
         }
 
-        setStrategy(res.accessStrategy);
+        setUserCtx(res);
         // This statement says: on login, if the strategy is always, auto create a request for user.
         // An access request state is retrieved from local storage and is unitialized on logins.
         // (logging out and session expiry clears the storage).
@@ -39,7 +47,20 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
     return workflowService
       .fetchAccessRequest(accessRequest.id)
       .then(updateState)
-      .catch(attemptActions.error);
+      .catch((err: Error) => {
+        if (isPrivateKeyRequiredError(err)) {
+          attemptActions.clear();
+          updatePrivateKeyRequirement({
+            accessRequestId: accessRequest.id,
+            authType: userCtx?.authType,
+            username: accessRequest.user,
+            clusterId: cfg.proxyCluster,
+          });
+
+          return;
+        }
+        attemptActions.error(err);
+      });
   }
 
   function createRequest(reason?: string) {
@@ -61,9 +82,11 @@ export default function useWaitingRoom(ctx: TeleportContextE) {
   return {
     attempt,
     accessRequest,
-    strategy,
+    strategy: userCtx?.accessStrategy,
     refresh,
     createRequest,
+    privateKeyRequirement,
+    clearPrivateKeyRequirement,
   };
 }
 

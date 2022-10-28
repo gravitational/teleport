@@ -34,6 +34,7 @@ export function Login({
   clearAttempt,
   isPasswordlessEnabled,
   primaryAuthType,
+  privateKeyPolicyEnabled,
 }: State) {
   return (
     <>
@@ -53,6 +54,7 @@ export function Login({
         onRecover={onRecover}
         isPasswordlessEnabled={isPasswordlessEnabled}
         primaryAuthType={primaryAuthType}
+        privateKeyPolicyEnabled={privateKeyPolicyEnabled}
       />
     </>
   );

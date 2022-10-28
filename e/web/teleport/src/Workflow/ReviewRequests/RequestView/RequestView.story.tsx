@@ -53,6 +53,27 @@ export const LoadedRoleApproved = () => {
   );
 };
 
+export const LoadedRoleApprovedWithPrivateKeyRequired = () => {
+  const flags = {
+    ...sample.flags,
+    canDelete: true,
+    canAssume: true,
+  };
+  return (
+    <RequestView
+      {...sample}
+      request={requestRoleApproved}
+      flags={flags}
+      privateKeyRequirement={{
+        accessRequestId: 'request-id-1234',
+        username: 'llama',
+        clusterId: 'cluster-id-1234',
+        authType: 'local',
+      }}
+    />
+  );
+};
+
 export const LoadedEmpty = () => {
   const flags = {
     ...sample.flags,

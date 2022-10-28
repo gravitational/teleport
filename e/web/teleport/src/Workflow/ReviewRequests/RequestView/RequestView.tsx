@@ -11,8 +11,8 @@ import {
   Indicator,
 } from 'design';
 import { CircleCheck, CircleCross, ChevronCircleDown } from 'design/Icon';
-
 import Table from 'design/DataTable';
+import { PrivateKeyAccessRequestDialogue } from '@gravitational/teleport/src/components/PrivateKeyPolicy';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
@@ -43,6 +43,8 @@ export function RequestView({
   submitReview,
   assumeRole,
   reviewAttempt,
+  privateKeyRequirement,
+  clearPrivateKeyRequirement,
 }: State) {
   // Show indicator as soon as user clicks assume button.
   const [delayIndicator, setDelayIndicator] = useState(true);
@@ -194,6 +196,12 @@ export function RequestView({
           </Box>
         </Box>
       </Flex>
+      {privateKeyRequirement && (
+        <PrivateKeyAccessRequestDialogue
+          onClose={clearPrivateKeyRequirement}
+          {...privateKeyRequirement}
+        />
+      )}
     </>
   );
 }

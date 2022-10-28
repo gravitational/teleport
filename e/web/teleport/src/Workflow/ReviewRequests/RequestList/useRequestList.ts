@@ -4,10 +4,17 @@ import history from 'teleport/services/history';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
+import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
 
 export default function useRequestList(ctx: TeleportContextE) {
   const { attempt, run, setAttempt } = useAttempt('processing');
   const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const {
+    privateKeyRequirement,
+    updatePrivateKeyRequirement,
+    clearPrivateKeyRequirement,
+    isPrivateKeyRequiredError,
+  } = usePrivateKeyAccessRequest();
 
   useEffect(() => {
     run(() =>
@@ -26,15 +33,27 @@ export default function useRequestList(ctx: TeleportContextE) {
         ctx.storeAccessRequests.addAssumed(req, expires);
         history.reload();
       })
-      .catch((err: Error) =>
-        setAttempt({ status: 'failed', statusText: err.message })
-      );
+      .catch((err: Error) => {
+        if (isPrivateKeyRequiredError(err)) {
+          setAttempt({ status: '' });
+          updatePrivateKeyRequirement({
+            accessRequestId: req.id,
+            authType: ctx.storeUser.state.authType,
+            username: req.user,
+            clusterId: ctx.storeUser.state.cluster.clusterId,
+          });
+          return;
+        }
+        setAttempt({ status: 'failed', statusText: err.message });
+      });
   }
 
   return {
     attempt,
     requests,
     assumeRole,
+    privateKeyRequirement,
+    clearPrivateKeyRequirement,
   };
 }
 

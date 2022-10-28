@@ -12,6 +12,7 @@ import {
   Indicator,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { PrivateKeyAccessRequestDialogue } from '@gravitational/teleport/src/components/PrivateKeyPolicy';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
@@ -25,7 +26,13 @@ export default function Container() {
   return <RequestList {...state} />;
 }
 
-export function RequestList({ attempt, requests = [], assumeRole }: State) {
+export function RequestList({
+  attempt,
+  requests = [],
+  assumeRole,
+  privateKeyRequirement,
+  clearPrivateKeyRequirement,
+}: State) {
   // Delaying indicator is default behavior.
   // This flag is used to show indicator immedidately after
   // user clicks "assume" button, which removes the awkward blank
@@ -38,6 +45,11 @@ export function RequestList({ attempt, requests = [], assumeRole }: State) {
     assumeRole(request);
   }
 
+  const renderTable =
+    attempt.status === 'success' ||
+    attempt.status === '' ||
+    privateKeyRequirement;
+
   return (
     <>
       {attempt.status === 'processing' && (
@@ -48,7 +60,7 @@ export function RequestList({ attempt, requests = [], assumeRole }: State) {
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
-      {attempt.status === 'success' && (
+      {renderTable && (
         <StyledTable
           data={requests}
           columns={[
@@ -103,6 +115,12 @@ export function RequestList({ attempt, requests = [], assumeRole }: State) {
           pagination={{ pageSize: 20 }}
           initialSort={{ key: 'created', dir: 'DESC' }}
           customSearchMatchers={[requestdMatcher]}
+        />
+      )}
+      {privateKeyRequirement && (
+        <PrivateKeyAccessRequestDialogue
+          onClose={clearPrivateKeyRequirement}
+          {...privateKeyRequirement}
         />
       )}
     </>

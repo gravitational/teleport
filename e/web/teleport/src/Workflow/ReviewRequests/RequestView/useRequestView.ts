@@ -5,6 +5,10 @@ import history from 'teleport/services/history';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
+import { usePrivateKeyAccessRequest } from 'e-teleport/hooks/usePrivateKeyRequirement';
+
+import type { Attempt } from 'shared/hooks/useAttemptNext';
+import type { PrivateKeyAccessRequest } from 'teleport/components/PrivateKeyPolicy';
 
 export default function useRequestView(ctx: TeleportContextE) {
   const { requestId } = useParams<{ requestId: string }>();
@@ -15,6 +19,12 @@ export default function useRequestView(ctx: TeleportContextE) {
   const [request, setRequest] = useState<AccessRequest>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [flags, setFlags] = useState<Flags>(null);
+  const {
+    privateKeyRequirement,
+    updatePrivateKeyRequirement,
+    clearPrivateKeyRequirement,
+    isPrivateKeyRequiredError,
+  } = usePrivateKeyAccessRequest();
 
   useEffect(() => {
     run(() =>
@@ -53,9 +63,19 @@ export default function useRequestView(ctx: TeleportContextE) {
         ctx.storeAccessRequests.addAssumed(request, expires);
         history.reload();
       })
-      .catch((err: Error) =>
-        setAttempt({ status: 'failed', statusText: err.message })
-      );
+      .catch((err: Error) => {
+        if (isPrivateKeyRequiredError(err)) {
+          setAttempt({ status: '' });
+          updatePrivateKeyRequirement({
+            accessRequestId: request.id,
+            authType: ctx.storeUser.state.authType,
+            username: request.user,
+            clusterId: ctx.storeUser.state.cluster.clusterId,
+          });
+          return;
+        }
+        setAttempt({ status: 'failed', statusText: err.message });
+      });
   }
 
   return {
@@ -68,6 +88,8 @@ export default function useRequestView(ctx: TeleportContextE) {
     toggleConfirmDelete,
     submitReview,
     assumeRole,
+    privateKeyRequirement,
+    clearPrivateKeyRequirement,
   };
 }
 
@@ -97,4 +119,17 @@ function getRequestFlags(request: AccessRequest, ctx: TeleportContextE) {
 }
 
 type Flags = ReturnType<typeof getRequestFlags>;
-export type State = ReturnType<typeof useRequestView>;
+
+export type State = {
+  user: string;
+  reviewAttempt: Attempt;
+  attempt: Attempt;
+  request: AccessRequest;
+  flags: Flags;
+  confirmDelete: boolean;
+  toggleConfirmDelete(): void;
+  submitReview(requestState: RequestState, reason: string);
+  assumeRole(): void;
+  privateKeyRequirement?: PrivateKeyAccessRequest;
+  clearPrivateKeyRequirement?(): void;
+};
