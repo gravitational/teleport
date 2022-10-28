@@ -99,8 +99,7 @@ interrupted and locks aren't able to be replicated, new connections will eventua
 
 ### Auth Connection Not Required 
 
-### tsh ssh
-
+### `tsh ssh`
 Attempting to connect directly to a node via hostname, IP Address, or UUID should not require a connection to Auth for any configurations except those mentioned above.
 
 ```bash
@@ -200,6 +199,14 @@ While this does allow access to the node, it will prevent the following:
 - the session from appearing in the active sessions list
 - the session will not be joinable by other users
 - the session recording will not be available
+
+### Connect
+
+Connect leverages `tsh` for its backend operations, which means that while it suffers from the same issues that `tsh ssh` 
+does today, it will also benefit from the proposals laid out in this RFD. That is, there shouldn't be any Connect specific
+code that needs to change in order for offline access to nodes to work in Connect. All versions of Connect that bundle 
+a version of `tsh` which includes the changes proposed in this RFD should automatically gain access to nodes without access
+to Auth (permitted all the required cluster configurations are met of course).
 
 ## Testing
 
