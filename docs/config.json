@@ -230,6 +230,7 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
+          "forScopes": ["enterprise", "oss", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
@@ -385,7 +386,7 @@
             {
               "title": "Troubleshooting",
               "slug": "/management/admin/troubleshooting/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Upgrading the Teleport Binary",
