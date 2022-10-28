@@ -13,19 +13,21 @@ configured labels.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- Azure identity with permissions to create AD Groups 
+- An Azure identity with permissions to create and attach AD Groups.
 - One or more AKS clusters running. 
 - Access to AKS clusters.
+- A host to run the Teleport Discovery and Kubernetes services.
 
 ## Step 1/2. Set up Azure Identity with the required permissions
 
-Depending on the Authentication and Authorization configuration of each cluster, 
-Teleport requires a different set of permissions to access it. 
-In some configurations, Teleport has the ability to automatically set up its 
-access to the cluster, if you include the permissions required for it to do so.
+Depending on each cluster's authentication and authorization settings, Azure 
+uses a different way to configure the necessary permissions for Teleport to forward 
+requests to the server.
 
-Check the authentication modes used in your clusters and choose one or more 
-permissions scenarios for Teleport.
+Check the authentication modes used on your clusters and choose one or more 
+permissions scenarios. In some configurations, Teleport has the ability to 
+automatically configure the access to the cluster if you include the necessary 
+permissions to do so.
 
 <Tabs>
   <TabItem label="Azure AD + Azure RBAC (recommended)" >
@@ -37,7 +39,7 @@ the roles assigned to its identity.
 This mode allows you to grant permissions to multiple Kubernetes clusters without 
 requiring specific settings for each one of them.
 
-To grant access to AKS cluster running with this configuration, create an AD role 
+To grant access to the AKS clusters running with this setting, create an AD role 
 with the following content and assign it to the identity that the Teleport process will use.
 
 ```json
@@ -82,12 +84,12 @@ configured in the Teleport identity.
 
 Teleport can automatically create the `ClusterRole` and `ClusterRoleBinding` resources 
 in the following cases:
-- Teleport identity has access to the static [cluster administrator credentials](https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/list-cluster-admin-credentials) (Local Accounts).
-- Teleport identity belongs to the cluster's administrator group.
-- Teleport identity has permissions to create `ClusterRole` and `ClusterRoleBinding` on the 
+- Teleport's AD identity has permissions that allow access to the static [cluster administrator credentials](https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/list-cluster-admin-credentials) (local accounts).
+- Teleport's AD identity belongs to the cluster's administrator group.
+- Teleport's AD identity has permissions to create `ClusterRole` and `ClusterRoleBinding` on the 
 cluster and permissions to execute [remote commands](https://learn.microsoft.com/pt-pt/rest/api/aks/managed-clusters/run-command).
 
-In either of the specified cases, Teleport will create the `ClusterRole` and bind 
+In either of the specified cases, Teleport will be able to create the `ClusterRole` and bind 
 it to the first AD group it belongs. To make this possible, associate the 
 following permissions with Teleport's identity.
 
@@ -118,8 +120,8 @@ title="Manual configuration of Teleport RBAC permissions"
 opened={false}
 >
 
-Connect to every cluster with admin permissions and create the following resources 
-using `kubectl``.
+Connect to every cluster to enroll with admin permissions and create the following resources 
+using `kubectl`.
 
 ### ClusterRole
 
@@ -157,7 +159,7 @@ rules:
 
 ### ClusterRoleBinding
 
-Link the previously created `ClusterRole` into a Teleport AD group id.
+Link the previously created `ClusterRole` into the Teleport AD group id.
 
 ```yaml
 kind: ClusterRoleBinding
@@ -211,7 +213,7 @@ associated with Teleport identity.
 Teleport AKS Auto-Discovery requires a valid auth token for the Discovery and 
 Kubernetes services to join the cluster. Generate one by running the following 
 command against your Teleport Auth Service and save it in `/tmp/token` on the 
-machine that will run the Kubernetes Auto-Discovery:
+machine that will run Kubernetes Auto-Discovery:
 
 ```code
 $ tctl tokens add --type=discovery,kube
@@ -254,9 +256,8 @@ kubernetes_service:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier
 ```
 
-Once configured, Teleport can be started and AKS clusters matching the tags and regions
+Once you have added this configuration, start Teleport. AKS clusters matching the tags and regions
 specified in the Azure section will be added to the Teleport cluster automatically.
-
 
 ## Troubleshooting
 

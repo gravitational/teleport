@@ -8,26 +8,39 @@ Kubernetes Auto-Discovery is a Teleport feature that allows Kubernetes clusters
 hosted on cloud providers to be discovered and enrolled automatically. 
 
 While discovering a new Kubernetes cluster, Teleport does not install any component 
-on the cluster. Instead, it requires direct access to the cluster's API and minimal permissions.
+on the cluster. Instead, it requires direct access to the cluster's API and minimal access permissions.
 
 ## How Kubernetes Auto-Discovery works
 
-The Kubernetes Auto-Discovery consists of two distinct steps:
+Kubernetes Auto-Discovery consists of two distinct steps:
 
 ### Polling cloud APIs
 
 The Teleport Discovery Service is responsible for scanning the configured cloud 
-providers and identifying if any Kubernetes cluster match the filtering labels. 
+providers and identifying if any Kubernetes clusters match a set of filtering labels. 
 When the process identifies a new Kubernetes cluster, it creates a dynamic 
 resource within Teleport. This resource includes information imported from the 
-cloud cluster such as:
+cloud provider such as:
 
-- *Name*: Cluster Name (use `teleport.dev/kubernetes-name` tag to import the cluster in Teleport with a custom name) 
+- *Name*: Cluster name 
 - *Labels*
   - Cluster tags.
-  - Region: Cluster location.
-  - Account ID: Identification of which cloud account the cluster belongs to — AWS Account ID / Azure Subscription ID.
+  - Cluster location.
+  - Identification of which cloud account the cluster belongs to — AWS Account ID / Azure Subscription ID.
 
+<Notice type="tip">
+You can import the cluster under a different name into Teleport's registry. 
+To achieve this, you must attach the following tag to the resources — EKS and AKS — in your cloud provider:
+ - ***key***: `teleport.dev/kubernetes-name` 
+ - ***value***: desired name 
+
+The Discovery Service will check if the cluster includes the tag and use its value 
+as the resource name in Teleport.
+
+You should use this feature whenever there are clusters in different regions/cloud providers 
+with the same name to prevent them from colliding in Teleport.
+
+</Notice>
 
 In addition to detecting new Kubernetes clusters, the Discovery Service also removes 
 — from Teleport's registry — the Kubernetes clusters that have been deleted or whose tags 
@@ -77,13 +90,12 @@ discovery_service:
 ### Forwarding requests to the Kubernetes Cluster
 
 The Teleport Kubernetes Service is responsible for monitoring the dynamic resources created or 
-updated by the Discovery Service and forwarding requests to them.
-To work correctly, it requires direct access to the target Kubernetes cluster, 
-and the permissions associated with its identity must allow 
-[Kubernetes Impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
+updated by the Discovery Service and forwarding requests to the Kubernetes clusters they represent.
+To work correctly, it requires direct access to the target Kubernetes clusters and 
+permissions to forward requests.
 
-To turn on dynamic resource monitoring in Kubernetes Service you must configure 
-the `kubernetes_service.resources` section as exemplified in the following snippet.
+To turn on dynamic resource monitoring in the Kubernetes Service, you must configure 
+the `kubernetes_service.resources` section as shown in the following snippet:
 
 ```yaml
 ## This section configures the Kubernetes Service
