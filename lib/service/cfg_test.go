@@ -22,13 +22,13 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultConfig(t *testing.T) {

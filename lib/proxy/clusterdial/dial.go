@@ -17,9 +17,10 @@ package clusterdial
 import (
 	"net"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/trace"
 )
 
 // ClusterDialerFunc is a function that implements a proxy.ClusterDialer.

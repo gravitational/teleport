@@ -21,14 +21,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/fixtures"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // mockGetter mocks the UserAndRoleGetter interface.

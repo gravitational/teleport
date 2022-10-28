@@ -28,17 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
@@ -50,6 +39,17 @@ import (
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func init() {
