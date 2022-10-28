@@ -87,11 +87,11 @@ type Server struct {
 	nodeWatcher *services.NodeWatcher
 
 	// ec2Watcher periodically retrieves EC2 instances.
-	ec2Watcher *server.EC2Watcher
+	ec2Watcher *server.Watcher[server.EC2Instances]
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer *server.SSMInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
-	azureWatcher *server.AzureWatcher
+	azureWatcher *server.Watcher[server.AzureInstances]
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []fetchers.Fetcher
 }

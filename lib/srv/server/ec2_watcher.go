@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -54,57 +53,11 @@ type EC2Instances struct {
 	Instances []*ec2.Instance
 }
 
-// EC2Watcher allows callers to discover AWS instances matching specified filters.
-type EC2Watcher struct {
-	// InstancesC can be used to consume newly discovered EC2 instances
-	InstancesC chan EC2Instances
-
-	fetchers      []*ec2InstanceFetcher
-	fetchInterval time.Duration
-	ctx           context.Context
-	cancel        context.CancelFunc
-}
-
-// Run starts the watcher's main watch loop.
-func (w *EC2Watcher) Run() {
-	ticker := time.NewTicker(w.fetchInterval)
-	defer ticker.Stop()
-	for {
-		for _, fetcher := range w.fetchers {
-			instancesColl, err := fetcher.GetEC2Instances(w.ctx)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				log.WithError(err).Error("Failed to fetch EC2 instances")
-				continue
-			}
-			for _, inst := range instancesColl {
-				select {
-				case w.InstancesC <- inst:
-				case <-w.ctx.Done():
-				}
-			}
-		}
-		select {
-		case <-ticker.C:
-			continue
-		case <-w.ctx.Done():
-			return
-		}
-	}
-}
-
-// Stop stops the watcher
-func (w *EC2Watcher) Stop() {
-	w.cancel()
-}
-
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*EC2Watcher, error) {
+func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher[EC2Instances], error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := EC2Watcher{
-		fetchers:      []*ec2InstanceFetcher{},
+	watcher := Watcher[EC2Instances]{
+		fetchers:      []Fetcher[EC2Instances]{},
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		fetchInterval: time.Minute,
@@ -170,8 +123,8 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	return &fetcherConfig
 }
 
-// GetEC2Instances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instances, error) {
+// GetInstances fetches all EC2 instances matching configured filters.
+func (f *ec2InstanceFetcher) GetInstances(ctx context.Context) ([]EC2Instances, error) {
 	var instances []EC2Instances
 	err := f.EC2.DescribeInstancesPagesWithContext(ctx, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
