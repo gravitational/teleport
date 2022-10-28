@@ -8166,8 +8166,6 @@ steps:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
     != "200" ]; do sleep 1; done'
-  depends_on:
-  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -8177,19 +8175,12 @@ steps:
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
   - git checkout -qf "$(echo v1.2.3-fred.10)"
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
 - name: Build full semver
   image: alpine
   commands:
   - mkdir -pv $(dirname "/go/var/full-version")
   - echo $(echo v1.2.3-fred.10) | sed 's/v//' > "/go/var/full-version"
   - echo $(cat "/go/var/full-version")
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -8208,17 +8199,12 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: awsconfig
     path: /root/.aws
-  depends_on:
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build full semver
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
   commands:
@@ -9269,7 +9255,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
-  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -9281,8 +9266,6 @@ steps:
   - git checkout -qf "$(echo v1.2.3-fred.10)"
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -9297,9 +9280,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -9318,7 +9298,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -9326,10 +9306,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -9348,7 +9324,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -9356,11 +9332,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -10746,7 +10717,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Find the latest available semver for v11
-  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -10758,8 +10728,6 @@ steps:
   - git checkout -qf "$(cat '/go/vars/full-version/v11')"
   depends_on:
   - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -10774,9 +10742,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -10795,7 +10760,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -10803,10 +10768,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -10825,7 +10786,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -10833,11 +10794,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Find the latest available semver for v11
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
   commands:
@@ -13296,7 +13252,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Find the latest available semver for v10
-  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -13308,8 +13263,6 @@ steps:
   - git checkout -qf "$(cat '/go/vars/full-version/v10')"
   depends_on:
   - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -13324,9 +13277,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -13345,7 +13295,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -13353,10 +13303,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -13375,7 +13321,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -13383,11 +13329,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Find the latest available semver for v10
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
   commands:
@@ -15845,7 +15786,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Find the latest available semver for v9
-  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -15857,8 +15797,6 @@ steps:
   - git checkout -qf "$(cat '/go/vars/full-version/v9')"
   depends_on:
   - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -15873,9 +15811,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -15894,7 +15829,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -15902,10 +15837,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -15924,7 +15855,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -15932,11 +15863,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Find the latest available semver for v9
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
   commands:
@@ -18389,7 +18315,6 @@ steps:
     != "200" ]; do sleep 1; done'
   depends_on:
   - Verify build is tagged
-  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -18401,8 +18326,6 @@ steps:
   - git checkout -qf "$(echo v1.2.3-fred.10)"
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
 - name: Build major, minor, and full semvers
   image: alpine
   commands:
@@ -18417,9 +18340,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
   commands:
@@ -18438,7 +18358,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -18446,10 +18366,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -18468,7 +18384,7 @@ steps:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_ROLE:
-      from_secret: STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
+      from_secret: TEST_STAGING_TELEPORT_DRONE_ECR_AWS_ROLE
     AWS_SECRET_ACCESS_KEY:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
@@ -18476,11 +18392,6 @@ steps:
     path: /root/.aws
   depends_on:
   - Verify build is tagged
-  - Wait for docker
-  - Wait for docker registry
-  - Check out code
-  - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
   commands:
@@ -19812,6 +19723,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 72c2dc06220825f9487d126d304326a6552e8f64e7a4b3baa03c16a239d55463
+hmac: 8cbdca3ef73899278354adf25685dda426e87eca7e0569b45e418ab5b891fc44
 
 ...

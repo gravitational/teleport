@@ -50,6 +50,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 	if configureForPRTestingOnly {
 		accessKeyIDSecret = testingSecretPrefix + accessKeyIDSecret
 		secretAccessKeySecret = testingSecretPrefix + secretAccessKeySecret
+		roleSecret = testingSecretPrefix + roleSecret
 		registryOrg = testingECRRegistryOrg
 
 		if !isPublic {

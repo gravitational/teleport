@@ -78,7 +78,7 @@ func (rv *ReleaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 	return setupSteps, nextStageSetupStepNames
 }
 
-func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlags) []step {
+func (rv *ReleaseVersion) buildSteps(parentSetupStepNames []string, flags *TriggerFlags) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 	steps := make([]step, 0)
 
@@ -94,10 +94,11 @@ func (rv *ReleaseVersion) buildSteps(setupStepNames []string, flags *TriggerFlag
 	}
 
 	for _, setupStep := range setupSteps {
-		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
+		setupStep.DependsOn = append(setupStep.DependsOn, parentSetupStepNames...)
 		steps = append(steps, setupStep)
-		setupStepNames = append(setupStepNames, setupStep.Name)
 	}
+
+	setupStepNames := append(parentSetupStepNames, getStepNames(setupSteps)...)
 
 	for _, product := range rv.getProducts(clonedRepoPath) {
 		steps = append(steps, product.buildSteps(rv, setupStepNames, flags)...)
