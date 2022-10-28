@@ -33,7 +33,7 @@ import (
 
 // databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.
 type databaseIAMPolicyResponse struct {
-	// Type is the type of the IAM policy
+	// Type is the type of the IAM policy.
 	Type string `json:"type"`
 	// AWS contains the IAM policy for AWS-hosted databases.
 	AWS *databaseIAMPolicyAWS `json:"aws,omitempty"`
@@ -79,7 +79,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 		}, nil
 
 	default:
-		return nil, trace.BadParameter("IAM policy not supported for database %q of type %q", databaseName, database.GetType())
+		return nil, trace.BadParameter("IAM policy not supported for database type %q", database.GetType())
 	}
 }
 

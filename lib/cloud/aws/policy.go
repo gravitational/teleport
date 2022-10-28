@@ -180,8 +180,7 @@ func (p *PolicyDocument) ForEach(fn func(effect, action, resource string)) {
 	}
 }
 
-// SliceOrString defines a type that can be unmarshalled from either a single
-// string or a slice.
+// SliceOrString defines a type that can be either a single string or a slice.
 //
 // For example, these types can be either a single string or a slice:
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_action.html

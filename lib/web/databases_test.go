@@ -97,6 +97,8 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 }
 
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {
+	t.Helper()
+
 	databaseServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: db.GetName(),
 	}, types.DatabaseServerSpecV3{

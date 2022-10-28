@@ -35,7 +35,7 @@ import (
 
 func TestSliceOrString(t *testing.T) {
 	t.Run("marshal", func(t *testing.T) {
-		t.Run("empty slice", func(t *testing.T) {
+		t.Run("nil slice", func(t *testing.T) {
 			var empty SliceOrString
 			bytes, err := json.Marshal(empty)
 			require.NoError(t, err)
@@ -54,13 +54,6 @@ func TestSliceOrString(t *testing.T) {
 			bytes, err := json.Marshal(slice)
 			require.NoError(t, err)
 			require.Equal(t, "[\"e1\",\"e2\"]", string(bytes))
-		})
-
-		t.Run("slice with indent", func(t *testing.T) {
-			slice := SliceOrString{"e1", "e2"}
-			bytes, err := json.MarshalIndent(slice, "", "    ")
-			require.NoError(t, err)
-			require.Equal(t, "[\n    \"e1\",\n    \"e2\"\n]", string(bytes))
 		})
 	})
 

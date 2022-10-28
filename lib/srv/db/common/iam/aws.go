@@ -34,7 +34,7 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 	case types.DatabaseTypeRedshift:
 		return getRedshiftPolicyDocument(db)
 	default:
-		return nil, nil, trace.BadParameter("GetPolicyDocument is not supported policy for database type %s", db.GetType())
+		return nil, nil, trace.BadParameter("GetAWSPolicyDocument is not supported policy for database type %s", db.GetType())
 	}
 }
 
