@@ -180,6 +180,7 @@ type SampleFlags struct {
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
+	version := flags.Version
 	if (flags.KeyFile == "") != (flags.CertFile == "") { // xor
 		return nil, trace.BadParameter("please provide both --key-file and --cert-file")
 	}
@@ -220,12 +221,25 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if flags.AuthServer != "" {
-		g.AuthServer = flags.AuthServer
-	}
-
-	if flags.ProxyAddress != "" {
-		g.ProxyServer = flags.ProxyAddress
+	if flags.Version == defaults.TeleportConfigVersionV3 {
+		if flags.AuthServer != "" && flags.ProxyAddress != "" {
+			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
+		} else if flags.AuthServer != "" {
+			// For Teleport 11, if `--auth-server` is provided, we generate a V2
+			// configuration and in `onConfigDump` output a stern warning.
+			// This ensures we do not break people relying on `--auth-server`.
+			g.AuthServers = []string{flags.AuthServer}
+			version = defaults.TeleportConfigVersionV2
+		} else if flags.ProxyAddress != "" {
+			g.ProxyServer = flags.ProxyAddress
+		}
+	} else {
+		if flags.AuthServer != "" {
+			g.AuthServers = []string{flags.AuthServer}
+		}
+		if flags.ProxyAddress != "" {
+			return nil, trace.BadParameter("--proxy cannot be used with configuration versions older than v3")
+		}
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
@@ -270,7 +284,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	}
 
 	fc = &FileConfig{
-		Version:        flags.Version,
+		Version:        version,
 		Global:         g,
 		Proxy:          p,
 		SSH:            s,

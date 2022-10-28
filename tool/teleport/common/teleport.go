@@ -550,6 +550,10 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
+	if flags.Version == defaults.TeleportConfigVersionV3 && flags.AuthServer != "" {
+		fmt.Fprintf(os.Stderr, "---BREAKING CHANGE IMPENDING---\nFrom Teleport 12, you will no longer be able to specify a Proxy address with --auth-server when using teleport configure. If you are connecting your node to a Proxy, switch to using --proxy before Teleport 12.\n\n")
+	}
+
 	entries, err := os.ReadDir(flags.DataDir)
 	if err != nil && !os.IsNotExist(err) {
 		fmt.Fprintf(
