@@ -1,6 +1,6 @@
 ---
 title: Database Access with Azure SQL Server with Azure Active Directory authentication (Preview)
-description: How to configure Teleport Database Access with Azure SQL Server with Azure Active Directory authentication.
+description: How to configure Teleport Database Access with Azure SQL Server using Azure Active Directory authentication.
 ---
 
 <Details
@@ -34,12 +34,12 @@ This guide will help you to:
 
 ## Prerequisites
 
-- A SQL Server running on Azure.
-- Teleport Database Service running on an Azure virtual instance.
+- SQL Server running on Azure.
+- The Teleport Database Service running on an Azure virtual instance.
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
-## Step 1/7. Set up the Teleport Auth and Proxy
+## Step 1/7. Set up the Teleport Auth and Proxy Services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
@@ -47,7 +47,7 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Enable SQL Server Azure Active Directory integration
+## Step 3/7. Enable the SQL Server Azure Active Directory integration
 
 If you have it enabled, you can go to the next step.
 
@@ -144,7 +144,7 @@ $ teleport db configure create \
   
 </Admonition>
 
-Start the database service:
+Start the Database Service:
 
 ```code
 $ teleport start --config=/etc/teleport.yaml
@@ -152,7 +152,7 @@ $ teleport start --config=/etc/teleport.yaml
 
 ## Step 7/7. Connect
 
-Login into your Teleport Cluster. Your database should appear in the list of
+Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -193,8 +193,8 @@ Where `--db-user` is the managed identity name.
 
 If you see the error `could not find identity "my-identity" attached to the
 instance` when connecting to your database, then the identity you’re trying to
-connect with is not attached to the Teleport Database Service Virtual Machine.
-You can navigate to the [Virtual Machines](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines),
+connect with is not attached to the Teleport Database Service virtual machine.
+You can navigate to the [Virtual Machines](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines) page within Azure Portal,
 open the **Teleport instance**, **Identity** section, and choose **User
 assigned** to see all identities you can connect with. If you don’t see your
 identity check [Step 4](#step-47-configure-azure-managed-identities) to see how
@@ -202,7 +202,7 @@ to add it.
 
 ### Login failed for the user
 
-When connecting to your database, you see the error `mssql: login error: Login
+When connecting to your database, and you see the error `mssql: login error: Login
 failed for user '<token-identified principal>'`, it means your managed identity
 login is not present on the SQL database. You’ll need to create their users as
 described in [Step 5](#step-57-enable-managed-identities-login-on-sql-server).
