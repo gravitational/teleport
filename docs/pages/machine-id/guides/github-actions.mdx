@@ -20,9 +20,7 @@ or self-hosted runners.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A node that is a part of the Teleport cluster with the SSH service installed.
-
 - A machine with `tsh` access to the cluster.
-
 - A Github repository with Github actions enabled. This guide uses the example `gravitational/example`
 repo, however this value should be replaced with your own unique repo.
 
@@ -53,17 +51,13 @@ Let's go over the token configuration YAML in more detail:
 bot that will be configured with Machine ID. In this case, the bot will be named
 `github-demo`, however this can be changed to any name of your choice. Note that this value will
 need to be used in other parts of the configuration later.
-
 - `metadata.expires` defines the date that the join token will expire. This example is set
 to the year `3000`, however care should be taken in production in order to Ensure
 that the expiration date will not be given a value that is greater than what is needed.
-
 - `spec.roles` defines the role for the bot user. The value of `[Bot]` ensures that only bots are
 allowed to join the cluster using this token, reducing the scope of privileges.
-
 - `spec.join_method` defines the join method the token is applicable for. Since this guide
 only focuses on Github Actions, this value should always be equal to `github`.
-
 - `spec.github.allow` is used to set rules for what GitHub Actions will be able to
 authenticate by using the token. In this example, the `gravitational/example`
 repository is used, and this example repository should be replaced with your own repo.
