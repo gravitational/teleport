@@ -702,6 +702,9 @@ lint-go:
 fix-imports: GO_LINT_FLAGS ?=
 fix-imports:
 	golangci-lint run -c .golangci.yml --disable-all --enable=gci --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' --fix
+	cd api/ && golangci-lint run -c ../.golangci.yml --disable-all --enable=gci --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' --fix
+	cd build.assets/tooling && golangci-lint run -c ../../.golangci.yml --disable-all --enable=gci --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' --fix
+	cd .cloudbuild/scripts && golangci-lint run -c ../../.golangci.yml --disable-all --enable=gci --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' --fix
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
