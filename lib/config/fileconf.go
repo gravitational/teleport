@@ -234,7 +234,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 				return nil, trace.Wrap(err)
 			}
 
-			// Check port to determine if this is obviously a auth server
+			// Check port to determine if this is obviously an auth server
 			// and if not, downgrade to config v2.
 			if addr.Port(0) == defaults.AuthListenPort {
 				g.AuthServer = flags.AuthServer
