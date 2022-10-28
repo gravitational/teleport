@@ -69,7 +69,7 @@ configuration options to more strictly define the scope of access granted to the
 | **Setting** | **Behavior** | **Example** |
 | ----------- | ----------- | ----------- |
 | `sub` | Defines a subject claim. | `repo:example-org/example-repo:environment:dev` |
-| `repository` | The repository where the actions will run. | `gravitational:example` |
+| `repository` | The repository where the actions will run. | `gravitational/example` |
 | `repository_owner` | The name of the organization that owns the repository where the actions will run.  | `example-org` |
 | `workflow`| The name of the workflow. | `example-workflow` |
 | `environment`| The name of the environment where the actions will run. | `dev` |
@@ -87,7 +87,7 @@ The token `github-demo` can now be observed with the following command, ready to
 Github:
 
 ```code
-$ tctl  tokens ls
+$ tctl tokens ls
 ```
 
 ## Step 2/3. Creating your Machine ID bot
