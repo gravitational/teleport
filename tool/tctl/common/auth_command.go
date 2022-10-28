@@ -351,16 +351,20 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		return trace.Wrap(err)
 	}
 
-	databaseCA, err := clusterAPI.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certAuthID := types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: cn.GetClusterName(),
+	}
+	databaseCA, err := clusterAPI.GetCertAuthority(ctx, certAuthID, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if len(databaseCA) != 1 {
-		return trace.Errorf("expected database CA to have only one entry, found %d", len(databaseCA))
-	}
-
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA[0])}}
+	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA)}}
 
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -701,15 +705,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
-	networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	// Is TLS routing enabled?
+	proxyListenerMode := types.ProxyListenerMode_Separate
+	if a.config != nil && a.config.Auth.NetworkingConfig != nil {
+		proxyListenerMode = a.config.Auth.NetworkingConfig.GetProxyListenerMode()
+	}
+	if networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx); err == nil {
+		proxyListenerMode = networkConfig.GetProxyListenerMode()
 	}
 
+	// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 	kubeTLSServerName := ""
-	// Is TLS routing enabled?
-	if networkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
-		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
+		log.Debug("Using Proxy SNI for kube TLS server name")
 		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
 	}
 

@@ -4,7 +4,9 @@ does not generate a config for clusterrole.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -39,7 +41,9 @@ does not generate a config for pdb.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -74,7 +78,9 @@ matches snapshot and tests for annotations.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -112,7 +118,9 @@ matches snapshot and tests for extra-labels.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -150,7 +158,9 @@ matches snapshot for affinity.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -185,7 +195,9 @@ matches snapshot for all-v6.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -236,7 +248,9 @@ matches snapshot for aws-databases.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -277,13 +291,73 @@ matches snapshot for aws-databases.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for azure-databases.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        teleport:
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
+          auth_servers: ["proxy.example.com:3080"]
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: false
+
+        app_service:
+          enabled: false
+
+        db_service:
+          enabled: true
+          azure:
+          - tags:
+              '*': '*'
+            types:
+            - mysql
+            - postgres
+          - regions:
+            - eastus
+            - centralus
+            resource_groups:
+            - group1
+            - group2
+            subscriptions:
+            - subID1
+            - subID2
+            tags:
+              env:
+              - dev
+              - staging
+              origin: alice
+            types:
+            - mysql
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for backwards-compatibility.yaml:
   1: |
     apiVersion: v1
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -318,7 +392,9 @@ matches snapshot for ca-pin.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           ca_pin:
             - sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
@@ -355,7 +431,9 @@ matches snapshot for db.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -395,7 +473,9 @@ matches snapshot for dynamic-app.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -432,7 +512,9 @@ matches snapshot for dynamic-db.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -469,7 +551,9 @@ matches snapshot for imagepullsecrets.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -504,7 +588,9 @@ matches snapshot for initcontainers.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -533,13 +619,89 @@ matches snapshot for initcontainers.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for join-params-iam.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        teleport:
+          join_params:
+            method: "iam"
+            token_name: "/etc/teleport-secrets/auth-token"
+          auth_servers: ["proxy.example.com:3080"]
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-kube-cluster-name
+
+        app_service:
+          enabled: false
+
+        db_service:
+          enabled: false
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for join-params-token.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        teleport:
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
+          auth_servers: ["proxy.example.com:3080"]
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-kube-cluster-name
+
+        app_service:
+          enabled: false
+
+        db_service:
+          enabled: false
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-basic.yaml:
   1: |
     apiVersion: v1
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -574,7 +736,9 @@ matches snapshot for log-extra.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: DEBUG
@@ -609,7 +773,9 @@ matches snapshot for log-legacy.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: DEBUG
@@ -644,7 +810,9 @@ matches snapshot for node-selector.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -679,7 +847,9 @@ matches snapshot for pdb.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: DEBUG
@@ -714,7 +884,9 @@ matches snapshot for resources.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -749,7 +921,9 @@ matches snapshot for stateful.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -784,7 +958,9 @@ matches snapshot for tolerations.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
@@ -819,7 +995,9 @@ matches snapshot for volumes.yaml:
     data:
       teleport.yaml: |
         teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
+          join_params:
+            method: "token"
+            token_name: "/etc/teleport-secrets/auth-token"
           auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
