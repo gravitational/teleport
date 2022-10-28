@@ -3806,7 +3806,7 @@ func TestDesktopActive(t *testing.T) {
 	pack := env.proxies[0].authPack(t, "foo", []types.Role{role})
 
 	check := func(match string) {
-		resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktop_is_active", desktopName), url.Values{})
+		resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops", desktopName, "active"), url.Values{})
 		require.NoError(t, err)
 		require.Contains(t, string(resp.Bytes()), match)
 	}
