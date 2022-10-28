@@ -89,8 +89,23 @@ func (rv *ReleaseVersion) buildSteps(parentSetupStepNames []string, flags *Trigg
 		rv.buildSplitSemverSteps(flags.ShouldOnlyPublishFullSemver),
 	}
 
-	for _, containerRepo := range getReposUsedByPipeline(flags) {
-		setupSteps = append(setupSteps, containerRepo.SetupSteps...)
+	// These are sequential to prevent read/write contention by mounting volumes on
+	// multiple containeres at once
+	repos := getReposUsedByPipeline(flags)
+	var previousSetupRepo *ContainerRepo
+	for _, containerRepo := range repos {
+		repoSetupSteps := containerRepo.SetupSteps
+		if previousSetupRepo != nil {
+			previousRepoStepNames := getStepNames(previousSetupRepo.SetupSteps)
+			for i, repoSetupStep := range repoSetupSteps {
+				repoSetupSteps[i].DependsOn = append(repoSetupStep.DependsOn, previousRepoStepNames...)
+			}
+		}
+		setupSteps = append(setupSteps, repoSetupSteps...)
+
+		if len(repoSetupSteps) > 0 {
+			previousSetupRepo = containerRepo
+		}
 	}
 
 	for _, setupStep := range setupSteps {

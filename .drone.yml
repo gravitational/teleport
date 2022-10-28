@@ -9403,6 +9403,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume ECR - production AWS Role
   - Verify build is tagged
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
@@ -10981,6 +10982,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume ECR - production AWS Role
   - Find the latest available semver for v11
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
@@ -13678,6 +13680,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume ECR - production AWS Role
   - Find the latest available semver for v10
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
@@ -16374,6 +16377,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume ECR - production AWS Role
   - Find the latest available semver for v9
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
@@ -19065,6 +19069,7 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
+  - Assume ECR - production AWS Role
   - Verify build is tagged
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
@@ -20513,6 +20518,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 82276771e7934d94797dde0b036c4507582e607527ea31a8531c45e58bce747f
+hmac: c27d8d1ac013939bd6ad3ace8eeb69a6578ef15bd595c52d48f531e5cb1c331f
 
 ...
