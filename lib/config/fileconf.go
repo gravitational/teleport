@@ -180,7 +180,6 @@ type SampleFlags struct {
 // MakeSampleFileConfig returns a sample config to start
 // a standalone server
 func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
-	version := flags.Version
 	if (flags.KeyFile == "") != (flags.CertFile == "") { // xor
 		return nil, trace.BadParameter("please provide both --key-file and --cert-file")
 	}
@@ -221,9 +220,22 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if version == defaults.TeleportConfigVersionV3 {
-		if flags.AuthServer != "" && flags.ProxyAddress != "" {
-			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
+	if flags.AuthServer != "" && flags.ProxyAddress != "" {
+		return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
+	}
+	if flags.Version == defaults.TeleportConfigVersionV3 {
+		// User has specifically asked for version 3 so we should trust their
+		// specified values.
+		if flags.ProxyAddress != "" {
+			g.ProxyServer = flags.ProxyAddress
+		} else if flags.AuthServer != "" {
+			g.AuthServer = flags.AuthServer
+		}
+	} else if flags.Version == "" {
+		// User has not requested a specific version, so we should try for v3
+		// and fallback to v2.
+		if flags.ProxyAddress != "" {
+			g.ProxyServer = flags.ProxyAddress
 		} else if flags.AuthServer != "" {
 			// For Teleport 11, if `--auth-server` is provided, we generate a V2
 			// configuration and in `onConfigDump` output a stern warning if
@@ -240,17 +252,16 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 				g.AuthServer = flags.AuthServer
 			} else {
 				g.AuthServers = []string{flags.AuthServer}
-				version = defaults.TeleportConfigVersionV2
+				flags.Version = defaults.TeleportConfigVersionV2
 			}
-		} else if flags.ProxyAddress != "" {
-			g.ProxyServer = flags.ProxyAddress
 		}
 	} else {
-		if flags.AuthServer != "" {
-			g.AuthServers = []string{flags.AuthServer}
-		}
+		// User has requested a version prior to v3, so we should only accept
+		// --auth-server.
 		if flags.ProxyAddress != "" {
 			return nil, trace.BadParameter("--proxy cannot be used with configuration versions older than v3")
+		} else if flags.AuthServer != "" {
+			g.AuthServers = []string{flags.AuthServer}
 		}
 	}
 
@@ -295,6 +306,12 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		d.EnabledFlag = "no"
 	}
 
+	// If user via params or logic has suggested a version, then use that,
+	// otherwise default to the latest version.
+	version := flags.Version
+	if version == "" {
+		version = defaults.TeleportConfigVersionV3
+	}
 	fc = &FileConfig{
 		Version:        version,
 		Global:         g,
