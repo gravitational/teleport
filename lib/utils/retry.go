@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,25 +29,28 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// HalfJitter is a global jitter instance used for one-off jitters.
-// Prefer instantiating a new jitter instance for operations that require
-// repeated calls.
-var HalfJitter = NewHalfJitter()
-
-// SeventhJitter is a global jitter instance used for one-off jitters.
-// Prefer instantiating a new jitter instance for operations that require
-// repeated calls.
-var SeventhJitter = NewSeventhJitter()
-
-// FullJitter is a global jitter instance used for one-off jitters.
-// Prefer instantiating a new jitter instance for operations that require
-// repeated calls
-var FullJitter = NewFullJitter()
-
 // Jitter is a function which applies random jitter to a
 // duration.  Used to randomize backoff values.  Must be
 // safe for concurrent usage.
 type Jitter func(time.Duration) time.Duration
+
+// HalfJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
+var HalfJitter = NewHalfJitter()
+
+// SeventhJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
+var SeventhJitter = NewSeventhJitter()
+
+// FullJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
+var FullJitter = NewFullJitter()
 
 // NewJitter builds a new default jitter (currently jitters on
 // the range [n/2,n), but this is subject to change).
@@ -58,36 +62,36 @@ func NewJitter() Jitter {
 // a large range and most suitable for jittering things like backoff
 // operations where breaking cycles quickly is a priority.
 func NewHalfJitter() Jitter {
-	var mu sync.Mutex
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return func(d time.Duration) time.Duration {
-		// values less than 1 cause rng to panic, and some logic
-		// relies on treating zero duration as non-blocking case.
-		if d < 1 {
-			return 0
-		}
-		mu.Lock()
-		defer mu.Unlock()
-		return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
-	}
+	return newSingleJitter(halfJitter)
+}
+
+// NewShardedHalfJitter is equivalent to NewHalfJitter except that it
+// performs better under high concurrency at the cost of having a larger
+// footprint in memory.
+func NewShardedHalfJitter() Jitter {
+	return newShardedJitter(halfJitter)
+}
+
+func halfJitter(d time.Duration, rng *rand.Rand) time.Duration {
+	return (d / 2) + time.Duration(rng.Int63n(int64(d))/2)
 }
 
 // NewSeventhJitter builds a new jitter on the range [6n/7,n). Prefer smaller
 // jitters such as this when jittering periodic operations (e.g. cert rotation
 // checks) since large jitters result in significantly increased load.
 func NewSeventhJitter() Jitter {
-	var mu sync.Mutex
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return func(d time.Duration) time.Duration {
-		// values less than 1 cause rng to panic, and some logic
-		// relies on treating zero duration as non-blocking case.
-		if d < 1 {
-			return 0
-		}
-		mu.Lock()
-		defer mu.Unlock()
-		return (6 * d / 7) + time.Duration(rng.Int63n(int64(d))/7)
-	}
+	return newSingleJitter(seventhJitter)
+}
+
+// NewShardedSeventhJitter is equivalent to NewSeventhJitter except that it
+// performs better under high concurrency at the cost of having a larger
+// footprint in memory.
+func NewShardedSeventhJitter() Jitter {
+	return newShardedJitter(seventhJitter)
+}
+
+func seventhJitter(d time.Duration, rng *rand.Rand) time.Duration {
+	return (6 * d / 7) + time.Duration(rng.Int63n(int64(d))/7)
 }
 
 // NewFullJitter builds a new jitter on the range (0,n]. Most use-cases
@@ -96,6 +100,24 @@ func NewSeventhJitter() Jitter {
 // extent possible (e.g. when retrying a CompareAndSwap operation), a full jitter
 // may be appropriate.
 func NewFullJitter() Jitter {
+	return newSingleJitter(fullJitter)
+}
+
+// NewShardedFullJitter is equivalent to NewFullJitter except that it
+// performs better under high concurrency at the cost of having a larger
+// footprint in memory.
+func NewShardedFullJitter() Jitter {
+	return newShardedJitter(fullJitter)
+}
+
+func fullJitter(d time.Duration, rng *rand.Rand) time.Duration {
+	return time.Duration(1) + time.Duration(rng.Int63n(int64(d)))
+}
+
+type jitterInner func(d time.Duration, rng *rand.Rand) time.Duration
+
+// newSingleJitter constructs a new jitter instance from the supplied closure.
+func newSingleJitter(inner jitterInner) Jitter {
 	var mu sync.Mutex
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return func(d time.Duration) time.Duration {
@@ -105,8 +127,43 @@ func NewFullJitter() Jitter {
 			return 0
 		}
 		mu.Lock()
-		defer mu.Unlock()
-		return time.Duration(1) + time.Duration(rng.Int63n(int64(d)))
+		r := inner(d, rng)
+		mu.Unlock()
+		return r
+	}
+}
+
+// newShardedJitter constructs a new sharded jitter instance from the supplied closure.
+func newShardedJitter(inner jitterInner) Jitter {
+	// the shard count here is pretty arbitrary. it was selected based on
+	// fiddling with some benchmarks. seems to be a good balance between
+	// limiting size and maximing perf under 100k concurrent calls
+	const shards = 64
+
+	var rngs [shards]*rand.Rand
+	var mus [shards]sync.Mutex
+	var ctr atomic.Uint64
+	var initOnce sync.Once
+
+	return func(d time.Duration) time.Duration {
+		// rng's allocate >4kb each during init, which is a bit annoying if the jitter
+		// isn't actually being used (e.g. when importing a package that has a global jitter).
+		// best to allocate lazily (this has no measurable impact on benchmarks).
+		initOnce.Do(func() {
+			for i := range rngs {
+				rngs[i] = rand.New(rand.NewSource(time.Now().UnixNano()))
+			}
+		})
+		// values less than 1 cause rng to panic, and some logic
+		// relies on treating zero duration as non-blocking case.
+		if d < 1 {
+			return 0
+		}
+		idx := ctr.Add(1) % shards
+		mus[idx].Lock()
+		r := inner(d, rngs[idx])
+		mus[idx].Unlock()
+		return r
 	}
 }
 

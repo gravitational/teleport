@@ -17,6 +17,8 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -87,6 +89,37 @@ func Test_LinearRetryMax(t *testing.T) {
 				tc.previousCompareFn(t, duration, previous)
 
 			}
+		})
+	}
+}
+
+// BenchmarkJitter is an attempt to check the effect of concurrency on the performance
+// of a global jitter instance. I'm a bit skeptical of how "true to life" this benchmark
+// really is, but the results would seem to indicate that >100k concurrent jitters would
+// still all complete in <1s, which is very good for our purposes.
+func BenchmarkSingleJitter(b *testing.B) {
+	benchmarkSharedJitter(b, NewHalfJitter())
+}
+
+func BenchmarkShardedJitter(b *testing.B) {
+	benchmarkSharedJitter(b, NewShardedHalfJitter())
+}
+
+func benchmarkSharedJitter(b *testing.B, jitter Jitter) {
+	benchmarkJitter(b, func() Jitter { return jitter })
+}
+
+func benchmarkJitter(b *testing.B, mkjitter func() Jitter) {
+	procs := runtime.GOMAXPROCS(0)
+	for n := procs; n < 200_000; n = n * 2 {
+		b.Run(fmt.Sprintf("n%d", n), func(b *testing.B) {
+			b.SetParallelism(n / procs)
+			b.RunParallel(func(pb *testing.PB) {
+				jitter := mkjitter()
+				for pb.Next() {
+					jitter(time.Hour)
+				}
+			})
 		})
 	}
 }
