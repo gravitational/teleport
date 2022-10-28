@@ -167,12 +167,7 @@ func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// Update known_hosts with the leaf proxy's CA certificate, otherwise
-		// users will be prompted to manually accept the key.
-		err = tc.UpdateKnownHosts(cf.Context, sp.proxyHost, sp.clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
 		// We'll be connecting directly to the leaf cluster so make sure agent
 		// loads correct host CA.
 		tc.LocalAgent().UpdateCluster(sp.clusterName)
@@ -372,7 +367,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}
 
 	addr := "localhost:0"
+	randomPort := true
 	if cf.LocalProxyPort != "" {
+		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
 	listener, err := net.Listen("tcp", addr)
@@ -431,10 +428,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		// shared template arguments
 		templateArgs := map[string]any{
-			"database": routeToDatabase.ServiceName,
-			"type":     defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
-			"cluster":  client.SiteName,
-			"address":  listener.Addr().String(),
+			"database":   routeToDatabase.ServiceName,
+			"type":       defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
+			"cluster":    client.SiteName,
+			"address":    listener.Addr().String(),
+			"randomPort": randomPort,
 		}
 
 		tmpl := chooseProxyCommandTemplate(templateArgs, commands)
@@ -444,12 +442,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 
 	} else {
-		err = dbProxyTpl.Execute(os.Stdout, map[string]string{
-			"database": routeToDatabase.ServiceName,
-			"address":  listener.Addr().String(),
-			"ca":       profile.CACertPathForCluster(rootCluster),
-			"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
-			"key":      profile.KeyPath(),
+		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
+			"database":   routeToDatabase.ServiceName,
+			"address":    listener.Addr().String(),
+			"ca":         profile.CACertPathForCluster(rootCluster),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
+			"key":        profile.KeyPath(),
+			"randomPort": randomPort,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -621,6 +620,9 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
+	if cf.LocalProxyPort == "" {
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
 
 	go func() {
 		<-cf.Context.Done()
@@ -663,6 +665,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"address":     awsApp.GetForwardProxyAddr(),
 		"endpointURL": awsApp.GetEndpointURL(),
 		"format":      cf.Format,
+		"randomPort":  cf.LocalProxyPort == "",
 	}
 
 	template := awsHTTPSProxyTemplate
@@ -717,7 +720,8 @@ func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
@@ -727,7 +731,8 @@ Use following credentials to connect to the {{.database}} proxy:
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use the following command to connect to the database:
   $ {{.command}}
 `))
@@ -735,7 +740,8 @@ Use the following command to connect to the database:
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.
 var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use one of the following commands to connect to the database:
 {{range $item := .commands}}
   * {{$item.Description}}: 
@@ -803,7 +809,8 @@ var awsTemplateFuncs = template.FuncMap{
 // HTTPS proxy is started.
 var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
@@ -815,7 +822,8 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
 // AWS endpoint URL proxy is started.
 var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
-
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
 In addition to the endpoint URL, use the following credentials to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
