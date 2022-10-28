@@ -1166,7 +1166,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	_, err = rc.StartNode(makeNodeConfig("node1", rcProxyAddr))
 	require.Error(t, err)
 
-	timeout := time.Second * 30
+	timeout := time.Second * 60
 	require.ErrorIs(t, authorizer.WaitForConnection(timeout), trace.AccessDenied("missing Proxy-Authorization header"))
 	require.Zero(t, ph.Count())
 	// proxy url is user:password@host with incorrect password

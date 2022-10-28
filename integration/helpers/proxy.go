@@ -108,60 +108,86 @@ func (p *ProxyHandler) Count() int {
 
 type ProxyAuthorizer struct {
 	next   http.Handler
-	errC   chan error
 	authDB map[string]string
+	connC  chan struct{}
+	errC   chan error
 }
 
 func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *ProxyAuthorizer {
 	return &ProxyAuthorizer{
 		next:   handler,
 		authDB: authDB,
+		connC:  make(chan struct{}),
 		errC:   make(chan error),
 	}
 }
 
 func (p *ProxyAuthorizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// we detect if someone is waiting for a new connection to come in.
+	var someoneWaiting bool
+	var err error
+	defer func() {
+		if err != nil {
+			trace.WriteError(w, err)
+		}
+		if someoneWaiting {
+			p.notifyWaiter(err)
+		}
+	}()
+	select {
+	case p.connC <- struct{}{}:
+		someoneWaiting = true
+	default:
+	}
+
 	auth := r.Header.Get("Proxy-Authorization")
 	if auth == "" {
-		p.WriteError(w, trace.AccessDenied("missing Proxy-Authorization header"))
+		err = trace.AccessDenied("missing Proxy-Authorization header")
 		return
 	}
 	user, password, ok := parseProxyAuth(auth)
 	if !ok {
-		p.WriteError(w, trace.AccessDenied("bad Proxy-Authorization header"))
+		err = trace.AccessDenied("bad Proxy-Authorization header")
 		return
 	}
 
 	if !p.isAuthorized(user, password) {
-		p.WriteError(w, trace.AccessDenied("bad credentials"))
+		err = trace.AccessDenied("bad credentials")
 		return
 	}
 
 	// request is authorized, send it to the next handler
 	p.next.ServeHTTP(w, r)
-	p.AfterConnection(nil)
-	return
-}
-
-func (p *ProxyAuthorizer) WriteError(w http.ResponseWriter, err error) {
-	trace.WriteError(w, err)
-	p.AfterConnection(err)
-}
-
-func (p *ProxyAuthorizer) AfterConnection(err error) {
-	select {
-	case p.errC <- err:
-	default:
-	}
 }
 
 // WaitForConnection waits (with a configured timeout) for a new connection to be handled and returns the error.
+// This function makes no guarantees about which connection error will be returned, except that the connection
+// error will have occurred after this function was called. For this reason, don't use this in multiple
+// goroutines that expect different errors.
 func (p *ProxyAuthorizer) WaitForConnection(timeout time.Duration) error {
+	timeoutC := time.After(timeout)
+
+	// wait for a new connection to come in.
 	select {
-	case <-time.After(timeout):
+	case <-timeoutC:
 		return trace.BadParameter("timed out waiting for connection to proxy authorizer")
+	case <-p.connC:
+	}
+
+	// get some error that occurred after the new connection came in.
+	select {
+	case <-timeoutC:
+		return trace.BadParameter("timed out waiting for connection error")
 	case err := <-p.errC:
 		return err
+	}
+}
+
+func (p *ProxyAuthorizer) notifyWaiter(err error) {
+	// notify waiter, but don't block if they left already.
+	select {
+	case p.errC <- err:
+	default:
 	}
 }
 
