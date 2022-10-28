@@ -19,12 +19,12 @@ package main
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 // onDaemonStart implements "tsh daemon start" command.

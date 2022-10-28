@@ -19,12 +19,12 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterKubesGet returns a list of kube clusters in a form the UI can present.
@@ -43,9 +43,13 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters),
+		Items:      ui.MakeKubeClusters(clusters, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil

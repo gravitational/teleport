@@ -23,6 +23,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -34,11 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
@@ -789,7 +789,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		deleted := 0
 		var errs []error
 		for _, desktop := range desktops {
-			if desktop.GetName() != rc.ref.Name {
+			if desktop.GetName() == rc.ref.Name {
 				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
 					errs = append(errs, err)
 					continue

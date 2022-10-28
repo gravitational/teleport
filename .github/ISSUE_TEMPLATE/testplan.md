@@ -263,6 +263,29 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   * [ ] Verify searching for `name` or `labels` in the search bar works
   * [ ] Verify you can sort by `name` colum
+* [ ] Test Kubernetes exec via WebSockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
+### Kubernetes auto-discovery
+
+* [ ] Test Kubernetes auto-discovery:
+  * [ ] Verify that Azure AKS clusters are discovered and enrolled for different Azure Auth configs:
+    * [ ] Local Accounts only
+    * [ ] Azure AD
+    * [ ] Azure RBAC
+  * [ ] Verify that AWS EKS clusters are discovered and enrolled
+* [ ] Verify dynamic registration.
+  * [ ] Can register a new Kubernetes cluster using `tctl create`.
+  * [ ] Can update registered Kubernetes cluster using `tctl create -f`.
+  * [ ] Can delete registered Kubernetes cluster using `tctl rm`.
+
+### Kubernetes Secret Storage
+
+* [ ] Kubernetes Secret storage for Agent's Identity
+    * [ ] Install Teleport agent with a short-lived token  
+      * [ ] Validate if the Teleport is installed as a Kubernetes `Statefulset`
+      * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
+    * [ ] Force cluster CA rotation
+
 
 ### Teleport with FIPS mode
 
@@ -447,6 +470,8 @@ You will need a YubiKey 4.3+ to test this feature.
 
 This feature has additional build requirements, so it should be tested with a pre-release build from Drone (eg: `https://get.gravitational.com/teleport-ent-v11.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
+#### Server Access
+
 These tests should be carried out sequentially. `tsh` tests should be carried out on Linux, MacOS, and Windows.
 
 1. [ ] `tsh login` as user with [Webauthn](https://goteleport.com/docs/access-controls/guides/webauthn/) login and no hardware key requirement.
@@ -473,6 +498,13 @@ These tests should be carried out sequentially. `tsh` tests should be carried ou
   - [ ] `tsh ssh`
     - [ ] Requires yubikey to be connected for re-login
     - [ ] Prompts for touch if not cached
+
+#### Other
+
+Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
+
+- [ ] Database Acces: `tsh proxy db`
+- [ ] Application Access: `tsh login app && tsh proxy app`
 
 ## WEB UI
 

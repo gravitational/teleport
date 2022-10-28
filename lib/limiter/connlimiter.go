@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/oxy/connlimit"
 	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 

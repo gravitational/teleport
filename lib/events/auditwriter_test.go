@@ -27,13 +27,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAuditWriter tests audit writer - a component used for
