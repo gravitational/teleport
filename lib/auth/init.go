@@ -364,9 +364,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			}
 		} else {
 			// Already have a CA. Make sure the keyStore has usable keys.
-			if hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ca); err != nil {
+			hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ca)
+			if err != nil {
 				return nil, trace.Wrap(err)
-			} else if !hasUsableActiveKeys {
+			}
+			if !hasUsableActiveKeys {
 				// This could be one of a few cases:
 				// 1. A new auth server with an HSM being added to an HA cluster.
 				// 2. A new auth server with no HSM being added to an HA cluster
@@ -389,7 +391,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					}
 				}
 			}
-			hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ca)
+			hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ca)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

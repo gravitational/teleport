@@ -246,23 +246,29 @@ func (m *Manager) HasUsableAdditionalKeys(ca types.CertAuthority) (bool, error) 
 
 func (m *Manager) hasUsableKeys(keySet types.CAKeySet) (bool, error) {
 	for _, sshKeyPair := range keySet.SSH {
-		if usable, err := m.backend.canSignWithKey(sshKeyPair.PrivateKey, sshKeyPair.PrivateKeyType); err != nil {
+		usable, err := m.backend.canSignWithKey(sshKeyPair.PrivateKey, sshKeyPair.PrivateKeyType)
+		if err != nil {
 			return false, trace.Wrap(err)
-		} else if usable {
+		}
+		if usable {
 			return true, nil
 		}
 	}
 	for _, tlsKeyPair := range keySet.TLS {
-		if usable, err := m.backend.canSignWithKey(tlsKeyPair.Key, tlsKeyPair.KeyType); err != nil {
+		usable, err := m.backend.canSignWithKey(tlsKeyPair.Key, tlsKeyPair.KeyType)
+		if err != nil {
 			return false, trace.Wrap(err)
-		} else if usable {
+		}
+		if usable {
 			return true, nil
 		}
 	}
 	for _, jwtKeyPair := range keySet.JWT {
-		if usable, err := m.backend.canSignWithKey(jwtKeyPair.PrivateKey, jwtKeyPair.PrivateKeyType); err != nil {
+		usable, err := m.backend.canSignWithKey(jwtKeyPair.PrivateKey, jwtKeyPair.PrivateKeyType)
+		if err != nil {
 			return false, trace.Wrap(err)
-		} else if usable {
+		}
+		if usable {
 			return true, nil
 		}
 	}

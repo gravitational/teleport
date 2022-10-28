@@ -3740,9 +3740,11 @@ func (a *Server) addAdditionalTrustedKeysAtomic(
 			return trace.Wrap(a.closeCtx.Err())
 		default:
 		}
-		if updateRequired, err := needsUpdate(currentCA); err != nil {
+		updateRequired, err := needsUpdate(currentCA)
+		if err != nil {
 			return trace.Wrap(err)
-		} else if !updateRequired {
+		}
+		if !updateRequired {
 			return nil
 		}
 
@@ -3753,7 +3755,7 @@ func (a *Server) addAdditionalTrustedKeysAtomic(
 			return trace.Wrap(err)
 		}
 
-		err := a.CompareAndSwapCertAuthority(newCA, currentCA)
+		err = a.CompareAndSwapCertAuthority(newCA, currentCA)
 		if err != nil && !trace.IsCompareFailed(err) {
 			return trace.Wrap(err)
 		}
