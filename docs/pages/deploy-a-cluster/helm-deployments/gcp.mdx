@@ -275,9 +275,9 @@ $ kubectl --namespace teleport create -f gcp-issuer.yaml
 
 ## Step 5/7. Set values to configure the cluster
 
-<ScopedBlock scope="enterprise">
+<Details title="License Secret" scopeOnly={false} scope={"enterprise"} opened={true}>
 
-Before you can install Teleport in your Kubernetes cluster, you will need to
+Before you can install Teleport Enterprise in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
 
 Download your Teleport Enterprise license from the
@@ -291,7 +291,7 @@ this secret as long as your file is named `license.pem`.
 $ kubectl -n teleport create secret generic license --from-file=license.pem
 ```
 
-</ScopedBlock>
+</Details>
 
 <Admonition type="note">
   If you are installing Teleport in a brand new GCP project, make sure you have enabled the
