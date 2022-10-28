@@ -61,7 +61,11 @@ type backend interface {
 	canSignWithKey(raw []byte, keyType types.PrivateKeyType) (bool, error)
 }
 
-// Config holds configuration parameters for the keystore.
+// Config holds configuration parameters for the keystore. A software keystore
+// will be the default if no other is configured. Only one inner config other
+// than Softare should be set. It is okay to always set the Software config even
+// when a different keystore is desired because it will only be used if all
+// others are empty.
 type Config struct {
 	// Software holds configuration parameters specific to software keystores.
 	Software SoftwareConfig
