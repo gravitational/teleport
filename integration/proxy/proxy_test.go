@@ -1167,19 +1167,21 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.Error(t, err)
 
 	timeout := time.Second * 60
-	require.ErrorIs(t, authorizer.WaitForConnection(timeout), trace.AccessDenied("missing Proxy-Authorization header"))
+	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("missing Proxy-Authorization header"))
 	require.Zero(t, ph.Count())
 	// proxy url is user:password@host with incorrect password
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
-	require.ErrorIs(t, authorizer.WaitForConnection(timeout), trace.AccessDenied("bad credentials"))
+	ts.CloseClientConnections()
+	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
 	// proxy url is user:password@host with correct password
 	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, validPass, proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("node2", rcProxyAddr))
 	require.NoError(t, err, "node2 should be able to start")
-	require.NoError(t, authorizer.WaitForConnection(timeout))
-	require.NotZero(t, ph.Count())
+	ts.CloseClientConnections()
+	require.NoError(t, authorizer.WaitForRequest(timeout))
+	require.Greater(t, ph.Count(), 0)
 	// with env set correctly, both nodes should register.
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 2))
 }
