@@ -19,8 +19,10 @@ limitations under the License.
 package httplib
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mime"
 	"net"
 	"net/http"
@@ -151,6 +153,10 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 	if err != nil {
 		var uErr *url.Error
 		if errors.As(err, &uErr) && uErr.Err != nil {
+			var hostnameErr x509.HostnameError
+			if errors.As(uErr.Err, &hostnameErr) {
+				return nil, trace.ConnectionProblem(uErr.Err, uErr.Error())
+			}
 			return nil, trace.ConnectionProblem(uErr.Err, "error parsing URL")
 		}
 		var nErr net.Error
