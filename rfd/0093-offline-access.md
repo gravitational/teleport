@@ -69,7 +69,7 @@ spec:
       ssh: strict
 ```
 
-Strict mode, which is only available when recording at the node, will result in the session failing to launch if the node is unable to record the session.
+Strict mode, which is only available when using `auth_service.session_recording: node`, will result in the session failing to launch if the node is unable to record the session.
 
 
 #### Moderated Sessions 
@@ -147,7 +147,7 @@ sequenceDiagram
 ```
 
 However, the decision if the connection should be established is ultimately made by the node, not the Auth server. The node
-performs an RBAC check on all inbound connections to determines if among other things per-session MFA is required and the MFA ceremony was 
+performs an RBAC check on all inbound connections to determine if among other things per-session MFA is required and the MFA ceremony was 
 performed. Thus, `tsh` should **always** attempt to connect to a node even if the `proto.AuthService/IsMFARequired` RPC fails. In the worst
 case this makes `tsh ssh` for per-session MFA enabled connections take longer to fail. But that cost comes at the ability to allow all
 users that will never have to perform per-session MFA to be able to connect to nodes without needing the Auth server if they already 
@@ -185,7 +185,7 @@ Alternative approaches:
 1) Attempt to connect to the node first, and if it fails with a `trace.AccessDenied` error then try `proto.AuthService/IsMFARequired` and then perform the MFA ceremony and connect to the node again
     - Results in reduced latency for the happy path which doesn't require per-session MFA by removing the call to `proto.AuthService/IsMFARequired` entirely. However, `proto.AuthService/IsMFARequired` is still required   if the user doesn't have access to the node at all or per-session MFA is required.
     - Results in increased latency when per-session MFA is required since that flow now requires establishing the connection to the target node twice.
-3) Perform `proto.AuthService/IsMFARequired` and connecting to the node in parallel and act accordingly
+2) Perform `proto.AuthService/IsMFARequired` and connecting to the node in parallel and act accordingly
     - Ultimately leads to roughly the same outcome as Option 1. The connection to the node almost always takes longer than the connection to auth. By performing them in parallel you really only get gains in the happy path.
 
 ###### Session Trackers
@@ -201,6 +201,9 @@ While this does allow access to the node, it will prevent the following:
 - the session will not be joinable by other users
 - the session recording will not be available
 
+## Testing
+
+Tests will be added to verify that in each scenario described in this RFD that access to the node is as expected.
 
 ## Security
 
@@ -213,4 +216,7 @@ Allowing non-moderated sessions to continue without the session tracker in the b
 
 ## UX
 
-There should be no perceivable change to the UX of `tsh ssh`.
+There should be no perceivable change to the UX of `tsh ssh` for a healthy cluster. When there is an Auth outage access
+to nodes should be permitted in the allowed configurations listed above. The changes here do result in a slightly longer
+failure scenario when there is an Auth outage and per-session MFA is required for `tsh ssh`, however the total time
+will be no longer than it would've take to establish the connection to the node if Auth was available.
