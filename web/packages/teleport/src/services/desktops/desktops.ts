@@ -62,6 +62,15 @@ class DesktopService {
       .get(cfg.getDesktopUrl(clusterId, desktopPath))
       .then(json => makeDesktop(json));
   }
+
+  checkDesktopIsActive(
+    clusterId: string,
+    desktopName: string
+  ): Promise<boolean> {
+    return api
+      .get(cfg.getDesktopIsActiveUrl(clusterId, desktopName))
+      .then(json => json.active);
+  }
 }
 
 const desktopService = new DesktopService();

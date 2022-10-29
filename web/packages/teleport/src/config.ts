@@ -137,6 +137,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
+    desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
@@ -440,6 +441,10 @@ const cfg = {
 
   getDesktopUrl(clusterId: string, desktopName: string) {
     return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
+  },
+
+  getDesktopIsActiveUrl(clusterId: string, desktopName: string) {
+    return generatePath(cfg.api.desktopIsActive, { clusterId, desktopName });
   },
 
   getApplicationsUrl(clusterId: string, params: UrlResourcesParams) {
