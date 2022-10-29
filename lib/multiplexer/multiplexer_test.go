@@ -35,7 +35,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgproto3/v2"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/constants"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -45,12 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	"github.com/jackc/pgproto3/v2"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {

@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestServerLabels(t *testing.T) {
