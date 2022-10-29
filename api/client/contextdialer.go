@@ -50,7 +50,7 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 }
 
 // newDirectDialer makes a new dialer to connect directly to an Auth server.
-func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) *net.Dialer {
 	return &net.Dialer{
 		Timeout:   dialTimeout,
 		KeepAlive: keepAlivePeriod,
