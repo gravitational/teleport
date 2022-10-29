@@ -537,7 +537,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			`build.assets/build-fido2-macos.sh build`,
 			`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
-			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
+			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes`,
 		)
 	}
 

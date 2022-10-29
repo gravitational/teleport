@@ -21,9 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 const (

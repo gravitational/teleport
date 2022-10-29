@@ -20,12 +20,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {

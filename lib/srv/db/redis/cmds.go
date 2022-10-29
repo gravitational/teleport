@@ -24,14 +24,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
+	"github.com/gravitational/trace"
+
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/trace"
 )
 
 // List of commands that Teleport handles in a special way by Redis standalone and cluster.
@@ -54,7 +55,12 @@ const (
 //   - Subscribe related commands created a new DB connection as they change Redis request-response model to Pub/Sub.
 func (e *Engine) processCmd(ctx context.Context, cmd *redis.Cmd) error {
 	switch strings.ToLower(cmd.Name()) {
-	case helloCmd, punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:
+	case helloCmd:
+		// HELLO command is still not supported yet by Teleport. However, some
+		// Redis clients (e.g. go-redis) may explicitly look for the original
+		// Redis unknown command error so it can fallback to RESP2.
+		return protocol.MakeUnknownCommandErrorForCmd(cmd)
+	case punsubscribeCmd, ssubscribeCmd, sunsubscribeCmd:
 		return protocol.ErrCmdNotSupported
 	case authCmd:
 		return e.processAuth(ctx, cmd)
