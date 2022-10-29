@@ -25,9 +25,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -42,6 +39,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {

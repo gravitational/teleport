@@ -23,12 +23,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {

@@ -36,6 +36,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -45,8 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 type mockSSMClient struct {

@@ -24,13 +24,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/stretchr/testify/require"
 )
 
 const (

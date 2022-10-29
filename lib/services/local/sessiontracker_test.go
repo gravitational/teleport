@@ -18,13 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 // TestSessionTrackerStorage tests backend operations with tracker resources.

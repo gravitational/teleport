@@ -19,9 +19,10 @@ package metadata
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/gravitational/teleport/api"
 )
 
 const (

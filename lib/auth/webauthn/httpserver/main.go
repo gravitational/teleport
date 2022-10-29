@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed" // enable embed
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -25,14 +26,12 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	libclient "github.com/gravitational/teleport/lib/client"
-
-	_ "embed" // enable embed
 )
 
 //go:embed index.html

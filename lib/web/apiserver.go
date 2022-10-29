@@ -35,6 +35,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -63,17 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/oxy/ratelimit"
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 )
 
 const (
