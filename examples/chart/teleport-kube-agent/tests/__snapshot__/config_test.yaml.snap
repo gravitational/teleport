@@ -296,12 +296,11 @@ matches snapshot for azure-databases.yaml:
     apiVersion: v1
     data:
       teleport.yaml: |
-        version: v3
         teleport:
           join_params:
             method: "token"
             token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
+          auth_servers: ["proxy.example.com:3080"]
           log:
             severity: INFO
             output: stderr
