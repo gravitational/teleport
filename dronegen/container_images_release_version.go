@@ -123,11 +123,17 @@ func (rv *ReleaseVersion) buildSteps(parentSetupStepNames []string, flags *Trigg
 }
 
 func getReposUsedByPipeline(flags *TriggerFlags) []*ContainerRepo {
-	if !flags.ShouldAffectProductionImages {
-		return []*ContainerRepo{GetStagingContainerRepo(flags.UseUniqueStagingTag)}
+	repos := []*ContainerRepo{GetStagingContainerRepo(flags.UseUniqueStagingTag)}
+
+	if flags.ShouldBuildNewImages {
+		repos = append(repos, GetPublicEcrPullRegistry())
 	}
 
-	return append(GetProductionContainerRepos(), GetStagingContainerRepo(flags.UseUniqueStagingTag))
+	if flags.ShouldAffectProductionImages {
+		repos = append(repos, GetProductionContainerRepos()...)
+	}
+
+	return repos
 }
 
 type Semver struct {

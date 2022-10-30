@@ -8205,6 +8205,32 @@ steps:
   volumes:
   - name: awsconfig
     path: /root/.aws
+- name: Assume ECR - authenticated-pull AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-authenticated-pull]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-authenticated-pull
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - staging AWS Role
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
   commands:
@@ -8235,6 +8261,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
   image: alpine
   commands:
@@ -8247,6 +8274,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Download "teleport_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -8555,6 +8583,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
   image: alpine
   commands:
@@ -8567,6 +8596,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -8875,6 +8905,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
   image: alpine
   commands:
@@ -8887,6 +8918,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -9029,6 +9061,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm"
   image: docker
   commands:
@@ -9065,6 +9098,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm64"
   image: docker
   commands:
@@ -9101,6 +9135,7 @@ steps:
   - Check out code
   - Build full semver
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -9288,32 +9323,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-- name: Assume ECR - production AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile ecr-production
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_ROLE:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -9339,7 +9348,33 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume ECR - production AWS Role
+  - Verify build is tagged
+- name: Assume ECR - production AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-production
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - staging AWS Role
   - Verify build is tagged
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
@@ -9366,8 +9401,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -9393,8 +9428,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -9420,8 +9455,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport:v11-amd64" to Quay
   image: docker
   commands:
@@ -9755,8 +9790,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-ent:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -9782,8 +9817,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-ent:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -9809,8 +9844,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-ent:v11-amd64" to Quay
   image: docker
   commands:
@@ -10147,8 +10182,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
   image: docker
   commands:
@@ -10352,8 +10387,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-operator:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -10380,8 +10415,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-operator:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -10408,8 +10443,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
@@ -10819,32 +10854,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v11
-- name: Assume ECR - production AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile ecr-production
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_ROLE:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v11
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -10870,7 +10879,60 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume ECR - production AWS Role
+  - Find the latest available semver for v11
+- name: Assume ECR - authenticated-pull AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-authenticated-pull]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-authenticated-pull
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - staging AWS Role
+  - Find the latest available semver for v11
+- name: Assume ECR - production AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-production
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v11
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
@@ -10902,8 +10964,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
   image: alpine
   commands:
@@ -10916,8 +10979,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -11628,8 +11692,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
   image: alpine
   commands:
@@ -11642,8 +11707,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -12356,8 +12422,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
   image: alpine
   commands:
@@ -12370,8 +12437,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -12751,8 +12819,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm"
   image: docker
   commands:
@@ -12789,8 +12858,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Build teleport-operator image "teleport-operator:v11-arm64"
   image: docker
   commands:
@@ -12827,8 +12897,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   image: docker
   commands:
@@ -13427,32 +13498,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v10
-- name: Assume ECR - production AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile ecr-production
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_ROLE:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v10
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -13478,7 +13523,60 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume ECR - production AWS Role
+  - Find the latest available semver for v10
+- name: Assume ECR - authenticated-pull AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-authenticated-pull]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-authenticated-pull
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - staging AWS Role
+  - Find the latest available semver for v10
+- name: Assume ECR - production AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-production
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v10
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
@@ -13510,8 +13608,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
   image: alpine
   commands:
@@ -13524,8 +13623,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport_v10-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -14236,8 +14336,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
   image: alpine
   commands:
@@ -14250,8 +14351,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport-ent_v10-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -14964,8 +15066,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
   image: alpine
   commands:
@@ -14978,8 +15081,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport-ent_v10-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -15359,8 +15463,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Build teleport-operator image "teleport-operator:v10-arm"
   image: docker
   commands:
@@ -15397,8 +15502,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Build teleport-operator image "teleport-operator:v10-arm64"
   image: docker
   commands:
@@ -15435,8 +15541,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   image: docker
   commands:
@@ -16034,32 +16141,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Find the latest available semver for v9
-- name: Assume ECR - production AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile ecr-production
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_ROLE:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Find the latest available semver for v9
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -16085,7 +16166,60 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume ECR - production AWS Role
+  - Find the latest available semver for v9
+- name: Assume ECR - authenticated-pull AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-authenticated-pull]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-authenticated-pull
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - staging AWS Role
+  - Find the latest available semver for v9
+- name: Assume ECR - production AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-production
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v9
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
@@ -16117,8 +16251,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
   image: alpine
   commands:
@@ -16131,8 +16266,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport_v9-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -16843,8 +16979,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
   image: alpine
   commands:
@@ -16857,8 +16994,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport-ent_v9-tag_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -17571,8 +17709,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
   image: alpine
   commands:
@@ -17585,8 +17724,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Download "teleport-ent_v9-tag-fips_amd64.deb" artifacts from S3
   image: amazon/aws-cli
   commands:
@@ -17966,8 +18106,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Build teleport-operator image "teleport-operator:v9-arm"
   image: docker
   commands:
@@ -18004,8 +18145,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Build teleport-operator image "teleport-operator:v9-arm64"
   image: docker
   commands:
@@ -18042,8 +18184,9 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - authenticated-pull AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-operator:v9-amd64" to ECR - staging
   image: docker
   commands:
@@ -18636,32 +18779,6 @@ steps:
   - echo $(cat "/go/var/full-version")
   depends_on:
   - Verify build is tagged
-- name: Assume ECR - production AWS Role
-  image: amazon/aws-cli
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      >> /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile ecr-production
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-    AWS_ROLE:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
   commands:
@@ -18687,7 +18804,33 @@ steps:
   - name: awsconfig
     path: /root/.aws
   depends_on:
-  - Assume ECR - production AWS Role
+  - Verify build is tagged
+- name: Assume ECR - production AWS Role
+  image: amazon/aws-cli
+  commands:
+  - aws sts get-caller-identity
+  - |-
+    printf "[ecr-production]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
+      $(aws sts assume-role \
+        --role-arn "$AWS_ROLE" \
+        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
+        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+        --output text) \
+      >> /root/.aws/credentials
+  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  - aws sts get-caller-identity --profile ecr-production
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_ROLE:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: awsconfig
+    path: /root/.aws
+  depends_on:
+  - Assume ECR - staging AWS Role
   - Verify build is tagged
 - name: Pull teleport:v11-amd64 and push it to Local Registry
   image: docker
@@ -18714,8 +18857,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -18741,8 +18884,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -18768,8 +18911,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport:v11-amd64" to Quay
   image: docker
   commands:
@@ -19103,8 +19246,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-ent:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -19130,8 +19273,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-ent:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -19157,8 +19300,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-ent:v11-amd64" to Quay
   image: docker
   commands:
@@ -19495,8 +19638,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
   image: docker
   commands:
@@ -19700,8 +19843,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-operator:v11-arm and push it to Local Registry
   image: docker
   commands:
@@ -19728,8 +19871,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Pull teleport-operator:v11-arm64 and push it to Local Registry
   image: docker
   commands:
@@ -19756,8 +19899,8 @@ steps:
   - Wait for docker registry
   - Check out code
   - Build major, minor, and full semvers
-  - Assume ECR - production AWS Role
   - Assume ECR - staging AWS Role
+  - Assume ECR - production AWS Role
 - name: Tag and push image "teleport-operator:v11-amd64" to Quay
   image: docker
   commands:
@@ -20088,6 +20231,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 40ecf225491daf68b5cedfde44abd1fa3bfc8b9824fa5162ccf6feed2def2889
+hmac: 1b4faf9d5c6ba60269c8ce42ebe1b1fd60f6653ade067f0040ad1f1f61108f5c
 
 ...

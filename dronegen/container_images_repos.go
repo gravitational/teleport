@@ -163,12 +163,6 @@ func GetPublicEcrPullRegistry() *ContainerRepo {
 		"PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE", ProductionRegistry, "authenticated-pull", true, false, false)
 }
 
-// Returns a slice of all container repos that may be used in a built pipeline.
-func GetContainerRepos(uniqueStagingTag bool) []*ContainerRepo {
-	return append(GetProductionContainerRepos(), GetStagingContainerRepo(uniqueStagingTag),
-		GetPublicEcrPullRegistry(), GetLocalContainerRepo())
-}
-
 func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput, flags *TriggerFlags) []step {
 	if len(buildStepDetails) == 0 {
 		return nil
