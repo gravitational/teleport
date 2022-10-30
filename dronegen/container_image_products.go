@@ -259,7 +259,7 @@ func wrapCommandsInTimeout(commands []string, successCommand string, timeoutSeco
 // Returns the generated step and the path to the downloaded Dockerfile
 func downloadTeleportDockerfileStep(productName, workingPath, downloadURL string) (step, string) {
 	// Enterprise and fips specific dockerfiles should be configured here in the future if needed
-	dockerfilePath := path.Join(workingPath, "Dockerfile")
+	dockerfilePath := path.Join(workingPath, fmt.Sprintf("Dockerfile-%s", productName))
 
 	return step{
 		Name:  fmt.Sprintf("Download Teleport Dockerfile to %q for %s", dockerfilePath, productName),

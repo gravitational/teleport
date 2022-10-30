@@ -8262,12 +8262,12 @@ steps:
   - Build full semver
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8304,7 +8304,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -8320,7 +8320,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-amd64-builder"
@@ -8365,7 +8365,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -8381,7 +8381,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm-builder"
@@ -8426,7 +8426,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -8442,7 +8442,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm64-builder"
@@ -8584,12 +8584,12 @@ steps:
   - Build full semver
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8626,7 +8626,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -8642,8 +8642,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_amd64.deb /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_amd64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
@@ -8687,7 +8687,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -8703,8 +8703,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
-    /go/build
+    --file "/go/build/Dockerfile-teleport-ent" --build-arg DEB_PATH=teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
@@ -8748,7 +8748,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -8764,8 +8764,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_arm64.deb /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
@@ -8906,12 +8906,13 @@ steps:
   - Build full semver
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
+    teleport-ent-fips
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -8948,7 +8949,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent-fips
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for teleport-ent-fips
 - name: Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
   image: docker
   commands:
@@ -8964,8 +8965,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")-fips_amd64.deb /go/build
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile-teleport-ent-fips"
+    --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
+    /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-fips-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-fips-amd64-builder"
@@ -10967,12 +10969,12 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11011,7 +11013,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -11027,7 +11029,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-amd64-builder"
@@ -11072,7 +11074,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -11088,7 +11090,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm-builder"
@@ -11133,7 +11135,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -11149,7 +11151,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm64-builder"
@@ -11695,12 +11697,12 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -11739,7 +11741,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -11755,8 +11757,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_amd64.deb /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_amd64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
@@ -11800,7 +11802,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -11816,8 +11818,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
-    /go/build
+    --file "/go/build/Dockerfile-teleport-ent" --build-arg DEB_PATH=teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
@@ -11861,7 +11863,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -11877,8 +11879,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_arm64.deb /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
@@ -12425,12 +12427,13 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
+    teleport-ent-fips
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v11
   - Wait for docker
@@ -12469,7 +12472,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent-fips
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for teleport-ent-fips
 - name: Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
   image: docker
   commands:
@@ -12485,8 +12488,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")-fips_amd64.deb /go/build
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile-teleport-ent-fips"
+    --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
+    /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-fips-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-fips-amd64-builder"
@@ -13611,12 +13615,12 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -13655,7 +13659,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v10-amd64"
   image: docker
   commands:
@@ -13671,7 +13675,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v10-amd64-builder"
@@ -13716,7 +13720,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v10-arm"
   image: docker
   commands:
@@ -13732,7 +13736,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v10-arm-builder"
@@ -13777,7 +13781,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v10-arm64"
   image: docker
   commands:
@@ -13793,7 +13797,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v10-arm64-builder"
@@ -14339,12 +14343,12 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -14383,7 +14387,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v10-amd64"
   image: docker
   commands:
@@ -14399,8 +14403,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_amd64.deb /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_amd64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
@@ -14444,7 +14448,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v10-arm"
   image: docker
   commands:
@@ -14460,8 +14464,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
-    /go/build
+    --file "/go/build/Dockerfile-teleport-ent" --build-arg DEB_PATH=teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v10-arm-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm-builder"
@@ -14505,7 +14509,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v10-arm64"
   image: docker
   commands:
@@ -14521,8 +14525,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_arm64.deb /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
@@ -15069,12 +15073,13 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
+    teleport-ent-fips
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -15113,7 +15118,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent-fips
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for teleport-ent-fips
 - name: Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
   image: docker
   commands:
@@ -15129,8 +15134,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v10-fips-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")-fips_amd64.deb /go/build
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile-teleport-ent-fips"
+    --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
+    /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v10-fips-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v10-fips-amd64-builder"
@@ -16254,12 +16260,12 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -16298,7 +16304,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v9-amd64"
   image: docker
   commands:
@@ -16314,7 +16320,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v9-amd64-builder"
@@ -16359,7 +16365,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v9-arm"
   image: docker
   commands:
@@ -16375,7 +16381,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v9-arm-builder"
@@ -16420,7 +16426,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v9-arm64"
   image: docker
   commands:
@@ -16436,7 +16442,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v9-arm64-builder"
@@ -16982,12 +16988,12 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17026,7 +17032,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v9-amd64"
   image: docker
   commands:
@@ -17042,8 +17048,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_amd64.deb /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_amd64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v9-amd64-builder"
@@ -17087,7 +17093,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v9-arm"
   image: docker
   commands:
@@ -17103,8 +17109,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
-    /go/build
+    --file "/go/build/Dockerfile-teleport-ent" --build-arg DEB_PATH=teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v9-arm-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm-builder"
@@ -17148,7 +17154,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v9-arm64"
   image: docker
   commands:
@@ -17164,8 +17170,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_arm64.deb /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v9-arm64-builder"
@@ -17712,12 +17718,13 @@ steps:
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
   - Assume ECR - production AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
+    teleport-ent-fips
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -17756,7 +17763,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent-fips
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for teleport-ent-fips
 - name: Build teleport-ent-fips image "teleport-ent:v9-fips-amd64"
   image: docker
   commands:
@@ -17772,8 +17779,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v9-fips-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")-fips_amd64.deb /go/build
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile-teleport-ent-fips"
+    --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
+    /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v9-fips-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v9-fips-amd64-builder"
@@ -18841,12 +18849,12 @@ steps:
   - Build full semver
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport")
+  - curl -Ls -o "/go/build/Dockerfile-teleport" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -18883,7 +18891,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-amd64"
   image: docker
   commands:
@@ -18899,7 +18907,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-amd64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_amd64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-amd64-builder"
@@ -18944,7 +18952,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-arm"
   image: docker
   commands:
@@ -18960,7 +18968,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm-builder"
@@ -19005,7 +19013,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport" for teleport
 - name: Build teleport image "teleport:v11-arm64"
   image: docker
   commands:
@@ -19021,7 +19029,7 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-v11-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag drone-docker-registry:5000/teleport:$(cat "/go/var/full-version")-arm64
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
+    --file "/go/build/Dockerfile-teleport" --build-arg DEB_PATH=teleport_$(cat "/go/var/full-version")_arm64.deb
     /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-v11-arm64-builder"
@@ -19163,12 +19171,12 @@ steps:
   - Build full semver
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -19205,7 +19213,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-amd64"
   image: docker
   commands:
@@ -19221,8 +19229,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_amd64.deb /go/build
+    "/go/var/full-version")-amd64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_amd64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-amd64-builder"
@@ -19266,7 +19274,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-arm"
   image: docker
   commands:
@@ -19282,8 +19290,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm-builder" --target "teleport"
     --platform "linux/arm" --tag drone-docker-registry:5000/teleport-ent:$(cat "/go/var/full-version")-arm
-    --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm.deb
-    /go/build
+    --file "/go/build/Dockerfile-teleport-ent" --build-arg DEB_PATH=teleport-ent_$(cat
+    "/go/var/full-version")_arm.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm-builder"
@@ -19327,7 +19335,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent" for teleport-ent
 - name: Build teleport-ent image "teleport-ent:v11-arm64"
   image: docker
   commands:
@@ -19343,8 +19351,8 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")_arm64.deb /go/build
+    "/go/var/full-version")-arm64 --file "/go/build/Dockerfile-teleport-ent" --build-arg
+    DEB_PATH=teleport-ent_$(cat "/go/var/full-version")_arm64.deb /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-arm64-builder"
   - rm -rf "/tmp/teleport-ent-v11-arm64-builder"
@@ -19485,12 +19493,13 @@ steps:
   - Build full semver
   - Assume ECR - staging AWS Role
   - Assume ECR - authenticated-pull AWS Role
-- name: Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+- name: Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for
+    teleport-ent-fips
   image: alpine
   commands:
   - apk add curl
-  - mkdir -pv $(dirname "/go/build/Dockerfile")
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - mkdir -pv $(dirname "/go/build/Dockerfile-teleport-ent-fips")
+  - curl -Ls -o "/go/build/Dockerfile-teleport-ent-fips" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   depends_on:
   - Wait for docker
   - Wait for docker registry
@@ -19527,7 +19536,7 @@ steps:
     path: /root/.aws
   depends_on:
   - Assume S3 Download AWS Role for teleport-ent-fips
-  - Download Teleport Dockerfile to "/go/build/Dockerfile" for teleport-ent-fips
+  - Download Teleport Dockerfile to "/go/build/Dockerfile-teleport-ent-fips" for teleport-ent-fips
 - name: Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
   image: docker
   commands:
@@ -19543,8 +19552,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-ent-v11-fips-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag drone-docker-registry:5000/teleport-ent:$(cat
-    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile" --build-arg DEB_PATH=teleport-ent_$(cat
-    "/go/var/full-version")-fips_amd64.deb /go/build
+    "/go/var/full-version")-fips-amd64 --file "/go/build/Dockerfile-teleport-ent-fips"
+    --build-arg DEB_PATH=teleport-ent_$(cat "/go/var/full-version")-fips_amd64.deb
+    /go/build
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-ent-v11-fips-amd64-builder"
   - rm -rf "/tmp/teleport-ent-v11-fips-amd64-builder"
@@ -19828,6 +19838,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 382d012938e894d6ad9c8fc5cda887df2f7379a8117e4b2d9bbafbf098713fa6
+hmac: 1b2a7009309eab26cda4ee70a9615c9a28e857bafc4303c4c176d857f57b0203
 
 ...
