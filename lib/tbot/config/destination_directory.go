@@ -19,6 +19,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/utils"
 	"io/fs"
 	"os"
 	"os/user"
@@ -228,4 +229,9 @@ func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
 
 func (dd *DestinationDirectory) String() string {
 	return fmt.Sprintf("directory %s", dd.Path)
+}
+
+func (dd *DestinationDirectory) Lock() (func() error, error) {
+	unlock, err := utils.FSTryWriteLock(filepath.Join(dd.Path, "lock"))
+	return unlock, trace.Wrap(err)
 }
