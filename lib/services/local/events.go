@@ -20,15 +20,15 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // EventsService implements service to watch for events
@@ -336,7 +336,7 @@ type provisionTokenParser struct {
 func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindToken, types.VDeleted, 0)
+		return resourceHeader(event, types.KindToken, types.V2, 0)
 	case types.OpPut:
 		token, err := services.UnmarshalProvisionToken(event.Item.Value,
 			services.WithResourceID(event.Item.ID),

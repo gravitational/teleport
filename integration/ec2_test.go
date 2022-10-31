@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func newSilentLogger() utils.Logger {
@@ -158,15 +158,12 @@ func TestEC2NodeJoin(t *testing.T) {
 	token, err := types.NewProvisionTokenFromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
-		types.ProvisionTokenSpecV3{
-			Roles:      []types.SystemRole{types.RoleNode},
-			JoinMethod: types.JoinMethodEC2,
-			EC2: &types.ProvisionTokenSpecV3AWSEC2{
-				Allow: []*types.ProvisionTokenSpecV3AWSEC2_Rule{
-					{
-						Account: iid.AccountID,
-						Regions: []string{iid.Region},
-					},
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleNode},
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: iid.AccountID,
+					AWSRegions: []string{iid.Region},
 				},
 			},
 		})
@@ -236,16 +233,14 @@ func TestIAMNodeJoin(t *testing.T) {
 	token, err := types.NewProvisionTokenFromSpec(
 		tokenName,
 		time.Now().Add(time.Hour),
-		types.ProvisionTokenSpecV3{
-			Roles:      []types.SystemRole{types.RoleNode, types.RoleProxy},
-			JoinMethod: types.JoinMethodIAM,
-			IAM: &types.ProvisionTokenSpecV3AWSIAM{
-				Allow: []*types.ProvisionTokenSpecV3AWSIAM_Rule{
-					{
-						Account: *id.Account,
-					},
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleNode, types.RoleProxy},
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: *id.Account,
 				},
 			},
+			JoinMethod: types.JoinMethodIAM,
 		})
 	require.NoError(t, err)
 
@@ -322,6 +317,10 @@ func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
 	return types.InstanceMetadataTypeEC2
 }
 
+func (m *mockIMDSClient) GetID(ctx context.Context) (string, error) {
+	return "", nil
+}
+
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestEC2Labels(t *testing.T) {
@@ -384,7 +383,6 @@ func TestEC2Labels(t *testing.T) {
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
 	var kubes []types.KubeServer
-
 	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
 		var err error
@@ -396,7 +394,22 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		kubes, err = authServer.GetKubernetesServers(ctx)
 		require.NoError(t, err)
-		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
+
+		// dedupClusters is required because GetKubernetesServers returns duplicated servers
+		// because it lists the KindKubeServer and KindKubeService.
+		// We must remove this once legacy heartbeat is removed.
+		// DELETE IN 12.0.0
+		var dedupClusters []types.KubeServer
+		dedup := map[string]struct{}{}
+		for _, kube := range kubes {
+			if _, ok := dedup[kube.GetName()]; ok {
+				continue
+			}
+			dedup[kube.GetName()] = struct{}{}
+			dedupClusters = append(dedupClusters, kube)
+		}
+
+		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(dedupClusters) == 1
 	}, 10*time.Second, time.Second)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)

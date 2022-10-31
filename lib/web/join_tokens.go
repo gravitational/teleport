@@ -32,6 +32,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -42,9 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -70,9 +71,6 @@ type scriptSettings struct {
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	// TODO: This API needs to switch to ProvisionTokenSpecV3 down the road
-	// Is there a reasonable way for us to determine v2 vs v3 specs - or
-	// do we need to introduce a separate endpoint.
 	var req types.ProvisionTokenSpecV2
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -137,14 +135,10 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
 	}
 
-	v2 := types.ProvisionTokenV2{
-		Metadata: types.Metadata{
-			Name:    tokenName,
-			Expires: &expires,
-		},
-		Spec: req,
+	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	provisionToken := v2.V3()
 
 	err = clt.CreateToken(r.Context(), provisionToken)
 	if err != nil {

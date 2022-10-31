@@ -38,6 +38,8 @@ type BootstrapFlags struct {
 	AttachToRole string
 	// ForceRDSPermissions forces the presence of RDS permissions.
 	ForceRDSPermissions bool
+	// ForceRDSProxyPermissions forces the presence of RDS Proxy permissions.
+	ForceRDSProxyPermissions bool
 	// ForceRedshiftPermissions forces the presence of Redshift permissions.
 	ForceRedshiftPermissions bool
 	// ForceElastiCachePermissions forces the presence of ElastiCache permissions.

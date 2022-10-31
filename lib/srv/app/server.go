@@ -29,6 +29,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -45,11 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // Config is the configuration for an application server.
@@ -680,7 +679,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 // serveAWSWebConsole generates a sign-in URL for AWS management console and
 // redirects the user to it.
 func (s *Server) serveAWSWebConsole(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application) error {
-	s.log.Debugf("Redirecting %v to AWS mananement console with role %v.",
+	s.log.Debugf("Redirecting %v to AWS management console with role %v.",
 		identity.Username, identity.RouteToApp.AWSRoleARN)
 
 	url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{

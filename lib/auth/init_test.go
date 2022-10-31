@@ -22,6 +22,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -37,15 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -292,7 +292,7 @@ func TestAuthPreference(t *testing.T) {
 			return conf.AuthPreference
 		},
 		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
-			conf.AuthPreference = newU2FAuthPreferenceFromConfigFile(t)
+			conf.AuthPreference = newWebauthnAuthPreferenceConfigFromFile(t)
 			return conf.AuthPreference
 		},
 		setDynamic: func(t *testing.T, authServer *Server) {
@@ -607,17 +607,19 @@ func setupConfig(t *testing.T) InitConfig {
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+			},
 		},
 	}
 }
 
-func newU2FAuthPreferenceFromConfigFile(t *testing.T) types.AuthPreference {
+func newWebauthnAuthPreferenceConfigFromFile(t *testing.T) types.AuthPreference {
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorU2F,
-		U2F: &types.U2F{
-			AppID: "foo",
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)

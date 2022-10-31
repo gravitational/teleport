@@ -67,7 +67,9 @@ func TestCreateSAMLUser(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -193,7 +195,9 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
@@ -285,11 +289,16 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 
 	a, err := NewServer(authConfig)
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, a, "baz", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -402,7 +411,9 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}
 

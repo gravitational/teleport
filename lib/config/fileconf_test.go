@@ -597,7 +597,7 @@ func TestSSHSection(t *testing.T) {
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.True,
 		}, {
-			desc: "diasbled",
+			desc: "disabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["enabled"] = "no"
 			},
@@ -689,8 +689,64 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectError:   require.NoError,
 			expectEnabled: require.False,
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSMatcher{},
+				AWSMatchers: nil,
 			},
+		},
+		{
+			desc:          "Azure section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{
+						"types": []string{"aks"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:   []string{"aks"},
+						Regions: []string{"*"},
+						ResourceTags: map[string]apiutils.Strings{
+							"*": []string{"*"},
+						},
+						Subscriptions:  []string{"*"},
+						ResourceGroups: []string{"*"},
+					},
+				}},
+		},
+		{
+			desc:          "Azure section is filled with values",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{
+						"types":   []string{"aks"},
+						"regions": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"subscriptions":   []string{"sub1", "sub2"},
+						"resource_groups": []string{"group1", "group2"},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:   []string{"aks"},
+						Regions: []string{"eucentral1"},
+						ResourceTags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						Subscriptions:  []string{"sub1", "sub2"},
+						ResourceGroups: []string{"group1", "group2"},
+					},
+				}},
 		},
 		{
 			desc:          "AWS section is filled with defaults",
@@ -834,6 +890,7 @@ func TestDiscoveryConfig(t *testing.T) {
 			}
 			testCase.expectEnabled(t, cfg.Discovery.Enabled())
 			require.Equal(t, testCase.expectedDiscoverySection.AWSMatchers, cfg.Discovery.AWSMatchers)
+			require.Equal(t, testCase.expectedDiscoverySection.AzureMatchers, cfg.Discovery.AzureMatchers)
 		})
 	}
 }
@@ -1068,12 +1125,31 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "no", fc.Databases.EnabledFlag) // db is always disabled
 	})
 
-	t.Run("Auth server", func(t *testing.T) {
+	t.Run("V3 - auth server", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
+			Version:    defaults.TeleportConfigVersionV3,
 			AuthServer: "auth-server",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-server", fc.AuthServers[0])
+		require.Equal(t, "auth-server", fc.AuthServer)
+	})
+
+	t.Run("V3 - proxy server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Version:      defaults.TeleportConfigVersionV3,
+			ProxyAddress: "proxy.server",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "proxy.server", fc.ProxyServer)
+	})
+
+	t.Run("v2 - auth server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Version:    defaults.TeleportConfigVersionV2,
+			AuthServer: "auth-server",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"auth-server"}, fc.AuthServers)
 	})
 
 	t.Run("Data dir", func(t *testing.T) {

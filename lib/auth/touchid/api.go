@@ -36,9 +36,9 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -213,6 +213,13 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, ErrNotAvailable
 	}
 
+	if origin == "" {
+		return nil, trace.BadParameter("origin required")
+	}
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Ignored cc fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
@@ -221,22 +228,8 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	// - Extensions - none supported
 	// - Attestation - we always to our best (packed/self-attestation).
 	//   The server is free to ignore/reject.
-	switch {
-	case origin == "":
-		return nil, errors.New("origin required")
-	case cc == nil:
-		return nil, errors.New("credential creation required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, errors.New("challenge required")
-	// Note: we don't need other RelyingParty fields, but technically they would
-	// be required as well.
-	case cc.Response.RelyingParty.ID == "":
-		return nil, errors.New("relying party ID required")
-	case len(cc.Response.User.ID) == 0:
-		return nil, errors.New("user ID required")
-	case cc.Response.User.Name == "":
-		return nil, errors.New("user name required")
-	case cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform:
+
+	if cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform {
 		return nil, fmt.Errorf("cannot fulfill authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	}
 	ok := false
@@ -336,6 +329,24 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		CCR:          ccr,
 		credentialID: credentialID,
 	}, nil
+}
+
+// HasCredentials checks if there are any credentials registered for given user.
+// If user is empty it checks if there are credentials registered for any user.
+// It does not require user interactions.
+func HasCredentials(rpid, user string) bool {
+	if !IsAvailable() {
+		return false
+	}
+	if rpid == "" {
+		return false
+	}
+	creds, err := native.FindCredentials(rpid, user)
+	if err != nil {
+		log.WithError(err).Debug("Touch ID: Could not find credentials")
+		return false
+	}
+	return len(creds) > 0
 }
 
 func pubKeyFromRawAppleKey(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
@@ -443,24 +454,21 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
+	switch {
+	case origin == "":
+		return nil, "", trace.BadParameter("origin required")
+	case picker == nil:
+		return nil, "", trace.BadParameter("picker required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 
 	// Ignored assertion fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
 	// - UserVerification - always performed
 	// - Extensions - none supported
-	switch {
-	case origin == "":
-		return nil, "", errors.New("origin required")
-	case assertion == nil:
-		return nil, "", errors.New("assertion required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", errors.New("challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", errors.New("relying party ID required")
-	case picker == nil:
-		return nil, "", errors.New("picker required")
-	}
 
 	rpID := assertion.Response.RelyingPartyID
 	infos, err := native.FindCredentials(rpID, user)

@@ -20,13 +20,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // WatcherConfig is the cloud watcher configuration.
@@ -168,6 +168,7 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
 		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
+		services.AWSMatcherRDSProxy:    {makeRDSProxyFetcher},
 		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
 		services.AWSMatcherElastiCache: {makeElastiCacheFetcher},
 		services.AWSMatcherMemoryDB:    {makeMemoryDBFetcher},
@@ -194,22 +195,35 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 }
 
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
+	type makeFetcherFunc func(azureFetcherConfig) (Fetcher, error)
+	makeFetcherFuncs := map[string][]makeFetcherFunc{
+		services.AzureMatcherMySQL:    {newAzureMySQLFetcher},
+		services.AzureMatcherPostgres: {newAzurePostgresFetcher},
+		services.AzureMatcherRedis:    {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
+	}
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {
-			for _, sub := range matcher.Subscriptions {
-				for _, group := range matcher.ResourceGroups {
-					fetcher, err := newAzureFetcher(azureFetcherConfig{
-						AzureClients:  clients,
-						Type:          matcherType,
-						Subscription:  sub,
-						ResourceGroup: group,
-						Labels:        matcher.ResourceTags,
-						Regions:       matcher.Regions,
-					})
-					if err != nil {
-						return nil, trace.Wrap(err)
+			makeFetchers, found := makeFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown matcher type %q", matcherType)
+			}
+
+			for _, makeFetcher := range makeFetchers {
+				for _, sub := range matcher.Subscriptions {
+					for _, group := range matcher.ResourceGroups {
+						fetcher, err := makeFetcher(azureFetcherConfig{
+							AzureClients:  clients,
+							Type:          matcherType,
+							Subscription:  sub,
+							ResourceGroup: group,
+							Labels:        matcher.ResourceTags,
+							Regions:       matcher.Regions,
+						})
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						result = append(result, fetcher)
 					}
-					result = append(result, fetcher)
 				}
 			}
 		}
@@ -251,6 +265,20 @@ func makeRDSAuroraFetcher(clients cloud.Clients, region string, tags types.Label
 		return nil, trace.Wrap(err)
 	}
 	return fetcher, nil
+}
+
+// makeRDSProxyFetcher returns RDS proxy fetcher for the provided region and tags.
+func makeRDSProxyFetcher(clients cloud.Clients, region string, tags types.Labels) (Fetcher, error) {
+	rds, err := clients.GetAWSRDSClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newRDSDBProxyFetcher(rdsFetcherConfig{
+		Region: region,
+		Labels: tags,
+		RDS:    rds,
+	})
 }
 
 // makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.

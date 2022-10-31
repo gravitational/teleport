@@ -24,6 +24,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -35,10 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 // KeyIndex helps to identify a key in the store.
@@ -277,6 +277,21 @@ func (k *Key) SSHCAsForClusters(clusters []string) (result [][]byte, err error) 
 		}
 	}
 	return result, nil
+}
+
+// GetClusterNames gets the names of clusters this key has CAs for.
+func (k *Key) GetClusterNames() ([]string, error) {
+	var clusters []string
+	for _, ca := range k.TrustedCA {
+		for _, hc := range ca.HostCertificates {
+			_, hosts, _, _, _, err := ssh.ParseKnownHosts(hc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clusters = append(clusters, hosts...)
+		}
+	}
+	return apiutils.Deduplicate(clusters), nil
 }
 
 // TeleportClientTLSConfig returns client TLS configuration used

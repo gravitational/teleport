@@ -18,11 +18,12 @@ import (
 	"net"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // proxyService implements the grpc ProxyService.
@@ -45,7 +46,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	if dial.Source == nil || dial.Destination == nil {
-		return trace.BadParameter("invalid dial request: source and destinatation must not be nil")
+		return trace.BadParameter("invalid dial request: source and destination must not be nil")
 	}
 
 	log := s.log.WithFields(logrus.Fields{
