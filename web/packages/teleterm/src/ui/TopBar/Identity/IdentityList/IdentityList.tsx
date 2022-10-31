@@ -32,13 +32,13 @@ export function IdentityList(props: IdentityListProps) {
           <Flex px={3} pt={2} pb={2} justifyContent="space-between">
             <Box>
               <Text bold>{props.loggedInUser.name}</Text>
-              <Text typography="body2" color="text.secondary">
+              <Flex flexWrap="wrap" gap={1}>
                 {props.loggedInUser.rolesList.map(role => (
-                  <Label mb="1" mr="1" key={role} kind="secondary">
+                  <Label key={role} kind="secondary">
                     {role}
                   </Label>
                 ))}
-              </Text>
+              </Flex>
             </Box>
           </Flex>
           <Separator />
