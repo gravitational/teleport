@@ -1858,7 +1858,7 @@ steps:
     image: amazon/aws-cli
     commands:
       - cd /go/chart
-      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
+      - aws s3 sync . s3://$AWS_S3_BUCKET/
     environment:
       AWS_REGION: us-west-2
       AWS_S3_BUCKET:
@@ -8112,7 +8112,7 @@ steps:
         path: /root/.aws
     commands:
       - cd /go/chart/
-      - aws s3 sync --acl public-read . s3://$AWS_S3_BUCKET/
+      - aws s3 sync s3://$AWS_S3_BUCKET/
 
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
@@ -8727,6 +8727,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 5f982749185382ef67eafc2d86ce4e4eb210f85868300be073ed9d6a7ab83453
+hmac: d0e98f5907a1a92305ba8b153c06302a08320859cfabd783095fe795ce7577c0
 
 ...
