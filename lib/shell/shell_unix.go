@@ -31,12 +31,14 @@ static int mygetpwnam_r(const char *name, struct passwd *pwd,
 	return getpwnam_r(name, pwd, buf, buflen, result);
 }
 */
-import "os/user"
+import "C"
+
+import (
+	"os/user"
 	"strings"
 	"syscall"
 	"unsafe"
 
-	"C"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )

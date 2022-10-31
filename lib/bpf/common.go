@@ -16,9 +16,11 @@ limitations under the License.
 
 package bpf
 
-import "context"
+import "C"
 
-	"C"
+import (
+	"context"
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
