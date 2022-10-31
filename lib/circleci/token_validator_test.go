@@ -40,10 +40,6 @@ type fakeIDP struct {
 	server *httptest.Server
 }
 
-func (f *fakeIDP) close() {
-	f.server.Close()
-}
-
 func (f *fakeIDP) issueToken(
 	t *testing.T,
 	organizationID string,
@@ -89,6 +85,7 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 
 	providerMux := http.NewServeMux()
 	srv := httptest.NewServer(providerMux)
+	t.Cleanup(srv.Close)
 	orgURL := "/org/" + organizationID
 	providerMux.HandleFunc(orgURL+"/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		response := map[string]interface{}{
@@ -142,7 +139,6 @@ func TestValidateToken(t *testing.T) {
 	t.Parallel()
 	realOrgID := "xyz-foo-bar-123"
 	fake := newFakeIDP(t, realOrgID)
-	t.Cleanup(fake.close)
 
 	tests := []struct {
 		name        string

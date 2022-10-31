@@ -45,6 +45,7 @@ func fakeGithubIDP(t *testing.T) (*httptest.Server, jose.Signer) {
 
 	providerMux := http.NewServeMux()
 	srv := httptest.NewServer(providerMux)
+	t.Cleanup(srv.Close)
 	providerMux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		// mimic https://token.actions.githubusercontent.com/.well-known/openid-configuration
 		response := map[string]interface{}{
@@ -131,7 +132,6 @@ func makeToken(t *testing.T, jwtSigner jose.Signer, issuer, audience, actor, sub
 func TestIDTokenValidator_Validate(t *testing.T) {
 	t.Parallel()
 	providerServer, jwtSigner := fakeGithubIDP(t)
-	t.Cleanup(providerServer.Close)
 
 	tests := []struct {
 		name        string
