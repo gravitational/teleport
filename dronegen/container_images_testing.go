@@ -57,10 +57,10 @@ package main
 const (
 	configureForPRTestingOnly bool   = false
 	testingSecretPrefix       string = "TEST_"
-	testingQuayRegistryOrg    string = "" //"fred_heinecke"
+	testingQuayRegistryOrg    string = "" // "fred_heinecke"
 	testingECRRegistryOrg     string = "u8j2q1d9"
 	testingECRRegion          string = "us-east-2"
-	prBranch                  string = "" //"fred/multiarch-teleport-container-images"
+	prBranch                  string = "" // "fred/multiarch-teleport-actual-container-images"
 	testingECRDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com"
 )
 
