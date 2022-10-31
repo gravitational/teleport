@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 const timeout = time.Second * 5
