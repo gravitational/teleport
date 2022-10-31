@@ -21,14 +21,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/oxy/ratelimit"
-
 	"github.com/mailgun/timetools"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {

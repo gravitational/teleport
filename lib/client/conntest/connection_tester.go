@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/trace"
 )
 
 // TestConnectionRequest contains

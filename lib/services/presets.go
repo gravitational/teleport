@@ -17,15 +17,14 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport"
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	utils "github.com/gravitational/teleport/api/utils"
-
-	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
