@@ -1897,6 +1897,6 @@ pub(crate) type Message = Vec<u8>;
 pub(crate) type Messages = Vec<Message>;
 
 /// Encode is an object that can be encoded for sending to the RDP server.
-trait Encode: std::fmt::Debug {
+pub(crate) trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Message>;
 }
