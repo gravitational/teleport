@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"net"
 	"time"
 
@@ -64,10 +65,7 @@ func (d ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.
 		return nil, trace.BadParameter("missing TLS config")
 	}
 
-	var dialer ContextDialer = &net.Dialer{
-		KeepAlive: d.cfg.KeepAlivePeriod,
-		Timeout:   d.cfg.DialTimeout,
-	}
+	var dialer ContextDialer = apiclient.NewDialer(ctx, d.cfg.KeepAlivePeriod, d.cfg.DialTimeout)
 	if d.cfg.ALPNConnUpgradeRequired {
 		dialer = newALPNConnUpgradeDialer(d.cfg.KeepAlivePeriod, d.cfg.DialTimeout, d.cfg.TLSConfig.InsecureSkipVerify)
 	}
