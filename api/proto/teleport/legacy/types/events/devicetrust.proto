@@ -48,7 +48,7 @@ message DeviceMetadata {
   string credential_id = 4;
 }
 
-// DeviceEvent is a device-relate event.
+// DeviceEvent is a device-related event.
 // The event type (Metadata.Type) for device events is always "device". See the
 // event code (Metadata.Code) for its meaning.
 message DeviceEvent {
