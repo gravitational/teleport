@@ -1034,18 +1034,21 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github update event
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github delete event
 	err = s.a.deleteGithubConnector(ctx, "test")
 	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorDeletedEvent)
 }
 
@@ -1069,18 +1072,21 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc update event
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc delete event
 	err = s.a.DeleteOIDCConnector(ctx, "test")
 	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorDeletedEvent)
 }
 
@@ -1129,18 +1135,21 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml update event
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml delete event
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorDeletedEvent)
 }
 
