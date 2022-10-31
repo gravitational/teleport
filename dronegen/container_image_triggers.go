@@ -21,11 +21,12 @@ import (
 
 // Describes a Drone trigger as it pertains to container image building.
 type TriggerInfo struct {
-	Trigger           trigger
-	Name              string
-	Flags             *TriggerFlags
-	SupportedVersions []*ReleaseVersion
-	SetupSteps        []step
+	Trigger              trigger
+	Name                 string
+	Flags                *TriggerFlags
+	SupportedVersions    []*ReleaseVersion
+	SetupSteps           []step
+	ParentePipelineNames []string
 }
 
 // This type is mainly used to make passing these vars around cleaner
@@ -54,6 +55,9 @@ func NewTagTrigger(branchMajorVersion string) *TriggerInfo {
 				ShellVersion:        "$DRONE_TAG",
 				RelativeVersionName: "branch",
 			},
+		},
+		ParentePipelineNames: []string{
+			tagCleanupPipelineName,
 		},
 	}
 }
@@ -155,6 +159,7 @@ func (ti *TriggerInfo) buildPipelines() []pipeline {
 		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps, ti.Flags)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
+		pipeline.DependsOn = append(pipeline.DependsOn, ti.ParentePipelineNames...)
 
 		pipelines = append(pipelines, pipeline)
 	}

@@ -8152,6 +8152,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Wait for docker
   image: docker
@@ -18748,6 +18750,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Wait for docker
   image: docker
@@ -19847,6 +19851,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 0df8a42be2b005d31718575a286f218fcf79dd2c456bc0ef14b8e8674cf5eeb9
+hmac: 78bd9df7ba2989697be8bcf1cdf423efd3e47c40f2d60fed16f80764312ac50e
 
 ...
