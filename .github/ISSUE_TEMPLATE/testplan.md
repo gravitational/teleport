@@ -1261,16 +1261,14 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
 - Clipboard Support
   - When a user has a role with clipboard sharing enabled and is using a chromium based browser
-    - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt while the UI shows a spinner
-    - [ ] X-ing out of the prompt (causing the clipboard permission to remain in "Ask" mode) causes the prompt to show up again
-    - [ ] Denying clipboard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
-    - [ ] Allowing clipboard permissions allows you to see the desktop session, with "Clipboard Sharing Enabled" highlighted in the top bar
-    - [ ] Copy text from local workstation, paste into remote desktop
-    - [ ] Copy text from remote desktop, paste into local workstation
+    - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt when you first click or press a key
+    - [ ] The clipboard icon is highlighted in the top bar
+    - [ ] After allowing clipboard permission, copy text from local workstation, paste into remote desktop
+    - [ ] After allowing clipboard permission, copy text from remote desktop, paste into local workstation
   - When a user has a role with clipboard sharing enabled and is *not* using a chromium based browser
-    - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
+    - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
   - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
-    - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
+    - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
 - Directory Sharing
   - On supported, non-chromium based browsers (Firefox/Safari)
     - [ ] Attempting to share directory shows a dismissible "Unsupported Action" dialog
