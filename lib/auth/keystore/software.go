@@ -17,41 +17,47 @@ package keystore
 import (
 	"crypto"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
-type rawKeyStore struct {
+type softwareKeyStore struct {
 	rsaKeyPairSource RSAKeyPairSource
 }
 
 // RSAKeyPairSource is a function type which returns new RSA keypairs.
 type RSAKeyPairSource func() (priv []byte, pub []byte, err error)
 
-type RawConfig struct {
+type SoftwareConfig struct {
 	RSAKeyPairSource RSAKeyPairSource
 }
 
-func NewRawKeyStore(config *RawConfig) KeyStore {
-	return &rawKeyStore{
+func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
+	if cfg.RSAKeyPairSource == nil {
+		return trace.BadParameter("must provide RSAKeyPairSource")
+	}
+	return nil
+}
+
+func NewSoftwareKeyStore(config *SoftwareConfig) KeyStore {
+	return &softwareKeyStore{
 		rsaKeyPairSource: config.RSAKeyPairSource,
 	}
 }
 
-// GenerateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier for rawKeyStore is a pem-encoded
-// private key, and can be passed to GetSigner later to get the same
+// generateRSA creates a new RSA private key and returns its identifier and a
+// crypto.Signer. The returned identifier for softwareKeyStore is a pem-encoded
+// private key, and can be passed to getSigner later to get the same
 // crypto.Signer.
-func (c *rawKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
-	priv, _, err := c.rsaKeyPairSource()
+func (s *softwareKeyStore) generateRSA() ([]byte, crypto.Signer, error) {
+	priv, _, err := s.rsaKeyPairSource()
 	if err != nil {
 		return nil, nil, err
 	}
-	signer, err := c.GetSigner(priv)
+	signer, err := s.getSigner(priv)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,14 +65,14 @@ func (c *rawKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
 }
 
 // GetSigner returns a crypto.Signer for the given pem-encoded private key.
-func (c *rawKeyStore) GetSigner(rawKey []byte) (crypto.Signer, error) {
+func (s *softwareKeyStore) getSigner(rawKey []byte) (crypto.Signer, error) {
 	signer, err := utils.ParsePrivateKeyPEM(rawKey)
 	return signer, trace.Wrap(err)
 }
 
-// GetTLSCertAndSigner selects the first raw TLS keypair and returns the raw
+// GetTLSCertAndSigner selects the first software TLS keypair and returns the raw
 // TLS cert and a crypto.Signer.
-func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+func (s *softwareKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().TLS
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_RAW {
@@ -83,7 +89,7 @@ func (c *rawKeyStore) GetTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypt
 // GetAdditionalTrustedTLSCertAndSigner selects the local TLS keypair from the
 // CA AdditionalTrustedKeys and returns the PEM-encoded TLS cert and a
 // crypto.Signer.
-func (c *rawKeyStore) GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
+func (s *softwareKeyStore) GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthority) ([]byte, crypto.Signer, error) {
 	keyPairs := ca.GetAdditionalTrustedKeys().TLS
 	for _, keyPair := range keyPairs {
 		if keyPair.KeyType == types.PrivateKeyType_RAW {
@@ -97,8 +103,8 @@ func (c *rawKeyStore) GetAdditionalTrustedTLSCertAndSigner(ca types.CertAuthorit
 	return nil, nil, trace.NotFound("no matching TLS key pairs found in CA for %q", ca.GetClusterName())
 }
 
-// GetSSHSigner selects the first raw SSH keypair and returns an ssh.Signer
-func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
+// GetSSHSigner selects the first software SSH keypair and returns an ssh.Signer
+func (s *softwareKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	keyPairs := ca.GetActiveKeys().SSH
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
@@ -109,12 +115,12 @@ func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 			return signer, nil
 		}
 	}
-	return nil, trace.NotFound("no raw SSH key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no software SSH key pairs found in CA for %q", ca.GetClusterName())
 }
 
 // GetAdditionalTrustedSSHSigner selects the local SSH keypair from the CA
 // AdditionalTrustedKeys and returns an ssh.Signer.
-func (c *rawKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
+func (s *softwareKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	keyPairs := ca.GetAdditionalTrustedKeys().SSH
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
@@ -125,11 +131,11 @@ func (c *rawKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh
 			return signer, nil
 		}
 	}
-	return nil, trace.NotFound("no raw SSH key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no software SSH key pairs found in CA for %q", ca.GetClusterName())
 }
 
 // GetJWTSigner returns the active JWT signer used to sign tokens.
-func (c *rawKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
+func (s *softwareKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error) {
 	keyPairs := ca.GetActiveKeys().JWT
 	for _, keyPair := range keyPairs {
 		if keyPair.PrivateKeyType == types.PrivateKeyType_RAW {
@@ -140,30 +146,31 @@ func (c *rawKeyStore) GetJWTSigner(ca types.CertAuthority) (crypto.Signer, error
 			return signer, nil
 		}
 	}
-	return nil, trace.NotFound("no JWT key pairs found in CA for %q", ca.GetClusterName())
+	return nil, trace.NotFound("no software JWT key pairs found in CA for %q", ca.GetClusterName())
 }
 
 // NewSSHKeyPair creates and returns a new SSHKeyPair.
-func (c *rawKeyStore) NewSSHKeyPair() (*types.SSHKeyPair, error) {
-	return newSSHKeyPair(c)
+func (s *softwareKeyStore) NewSSHKeyPair() (*types.SSHKeyPair, error) {
+	return newSSHKeyPair(s)
 }
 
 // NewTLSKeyPair creates and returns a new TLSKeyPair.
-func (c *rawKeyStore) NewTLSKeyPair(clusterName string) (*types.TLSKeyPair, error) {
-	return newTLSKeyPair(c, clusterName)
+func (s *softwareKeyStore) NewTLSKeyPair(clusterName string) (*types.TLSKeyPair, error) {
+	return newTLSKeyPair(s, clusterName)
 }
 
 // NewJWTKeyPair creates and returns a new JWTKeyPair.
-func (c *rawKeyStore) NewJWTKeyPair() (*types.JWTKeyPair, error) {
-	return newJWTKeyPair(c)
+func (s *softwareKeyStore) NewJWTKeyPair() (*types.JWTKeyPair, error) {
+	return newJWTKeyPair(s)
 }
 
-// DeleteKey deletes the given key from the KeyStore. This is a no-op for rawKeyStore.
-func (c *rawKeyStore) DeleteKey(rawKey []byte) error {
+// deleteKey deletes the given key from the KeyStore. This is a no-op for
+// softwareKeyStore.
+func (s *softwareKeyStore) deleteKey(rawKey []byte) error {
 	return nil
 }
 
-func (c *rawKeyStore) keySetHasLocalKeys(keySet types.CAKeySet) bool {
+func (s *softwareKeyStore) keySetHasLocalKeys(keySet types.CAKeySet) bool {
 	for _, sshKeyPair := range keySet.SSH {
 		if sshKeyPair.PrivateKeyType == types.PrivateKeyType_RAW {
 			return true
@@ -184,20 +191,20 @@ func (c *rawKeyStore) keySetHasLocalKeys(keySet types.CAKeySet) bool {
 
 // HasLocalActiveKeys returns true if the given CA has any active keys that
 // are usable with this KeyStore.
-func (c *rawKeyStore) HasLocalActiveKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetActiveKeys())
+func (s *softwareKeyStore) HasLocalActiveKeys(ca types.CertAuthority) bool {
+	return s.keySetHasLocalKeys(ca.GetActiveKeys())
 }
 
 // HasLocalAdditionalKeys returns true if the given CA has any additional
 // trusted keys that are usable with this KeyStore.
-func (c *rawKeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
-	return c.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys())
+func (s *softwareKeyStore) HasLocalAdditionalKeys(ca types.CertAuthority) bool {
+	return s.keySetHasLocalKeys(ca.GetAdditionalTrustedKeys())
 }
 
 // DeleteUnusedKeys deletes all keys from the KeyStore if they are:
 // 1. Labeled by this KeyStore when they were created
 // 2. Not included in the argument usedKeys
 // This is a no-op for rawKeyStore.
-func (c *rawKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
+func (s *softwareKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 	return nil
 }
