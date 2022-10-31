@@ -18,6 +18,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -25,8 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
-	"github.com/gravitational/trace"
 )
 
 type AccessRequest struct {
