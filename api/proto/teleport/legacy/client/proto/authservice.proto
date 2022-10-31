@@ -1926,6 +1926,9 @@ service AuthService {
   // GetActiveSessionTrackers returns a list of active sessions.
   rpc GetActiveSessionTrackers(google.protobuf.Empty) returns (stream types.SessionTrackerV1);
 
+  // GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+  rpc GetActiveSessionTrackersWithFilter(types.SessionTrackerFilter) returns (stream types.SessionTrackerV1);
+
   // RemoveSessionTracker removes a session tracker resource.
   rpc RemoveSessionTracker(RemoveSessionTrackerRequest) returns (google.protobuf.Empty);
 
